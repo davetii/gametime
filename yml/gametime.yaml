@@ -1,0 +1,387 @@
+openapi: 3.0.0
+info:
+  description: Gametime API
+  version: "1.0.0"
+  title: Gametime API
+  contact:
+    email: davetii@gmail.com
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local Server
+
+paths:
+  /v1/league:
+    get:
+      summary: list of all conferences, teams, players in league
+      description: a list of all **Actors** in the league
+      tags:
+        - League
+      operationId: fetchLeaguev1
+      responses:
+        '200':
+          description: list of all conferences, teams, players in league
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conference"
+
+  /v1/conference/{confId}:
+    parameters:
+      - in: path
+        name: confId
+        required: true
+        schema:
+          type: string
+
+    get:
+      summary: list of all teams in a  given conference
+      description: a list of all **Teams** in the league in a given conference
+      tags:
+        - League
+      operationId: fetchConference
+      responses:
+        '200':
+          description: returns a list of all teams in a given conference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conference"
+
+  /v1/team/{teamId}:
+    get:
+      summary: fetch Team by id
+      tags:
+        - Team
+      operationId: fetchTeam
+      parameters:
+        - $ref: "#/components/parameters/teamIdPathParam"
+      responses:
+        '200':
+          description: Found Team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        '404':
+          description: Not Found
+
+  /v1/team/{teamId}/{playerId}:
+    post:
+      summary: Add Player to Team
+      description: Add Player to Team
+      operationId: addPlayerToTeam
+      tags:
+        - Team
+      parameters:
+        - $ref: "#/components/parameters/teamIdPathParam"
+        - $ref: "#/components/parameters/playerIdPathParam"
+      responses:
+        '200':
+          description: Team Updated
+        '403':
+          description: Already exists
+        '404':
+          description: Not Found
+
+    delete:
+      summary: Remove Player from Team
+      description: Remove Player from Team
+      operationId: removePlayerFromTeam
+      tags:
+        - Team
+      parameters:
+        - $ref: "#/components/parameters/teamIdPathParam"
+        - $ref: "#/components/parameters/playerIdPathParam"
+      responses:
+        '200':
+          description: Team Updated
+        '404':
+          description: Not Found
+  
+  /v1/player/:
+    put:
+      summary: Update Player
+      description: Update player
+      operationId: updatePlayer
+      tags:
+        - Player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Player"
+      responses:
+        '200':
+          description: Player Updated
+        '404':
+          description: Not Found
+    post:
+      summary: Create Player
+      description: Create
+      operationId: createPlayer
+      tags:
+        - Player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Player"
+      responses:
+        '200':
+          description: Player Created
+        '404':
+          description: Not Found
+
+  /v1/player/{playerId}:
+    get:
+      summary: fetch player by id
+      tags:
+        - Player
+      operationId: readPlayer
+      parameters:
+        - $ref: "#/components/parameters/playerIdPathParam"
+      responses:
+        '200':
+          description: Found Player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        '404':
+          description: Not Found
+    
+    delete:
+      summary: Retire Player
+      description: Retire Player
+      operationId: deletePlayer
+      tags:
+        - Player
+      parameters:
+        - $ref: "#/components/parameters/playerIdPathParam"
+      responses:
+        '200':
+          description: Payer Updated
+        '404':
+          description: Not Found
+
+
+components:
+
+  parameters:
+
+    confIdPathParam:
+      in: path
+      description: Conference ID
+      name: confId
+      required: true
+      schema:
+        type: string
+
+    pageNumberParam:
+      in: query
+      description: Page number
+      name: pageNumber
+      schema:
+        type: integer
+        format: int32
+        default: 1
+
+    pageSizeParam:
+      in: query
+      description: Page Size
+      name: pageSize
+      required: false
+      schema:
+        type: integer
+        format: int32
+        default: 25
+
+    playerIdPathParam:
+      in: path
+      description: Player Id
+      name: playerId
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    teamIdPathParam:
+      in: path
+      description: Team ID
+      name: teamId
+      required: true
+      schema:
+        type: string
+
+
+
+  schemas:
+    Conference:
+      type: object
+      description: A collection of teams organized by a region
+      properties:
+        id:
+          type: string
+          readOnly: true
+          enum: [EAST, NORTH, SOUTH, WEST]
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/Team"
+
+    Team:
+      type: object
+      description: A group of individuals representing a locale
+      properties:
+        id:
+          type: string
+          readOnly: true
+          enum: [NY, PHI, BOS, CON, JACK, NC, WASH, ATL, BRK, MIA, MI, CHI, TOR, VIR, IND, CLEV, MIN, PIT, MIL, BUF,
+                 TEN, KC, STL, HOU, SA, NO,DAL, DEN, OKL, ALA, SD, LA, PHO, CA, POR, SF, SEA, UT, VAN, LV]
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/Player"
+        locale:
+          type: string
+        name:
+          type: string
+        coach:
+          $ref: "#/components/schemas/Coach"
+        gm:
+          $ref: "#/components/schemas/GM"
+
+    Coach:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    GM:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    Player:
+      type: object
+      description: Player
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: d290f1ee-6c54-4b01-90e6-d701748f0851
+        firstName:
+          type: string
+          example: Bob
+        lastName:
+          type: string
+          example: Johnson
+        position:
+          type: string
+          enum: [PG, CG, 2G, W, SF, F, PF, FC, C]
+        height:
+          type: string
+        weight:
+          type: integer
+        yearsPro:
+          type: integer
+        origin:
+          type: string
+        agility:
+          type: integer
+          format: int32
+        charisma:
+          type: integer
+          format: int32
+        cohesion:
+          type: integer
+          format: int32
+        determination:
+          type: integer
+          format: int32
+        ego:
+          type: integer
+          format: int32
+        endurance:
+          type: integer
+          format: int32
+        energy:
+          type: integer
+          format: int32
+        handle:
+          type: integer
+          format: int32
+        health:
+          type: integer
+          format: int32
+        intelligence:
+          type: integer
+          format: int32
+        luck:
+          type: integer
+          format: int32
+        person:
+          type: integer
+          format: int32
+        shotSelection:
+          type: integer
+          format: int32
+        shotSkill:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        speed:
+          type: integer
+          format: int32
+        strength:
+          type: integer
+          format: int32
+        skills:
+          $ref: "#/components/schemas/PlayerSkills"
+
+    PlayerSkills:
+      type: object
+      description: Player Skill Set
+      properties:
+        acumen:
+          type: number
+        ballSecurity:
+          type: number
+        passing:
+          type: number
+        teamOffense:
+          type: number
+        drive:
+          type: number
+        freeThrows:
+          type: number
+        longRange:
+          type: number
+        perimeter:
+          type: number
+        post:
+          type: number
+        individualDefense:
+          type: number
+        teamDefense:
+          type: number
+        offenseRebound:
+          type: number
+        defenseRebound:
+          type: number
