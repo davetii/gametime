@@ -19,9 +19,10 @@ Its meant to be a basketball simimulator
 
 
 ### todo
-* Add YAML
-* Run openapi generator
-* implement end points -> faked by maps
 * implement persistence
+* implement end points
+* implement cucumber tests
+* game sim
+
 
 
