@@ -26,7 +26,6 @@ public class GametimeServiceImp implements GametimeService {
         this.entityMapper = entityMapper;
     }
 
-    //private final DomainEntityMapper mapper;
     @Override
     public List<Team> getLeague() {
         List<TeamEntity> teamEntities = StreamSupport
