@@ -23,7 +23,7 @@ public class EntityMapper {
         return list;
     }
 
-    private Team entityToTeam(TeamEntity entity) {
+    protected Team entityToTeam(TeamEntity entity) {
         if(entity == null) { return new Team(); }
         Team team = new Team();
         if(entity.getCoach() != null) {
@@ -54,12 +54,13 @@ public class EntityMapper {
 
     }
 
-    private Player mapEntityToPlayer(PlayerEntity e) {
+    protected Player mapEntityToPlayer(PlayerEntity e) {
         Player player = new Player();
         player.setRole(Player.RoleEnum.fromValue(e.getRole().name()));
         player.setPosition(Player.PositionEnum.fromValue(e.getPosition().id));
         player.setLastName(e.getLastName());
         player.setFirstName(e.getFirstName());
+        System.out.println(e);
         player.setId(UUID.fromString(e.getId()));
         player.setHeight(e.getHeight());
         player.setWeight(e.getWeight());
@@ -88,7 +89,7 @@ public class EntityMapper {
     }
 
 
-    GM entityToGm(GMEntity gmEntity) {
+    protected GM entityToGm(GMEntity gmEntity) {
         if(gmEntity == null) { return new GM();}
         GM gm = new GM();
         gm.setLastName(gmEntity.getLastName());
@@ -96,7 +97,7 @@ public class EntityMapper {
         return gm;
     }
 
-    Coach entityToCoach(CoachEntity coachEntity) {
+    protected Coach entityToCoach(CoachEntity coachEntity) {
         if(coachEntity == null) { return new Coach();}
         Coach coach = new Coach();
         coach.setLastName(coachEntity.getLastName());
