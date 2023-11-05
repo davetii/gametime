@@ -1,9 +1,9 @@
 package software.daveturner.gametime.mapper;
 
-import org.springframework.stereotype.Component;
-import software.daveturner.gametime.model.Player;
+import org.springframework.stereotype.*;
+import software.daveturner.gametime.model.*;
 
-import java.math.BigDecimal;
+import java.math.*;
 
 @Component
 public class AcumenSkillCalculator implements SkillCalculator{
