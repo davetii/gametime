@@ -18,7 +18,7 @@ public class PlayerEntity {
     private Position position;
 
     @Enumerated(EnumType.STRING)
-    private Role role;
+    private Status status;
 
 
     private String height;
@@ -92,12 +92,12 @@ public class PlayerEntity {
         this.position = position;
     }
 
-    public Role getRole() {
-        return role;
+    public Status getStatus() {
+        return status;
     }
 
-    public void setRole(Role role) {
-        this.role = role;
+    public void setStatus(Status role) {
+        this.status = role;
     }
 
     public String getHeight() {

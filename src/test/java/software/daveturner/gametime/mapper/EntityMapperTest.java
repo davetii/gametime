@@ -129,7 +129,7 @@ class EntityMapperTest {
         assertEquals(TESTATTRIB, player.getStrength());
         assertEquals(TESTATTRIB, player.getSpeed());
 
-        assertEquals(Role.STARTER.toString(), player.getRole().toString());
+        assertEquals(Status.STARTER.toString(), player.getStatus().toString());
         assertEquals(Position.PG.toString(), player.getPosition().toString());
 
         assertEquals(PLAYERLASTNAME, player.getLastName());
@@ -155,7 +155,7 @@ class EntityMapperTest {
     private PlayerEntity testPLayerEntity() {
         PlayerEntity entity = new PlayerEntity();
         entity.setId(TESTID);
-        entity.setRole(Role.STARTER);
+        entity.setStatus(Status.STARTER);
         entity.setPosition(Position.PG);
         entity.setLastName(PLAYERLASTNAME);
         entity.setFirstName(PLAYERFIRSTNAME);

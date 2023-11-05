@@ -56,7 +56,7 @@ public class EntityMapper {
 
     protected Player mapEntityToPlayer(PlayerEntity e) {
         Player player = new Player();
-        player.setRole(Player.RoleEnum.fromValue(e.getRole().name()));
+        player.setStatus(Player.StatusEnum.fromValue(e.getStatus().name()));
         player.setPosition(Player.PositionEnum.fromValue(e.getPosition().id));
         player.setLastName(e.getLastName());
         player.setFirstName(e.getFirstName());
