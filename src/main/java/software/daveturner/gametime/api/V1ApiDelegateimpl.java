@@ -1,5 +1,6 @@
 package software.daveturner.gametime.api;
 
+import org.springframework.cache.annotation.*;
 import org.springframework.http.*;
 import org.springframework.stereotype.*;
 import software.daveturner.gametime.model.*;
@@ -16,6 +17,7 @@ public class V1ApiDelegateimpl implements V1ApiDelegate {
         this.service = service;
     }
 
+    @Cacheable
     @Override
     public ResponseEntity<List<Team>> fetchLeaguev1() {
         return ResponseEntity.ok(service.getLeague());

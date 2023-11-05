@@ -292,6 +292,8 @@ components:
           type: string
         weight:
           type: integer
+        draftSlot:
+          type: string
         yearsPro:
           type: integer
         origin:
@@ -327,9 +329,6 @@ components:
           type: integer
           format: int32
         luck:
-          type: integer
-          format: int32
-        person:
           type: integer
           format: int32
         shotSelection:

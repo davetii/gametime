@@ -8,6 +8,13 @@ import java.util.*;
 
 @Component
 public class EntityMapper {
+
+    private final SkillMapper skillMapper;
+
+    public EntityMapper(SkillMapper skillMapper) {
+        this.skillMapper = skillMapper;
+    }
+
     public List<Team> mapLeague(List<TeamEntity> entities) {
         List<Team> list = new ArrayList<>();
         for (TeamEntity entity: entities) {
@@ -57,8 +64,8 @@ public class EntityMapper {
         player.setHeight(e.getHeight());
         player.setWeight(e.getWeight());
         player.setOrigin(e.getOrigin());
-        //player.setOriginDetails(e.getOriginDetails());
-        //player.setAthleticism(e.getAthleticism());
+        player.setDraftSlot(e.getDraftSlot());
+        player.setAgility(e.getAgility());
         player.setCharisma(e.getCharisma());
         player.setCohesion(e.getCohesion());
         player.setDetermination(e.getDetermination());
@@ -75,8 +82,8 @@ public class EntityMapper {
         player.setStrength(e.getStrength());
         player.setSpeed(e.getSpeed());
         player.setYearsPro(e.getYearsPro());
-        //player.setDraftSlot(e.getDraftSlot());
-        //player.setSkills(skillMapper.mapSkills(player));
+
+        player.setSkills(skillMapper.mapSkills(player));
         return player;
     }
 

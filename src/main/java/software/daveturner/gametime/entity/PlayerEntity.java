@@ -28,7 +28,7 @@ public class PlayerEntity {
     private String origin;
     private String originDetails;
 
-    private Integer athleticism;
+    private Integer agility;
     private Integer charisma;
     private Integer cohesion;
     private Integer determination;
@@ -143,12 +143,12 @@ public class PlayerEntity {
     public String getOriginDetails() { return originDetails; }
     public void setOriginDetails(String originDetails) { this.originDetails = originDetails; }
 
-    public Integer getAthleticism() {
-        return athleticism;
+    public Integer getAgility() {
+        return agility;
     }
 
-    public void setAthleticism(Integer athleticism) {
-        this.athleticism = athleticism;
+    public void setAgility(Integer athleticism) {
+        this.agility = athleticism;
     }
 
     public Integer getCharisma() {
@@ -295,7 +295,7 @@ public class PlayerEntity {
                 ", yearsPro=" + yearsPro +
                 ", origin='" + origin + '\'' +
                 ", originDetails='" + originDetails + '\'' +
-                ", athleticism=" + athleticism +
+                ", athleticism=" + agility +
                 ", charisma=" + charisma +
                 ", cohesion=" + cohesion +
                 ", determination=" + determination +
