@@ -2,7 +2,7 @@
 Example Spring boot app used to learn technologies.
 Its meant to be a basketball simimulator
 
-### Exterbnal Dependencies
+### External Dependencies
 * jdk17
 * Docker installed on system
 * docker-compose available on command line
