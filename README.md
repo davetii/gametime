@@ -19,8 +19,8 @@ Its meant to be a basketball simimulator
 
 
 ### todo
-* implement persistence
 * implement end points
+* Implement Advice pattern
 * implement cucumber tests
 * game sim
 

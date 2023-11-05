@@ -1,0 +1,99 @@
+package software.daveturner.gametime.mapper;
+
+import org.springframework.stereotype.*;
+import software.daveturner.gametime.entity.*;
+import software.daveturner.gametime.model.*;
+
+import java.util.*;
+
+@Component
+public class EntityMapper {
+    public List<Team> mapLeague(List<TeamEntity> entities) {
+        List<Team> list = new ArrayList<>();
+        for (TeamEntity entity: entities) {
+            list.add(entityToTeam(entity));
+        }
+        return list;
+    }
+
+    private Team entityToTeam(TeamEntity entity) {
+        if(entity == null) { return new Team(); }
+        Team team = new Team();
+        if(entity.getCoach() != null) {
+            team.setCoach(entityToCoach(entity.getCoach()));
+        }
+
+        if(entity.getGm() != null) {
+            team.setGm(entityToGm(entity.getGm()));
+        }
+        team.setLocale(entity.getLocale());
+        team.setName(entity.getName());
+        team.setId(Team.IdEnum.fromValue(entity.getId()));
+        team.setConference(Team.ConferenceEnum.fromValue(entity.getConference()));
+        team.setPlayers(new ArrayList<>());
+        entityPlayersToPlayers(team, entity.getPlayers());
+        return team;
+    }
+
+    private void entityPlayersToPlayers(Team team, List<PlayerEntity> players) {
+        if (players == null || players.size() == 0) { return; }
+        List<Player> newPlayers = new ArrayList<>();
+
+        players.forEach(e -> {
+            Player player =mapEntityToPlayer(e);
+            team.getPlayers().add(player);
+        });
+
+
+    }
+
+    private Player mapEntityToPlayer(PlayerEntity e) {
+        Player player = new Player();
+        player.setRole(Player.RoleEnum.fromValue(e.getRole().name()));
+        player.setPosition(Player.PositionEnum.fromValue(e.getPosition().id));
+        player.setLastName(e.getLastName());
+        player.setFirstName(e.getFirstName());
+        player.setId(UUID.fromString(e.getId()));
+        player.setHeight(e.getHeight());
+        player.setWeight(e.getWeight());
+        player.setOrigin(e.getOrigin());
+        //player.setOriginDetails(e.getOriginDetails());
+        //player.setAthleticism(e.getAthleticism());
+        player.setCharisma(e.getCharisma());
+        player.setCohesion(e.getCohesion());
+        player.setDetermination(e.getDetermination());
+        player.setEgo(e.getEgo());
+        player.setEndurance(e.getEndurance());
+        player.setEnergy(e.getEnergy());
+        player.setHandle(e.getHandle());
+        player.setHealth(e.getHealth());
+        player.setIntelligence(e.getIntelligence());
+        player.setLuck(e.getLuck());
+        player.setShotSelection(e.getShotSelection());
+        player.setShotSkill(e.getShotSkill());
+        player.setSize(e.getSize());
+        player.setStrength(e.getStrength());
+        player.setSpeed(e.getSpeed());
+        player.setYearsPro(e.getYearsPro());
+        //player.setDraftSlot(e.getDraftSlot());
+        //player.setSkills(skillMapper.mapSkills(player));
+        return player;
+    }
+
+
+    GM entityToGm(GMEntity gmEntity) {
+        if(gmEntity == null) { return new GM();}
+        GM gm = new GM();
+        gm.setLastName(gmEntity.getLastName());
+        gm.setFirstName(gmEntity.getFirstName());
+        return gm;
+    }
+
+    Coach entityToCoach(CoachEntity coachEntity) {
+        if(coachEntity == null) { return new Coach();}
+        Coach coach = new Coach();
+        coach.setLastName(coachEntity.getLastName());
+        coach.setFirstName(coachEntity.getFirstName());
+        return coach;
+    }
+}

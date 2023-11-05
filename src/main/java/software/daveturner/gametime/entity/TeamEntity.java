@@ -18,10 +18,9 @@ public class TeamEntity {
     @Column(name = "id", nullable = false)
     private String id;
 
-    @JsonBackReference
-    @ManyToOne
-    @JoinColumn(name="conference_id", nullable=true)
-    private ConferenceEntity conference;
+
+    @Column(name = "conference", nullable = false)
+    private String conference;
 
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "coach_id", referencedColumnName = "id")
@@ -38,7 +37,8 @@ public class TeamEntity {
         this.coach = coach;
     }
 
-
+    @OneToMany(fetch = FetchType.LAZY, mappedBy="team")
+    private List<PlayerEntity> players = new ArrayList<>();
 
     public TeamEntity() { }
 
@@ -66,13 +66,23 @@ public class TeamEntity {
     public GMEntity getGm() { return gm; }
     public void setGm(GMEntity gm) { this.gm = gm; }
 
-    public ConferenceEntity getConference() {
+    public String getConference() {
         return conference;
     }
 
-    public void setConference(ConferenceEntity conference) {
+    public void setConference(String conference) {
         this.conference = conference;
     }
+
+
+    public List<PlayerEntity> getPlayers() {
+        return players;
+    }
+
+    public void setPlayers(List<PlayerEntity> players) {
+        this.players = players;
+    }
+
 
 
 

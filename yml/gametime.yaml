@@ -16,20 +16,20 @@ servers:
 paths:
   /v1/league:
     get:
-      summary: list of all conferences, teams, players in league
+      summary: list of all teams, players in league
       description: a list of all **Actors** in the league
       tags:
-        - League
+        - Team
       operationId: fetchLeaguev1
       responses:
         '200':
-          description: list of all conferences, teams, players in league
+          description: list of all teams, players in league
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Conference"
+                  $ref: "#/components/schemas/Team"
 
   /v1/conference/{confId}:
     parameters:
@@ -43,7 +43,7 @@ paths:
       summary: list of all teams in a  given conference
       description: a list of all **Teams** in the league in a given conference
       tags:
-        - League
+        - Team
       operationId: fetchConference
       responses:
         '200':
@@ -51,7 +51,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Conference"
+                $ref: "#/components/schemas/Team"
 
   /v1/team/{teamId}:
     get:
@@ -224,19 +224,6 @@ components:
 
 
   schemas:
-    Conference:
-      type: object
-      description: A collection of teams organized by a region
-      properties:
-        id:
-          type: string
-          readOnly: true
-          enum: [EAST, NORTH, SOUTH, WEST]
-        teams:
-          type: array
-          items:
-            $ref: "#/components/schemas/Team"
-
     Team:
       type: object
       description: A group of individuals representing a locale
@@ -244,8 +231,10 @@ components:
         id:
           type: string
           readOnly: true
-          enum: [NY, PHI, BOS, CON, JACK, NC, WASH, ATL, BRK, MIA, MI, CHI, TOR, VIR, IND, CLEV, MIN, PIT, MIL, BUF,
-                 TEN, KC, STL, HOU, SA, NO,DAL, DEN, OKL, ALA, SD, LA, PHO, CA, POR, SF, SEA, UT, VAN, LV]
+          enum: [NY, PHI, BOS, CONN, JACK, NC, WASH, ATL, BRK, MIA, 
+                 MI, CHI, TOR, VA, IND, CLEV, MIN, PIT, MIL, BUF,
+                 TENN, KC, STL, HOU, SA, NOLA, DAL, DEN, OKL, AL, 
+                 SD, LA, PHO, CA, POR, SF, SEA, UT, VAN, LV]
         players:
           type: array
           items:
@@ -258,6 +247,9 @@ components:
           $ref: "#/components/schemas/Coach"
         gm:
           $ref: "#/components/schemas/GM"
+        conference:
+          type: string
+          enum: [EAST, NORTH, SOUTH, WEST]
 
     Coach:
       type: object
@@ -292,7 +284,10 @@ components:
           example: Johnson
         position:
           type: string
-          enum: [PG, CG, 2G, W, SF, F, PF, FC, C]
+          enum: [PG, CG, BG, W, SF, F, PF, FC, C]
+        role:
+          type: string
+          enum: [STARTER, BENCH, ROTATION, MINORS]
         height:
           type: string
         weight:
