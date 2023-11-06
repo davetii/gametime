@@ -35,4 +35,11 @@ public class GametimeServiceImp implements GametimeService {
         teams.sort(byConfById);
         return teams;
     }
+
+    @Override
+    public Optional<Player> getPlayer(String playerId) {
+        Optional<PlayerEntity> entity = playerRepo.findById(playerId);
+        Player player = entityMapper.mapEntityToPlayer(entity.get());
+        return Optional.of(player);
+    }
 }

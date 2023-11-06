@@ -6,10 +6,11 @@ import java.util.*;
 
 public interface GametimeService {
     List<Team> getLeague();
+    Optional<Player> getPlayer(String playerId);
     /*
     Optional <Conference> getConference(String conferenceId);
     Optional<Team> getTeam(String teamId);
-    Optional<Player> getPlayer(String playerId);
+
 
      */
 }

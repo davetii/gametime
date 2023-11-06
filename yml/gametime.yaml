@@ -89,21 +89,6 @@ paths:
         '404':
           description: Not Found
 
-    delete:
-      summary: Remove Player from Team
-      description: Remove Player from Team
-      operationId: removePlayerFromTeam
-      tags:
-        - Team
-      parameters:
-        - $ref: "#/components/parameters/teamIdPathParam"
-        - $ref: "#/components/parameters/playerIdPathParam"
-      responses:
-        '200':
-          description: Team Updated
-        '404':
-          description: Not Found
-  
   /v1/player/:
     put:
       summary: Update Player
@@ -157,21 +142,6 @@ paths:
                 $ref: "#/components/schemas/Player"
         '404':
           description: Not Found
-    
-    delete:
-      summary: Retire Player
-      description: Retire Player
-      operationId: deletePlayer
-      tags:
-        - Player
-      parameters:
-        - $ref: "#/components/parameters/playerIdPathParam"
-      responses:
-        '200':
-          description: Payer Updated
-        '404':
-          description: Not Found
-
 
 components:
 
