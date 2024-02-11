@@ -19,9 +19,8 @@ Its meant to be a basketball simimulator
 
 
 ### todo
-* implement end points
 * Implement Advice pattern
-* implement cucumber tests
+* Create branch for mongo
 * game sim
 
 
