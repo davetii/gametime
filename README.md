@@ -10,6 +10,8 @@ Its meant to be a basketball simimulator
 ### Whats in the POM
 * Springboot 3 mvc version
 * openapi
+* liquibase
+* Db support: postgres, h2
 
 ### Installing
 * mvn install
