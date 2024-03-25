@@ -8,8 +8,8 @@ import jakarta.persistence.*;
 public class GMEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "id", nullable = false)
+    private String id;
 
     @Column(nullable = false)
     private String firstName;
@@ -23,11 +23,11 @@ public class GMEntity {
 
     public GMEntity() { }
 
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 

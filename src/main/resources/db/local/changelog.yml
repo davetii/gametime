@@ -1,0 +1,7 @@
+databaseChangeLog:
+- include:
+    comment: Create table layout for release 1
+    file: classpath:db/local/release.1.0.1.sql
+- include:
+    comment: Load Gametime tables
+    file: classpath:db/local/release.1.0.1.dataload.sql

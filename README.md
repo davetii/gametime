@@ -10,6 +10,8 @@ Its meant to be a basketball simimulator
 ### Whats in the POM
 * Springboot 3 mvc version
 * openapi
+* liquibase
+* Db support: postgres, h2
 
 ### Installing
 * mvn install
@@ -17,11 +19,24 @@ Its meant to be a basketball simimulator
 ### Executing program
 * mvn spring-boot:run
 
+### API
+http://localhost:8080/swagger-ui/index.html
+
+### H2 DB
+http://127.0.0.1:8080/h2-console
+
+### postgres
+see application-test.properties
+
+
 
 ### todo
+* Expand Cucumber tests
 * Implement Advice pattern
 * Create branch for mongo
-* game sim
+* Add game simulator logic
+* Add kafka sample
+* Add RabbitMQ sample
 
 
 
