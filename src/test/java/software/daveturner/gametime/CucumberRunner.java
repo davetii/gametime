@@ -7,6 +7,7 @@ import org.junit.runner.*;
 @CucumberOptions(
         features = {"src/test/resources/features"},
         plugin = {"pretty"},
+        dryRun = true,
         glue = {"software.daveturner.gametime.cucumber"})
 public class CucumberRunner {
 }
