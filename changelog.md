@@ -6,6 +6,7 @@
     Added Cucumber Tests 
 
 ## [1.0.1] liquibase - 2024-03.24 
-    Added liquibase 
-    Added postgres
+    Added liquibase
+    Added postgres container via docker-compose
+    
   
