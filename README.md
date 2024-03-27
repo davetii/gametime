@@ -16,7 +16,8 @@ Its meant to be a basketball simimulator
 
 ### Installing
 * mvn install
-  * note: local profile uses h2, test profile uses docker postgres
+  * local profile uses h2
+  * test profile uses docker postgres
 
 ### Executing program
 * mvn spring-boot:run
