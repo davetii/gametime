@@ -36,6 +36,7 @@ see application-test.properties
 
 
 ### todo
+* produce a docker image
 * Expand Cucumber tests to intgration test suite
 * Implement @ControllerAdvice for error handling
 * Resilience4j supported with tests
