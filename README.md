@@ -39,6 +39,11 @@ see application-test.properties
 * Run the image from docker folder _docker-compose up_
 * note: a different docker-compose is run during software build process
 
+### Profiles
+* local = h2, set in application.properties and ensure test profile in pom.xml is not active
+* test = postgres docker image, set application.properties to test and ensure maven profile is set to active
+
+
 ### todo
 * Expand Cucumber tests to intgration test suite
 * Implement @ControllerAdvice for error handling
