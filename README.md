@@ -34,10 +34,12 @@ http://localhost:8083/
 ### postgres
 see application-test.properties
 
-
+### Docker Run Time test
+* build the image _mvn spring-boot:build-image_
+* Run the image from docker folder _docker-compose up_
+* note: a different docker-compose is run during software build process
 
 ### todo
-* produce a docker image
 * Expand Cucumber tests to intgration test suite
 * Implement @ControllerAdvice for error handling
 * Resilience4j supported with tests

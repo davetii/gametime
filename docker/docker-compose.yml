@@ -1,0 +1,37 @@
+# Use postgres/example user/password credentials
+version: '3.9'
+
+services:
+
+  db:
+    image: postgres
+    container_name: postgres
+    restart: always
+    # set shared memory limit when using docker-compose
+    shm_size: 128mb
+    volumes:
+      - ./create_postgres_database.sql:/docker-entrypoint-initdb.d/create_tables.sql
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=turner
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: always
+    ports:
+      - 8083:8080      
+
+  gametime:
+    depends_on:
+      - db
+    image: gametime:1.0.1-SNAPSHOT
+    container_name: gametime
+    restart: always
+    environment:
+       - SPRING_DATASOURCE_URL=jdbc:postgresql://db/gametime
+    ports:
+      - 8082:8080
+    
