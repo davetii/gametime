@@ -9,7 +9,7 @@
     Added liquibase
     Added postgres container via docker-compose
 
-## [1.0.2] liquibase - 2024-03.28
+## [1.0.2] Team end point and Failsafe tests - 2024-03.28
     Added team end point
     Added Failsafe maven plugin for Cucumber tests
     
