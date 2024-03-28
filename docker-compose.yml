@@ -5,7 +5,7 @@ services:
 
   db:
     image: postgres
-    container_name: postgres
+    container_name: postgres-local
     restart: always
     # set shared memory limit when using docker-compose
     shm_size: 128mb
@@ -23,9 +23,9 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=turner
 
-  adminer:
-    image: adminer
-    container_name: adminer
-    restart: always
-    ports:
-      - 8083:8080      
+  #adminer:
+   # image: adminer
+   # container_name: adminer
+   # restart: always
+   # ports:
+   #   - 8083:8080
