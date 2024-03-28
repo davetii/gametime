@@ -23,7 +23,7 @@ public class EntityMapper {
         return list;
     }
 
-    protected Team entityToTeam(TeamEntity entity) {
+    public Team entityToTeam(TeamEntity entity) {
         if(entity == null) { return new Team(); }
         Team team = new Team();
         if(entity.getCoach() != null) {
@@ -44,14 +44,10 @@ public class EntityMapper {
 
     private void entityPlayersToPlayers(Team team, List<PlayerEntity> players) {
         if (players == null || players.size() == 0) { return; }
-        List<Player> newPlayers = new ArrayList<>();
-
         players.forEach(e -> {
             Player player =mapEntityToPlayer(e);
             team.getPlayers().add(player);
         });
-
-
     }
 
     public Player mapEntityToPlayer(PlayerEntity e) {

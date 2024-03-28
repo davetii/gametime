@@ -28,4 +28,10 @@ public class V1ApiDelegateimpl implements V1ApiDelegate {
         Optional<Player> p = service.getPlayer(playerId.toString());
         return ResponseEntity.ok(p.get());
     }
+
+    @Override
+    public ResponseEntity<Team> fetchTeam(String teamId) {
+        Optional<Team> t = service.getTeam(teamId);
+        return ResponseEntity.ok(t.get());
+    }
 }

@@ -1,6 +1,7 @@
 package software.daveturner.gametime.service;
 
 import org.springframework.stereotype.*;
+import org.springframework.transaction.annotation.*;
 import software.daveturner.gametime.entity.*;
 import software.daveturner.gametime.mapper.*;
 import software.daveturner.gametime.model.*;
@@ -10,6 +11,7 @@ import java.util.*;
 import java.util.stream.*;
 
 @Service
+@Transactional
 public class GametimeServiceImp implements GametimeService {
 
     private final TeamRepo teamRepo;
@@ -41,5 +43,12 @@ public class GametimeServiceImp implements GametimeService {
         Optional<PlayerEntity> entity = playerRepo.findById(playerId);
         Player player = entityMapper.mapEntityToPlayer(entity.get());
         return Optional.of(player);
+    }
+
+    @Override
+    public Optional<Team> getTeam(String teamId) {
+        Optional<TeamEntity> entity = teamRepo.findById(teamId);
+        Team team = entityMapper.entityToTeam(entity.get());
+        return Optional.of(team);
     }
 }

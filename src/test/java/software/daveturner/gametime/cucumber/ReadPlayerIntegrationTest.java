@@ -1,7 +1,9 @@
 package software.daveturner.gametime.cucumber;
 
 import io.cucumber.java.en.*;
+import io.cucumber.junit.*;
 import org.junit.jupiter.api.*;
+import org.junit.runner.*;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.context.*;
 import software.daveturner.gametime.api.*;
@@ -25,7 +27,7 @@ public class ReadPlayerIntegrationTest {
     }
 
 
-    @Then("api returns {string} , {string} , {string} and {string}")
+    @Then("readplayer api returns {string} , {string} , {string} and {string}")
     public void then_api_returns(String status, String firstName, String lastName, String position) {
         Assertions.assertEquals(p.getStatus().getValue(), status);
         Assertions.assertEquals(p.getFirstName(), firstName);

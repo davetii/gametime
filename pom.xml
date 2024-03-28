@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>software.daveturner.gametime</groupId>
 	<artifactId>gametime</artifactId>
-	<version>1.0.1-SNAPSHOT</version>
+	<version>1.0.2-SNAPSHOT</version>
 	<name>gametime</name>
 	<description>gametime service</description>
 	<properties>
@@ -103,6 +103,12 @@
 			<artifactId>postgresql</artifactId>
 			<version>42.6.0</version>
 		</dependency>
+		<dependency>
+			<groupId>org.junit.vintage</groupId>
+			<artifactId>junit-vintage-engine</artifactId>
+			<version>5.9.0</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 
@@ -154,6 +160,26 @@
 				</executions>
 			</plugin>
 
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<version>3.2.5</version>
+				<configuration>
+					<includes>
+						<include>**/CucumberRunner*.java</include>
+					</includes>
+					<testFailureIgnore>false</testFailureIgnore>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
 		</plugins>
 	</build>
 	<profiles>
@@ -180,7 +206,7 @@
 							</execution>
 							<execution>
 								<id>Stop Containers</id>
-								<phase>package</phase>
+								<phase>verify</phase>
 								<configuration>
 									<executable>docker-compose</executable>
 									<commandlineArgs>down</commandlineArgs>
