@@ -45,7 +45,6 @@ see application-test.properties
 
 
 ### todo
-* Expand Cucumber tests to intgration test suite
 * Implement @ControllerAdvice for error handling
 * Resilience4j supported with tests
 * Create branch for mongo
