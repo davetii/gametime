@@ -23,7 +23,7 @@ public class SkillSetCalculatorUnitTest {
 
     protected Player BASE_PLAYER() {
         Player player = new Player();
-        player.setId(UUID.fromString("330eb324-3382-4fca-b20e-2b4c7e278047"));
+        player.setId("330eb324-3382-4fca-b20e-2b4c7e278047");
         player.setFirstName("firstname");
         player.setLastName("lastname");
         player.setYearsPro(DEFAULT_YEARS_PRO);

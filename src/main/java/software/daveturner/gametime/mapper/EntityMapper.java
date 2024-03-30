@@ -56,8 +56,7 @@ public class EntityMapper {
         player.setPosition(Player.PositionEnum.fromValue(e.getPosition().id));
         player.setLastName(e.getLastName());
         player.setFirstName(e.getFirstName());
-        System.out.println(e);
-        player.setId(UUID.fromString(e.getId()));
+        player.setId(e.getId());
         player.setHeight(e.getHeight());
         player.setWeight(e.getWeight());
         player.setOrigin(e.getOrigin());
@@ -79,7 +78,6 @@ public class EntityMapper {
         player.setStrength(e.getStrength());
         player.setSpeed(e.getSpeed());
         player.setYearsPro(e.getYearsPro());
-
         player.setSkills(skillMapper.mapSkills(player));
         return player;
     }

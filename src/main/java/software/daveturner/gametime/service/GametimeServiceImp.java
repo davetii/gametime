@@ -41,14 +41,18 @@ public class GametimeServiceImp implements GametimeService {
     @Override
     public Optional<Player> getPlayer(String playerId) {
         Optional<PlayerEntity> entity = playerRepo.findById(playerId);
-        Player player = entityMapper.mapEntityToPlayer(entity.get());
-        return Optional.of(player);
+        if (entity.isPresent()) {
+            return Optional.of(entityMapper.mapEntityToPlayer(entity.get()));
+        }
+        return Optional.empty();
     }
 
     @Override
     public Optional<Team> getTeam(String teamId) {
         Optional<TeamEntity> entity = teamRepo.findById(teamId);
-        Team team = entityMapper.entityToTeam(entity.get());
-        return Optional.of(team);
+        if (entity.isPresent()) {
+            return Optional.of(entityMapper.entityToTeam(entity.get()));
+        }
+        return Optional.empty();
     }
 }
