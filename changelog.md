@@ -12,4 +12,11 @@
 ## [1.0.2] Team end point - 2024-03.28
     Added team end point
     Added Failsafe maven plugin for Cucumber tests
+
+## [1.0.3] Excpetion handling - 2024-03.28
+    Added AdviceController
+    Changed Cucumber tests to use real rest call
+
+
+    
     

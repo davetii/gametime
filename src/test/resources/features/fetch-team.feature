@@ -1,6 +1,7 @@
 Feature: Testing GameTime player API
 
   Scenario Outline: fetch team returns expected
+    Given server is running for team test
     When fetchteam is called with "<id>"
     Then fetchteam api returns "<id>", "<coach>" , "<gm>" and "<conference>"
     Examples:
@@ -8,47 +9,48 @@ Feature: Testing GameTime player API
       | NY  | Frank Valcone    | JD Davison    | EAST        |
 
   Scenario Outline: fetch team returns expected http status
+    Given server is running for team test
     When fetchteam is called with "<id>"
     Then fetchteam api returns http status code "<status>"
     Examples:
-      | id 	| status  |
-      | NY	| 200 OK  |
-      | PHI	| 200 OK  |
-      | CONN| 200 OK  |
-      | BRK	| 200 OK  |
-      | WASH| 200 OK  |
-      | BOS	| 200 OK  |
-      | NC	| 200 OK  |
-      | ATL	| 200 OK  |
-      | JACK| 200 OK  |
-      | MIA	| 200 OK  |
-      | MI 	| 200 OK  |
-      | CHI	| 200 OK  |
-      | IND	| 200 OK  |
-      | MIN	| 200 OK  |
-      | CLEV| 200 OK  |
-      | TOR	| 200 OK  |
-      | BUF	| 200 OK  |
-      | VAN	| 200 OK  |
-      | MIL	| 200 OK  |
-      | PIT	| 200 OK  |
-      | STL	| 200 OK  |
-      | KC	| 200 OK  |
-      | TENN| 200 OK  |
-      | HOU	| 200 OK  |
-      | SA 	| 200 OK  |
-      | DAL	| 200 OK  |
-      | NOLA| 200 OK  |
-      | AL 	| 200 OK  |
-      | OKL	| 200 OK  |
-      | DEN	| 200 OK  |
-      | LA 	| 200 OK  |
-      | CA 	| 200 OK  |
-      | SD	| 200 OK  |
-      | SF	| 200 OK  |
-      | PHO	| 200 OK  |
-      | POR	| 200 OK  |
-      | SEA	| 200 OK  |
-      | UT	| 200 OK  |
-      | VAN	| 200 OK  |
-      | LV	| 200 OK  |
+      | id 	| status|
+      | NY	| 200   |
+      | PHI	| 200   |
+      | CONN| 200   |
+      | BRK	| 200   |
+      | WASH| 200   |
+      | BOS	| 200   |
+      | NC	| 200   |
+      | ATL	| 200   |
+      | JACK| 200   |
+      | MIA	| 200   |
+      | MI 	| 200   |
+      | CHI	| 200   |
+      | IND	| 200   |
+      | MIN	| 200   |
+      | CLEV| 200   |
+      | TOR	| 200   |
+      | BUF	| 200   |
+      | VAN	| 200   |
+      | MIL	| 200   |
+      | PIT	| 200   |
+      | STL	| 200   |
+      | KC	| 200   |
+      | TENN| 200   |
+      | HOU	| 200   |
+      | SA 	| 200   |
+      | DAL	| 200   |
+      | NOLA| 200   |
+      | AL 	| 200   |
+      | OKL	| 200   |
+      | DEN	| 200   |
+      | LA 	| 200   |
+      | CA 	| 200   |
+      | SD	| 200   |
+      | SF	| 200   |
+      | PHO	| 200   |
+      | POR	| 200   |
+      | SEA	| 200   |
+      | UT	| 200   |
+      | VAN	| 200   |
+      | LV	| 200   |
