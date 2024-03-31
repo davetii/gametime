@@ -1,0 +1,30 @@
+databaseChangeLog:
+  - changeSet:
+      id: loadGM
+      author: davetii@gmail.com
+      changes:
+        - loadData:
+            catalogName: cat
+            encoding: UTF-8
+            file: gm.csv
+            quotchar: ''''
+            relativeToChangelogFile: true
+            schemaName: public
+            separator: ','
+            tableName: gm
+            usePreparedStatements: true
+            columns:
+              - column:
+                  header: id
+                  name: id
+                  type: varchar
+              - column:
+                  header: first_name
+                  name: first_name
+                  type: varchar
+              - column:
+                  header: first_name
+                  name: first_name
+                  type: varchar
+
+

@@ -6,5 +6,11 @@ databaseChangeLog:
     comment: Create table layout for release 1
     file: classpath:db/test/release.1.0.1.sql
 - include:
+    comment: Load Coach table
+    file: classpath:db/test/release.1.0.1.coach.dataload.xml
+- include:
+    comment: Load GM table
+    file: classpath:db/test/release.1.0.1.gm.dataload.yml
+- include:
     comment: Load Gametime tables
     file: classpath:db/test/release.1.0.1.dataload.sql
