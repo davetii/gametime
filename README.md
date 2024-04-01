@@ -20,7 +20,7 @@ Its meant to be a basketball simimulator
   * test profile uses docker postgres
 
 ### Executing program
-* mvn spring-boot:run
+* `mvn spring-boot:run`
 
 ### API
 http://localhost:8080/swagger-ui/index.html
@@ -35,13 +35,16 @@ http://localhost:8083/
 see application-test.properties
 
 ### Docker Run Time test
-* build the image _mvn spring-boot:build-image_
-* Run the image from docker folder _docker-compose up_
+* build the image `mvn spring-boot:build-image`
+* Run the image from docker folder `docker-compose up`
 * note: a different docker-compose is run during software build process
 
 ### Profiles
 * local = h2, set in application.properties and ensure test profile in pom.xml is not active
 * test = postgres docker image, set application.properties to test and ensure maven profile is set to active
+
+### Code Coverage
+* Set to 80% to trigger run  `mvn jacoco:report`
 
 
 ### todo
