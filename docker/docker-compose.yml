@@ -27,7 +27,7 @@ services:
   gametime:
     depends_on:
       - db
-    image: gametime:1.0.2-SNAPSHOT
+    image: gametime:1.0.4-SNAPSHOT
     container_name: gametime
     restart: always
     environment:

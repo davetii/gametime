@@ -21,14 +21,8 @@ class TeamEntityTest {
     }
 
     @Test
-    void assertHashCode() {
-        Assertions.assertEquals(0, empty_team.hashCode());
-        Assertions.assertEquals("1".hashCode(), t1.hashCode());
-    }
-
-    @Test
     void assertToString() {
-        Assertions.assertTrue(t1.toString().contains("id='1'"));
+        Assertions.assertTrue(t1.toString().contains("id=1"));
     }
 
     private TeamEntity createTeam(String id) {

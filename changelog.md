@@ -17,6 +17,13 @@
     Added AdviceController
     Changed Cucumber tests to use real rest call
 
+## [1.0.4] General improvements release - 2024-04.01
+    Added Lombok support
+    Improved Code Coverage, added jacoco tests
+    Added different methods of loading liquibase
+
+
+
 
     
     

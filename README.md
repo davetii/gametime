@@ -48,8 +48,6 @@ see application-test.properties
 
 
 ### todo
-* Seperate Stepdefs into classes (overcome config bug)
-* Resilience4j supported with tests
 * Create branch for mongo
 * Add game simulator logic
 * Add kafka sample

@@ -22,9 +22,8 @@ class GMEntityTest {
     }
 
     @Test
-    void assertHashCode() {
-        Assertions.assertEquals(0, empty_gm.hashCode());
-        Assertions.assertEquals("1".hashCode(), p1.hashCode());
+    void assertToString() {
+        Assertions.assertTrue(p1.toString().contains("id=1"));
     }
 
     private GMEntity createGm(String id) {

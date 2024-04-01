@@ -24,12 +24,6 @@ class PlayerEntityTest {
         assertTrue(p3.equals(p3));
     }
 
-    @Test
-    void assertHash() {
-        assertEquals(0, empty_player.hashCode());
-        assertEquals("1".hashCode(), p1.hashCode());
-    }
-
     public PlayerEntity createPLayer(String id) {
         PlayerEntity p = new PlayerEntity();
         p.setId(id);

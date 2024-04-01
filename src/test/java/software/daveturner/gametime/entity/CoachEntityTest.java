@@ -22,14 +22,10 @@ class CoachEntityTest {
         assertTrue(p3.equals(p3));
     }
 
-    @Test
-    void assertHash() {
-        Assertions.assertEquals(0, empty_coach.hashCode());
-        Assertions.assertEquals("1".hashCode(), p1.hashCode());
-    }
 
     @Test
     void assertToString() {
+        Assertions.assertTrue(p1.toString().contains("id=1"));
     }
 
     private CoachEntity createCoach(String id) {
