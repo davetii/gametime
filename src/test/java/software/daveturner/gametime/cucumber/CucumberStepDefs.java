@@ -19,7 +19,7 @@ import software.daveturner.gametime.model.*;
 @CucumberContextConfiguration
 @SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Ignore
-public class StepDefs {
+public class CucumberStepDefs {
 
     @Autowired
     RestTemplate restTemplate;

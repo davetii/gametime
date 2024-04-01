@@ -4,7 +4,7 @@ import org.springframework.context.annotation.*;
 import org.springframework.web.client.*;
 
 @Configuration
-public class StepDefsConfig {
+public class ConfigForCucumberStepDefs {
 
     @Bean
     public RestTemplate restTemplate() {
