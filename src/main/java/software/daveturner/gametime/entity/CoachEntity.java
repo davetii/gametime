@@ -62,7 +62,7 @@ public class CoachEntity {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return id != null ? id.hashCode() : 0;
     }
 
 

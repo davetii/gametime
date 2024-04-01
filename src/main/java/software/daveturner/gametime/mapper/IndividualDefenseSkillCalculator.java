@@ -14,7 +14,7 @@ public class IndividualDefenseSkillCalculator implements SkillCalculator {
                 player.getEgo() + (player.getEndurance() * 2) + player.getHandle() + player.getLuck()) / 13d;
 
         value += maybeAddIndividualDefense(player);
-        value -= maybeLowerInidividualDefense(player);
+        value -= maybeLowerIndividualDefense(player);
         if(player.getYearsPro() > 12) { value -= 2.5d; }
         else if ( player.getYearsPro() > 9) { value -= 2d; }
         else if ( player.getYearsPro() > 6) { value -= 1d; }
@@ -56,7 +56,7 @@ public class IndividualDefenseSkillCalculator implements SkillCalculator {
         return result;
     }
 
-    private double maybeLowerInidividualDefense(Player a) {
+    protected double maybeLowerIndividualDefense(Player a) {
         double result = 0d;
         int speedStrength = a.getStrength() + a.getSpeed();
 

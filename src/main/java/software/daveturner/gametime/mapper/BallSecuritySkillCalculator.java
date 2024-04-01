@@ -14,10 +14,8 @@ public class BallSecuritySkillCalculator implements SkillCalculator{
         // desire, handle, intelligence, luck
         double value = ((player.getDetermination() * 2) + (player.getHandle() * 4) + (player.getIntelligence() * 3) + player.getLuck()) / 10d;
 
-        if(player.getEnergy() != null) {
-            if(player.getEnergy() > 9) { value -= 2; }
-            else if(player.getEnergy() > 8) { value -= 1; }
-        }
+        if(player.getEnergy() > 9) { value -= 2; }
+        else if(player.getEnergy() > 8) { value -= 1; }
 
         if(player.getEgo() > 9) { value -= 2; }
         else if(player.getEgo() > 8) { value -= 1; }

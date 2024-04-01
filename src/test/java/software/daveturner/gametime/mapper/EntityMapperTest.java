@@ -104,11 +104,31 @@ class EntityMapperTest {
         assertEquals(mapper.entityToGm(testGMEntity()).getLastName(), team.getGm().getLastName());
     }
 
-
-
     @Test
     public void ensureEntityToPlayerReturnsExpected() {
         assertPLayer(mapper.mapEntityToPlayer(testPLayerEntity()));
+    }
+
+    @Test
+    public void ensureMapLeagueReturnsExpected() {
+        List<TeamEntity> list = new ArrayList();
+        list.add(testTeamEntity());
+        Assertions.assertEquals(1, mapper.mapLeague(list).size());
+    }
+
+    @Test public void ensureEntityToTeamHandlesNull() {
+        Team emptyTeam = new Team();
+        Assertions.assertEquals(emptyTeam.getId(), mapper.entityToTeam(null).getId());;
+    }
+
+    @Test public void ensureEntityToGmHandlesNull() {
+        GM empty = new GM();
+        Assertions.assertEquals(empty.getFirstName(), mapper.entityToGm(null).getFirstName());;
+    }
+
+    @Test public void ensureEntityToCoachHandlesNull() {
+        Coach empty = new Coach();
+        Assertions.assertEquals(empty.getFirstName(), mapper.entityToCoach(null).getFirstName());;
     }
 
     private void assertPLayer(Player player) {
@@ -186,8 +206,9 @@ class EntityMapperTest {
         entity.setName(TEAMNAME);
         entity.setConference("EAST");
         return entity;
-
     }
+
+
 
 
 

@@ -30,6 +30,12 @@ public class BallSecuritySkillCalculatorTest extends SkillSetCalculatorUnitTest{
 
     @Test
     public void ensureHighEnduranceAffectsBallSecurity() {
+        player.setEndurance(8);
+        assertPlayer(6d, calc);
+
+        player.setEndurance(9);
+        assertPlayer(7d, calc);
+
         player.setEndurance(18);
         assertPlayer(8d, calc);
     }
