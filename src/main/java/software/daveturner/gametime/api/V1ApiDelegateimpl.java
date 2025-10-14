@@ -22,7 +22,6 @@ public class V1ApiDelegateimpl implements V1ApiDelegate {
         this.service = service;
     }
 
-    @Cacheable
     @Override
     public ResponseEntity<List<Team>> fetchLeaguev1() {
         return ResponseEntity.ok(service.getLeague());
