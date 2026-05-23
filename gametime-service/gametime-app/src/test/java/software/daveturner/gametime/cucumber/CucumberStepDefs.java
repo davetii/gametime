@@ -1,24 +1,18 @@
 package software.daveturner.gametime.cucumber;
 
 import io.cucumber.java.en.*;
-import io.cucumber.spring.*;
-import org.junit.*;
-import org.junit.jupiter.api.*;
-import org.junit.runner.*;
-import org.springframework.beans.factory.annotation.*;
-import org.springframework.boot.test.context.*;
-import org.springframework.boot.test.web.server.*;
-import org.springframework.http.*;
-import org.springframework.test.context.*;
-import org.springframework.test.context.junit4.*;
-import org.springframework.web.client.*;
+import io.cucumber.spring.CucumberContextConfiguration;
+import org.junit.jupiter.api.Assertions;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 import software.daveturner.gametime.model.*;
 
-@RunWith(SpringRunner.class)
-@ContextConfiguration
 @CucumberContextConfiguration
-@SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Ignore
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class CucumberStepDefs {
 
     @Autowired
