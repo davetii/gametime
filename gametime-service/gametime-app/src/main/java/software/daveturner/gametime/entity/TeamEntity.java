@@ -1,6 +1,5 @@
 package software.daveturner.gametime.entity;
 
-import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import lombok.*;
 

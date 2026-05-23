@@ -4,8 +4,6 @@ import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.*;
-
 @Entity
 @Table(name = "coach")
 @Data
