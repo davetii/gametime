@@ -10,13 +10,12 @@
 
 
     <changeSet author="davetii@gmail.com" id="load-coaches">
-        <loadData catalogName="cat"
-                  commentLineStartsWith="//"
+        <loadData commentLineStartsWith="//"
                   encoding="UTF-8"
-                  file="coach.csv"
+                  file="db/coach.csv"
                   quotchar="'"
-                  relativeToChangelogFile="true"
-                  schemaName="public" separator=","
+                  separator=","
+                  schemaName="gametime"
                   tableName="coach"
                   usePreparedStatements="true">
             <column header="id" name="id" type="varchar"/>

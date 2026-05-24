@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "player")
+@Table(name = "player", schema = "gametime")
 @Cacheable
 @Data
 public class PlayerEntity {

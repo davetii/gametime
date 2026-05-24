@@ -1,0 +1,43 @@
+### Read player by ID
+GET http://{{host}}{{basePath}}/v1/player/330eb324-3382-4fca-b20e-2b4c7e278047
+Accept: application/json
+
+### Read player - not found
+GET http://{{host}}{{basePath}}/v1/player/does-not-exist
+Accept: application/json
+
+### Create player
+POST http://{{host}}{{basePath}}/v1/player/
+Content-Type: application/json
+Accept: application/json
+
+{
+  "id": "test-player-001",
+  "firstName": "Test",
+  "lastName": "Player",
+  "position": "PG",
+  "status": "BENCH",
+  "height": "6-2",
+  "weight": 195,
+  "draftSlot": "15",
+  "yearsPro": 0,
+  "origin": "Test University"
+}
+
+### Update player
+PUT http://{{host}}{{basePath}}/v1/player/
+Content-Type: application/json
+Accept: application/json
+
+{
+  "id": "test-player-001",
+  "firstName": "Test",
+  "lastName": "Player",
+  "position": "CG",
+  "status": "STARTER",
+  "height": "6-2",
+  "weight": 198,
+  "draftSlot": "15",
+  "yearsPro": 1,
+  "origin": "Test University"
+}

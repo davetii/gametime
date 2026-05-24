@@ -4,15 +4,11 @@ databaseChangeLog:
       author: davetii@gmail.com
       changes:
         - loadData:
-            catalogName: cat
-            encoding:  UTF-8
-            file:  player.csv
-            quotchar: ''''
+            encoding: UTF-8
+            file: db/player.csv
             separator: ','
-            relativeToChangelogFile:  true
-            schemaName:  public
+            schemaName: gametime
             tableName: player
-            usePreparedStatements:  true
             columns:
               - column:
                   header: id

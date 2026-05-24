@@ -1,8 +1,8 @@
 -- liquibase formatted sql
 
--- changeset dave:1.0.0 failOnError:true splitStatements:false
+-- changeset dave:1.0.0 failOnError:true splitStatements:false dbms:postgresql
 
-CREATE OR REPLACE FUNCTION on_new_row()
+CREATE OR REPLACE FUNCTION gametime.on_new_row()
 RETURNS TRIGGER AS $$
 
 BEGIN

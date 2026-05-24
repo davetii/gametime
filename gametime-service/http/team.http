@@ -1,0 +1,23 @@
+### Fetch all teams in the league
+GET http://{{host}}{{basePath}}/v1/league
+Accept: application/json
+
+### Fetch a specific team by ID
+GET http://{{host}}{{basePath}}/v1/team/NY
+Accept: application/json
+
+### Fetch team - not found
+GET http://{{host}}{{basePath}}/v1/team/INVALID
+Accept: application/json
+
+### Fetch conference - EAST
+GET http://{{host}}{{basePath}}/v1/conference/EAST
+Accept: application/json
+
+### Fetch conference - WEST
+GET http://{{host}}{{basePath}}/v1/conference/WEST
+Accept: application/json
+
+### Add player to team
+POST http://{{host}}{{basePath}}/v1/team/NY/330eb324-3382-4fca-b20e-2b4c7e278047
+Accept: application/json

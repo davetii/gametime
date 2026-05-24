@@ -6,7 +6,7 @@ import lombok.*;
 import java.util.*;
 
 @Entity
-@Table(name = "team")
+@Table(name = "team", schema = "gametime")
 @Cacheable
 @Data
 public class TeamEntity {
