@@ -5,55 +5,41 @@ them as completed. For the big-picture phased roadmap and what's already
 shipped, see [PROJECT_PLAN.md](PROJECT_PLAN.md). Deferred work lives in the
 Backlog at the bottom.
 
-Current focus: **Phase 2 — Rosters & Lineups**.
+Current focus: **Phase 2 roster APIs shipped — next up: roster rules + rotation
+depth (PROJECT_PLAN.md §2.2/§2.3).**
 
 ---
 
-## Phase 2 — Rosters & Lineups (CURRENT)
+## Phase 2 — Rosters & Lineups
 
-Goal: finish the roster API surface on top of the existing player↔team model,
-and add the lineup (starting 5 + rotation order) concept the game engine needs.
-Three endpoints from PROJECT_PLAN.md §2.3.
+### 2.1 Roster APIs — DONE (2026-06-27)
 
-### Decisions (locked 2026-06-27)
-- **Lineup storage**: extend `player_team` with `lineup_role` + `rotation_order`
-  columns (lineup is a property of the current assignment; avoids a duplicate
-  team↔player join table).
-- **Release behavior** (`DELETE`): remove the `player_team` row AND append a
-  release record to `player_team_hist` — player returns to free agency, past
-  stints stay queryable via `/history`. Mirrors `addPlayerToTeam` in reverse.
+Three endpoints on top of the existing player↔team model, plus the lineup
+(starting 5 + rotation order) concept the game engine needs.
 
-### Schema
-- [ ] Liquibase changeset: add `lineup_role` (STARTER/ROTATION/BENCH/INACTIVE,
-      nullable) + `rotation_order` (int, nullable) to `player_team`.
+- [x] `GET /v1/team/{teamId}/roster` — `Roster` of entries (player + lineupRole
+      + rotationOrder). 200/404.
+- [x] `PUT /v1/team/{teamId}/lineup` — replace-all `LineupRequest`; hard 400 on
+      ≠5 STARTER, dup player, or dup rotation order; 404 if a player isn't on
+      the team. Returns the updated roster.
+- [x] `DELETE /v1/team/{teamId}/{playerId}` — release to free agency: drop the
+      `player_team` row, append a `RELEASE` row to `player_team_hist`. 200/404.
+- [x] Schema: `release.1.0.4.lineup.sql` adds `lineup_role` + `rotation_order`
+      to `player_team`. Entity, service, delegate, `EntityMapper.toRosterEntry`,
+      `.http` samples all wired. 12 delegate tests; JaCoCo gate green.
 
-### API spec (gametime.yaml)
-- [ ] `GET /v1/team/{teamId}/roster` — new `Roster` schema: list of entries
-      (player + lineup_role + rotation_order). 200/404.
-- [ ] `PUT /v1/team/{teamId}/lineup` — `LineupRequest` schema (ordered entries).
-      200 / 400 (validation) / 404.
-- [ ] `DELETE /v1/team/{teamId}/{playerId}` — release player. 200 / 404.
+Decisions locked 2026-06-27: lineup lives on `player_team` (not a new join
+table); lineup PUT is replace-all with a hard 5-starter invariant.
 
-### App code (gametime-app)
-- [ ] `PlayerTeamEntity`: add `lineupRole` + `rotationOrder` fields.
-- [ ] `GametimeService`/`Imp`: `getRoster`, `setLineup`, `removePlayerFromTeam`.
-- [ ] `V1ApiDelegateimpl`: wire the 3 operations.
-- [ ] `EntityMapper`: map roster entries to the `Roster` schema.
+### 2.2 Roster rules (next)
+- [ ] Roster size limits (e.g. 15 active, 5 minors).
+- [ ] Position minimums/maximums per roster.
+- [ ] Roster validation on add (currently only "not already on a team").
 
-### Validation rules (setLineup)
-- [ ] Exactly 5 STARTER entries.
-- [ ] All playerIds belong to the team → else 404.
-- [ ] No duplicate players in the request.
-- [ ] `rotation_order` unique among non-bench entries.
-
-### Tests (target ~90% per test-coverage gate)
-- [ ] Delegate: roster happy path + 404; setLineup happy + each validation
-      failure (not-5-starters, player-not-on-team, dupes); delete happy + 404 +
-      history-record-on-release.
-- [ ] `EntityMapper` roster mapping.
-
-### Housekeeping
-- [ ] Add `.http` samples for the 3 new endpoints.
+### 2.3 Lineup & rotation depth (feeds the engine)
+- [ ] Bench rotation order → minutes allocation.
+- [ ] Fatigue model: how `endurance` interacts with minutes played.
+- [ ] Coach attributes influence rotation depth (gated on Coach model — backlog).
 
 ---
 

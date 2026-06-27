@@ -12,4 +12,7 @@ public interface GametimeService {
     Player updatePlayer(Player player);
     void addPlayerToTeam(String teamId, String playerId);
     List<PlayerTransaction> getPlayerHistory(String playerId);
+    Roster getRoster(String teamId);
+    Roster setLineup(String teamId, LineupRequest request);
+    void removePlayerFromTeam(String teamId, String playerId);
 }

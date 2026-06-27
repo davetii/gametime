@@ -96,6 +96,9 @@ CREATE TABLE gametime.player_team
     team_id VARCHAR not null,
     transaction_type VARCHAR (20) not null,
     assigned_date timestamp default CURRENT_TIMESTAMP not null,
+    -- lineup slot on the current team (nullable: no lineup set yet)
+    lineup_role VARCHAR (10),
+    rotation_order SMALLINT,
     create_user VARCHAR default 'system' not null,
     create_date timestamp default CURRENT_TIMESTAMP not null,
     update_user VARCHAR default 'system' not null,

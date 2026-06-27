@@ -61,4 +61,20 @@ public class V1ApiDelegateimpl implements V1ApiDelegate {
         return ResponseEntity.ok(service.getPlayerHistory(playerId));
     }
 
+    @Override
+    public ResponseEntity<Roster> fetchRoster(String teamId) {
+        return ResponseEntity.ok(service.getRoster(teamId));
+    }
+
+    @Override
+    public ResponseEntity<Roster> setLineup(String teamId, LineupRequest lineupRequest) {
+        return ResponseEntity.ok(service.setLineup(teamId, lineupRequest));
+    }
+
+    @Override
+    public ResponseEntity<Void> removePlayerFromTeam(String teamId, String playerId) {
+        service.removePlayerFromTeam(teamId, playerId);
+        return ResponseEntity.ok().build();
+    }
+
 }

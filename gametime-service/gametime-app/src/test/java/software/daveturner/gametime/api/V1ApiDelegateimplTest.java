@@ -22,7 +22,7 @@ class V1ApiDelegateimplTest {
         Player p = new Player();
         p.setFirstName("Test");
         p.setLastName("Player");
-        p.setStatus(Player.StatusEnum.BENCH);
+        p.setStatus(Player.StatusEnum.ACTIVE);
         p.setPosition(Player.PositionEnum.PG);
         p.setHeight("6-3");
         p.setWeight(200);

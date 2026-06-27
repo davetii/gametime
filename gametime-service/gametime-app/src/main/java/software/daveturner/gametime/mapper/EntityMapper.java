@@ -141,6 +141,22 @@ public class EntityMapper {
         return t;
     }
 
+    /**
+     * Build a roster entry from a player and their current player_team assignment.
+     * lineupRole / rotationOrder are nullable (a player on a roster with no lineup
+     * set yet has neither).
+     */
+    public RosterEntry toRosterEntry(PlayerEntity player, PlayerTeamEntity assignment) {
+        RosterEntry entry = new RosterEntry();
+        entry.setPlayer(mapEntityToPlayer(player));
+        if (assignment.getLineupRole() != null) {
+            entry.setLineupRole(software.daveturner.gametime.model.LineupRole.fromValue(
+                    assignment.getLineupRole().name()));
+        }
+        entry.setRotationOrder(assignment.getRotationOrder());
+        return entry;
+    }
+
     private Position positionFromId(String id) {
         for (Position pos : Position.values()) {
             if (pos.id.equals(id)) {

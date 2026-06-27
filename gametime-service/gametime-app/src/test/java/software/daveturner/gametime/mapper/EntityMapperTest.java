@@ -115,7 +115,7 @@ class EntityMapperTest {
         assertEquals(TESTID, entity.getId());
         assertEquals(PLAYERFIRSTNAME, entity.getFirstName());
         assertEquals(PLAYERLASTNAME, entity.getLastName());
-        assertEquals(Status.STARTER, entity.getStatus());
+        assertEquals(Status.ACTIVE, entity.getStatus());
         assertEquals(Position.PG, entity.getPosition());
         assertEquals(TESTATTRIB, entity.getAgility());
         assertEquals(TESTATTRIB, entity.getAwareness());
@@ -182,7 +182,7 @@ class EntityMapperTest {
         assertEquals(TESTATTRIB, player.getStrength());
         assertEquals(TESTATTRIB, player.getSpeed());
 
-        assertEquals(Status.STARTER.toString(), player.getStatus().toString());
+        assertEquals(Status.ACTIVE.toString(), player.getStatus().toString());
         assertEquals(Position.PG.toString(), player.getPosition().toString());
 
         assertEquals(PLAYERLASTNAME, player.getLastName());
@@ -208,7 +208,7 @@ class EntityMapperTest {
     private PlayerEntity testPLayerEntity() {
         PlayerEntity entity = new PlayerEntity();
         entity.setId(TESTID);
-        entity.setStatus(Status.STARTER);
+        entity.setStatus(Status.ACTIVE);
         entity.setPosition(Position.PG);
         entity.setLastName(PLAYERLASTNAME);
         entity.setFirstName(PLAYERFIRSTNAME);

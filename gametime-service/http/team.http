@@ -21,3 +21,47 @@ Accept: application/json
 ### Add player to team — 404 (team not found)
 POST http://{{host}}{{basePath}}/v1/team/INVALID/330eb324-3382-4fca-b20e-2b4c7e278047
 Accept: application/json
+
+### Fetch team roster with lineup slots
+GET http://{{host}}{{basePath}}/v1/team/BOS/roster
+Accept: application/json
+
+### Fetch roster — 404 (team not found)
+GET http://{{host}}{{basePath}}/v1/team/INVALID/roster
+Accept: application/json
+
+### Set lineup (replace-all; exactly 5 STARTER) — paste this team's real player ids
+# Fetch /roster first to get player ids. Every roster player should appear here.
+PUT http://{{host}}{{basePath}}/v1/team/BOS/lineup
+Content-Type: application/json
+Accept: application/json
+
+{
+  "entries": [
+    { "playerId": "starter-1-id", "lineupRole": "STARTER", "rotationOrder": 1 },
+    { "playerId": "starter-2-id", "lineupRole": "STARTER", "rotationOrder": 2 },
+    { "playerId": "starter-3-id", "lineupRole": "STARTER", "rotationOrder": 3 },
+    { "playerId": "starter-4-id", "lineupRole": "STARTER", "rotationOrder": 4 },
+    { "playerId": "starter-5-id", "lineupRole": "STARTER", "rotationOrder": 5 },
+    { "playerId": "bench-1-id",   "lineupRole": "BENCH" }
+  ]
+}
+
+### Set lineup — 400 (not exactly 5 starters)
+PUT http://{{host}}{{basePath}}/v1/team/BOS/lineup
+Content-Type: application/json
+Accept: application/json
+
+{
+  "entries": [
+    { "playerId": "starter-1-id", "lineupRole": "STARTER", "rotationOrder": 1 }
+  ]
+}
+
+### Release player from team (to free agency) — paste an id currently on the team
+DELETE http://{{host}}{{basePath}}/v1/team/UT/paste-player-id-on-this-team
+Accept: application/json
+
+### Release player — 404 (player not on this team)
+DELETE http://{{host}}{{basePath}}/v1/team/UT/does-not-exist
+Accept: application/json

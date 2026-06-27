@@ -66,6 +66,69 @@ paths:
           description: Player already on a team
         '404':
           description: Not Found
+    delete:
+      summary: Release Player from Team
+      description: Remove the player from the team's roster (release to free
+        agency). The player_team row is removed and a RELEASE transaction is
+        appended to history; past stints stay queryable via /history.
+      operationId: removePlayerFromTeam
+      tags:
+        - Team
+      parameters:
+        - $ref: "#/components/parameters/teamIdPathParam"
+        - $ref: "#/components/parameters/playerIdPathParam"
+      responses:
+        '200':
+          description: Player released
+        '404':
+          description: Team, player, or assignment not found
+
+  /v1/team/{teamId}/roster:
+    get:
+      summary: Fetch team roster with lineup slots
+      operationId: fetchRoster
+      tags:
+        - Team
+      parameters:
+        - $ref: "#/components/parameters/teamIdPathParam"
+      responses:
+        '200':
+          description: Roster found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Roster"
+        '404':
+          description: Not Found
+
+  /v1/team/{teamId}/lineup:
+    put:
+      summary: Set the team lineup (starting 5 + rotation order)
+      description: Replace-all. The request must describe every roster player's
+        lineup role and rotation order; exactly 5 entries must be STARTER.
+      operationId: setLineup
+      tags:
+        - Team
+      parameters:
+        - $ref: "#/components/parameters/teamIdPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LineupRequest"
+      responses:
+        '200':
+          description: Lineup updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Roster"
+        '400':
+          description: Invalid lineup (not exactly 5 starters, duplicate player,
+            or duplicate rotation order)
+        '404':
+          description: Team not found, or a player is not on this team
 
   /v1/player/:
     put:
@@ -251,7 +314,9 @@ components:
           enum: [PG, CG, SG, W, SF, F, PF, FC, C]
         status:
           type: string
-          enum: [STARTER, BENCH, ROTATION, MINORS, INJURED, SUSPENDED]
+          description: Player availability — intrinsic to the player, independent
+            of any team. Lineup slot lives in player_team.lineupRole, not here.
+          enum: [ACTIVE, INJURED, SUSPENDED]
         currentTeamId:
           type: string
           readOnly: true
@@ -397,3 +462,58 @@ components:
         transactionDate:
           type: string
           format: date-time
+
+    LineupRole:
+      type: string
+      description: A player's slot on a specific team's roster/lineup.
+      enum: [STARTER, ROTATION, BENCH, INACTIVE, MINORS]
+
+    RosterEntry:
+      type: object
+      description: One player on a team's roster, with their lineup slot.
+      properties:
+        player:
+          $ref: "#/components/schemas/Player"
+        lineupRole:
+          $ref: "#/components/schemas/LineupRole"
+        rotationOrder:
+          type: integer
+          format: int32
+
+    Roster:
+      type: object
+      description: A team's roster with lineup slots.
+      properties:
+        teamId:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/RosterEntry"
+
+    LineupEntry:
+      type: object
+      description: A requested lineup slot for one player.
+      required:
+        - playerId
+        - lineupRole
+      properties:
+        playerId:
+          type: string
+        lineupRole:
+          $ref: "#/components/schemas/LineupRole"
+        rotationOrder:
+          type: integer
+          format: int32
+
+    LineupRequest:
+      type: object
+      description: Replace-all lineup for a team. Must include every roster
+        player; exactly 5 entries must be STARTER.
+      required:
+        - entries
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineupEntry"
