@@ -1,0 +1,26 @@
+name: build
+
+# Verify the full Maven build (tests + JaCoCo coverage gate) on every PR to main.
+# To make this a merge requirement, mark the "build" check as required in
+# GitHub → Settings → Branches → branch protection rule for `main`.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build (mvn clean install)
+        working-directory: gametime-service
+        run: ./mvnw --batch-mode --no-transfer-progress clean install
