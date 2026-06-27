@@ -136,7 +136,7 @@ Each skill is computed by a dedicated `SkillCalculator` Spring bean.
 |------|------|
 | PG | Point Guard |
 | CG | Combo Guard |
-| BG | Two Guard |
+| SG | Shooting Guard |
 | W | Wing |
 | SF | Small Forward |
 | F | Forward |

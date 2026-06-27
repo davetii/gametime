@@ -5,79 +5,70 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
 ## What Exists Today
 
 ### Fully Built
-- **16 player attributes**: agility, charisma, cohesion, determination, ego, endurance, energy, handle, health, intelligence, luck, shotSelection, shotSkill, size, speed, strength
-- **13 derived skills** with weighted formulas and threshold bonuses: acumen, ballSecurity, passing, teamOffense, drive, freeThrows, longRange, perimeter, post, individualDefense, teamDefense, offenseRebound, defenseRebound
-- **9 positions**: PG, CG, BG, W, SF, F, PF, FC, C
+- **21 player attributes**: agility, awareness, aggression, charisma, cohesion, composure, determination, ego, endurance, energy, handle, health, intelligence, luck, shotSelection, shotSkill, size, speed, strength, verticality, wingspan
+- **23 derived skills** on a 1–20 / avg-10 scale via a shared deviation helper: acumen, ballSecurity, passing, teamOffense, drive, freeThrows, longRange, perimeter, post, individualDefense, teamDefense, offenseRebound, defenseRebound, finishing, transition, rimProtection, stealing, shotContest, foulDrawing, foulProne, clutch, screenSetting, offBallMovement
+- **9 positions**: PG, CG, SG, W, SF, F, PF, FC, C
 - **6 player statuses**: STARTER, BENCH, ROTATION, MINORS, INJURED, SUSPENDED
-- **40-team league** across 4 conferences (EAST, NORTH, SOUTH, WEST), ~420 seed players
-- **Entity layer**: Player, Team, Coach (name only), GM (name only) with JPA relationships
-- **3 working REST endpoints**: GET league, GET player by ID, GET team by ID
-- **Skill calculation engine**: SkillCalculator interface, 13 calculator implementations, SkillMapper orchestrator
+- **40-team league** across 4 conferences (EAST, NORTH, SOUTH, WEST), 422 seed players (CSV-driven via Liquibase)
+- **Entity layer**: Player, Team, Coach (name only), GM (name only); player↔team decoupled via `player_team` + `player_team_hist`
+- **6 working REST endpoints**: GET league, GET player by ID, GET team by ID, createPlayer, updatePlayer, addPlayerToTeam, GET player history
+- **Skill calculation engine**: SkillCalculator interface, 23 calculator implementations, SkillMapper orchestrator
 - **Entity-to-model mapping**: EntityMapper with full attribute + skill wiring
 - **Database**: Postgres (local dev) + H2 (tests), Liquibase migrations, gametime schema, audit triggers
-- **Test suite**: 78 tests (unit + Cucumber integration), 80% line coverage enforced
+- **Test suite**: unit + Cucumber integration, 80% line coverage enforced (JaCoCo gate)
 - **Build pipeline**: Multi-module Maven, OpenAPI codegen with delegate pattern, Docker Compose
 
-### Partially Built (Spec'd but Unimplemented)
-- `POST /v1/player/` — createPlayer
-- `PUT /v1/player/` — updatePlayer
-- `POST /v1/team/{teamId}/{playerId}` — addPlayerToTeam
-- `GET /v1/conference/{confId}` — fetchConference
-- `health` attribute — defined and stored but not used in any skill calculator
+---
+
+## Phase 1 — Foundation — DONE
+
+**Goal**: Player model + CRUD API surface.
+
+### 1.1 REST Endpoints — DONE
+- [x] `createPlayer`, `updatePlayer`, `addPlayerToTeam` — built, validated, tested.
+- [x] ~~`fetchConference`~~ — DROPPED; clients filter `/v1/league`. See DECISIONS.md #010.
+
+### 1.2 / 1.3 Coach & GM Models — PARKED
+Deferred (2026-06-27): the name-only `Coach`/`GM` slots stay until the game
+engine defines what their attributes must drive. Revisit with Phase 3.4/3.5
+and Phase 6.
+- [ ] Coach attributes — open question: continuous vs. style enum (see open question #3 below).
+- [ ] GM attributes (scouting, negotiation, draft strategy, analytics).
+
+### 1.4 Health Attribute — DONE
+- [x] `health` wired into `individualDefense` and `defenseRebound`.
+
+### 1.5 Player model hardening + data eval — DONE
+- [x] Rescaled to 21 attributes / 23 skills on a 1–20 / avg-10 scale; CSV-driven seed data.
+- [x] Cleanup (orphaned dir removed, `.http` verified, endpoint tests added).
+- [x] Data-model evaluation (2026-06-27): renamed BG→SG, reviewed all tweener
+      positions (CG/W/F/FC), reclassified 3 forwards, tuned outliers. Model
+      confirmed sound; final skill balance deferred to post-engine. See TODO.md
+      Phase 1c.
 
 ---
 
-## Phase 1 — Complete the Foundation
-
-**Goal**: Finish the CRUD API surface, flesh out Coach/GM models, clean up loose ends.
-
-### 1.1 Implement Remaining REST Endpoints
-- [ ] `createPlayer` — validate attributes, persist, return with computed skills
-- [ ] `updatePlayer` — validate, update, recompute skills
-- [ ] `addPlayerToTeam` — validate roster limits, handle team assignment
-- [ ] `fetchConference` — filter teams by conference ID
-
-### 1.2 Expand Coach Model
-Coaches currently have only firstName/lastName. They need attributes that influence game simulation.
-- [ ] Define coach attributes (offensive system, defensive system, player development, rotation management, adaptability)
-- [ ] Add to CoachEntity, OpenAPI spec, and database schema
-- [ ] Decide: do coaches have a "style" enum (run-and-gun, half-court, etc.) or continuous attributes?
-
-### 1.3 Expand GM Model
-GMs currently have only firstName/lastName. They'll drive off-court decisions.
-- [ ] Define GM attributes (scouting, negotiation, draft strategy, analytics focus)
-- [ ] Add to GMEntity, OpenAPI spec, and database schema
-
-### 1.4 Wire Up the Health Attribute
-- [ ] Incorporate `health` into relevant skill calculators (endurance interaction, injury susceptibility)
-- [ ] Decide: does health affect skill output directly, or does it feed into a separate injury probability model?
-
-### 1.5 Cleanup
-- [ ] Remove orphaned `gametime-service/src/` directory (empty leftover from restructuring)
-- [ ] Verify IntelliJ `.http` files work with environment selection
-- [ ] Add missing test coverage for new endpoints
-
----
-
-## Phase 2 — Roster & Lineup Management
+## Phase 2 — Roster & Lineup Management (CURRENT)
 
 **Goal**: Turn the static player list into a managed roster with lineup logic.
 
-### 2.1 Roster Rules
-- [ ] Define roster size limits (e.g., 15 active, 5 minors)
-- [ ] Enforce position minimums/maximums per roster
-- [ ] Implement roster validation on add/remove player
+Tactical breakdown, decisions, and validation rules live in
+[TODO.md](TODO.md) Phase 2. Roadmap-level scope:
 
-### 2.2 Lineup & Rotation
-- [ ] Starting lineup (5 starters) — position-constrained
-- [ ] Bench rotation order and minutes allocation
-- [ ] Fatigue model: how does `endurance` interact with minutes played?
-- [ ] Coach attributes influence rotation depth and minutes distribution
-
-### 2.3 Roster APIs
+### 2.1 Roster APIs (immediate)
 - [ ] `GET /v1/team/{teamId}/roster` — roster with lineup slots
 - [ ] `PUT /v1/team/{teamId}/lineup` — set starting 5 + rotation order
-- [ ] `DELETE /v1/team/{teamId}/{playerId}` — remove player from team
+- [ ] `DELETE /v1/team/{teamId}/{playerId}` — remove player (release to free agency, keep history)
+
+### 2.2 Roster Rules (later in phase)
+- [ ] Roster size limits (e.g., 15 active, 5 minors)
+- [ ] Position minimums/maximums per roster
+- [ ] Roster validation on add/remove
+
+### 2.3 Lineup & Rotation depth (feeds the engine)
+- [ ] Bench rotation order and minutes allocation
+- [ ] Fatigue model: how does `endurance` interact with minutes played?
+- [ ] Coach attributes influence rotation depth (gated on Coach model — parked)
 
 ---
 
