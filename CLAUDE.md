@@ -12,7 +12,7 @@ gametime/
 │   ├── DECISIONS.md           Architecture decision log
 │   ├── RISKS.md               Active risks and concerns
 │   ├── TODO.md                Tactical task list
-│   └── WORKFLOW.md            Development workflow and conventions
+│   └── player.md              Player domain design (attributes, skills, formulas)
 ├── gametime-service/          Multi-module Maven project (Spring Boot 3.5.14)
 │   ├── pom.xml                Parent POM (packaging=pom)
 │   ├── gametime-api/          OpenAPI codegen module (generates server stubs)
@@ -32,7 +32,6 @@ Before starting work, review these for context:
 - **`docs/DECISIONS.md`** — past architecture choices (check before proposing alternatives)
 - **`docs/TODO.md`** — current task list
 - **`docs/RISKS.md`** — known risks and concerns
-- **`docs/WORKFLOW.md`** — coding conventions, testing strategy, branch protocol
 
 ## Build requirements
 
