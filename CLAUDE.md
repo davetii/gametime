@@ -28,7 +28,8 @@ gametime/
 
 Before starting work, review these for context:
 - **`docs/PROJECT_PLAN.md`** — phased roadmap, what's built vs what's needed
-- **`docs/player.md`** — player domain design: attributes, derived skills, calculator formulas (current focus)
+- **`docs/roster.md`** — roster & lineup domain: player↔team link, lineups, transactions (current focus, Phase 2)
+- **`docs/player.md`** — player domain design: attributes, derived skills, calculator formulas
 - **`docs/DECISIONS.md`** — past architecture choices (check before proposing alternatives)
 - **`docs/TODO.md`** — current task list
 - **`docs/RISKS.md`** — known risks and concerns
