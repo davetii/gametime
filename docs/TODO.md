@@ -6,9 +6,9 @@ Tactical task list. Check items off or remove them as completed. For the big-pic
 
 ## Immediate (Pre-Phase 1)
 
-- [ ] Delete orphaned `gametime-service/src/` directory (empty leftover from module restructuring)
-- [ ] Verify IntelliJ `.http` files work (likely need to select "local" environment in dropdown)
-- [ ] Confirm all 78 tests still pass on clean checkout
+- [x] Delete orphaned `gametime-service/src/` directory — already gone (no longer present)
+- [x] Verify IntelliJ `.http` files — `http-client.env.json` defines `local`+`test` environments; the `.http` files use `{{host}}{{basePath}}` correctly. (Runtime check is a manual IDE action: select "local" in the dropdown and run.) NOTE: the create/update player sample bodies omit the 21 attributes — update them when `createPlayer`/`updatePlayer` land in Phase 1b.
+- [x] Confirm tests pass on clean checkout — 84/84 green (was 78 before the skills work)
 
 ## Phase 1 — Player Modeling (current focus)
 
