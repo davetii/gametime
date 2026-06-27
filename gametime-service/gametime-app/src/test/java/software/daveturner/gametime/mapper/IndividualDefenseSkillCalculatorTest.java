@@ -20,7 +20,7 @@ public class IndividualDefenseSkillCalculatorTest extends SkillSetCalculatorUnit
         player.setAgility(16);
         player.setDetermination(16);
         player.setAwareness(16);
-        assertPlayer(15.6d, calc);
+        assertPlayer(15.4d, calc);
     }
 
     @Test

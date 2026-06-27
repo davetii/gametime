@@ -19,6 +19,14 @@ public interface SkillCalculator {
     double SCALE_MAX = 20d;
     double SCALE_AVG = 10d;
 
+    /**
+     * Soft-clamp knee. Skills at or below this are returned untouched (the whole
+     * crowd + above-average band). Above it, the additive bonuses are compressed
+     * so elite skills approach {@link #SCALE_MAX} asymptotically instead of all
+     * piling up at a hard 20 — letting stars/superstars separate near the top.
+     */
+    double SOFT_KNEE = 14d;
+
     /** Default factor for a single-attribute emphasis bonus. */
     double SINGLE_FACTOR = 0.18d;
     /** Default factor for a two-attribute combination bonus. */
@@ -68,9 +76,22 @@ public interface SkillCalculator {
         return 1.0d; // very old: tenure helps IQ but age starts to bite
     }
 
-    /** Bound a raw skill value to the 1–20 scale. */
+    /**
+     * Bound a raw skill to the 1–20 scale. The floor is hard; the ceiling is
+     * <em>soft</em>: values at or below {@link #SOFT_KNEE} pass through unchanged
+     * (so average and above-average players are untouched), while values above
+     * the knee are compressed via exponential saturation that approaches — but
+     * never reaches — {@link #SCALE_MAX}. This replaces the old hard cut at 20,
+     * which made every elite skill pile up at exactly 20.0 with no separation.
+     */
     default double clamp(double value) {
-        return Math.max(SCALE_MIN, Math.min(SCALE_MAX, value));
+        if (value <= SOFT_KNEE) {
+            return Math.max(SCALE_MIN, value);
+        }
+        double room = SCALE_MAX - SOFT_KNEE;          // headroom above the knee (e.g. 6)
+        double over = value - SOFT_KNEE;              // how far the raw value overshoots
+        // 1 - e^(-over/room): 0 at the knee, asymptotically 1 as over -> ∞.
+        return SOFT_KNEE + room * (1d - Math.exp(-over / room));
     }
 
     default BigDecimal round(double d) {
