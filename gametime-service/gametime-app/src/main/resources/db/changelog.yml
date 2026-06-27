@@ -6,7 +6,7 @@ databaseChangeLog:
     comment: Create audit rows
     file: classpath:db/release.1.0.0.sql
 - include:
-    comment: Create table layout for release 1
+    comment: Create table layout (teams, players, roster + history)
     file: classpath:db/release.1.0.1.sql
 - include:
     comment: Load Coach table
@@ -15,11 +15,11 @@ databaseChangeLog:
     comment: Load GM table
     file: classpath:db/release.1.0.1.gm.dataload.yml
 - include:
-    comment: Load Gametime tables
+    comment: Load Gametime tables (teams)
     file: classpath:db/release.1.0.1.dataload.sql
-- include:
-    comment: Add new player attributes (verticality, wingspan, composure, aggression, awareness)
-    file: classpath:db/release.1.0.2.sql
 - include:
     comment: Load players from CSV (source of truth)
     file: classpath:db/release.1.0.2.player.dataload.yml
+- include:
+    comment: Load current roster assignments into player_team
+    file: classpath:db/release.1.0.3.roster.dataload.yml

@@ -3,8 +3,6 @@ package software.daveturner.gametime.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.*;
-
 @Entity
 @Table(name = "team", schema = "gametime")
 @Cacheable
@@ -38,8 +36,8 @@ public class TeamEntity {
         this.coach = coach;
     }
 
-    @OneToMany(fetch = FetchType.LAZY, mappedBy="team")
-    private List<PlayerEntity> players = new ArrayList<>();
-
+    // Roster is no longer a JPA association on the team. The player→team link
+    // lives in player_team; the service sources a team's roster via
+    // PlayerTeamRepo.findByTeamId and the EntityMapper composes it.
 
 }

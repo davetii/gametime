@@ -1,6 +1,5 @@
 package software.daveturner.gametime.entity;
 
-import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -52,10 +51,7 @@ public class PlayerEntity {
     private Integer aggression;
     private Integer awareness;
 
-
-    @JsonBackReference
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    @JoinColumn(name="team_id", nullable=true)
-    private TeamEntity team;
+    // The player→team link lives in the player_team / player_team_hist tables,
+    // not on the player. See PlayerTeamEntity. A free agent has no player_team row.
 
 }

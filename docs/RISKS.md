@@ -26,11 +26,6 @@ Active risks and concerns. Remove items as they're resolved (move to the Resolve
 **Description**: Tests run on H2, production on Postgres. As the schema grows (game events, stats tables, potentially JSON columns), the gap between H2 and Postgres behavior could cause test-passes-but-prod-fails scenarios.  
 **Mitigation**: Consider Testcontainers for integration tests if H2 divergence becomes a problem. Keep Liquibase changesets simple.
 
-### Health attribute unused
-**Severity**: Low  
-**Description**: The `health` attribute is defined, stored, and exposed via the API but doesn't feed into any skill calculator or game mechanic. It's dead weight until the injury system is built (Phase 6).  
-**Mitigation**: Acceptable for now. Wire it in during Phase 6 or earlier if a fatigue/injury model is needed for game simulation (Phase 3).
-
 ### Seed data realism
 **Severity**: Low  
 **Description**: The ~420 pre-loaded players have attributes that were manually assigned. Their attribute distributions may not produce realistic game outcomes once simulation is running.  
@@ -39,6 +34,12 @@ Active risks and concerns. Remove items as they're resolved (move to the Resolve
 ---
 
 ## Resolved
+
+### Health attribute unused
+**Resolved**: 2026-06 — `health` is now consumed by the `individualDefense` and `defenseRebound` skill calculators (wired in during the 1–20 skills pass). No longer an orphaned attribute.
+
+### No roster/trade history (player→team was current-state only)
+**Resolved**: 2026-06 — Built the `player_team` (current) + `player_team_hist` (append-only) model; `player.team_id` removed. See DECISIONS.md #012. History is now first-class: `addPlayerToTeam` appends a transaction row and `GET /v1/player/{id}/history` exposes it. (A normalized multi-player-trade `transaction` table is still a future option but not needed until trades exist.)
 
 *Move resolved items here with a note on the resolution.*
 

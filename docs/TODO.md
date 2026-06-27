@@ -54,13 +54,15 @@ pass; every skill centers at 10.0 for an average player.
 
 ## Phase 1b — Foundation (CRUD / Coach / GM)
 
-- [ ] Implement `createPlayer` endpoint
-- [ ] Implement `updatePlayer` endpoint
-- [ ] Implement `addPlayerToTeam` endpoint
-- [ ] Implement `fetchConference` endpoint
+- [x] Implement `createPlayer` endpoint — server-generates UUID if id absent; returns the created Player (with derived skills) in the 200 body.
+- [x] Implement `updatePlayer` endpoint — 404 if id missing/unknown; preserves the existing team assignment (team is owned by `addPlayerToTeam`, not updates).
+- [x] Implement `addPlayerToTeam` endpoint — 404 if team/player missing; 409 (`ResourceConflictException`) if the player is already on a team.
+- [x] ~~Implement `fetchConference` endpoint~~ — DROPPED. Removed from the spec; clients filter the `/v1/league` response by conference. See DECISIONS.md #010.
+- [x] Decouple player from team in the data model AND the API — `player_team` (current) + `player_team_hist` (append-only history) tables; `player.team_id` removed; `Player.currentTeamId` (derived, read-only) + `GET /v1/player/{id}/history`. Migrations consolidated from scratch into `release.1.0.1.sql` (no users/data yet). See DECISIONS.md #012.
+- [x] Update the `.http` create/update player sample bodies with the 21 attributes (flagged in the Pre-Phase-1 note above) now that `createPlayer`/`updatePlayer` exist; added a player-history request.
 - [ ] Design coach attribute model (see DECISIONS.md for logging the choice)
 - [ ] Design GM attribute model
-- [ ] Add tests for all new endpoints
+- [x] Add tests for the 3 new endpoints — `V1ApiDelegateimplTest` (happy + 404/409 cases) and an `EntityMapper` reverse-mapping test. 93/93 green.
 - [ ] Update OpenAPI spec if Coach/GM models change
 
 ## Backlog

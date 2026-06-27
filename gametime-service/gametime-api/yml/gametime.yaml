@@ -31,28 +31,6 @@ paths:
                 items:
                   $ref: "#/components/schemas/Team"
 
-  /v1/conference/{confId}:
-    parameters:
-      - in: path
-        name: confId
-        required: true
-        schema:
-          type: string
-
-    get:
-      summary: list of all teams in a  given conference
-      description: a list of all **Teams** in the league in a given conference
-      tags:
-        - Team
-      operationId: fetchConference
-      responses:
-        '200':
-          description: returns a list of all teams in a given conference
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Team"
-
   /v1/team/{teamId}:
     get:
       summary: fetch Team by id
@@ -84,8 +62,8 @@ paths:
       responses:
         '200':
           description: Team Updated
-        '403':
-          description: Already exists
+        '409':
+          description: Player already on a team
         '404':
           description: Not Found
 
@@ -105,6 +83,10 @@ paths:
       responses:
         '200':
           description: Player Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
         '404':
           description: Not Found
     post:
@@ -122,8 +104,10 @@ paths:
       responses:
         '200':
           description: Player Created
-        '404':
-          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
 
   /v1/player/{playerId}:
     get:
@@ -143,17 +127,30 @@ paths:
         '404':
           description: Not Found
 
+  /v1/player/{playerId}/history:
+    get:
+      summary: fetch a player's roster transaction history
+      description: a list of the player's team assignments over time, most recent first
+      tags:
+        - Player
+      operationId: fetchPlayerHistory
+      parameters:
+        - $ref: "#/components/parameters/playerIdPathParam"
+      responses:
+        '200':
+          description: Player roster history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerTransaction"
+        '404':
+          description: Not Found
+
 components:
 
   parameters:
-
-    confIdPathParam:
-      in: path
-      description: Conference ID
-      name: confId
-      required: true
-      schema:
-        type: string
 
     pageNumberParam:
       in: query
@@ -255,6 +252,10 @@ components:
         status:
           type: string
           enum: [STARTER, BENCH, ROTATION, MINORS, INJURED, SUSPENDED]
+        currentTeamId:
+          type: string
+          readOnly: true
+          description: The team the player is currently on, or null if a free agent. Derived from the current roster assignment.
         height:
           type: string
         weight:
@@ -381,3 +382,18 @@ components:
           type: number
         offBallMovement:
           type: number
+
+    PlayerTransaction:
+      type: object
+      description: A single roster transaction (a player joining a team)
+      properties:
+        playerId:
+          type: string
+        teamId:
+          type: string
+        transactionType:
+          type: string
+          enum: [SEED, DRAFT, TRADE, FREE_AGENCY, WAIVER, SIGN, RELEASE]
+        transactionDate:
+          type: string
+          format: date-time

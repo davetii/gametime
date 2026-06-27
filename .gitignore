@@ -14,7 +14,9 @@ target/
 .sts4-cache
 
 ### Claude ###
-.claude
+# Ignore local Claude config (settings, worktrees) but share project skills.
+.claude/*
+!.claude/skills/
 
 ### IntelliJ IDEA ###
 .idea

@@ -4,6 +4,7 @@ import org.springframework.stereotype.*;
 import software.daveturner.gametime.entity.*;
 import software.daveturner.gametime.model.*;
 
+import java.time.*;
 import java.util.*;
 
 @Component
@@ -15,15 +16,11 @@ public class EntityMapper {
         this.skillMapper = skillMapper;
     }
 
-    public List<Team> mapLeague(List<TeamEntity> entities) {
-        List<Team> list = new ArrayList<>();
-        for (TeamEntity entity: entities) {
-            list.add(entityToTeam(entity));
-        }
-        return list;
-    }
-
-    public Team entityToTeam(TeamEntity entity) {
+    /**
+     * Map a team with its current roster. The roster is sourced from player_team
+     * (not a JPA association on the team), so the caller supplies the players.
+     */
+    public Team entityToTeam(TeamEntity entity, List<PlayerEntity> roster) {
         if(entity == null) { return new Team(); }
         Team team = new Team();
         if(entity.getCoach() != null) {
@@ -38,7 +35,7 @@ public class EntityMapper {
         team.setId(Team.IdEnum.fromValue(entity.getId()));
         team.setConference(Team.ConferenceEnum.fromValue(entity.getConference()));
         team.setPlayers(new ArrayList<>());
-        entityPlayersToPlayers(team, entity.getPlayers());
+        entityPlayersToPlayers(team, roster);
         return team;
     }
 
@@ -87,6 +84,71 @@ public class EntityMapper {
         return player;
     }
 
+
+    public PlayerEntity mapPlayerToEntity(Player p) {
+        PlayerEntity e = new PlayerEntity();
+        e.setId(p.getId());
+        e.setFirstName(p.getFirstName());
+        e.setLastName(p.getLastName());
+        if (p.getStatus() != null) {
+            e.setStatus(Status.valueOf(p.getStatus().getValue()));
+        }
+        if (p.getPosition() != null) {
+            e.setPosition(positionFromId(p.getPosition().getValue()));
+        }
+        e.setHeight(p.getHeight());
+        e.setWeight(p.getWeight());
+        e.setOrigin(p.getOrigin());
+        e.setDraftSlot(p.getDraftSlot());
+        e.setYearsPro(p.getYearsPro());
+        e.setAgility(p.getAgility());
+        e.setCharisma(p.getCharisma());
+        e.setCohesion(p.getCohesion());
+        e.setDetermination(p.getDetermination());
+        e.setEgo(p.getEgo());
+        e.setEndurance(p.getEndurance());
+        e.setEnergy(p.getEnergy());
+        e.setHandle(p.getHandle());
+        e.setHealth(p.getHealth());
+        e.setIntelligence(p.getIntelligence());
+        e.setLuck(p.getLuck());
+        e.setShotSelection(p.getShotSelection());
+        e.setShotSkill(p.getShotSkill());
+        e.setSize(p.getSize());
+        e.setStrength(p.getStrength());
+        e.setSpeed(p.getSpeed());
+        e.setVerticality(p.getVerticality());
+        e.setWingspan(p.getWingspan());
+        e.setComposure(p.getComposure());
+        e.setAggression(p.getAggression());
+        e.setAwareness(p.getAwareness());
+        // skills are derived from attributes, never persisted
+        return e;
+    }
+
+    public PlayerTransaction histToTransaction(PlayerTeamHistEntity e) {
+        PlayerTransaction t = new PlayerTransaction();
+        t.setPlayerId(e.getPlayerId());
+        t.setTeamId(e.getTeamId());
+        if (e.getTransactionType() != null) {
+            t.setTransactionType(PlayerTransaction.TransactionTypeEnum.fromValue(
+                    e.getTransactionType().name()));
+        }
+        if (e.getTransactionDate() != null) {
+            t.setTransactionDate(e.getTransactionDate().atZone(ZoneId.systemDefault())
+                    .toOffsetDateTime());
+        }
+        return t;
+    }
+
+    private Position positionFromId(String id) {
+        for (Position pos : Position.values()) {
+            if (pos.id.equals(id)) {
+                return pos;
+            }
+        }
+        throw new IllegalArgumentException("Unknown position id: " + id);
+    }
 
     protected GM entityToGm(GMEntity gmEntity) {
         if(gmEntity == null) { return new GM();}

@@ -13,7 +13,6 @@ databaseChangeLog:
               - column: { header: id,             name: id,             type: varchar }
               - column: { header: first_name,     name: first_name,     type: varchar }
               - column: { header: last_name,      name: last_name,      type: varchar }
-              - column: { header: team_id,        name: team_id,        type: varchar }
               - column: { header: draft_slot,     name: draft_slot,     type: varchar }
               - column: { header: years_pro,      name: years_pro,      type: numeric }
               - column: { header: height,         name: height,         type: varchar }

@@ -40,4 +40,25 @@ public class V1ApiDelegateimpl implements V1ApiDelegate {
         return ResponseEntity.ok(t.get());
     }
 
+    @Override
+    public ResponseEntity<Player> createPlayer(Player player) {
+        return ResponseEntity.ok(service.createPlayer(player));
+    }
+
+    @Override
+    public ResponseEntity<Player> updatePlayer(Player player) {
+        return ResponseEntity.ok(service.updatePlayer(player));
+    }
+
+    @Override
+    public ResponseEntity<Void> addPlayerToTeam(String teamId, String playerId) {
+        service.addPlayerToTeam(teamId, playerId);
+        return ResponseEntity.ok().build();
+    }
+
+    @Override
+    public ResponseEntity<List<PlayerTransaction>> fetchPlayerHistory(String playerId) {
+        return ResponseEntity.ok(service.getPlayerHistory(playerId));
+    }
+
 }

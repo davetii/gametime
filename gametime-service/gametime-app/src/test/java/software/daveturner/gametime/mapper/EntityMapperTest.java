@@ -39,8 +39,7 @@ class EntityMapperTest {
         TeamEntity entity  = testTeamEntity();
         entity.setCoach(testCoachEntity());
         entity.setGm(testGMEntity());
-        entity.getPlayers().add(testPLayerEntity());
-        Team team = mapper.entityToTeam(entity);
+        Team team = mapper.entityToTeam(entity, List.of(testPLayerEntity()));
         assertTeam(team);
         assertEquals(CONFERENCEID, team.getConference().getValue());
         assertEquals(COACHFIRSTNAME, team.getCoach().getFirstName());
@@ -86,7 +85,7 @@ class EntityMapperTest {
     public void ensureEntityToTeamReturnsExpectedWithNullGM() {
         TeamEntity entity = testTeamEntity();
         entity.setCoach(testCoachEntity());
-        Team team = mapper.entityToTeam(entity);
+        Team team = mapper.entityToTeam(entity, List.of());
         assertEquals(TEAMNAME, team.getName());
         assertEquals(TEAMID, team.getId().toString());
         assertEquals(mapper.entityToCoach(testCoachEntity()).getFirstName(), team.getCoach().getFirstName());
@@ -97,7 +96,7 @@ class EntityMapperTest {
     public void ensureEntityToTeamReturnsExpectedWithNullCoach() {
         TeamEntity entity = testTeamEntity();
         entity.setGm(testGMEntity());
-        Team team = mapper.entityToTeam(entity);
+        Team team = mapper.entityToTeam(entity, List.of());
         assertEquals(TEAMNAME, team.getName());
         assertEquals(TEAMID, team.getId().toString());
         assertEquals(mapper.entityToGm(testGMEntity()).getFirstName(), team.getGm().getFirstName());
@@ -110,15 +109,49 @@ class EntityMapperTest {
     }
 
     @Test
-    public void ensureMapLeagueReturnsExpected() {
-        List<TeamEntity> list = new ArrayList();
-        list.add(testTeamEntity());
-        Assertions.assertEquals(1, mapper.mapLeague(list).size());
+    public void ensureMapPlayerToEntityReturnsExpected() {
+        Player player = mapper.mapEntityToPlayer(testPLayerEntity());
+        PlayerEntity entity = mapper.mapPlayerToEntity(player);
+        assertEquals(TESTID, entity.getId());
+        assertEquals(PLAYERFIRSTNAME, entity.getFirstName());
+        assertEquals(PLAYERLASTNAME, entity.getLastName());
+        assertEquals(Status.STARTER, entity.getStatus());
+        assertEquals(Position.PG, entity.getPosition());
+        assertEquals(TESTATTRIB, entity.getAgility());
+        assertEquals(TESTATTRIB, entity.getAwareness());
+        assertEquals(4, entity.getYearsPro());
+        // skills are derived (never persisted) and the player→team link lives in
+        // player_team, so the mapped entity carries no team coupling at all.
+    }
+
+    @Test
+    public void ensureMapPlayerToEntityMapsPositionByIdNotName() {
+        // WING's model value is "W", which must map back to the WING enum, not fail
+        PlayerEntity src = testPLayerEntity();
+        src.setPosition(Position.WING);
+        Player player = mapper.mapEntityToPlayer(src);
+        assertEquals("W", player.getPosition().getValue());
+        PlayerEntity entity = mapper.mapPlayerToEntity(player);
+        assertEquals(Position.WING, entity.getPosition());
+    }
+
+    @Test
+    public void ensureHistToTransactionReturnsExpected() {
+        PlayerTeamHistEntity e = new PlayerTeamHistEntity();
+        e.setPlayerId(TESTID);
+        e.setTeamId(TEAMID);
+        e.setTransactionType(TransactionType.SIGN);
+        e.setTransactionDate(java.time.LocalDateTime.now());
+        PlayerTransaction t = mapper.histToTransaction(e);
+        assertEquals(TESTID, t.getPlayerId());
+        assertEquals(TEAMID, t.getTeamId());
+        assertEquals("SIGN", t.getTransactionType().getValue());
+        assertNotNull(t.getTransactionDate());
     }
 
     @Test public void ensureEntityToTeamHandlesNull() {
         Team emptyTeam = new Team();
-        Assertions.assertEquals(emptyTeam.getId(), mapper.entityToTeam(null).getId());;
+        Assertions.assertEquals(emptyTeam.getId(), mapper.entityToTeam(null, List.of()).getId());;
     }
 
     @Test public void ensureEntityToGmHandlesNull() {

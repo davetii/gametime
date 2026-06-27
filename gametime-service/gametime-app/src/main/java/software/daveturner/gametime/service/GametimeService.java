@@ -8,10 +8,8 @@ public interface GametimeService {
     List<Team> getLeague();
     Optional<Player> getPlayer(String playerId);
     Optional<Team> getTeam(String teamId);
-    /*
-    Optional <Conference> getConference(String conferenceId);
-    Optional<Team> getTeam(String teamId);
-
-
-     */
+    Player createPlayer(Player player);
+    Player updatePlayer(Player player);
+    void addPlayerToTeam(String teamId, String playerId);
+    List<PlayerTransaction> getPlayerHistory(String playerId);
 }
