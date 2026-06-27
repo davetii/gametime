@@ -33,9 +33,9 @@ See [player.md](player.md) for the full design. Goal: harden the player model
       awareness = `(intel + shot_selection)/2` + additive bonuses (+1 top20%intel, +1 top20%agility).
       NOTE: derived (no independent signal) AND percentile bonuses are baked off the current snapshot — if existing attrs are re-tuned later, regenerate these from scratch (base + bonus together).
 - [ ] Hand-tune marquee/star players to 18–20 where appropriate (rescale is mechanical)
-- [x] Update `player.md`: scale label → 1–20/avg-10, and corrected the attribute derivation formula sections to match what was actually implemented (was the old `ceil(.../2)` proposal). NOTE: the skill *calculator specs* (player.md §"Skill Calculator Specifications") are still on the old scale — defer those to the skills re-tune (see [plan.md](../plan.md)), so the doc matches the real code rather than a second guess.
+- [x] Update `player.md`: scale label → 1–20/avg-10, and corrected the attribute derivation formula sections to match what was actually implemented (was the old `ceil(.../2)` proposal). The skill *calculator specs* section was later replaced with a pointer to the `*SkillCalculator` classes (code is authoritative for exact formulas).
 
-### Skills — DONE (see [plan.md](../plan.md))
+### Skills — DONE
 All 23 skill calculators now run on the 1–20 / avg-10 scale via a shared deviation
 helper on `SkillCalculator` (`adj`, `comboAdj`, `experienceAdj`, `clamp`). 84/84 tests
 pass; every skill centers at 10.0 for an average player.
