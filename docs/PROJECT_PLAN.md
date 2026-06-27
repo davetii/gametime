@@ -7,7 +7,7 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
 ### Fully Built
 - **16 player attributes**: agility, charisma, cohesion, determination, ego, endurance, energy, handle, health, intelligence, luck, shotSelection, shotSkill, size, speed, strength
 - **13 derived skills** with weighted formulas and threshold bonuses: acumen, ballSecurity, passing, teamOffense, drive, freeThrows, longRange, perimeter, post, individualDefense, teamDefense, offenseRebound, defenseRebound
-- **9 positions**: PG, CG, BG, W, SF, F, PF, FC, C
+- **9 positions**: PG, CG, SG, W, SF, F, PF, FC, C
 - **6 player statuses**: STARTER, BENCH, ROTATION, MINORS, INJURED, SUSPENDED
 - **40-team league** across 4 conferences (EAST, NORTH, SOUTH, WEST), ~420 seed players
 - **Entity layer**: Player, Team, Coach (name only), GM (name only) with JPA relationships

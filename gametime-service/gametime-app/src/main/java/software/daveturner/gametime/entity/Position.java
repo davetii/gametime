@@ -4,7 +4,7 @@ public enum Position {
 
     PG("PG", "Point Guard", 1),
     CG("CG", "Combo Guard", 2),
-    BG("BG", "Two Guard", 3),
+    SG("SG", "Shooting Guard", 3),
     WING("W", "Wing", 4),
     SF("SF", "Small Forward", 5),
     F("F", "Forward", 6),

@@ -248,7 +248,7 @@ components:
           example: Johnson
         position:
           type: string
-          enum: [PG, CG, BG, W, SF, F, PF, FC, C]
+          enum: [PG, CG, SG, W, SF, F, PF, FC, C]
         status:
           type: string
           enum: [STARTER, BENCH, ROTATION, MINORS, INJURED, SUSPENDED]
