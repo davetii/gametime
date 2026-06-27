@@ -41,6 +41,20 @@ Log of significant design and architecture decisions. Append new entries at the 
 **Decision**: Migrated from JUnit 4 vintage to JUnit 5 Platform (`@Suite` + `cucumber-junit-platform-engine`).  
 **Rationale**: JUnit 4 vintage engine is deprecated. JUnit 5 Platform is the standard runner. Removed junit-vintage-engine dependency.
 
+### 008 — Attribute scale: 1–20, average = 10
+**Date**: 2026-06  
+**Decision**: Canonical player attribute scale is **1–20, with 10 = league average**. Applies to all 21 attributes (16 original + 5 new). The existing 16 attributes were rescaled to mean ~10 / stdev ~3.5 via a distribution-based (rank → inverse-normal) transform.  
+**Rationale**: The original 1–10 scale was too coarse to separate ~420 players — values compressed around 5–6, and stars had to be hand-bumped past 10 (the data had drifted to a nominal 1–15 with most values still in 3–8). The real fix was widening the *distribution*, not just the ceiling. Centering average at 10 leaves deliberate headroom for genuine outliers (stars 16–18, generational 19–20) and below-average players (3–5), and matches how rating systems keep "average" well below max.  
+**Trade-off**: The existing 13 skill calculators' threshold branches (`>9`, `>7`, etc.) were written against the old ~1–10 range and must be re-tuned for 1–20, or they mis-fire (an "above average" bonus now triggers for most of the league).  
+**Alternatives considered**: 1–15 (keep current data — marginal variability gain); 1–100 (false precision, can't meaningfully assign across 420 hand-curated players); linear shift+stretch instead of distribution-based (preserves exact gaps but amplifies existing data artifacts).
+
+### 009 — Player data is CSV-driven
+**Date**: 2026-06  
+**Decision**: Player seed data is the source-of-truth CSV `db/players.csv` (422 players), loaded via a Liquibase `loadData` changeset. Replaced the ~420 inline SQL `INSERT` statements previously in `release.1.0.1.dataload.sql`.  
+**Rationale**: A CSV is far easier to inspect, sort, bulk-transform (rescale/re-center), and eyeball for outliers than 420 single-line inserts. Follows the existing `gm.csv` / `loadData` precedent. The old `player.csv` had drifted stale (421 rows, missing a player); the canonical CSV was regenerated from the authoritative SQL. Team inserts stay in SQL (FK parent — must load before players).  
+**Trade-off**: Schema changes now require both a migration (add column) and a matching CSV column; load order in `changelog.yml` must keep teams → add-columns → players. Existing dev DBs need `docker compose down -v` to pick up schema changes.  
+**Alternatives considered**: Keep editing inline SQL (error-prone at 420 rows); append columns to the stale `player.csv` (would bake in the old compressed distribution and the missing player).
+
 ---
 
 *Template for new entries:*
