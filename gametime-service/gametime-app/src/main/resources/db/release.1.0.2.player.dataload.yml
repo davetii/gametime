@@ -1,0 +1,43 @@
+databaseChangeLog:
+  - changeSet:
+      id: loadPlayers
+      author: davetii@gmail.com
+      changes:
+        - loadData:
+            encoding: UTF-8
+            file: db/players.csv
+            separator: ','
+            schemaName: gametime
+            tableName: player
+            columns:
+              - column: { header: id,             name: id,             type: varchar }
+              - column: { header: first_name,     name: first_name,     type: varchar }
+              - column: { header: last_name,      name: last_name,      type: varchar }
+              - column: { header: team_id,        name: team_id,        type: varchar }
+              - column: { header: draft_slot,     name: draft_slot,     type: varchar }
+              - column: { header: years_pro,      name: years_pro,      type: numeric }
+              - column: { header: height,         name: height,         type: varchar }
+              - column: { header: weight,         name: weight,         type: varchar }
+              - column: { header: status,         name: status,         type: varchar }
+              - column: { header: position,       name: position,       type: varchar }
+              - column: { header: size,           name: size,           type: numeric }
+              - column: { header: strength,       name: strength,       type: numeric }
+              - column: { header: intelligence,   name: intelligence,   type: numeric }
+              - column: { header: shot_skill,     name: shot_skill,     type: numeric }
+              - column: { header: shot_selection, name: shot_selection, type: numeric }
+              - column: { header: endurance,      name: endurance,      type: numeric }
+              - column: { header: agility,        name: agility,        type: numeric }
+              - column: { header: handle,         name: handle,         type: numeric }
+              - column: { header: speed,          name: speed,          type: numeric }
+              - column: { header: energy,         name: energy,         type: numeric }
+              - column: { header: health,         name: health,         type: numeric }
+              - column: { header: determination,  name: determination,  type: numeric }
+              - column: { header: luck,           name: luck,           type: numeric }
+              - column: { header: charisma,       name: charisma,       type: numeric }
+              - column: { header: ego,            name: ego,            type: numeric }
+              - column: { header: cohesion,       name: cohesion,       type: numeric }
+              - column: { header: verticality,    name: verticality,    type: numeric }
+              - column: { header: wingspan,       name: wingspan,       type: numeric }
+              - column: { header: composure,      name: composure,      type: numeric }
+              - column: { header: aggression,     name: aggression,     type: numeric }
+              - column: { header: awareness,      name: awareness,      type: numeric }

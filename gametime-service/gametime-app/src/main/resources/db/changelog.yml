@@ -17,3 +17,9 @@ databaseChangeLog:
 - include:
     comment: Load Gametime tables
     file: classpath:db/release.1.0.1.dataload.sql
+- include:
+    comment: Add new player attributes (verticality, wingspan, composure, aggression, awareness)
+    file: classpath:db/release.1.0.2.sql
+- include:
+    comment: Load players from CSV (source of truth)
+    file: classpath:db/release.1.0.2.player.dataload.yml

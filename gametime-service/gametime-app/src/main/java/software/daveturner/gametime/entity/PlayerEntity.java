@@ -46,6 +46,12 @@ public class PlayerEntity {
     private Integer speed;
     private Integer strength;
 
+    private Integer verticality;
+    private Integer wingspan;
+    private Integer composure;
+    private Integer aggression;
+    private Integer awareness;
+
 
     @JsonBackReference
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
