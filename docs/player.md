@@ -14,7 +14,7 @@ PlayerEntity (DB)  →  EntityMapper  →  Player (API model)
 
 ---
 
-## Base Attributes (1–10 scale, stored in DB)
+## Base Attributes (1–20 scale, average = 10, stored in DB)
 
 ### Current (16 attributes)
 
@@ -765,17 +765,24 @@ Write a script that:
 1. Parses each existing INSERT to extract `agility`, `energy`, `size`, `strength`, `intelligence`, `determination`, `shotSelection`
 2. Computes new values using these formulas:
 
-| New Attribute | Formula |
+> **Note (as implemented):** The formulas below were the *original proposal*. The
+> actual derivation used during the 1–20 rescale is more nuanced (weighted, with
+> percentile bonuses for some attributes). See "Attribute Derivation Formulas
+> (as implemented)" below and [docs/TODO.md](TODO.md) for the authoritative formulas.
+
+| New Attribute | Formula (as implemented, 1–20 scale) |
 |---------------|---------|
-| verticality | `ceil((agility + energy) / 2)` |
-| wingspan | `ceil((size + strength) / 2)` |
-| composure | `ceil((intelligence + determination) / 2)` |
-| aggression | `ceil((determination + energy) / 2)` |
-| awareness | `ceil((intelligence + shotSelection) / 2)` |
+| verticality | `floor((energy*2 + agility + strength) / 4)` + tiered str/agi freak bonus |
+| wingspan | `floor((size*2 + energy + agility) / 4)` |
+| composure | `floor((intelligence + determination + endurance + shotSelection) / 4)` + tiered intel/det bonus |
+| aggression | `floor((ego + determination*2 + energy*2) / 5)` |
+| awareness | `floor((intelligence + shotSelection) / 2)` + additive top-20% intel/agility bonuses |
 
 3. Outputs the full updated SQL file with new columns appended to every INSERT
 
-Values will naturally stay in existing 1–15 range. Hand-tune star players after generation if needed.
+Values land in the 1–20 range (average ~10). Derived attributes carry no independent
+signal — hand-tune individual players where their reach/explosiveness/etc. should
+diverge from what their other attributes imply.
 
 ### Step 4: Update PlayerEntity
 
@@ -1306,19 +1313,35 @@ There are ~420 INSERT statements that ALL need updating. A script should:
 2. Derive new attribute values using the formulas in the plan
 3. Output the updated INSERT statements
 
-### Attribute Derivation Formulas (for script)
+### Attribute Derivation Formulas (as implemented)
 
-Simple ceiling of the average of two existing attributes. No position adjustments — keeps values honest to what's already hand-tuned.
+The new attributes were derived from existing ones on the 1–20 scale. Each is a
+weighted floor-average, and three carry an additional percentile bonus that rewards
+players elite in the contributing attributes. All results are clamped to 1–20.
 
 ```
-verticality = ceil((agility + energy) / 2)
-wingspan    = ceil((size + strength) / 2)
-composure   = ceil((intelligence + determination) / 2)
-aggression  = ceil((determination + energy) / 2)
-awareness   = ceil((intelligence + shotSelection) / 2)
+verticality = floor((energy*2 + agility + strength) / 4)
+              + tiered bonus: +2 if strength top-10% AND agility top-20%
+                              +1 if strength top-20% AND agility top-20%   (max, not additive)
+
+wingspan    = floor((size*2 + energy + agility) / 4)
+
+composure   = floor((intelligence + determination + endurance + shotSelection) / 4)
+              + tiered bonus: +2 if intelligence top-10% AND determination top-10%
+                              +1 if intelligence top-25% AND determination top-25%  (max, not additive)
+
+aggression  = floor((ego + determination*2 + energy*2) / 5)
+
+awareness   = floor((intelligence + shotSelection) / 2)
+              + additive bonus: +1 if intelligence top-20%, +1 if agility top-20%  (both can apply)
 ```
 
-These will naturally land in the same 1–15 range as existing attributes since inputs are already in that range.
+**Caveats:**
+- These attributes are *derived* — they carry no independent signal. Hand-tune any
+  player whose explosiveness/reach/etc. should diverge from their other attributes.
+- The percentile bonuses were computed off a one-time data snapshot. If the existing
+  attributes are re-tuned later, regenerate these from scratch (base + bonus
+  together) rather than re-applying bonuses on top of already-bonused values.
 
 ### Build Command
 

@@ -33,7 +33,7 @@ See [player.md](player.md) for the full design. Goal: harden the player model
       awareness = `(intel + shot_selection)/2` + additive bonuses (+1 top20%intel, +1 top20%agility).
       NOTE: derived (no independent signal) AND percentile bonuses are baked off the current snapshot — if existing attrs are re-tuned later, regenerate these from scratch (base + bonus together).
 - [ ] Hand-tune marquee/star players to 18–20 where appropriate (rescale is mechanical)
-- [ ] Update `player.md`: change "1–10 scale" label to 1–20 (line ~17) to match decision
+- [x] Update `player.md`: scale label → 1–20/avg-10, and corrected the attribute derivation formula sections to match what was actually implemented (was the old `ceil(.../2)` proposal). NOTE: the skill *calculator specs* (player.md §"Skill Calculator Specifications") are still on the old scale — defer those to the skills re-tune (see [plan.md](../plan.md)), so the doc matches the real code rather than a second guess.
 
 ### Skills — remaining
 - [ ] Redesign `foulProne` formula — the `+5` constant / `/8` breaks the "average player = 5.0" invariant other calculators hold
@@ -44,7 +44,7 @@ See [player.md](player.md) for the full design. Goal: harden the player model
 - [ ] Re-tune existing 13 calculators' thresholds for the 1–20 scale (branches like `>9`/`>7` assumed ~1–10)
 
 ### Cleanup
-- [ ] Delete stale `player.csv` (superseded by `players.csv`)
+- [x] Delete stale `player.csv` (superseded by `players.csv`) — also removed its orphaned, unregistered loader `release.1.0.1.player.dataload.yml`. Source of truth is now `players.csv` via `release.1.0.2.player.dataload.yml`.
 
 ## Phase 1b — Foundation (CRUD / Coach / GM)
 
