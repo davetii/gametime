@@ -195,6 +195,11 @@ class EntityMapperTest {
         entity.setSize(TESTATTRIB);
         entity.setStrength(TESTATTRIB);
         entity.setSpeed(TESTATTRIB);
+        entity.setVerticality(TESTATTRIB);
+        entity.setWingspan(TESTATTRIB);
+        entity.setComposure(TESTATTRIB);
+        entity.setAggression(TESTATTRIB);
+        entity.setAwareness(TESTATTRIB);
         entity.setYearsPro(4);
         return entity;
     }

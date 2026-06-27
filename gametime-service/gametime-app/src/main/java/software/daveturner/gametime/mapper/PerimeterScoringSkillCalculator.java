@@ -2,42 +2,28 @@ package software.daveturner.gametime.mapper;
 
 import org.springframework.stereotype.Component;
 import software.daveturner.gametime.model.Player;
+
 import java.math.BigDecimal;
 
+/**
+ * Mid-range and perimeter shot-making. Shot skill dominates, with shot selection
+ * and quickness contributing; big men score a touch less from the perimeter.
+ */
 @Component
 public class PerimeterScoringSkillCalculator implements SkillCalculator {
 
     @Override
     public BigDecimal calc(Player player) {
-        double value = ((player.getShotSkill() * 4) +
-                (player.getShotSelection() * 2) +
-                player.getLuck() +
-                player.getIntelligence() +
-                player.getAgility() +
-                player.getSpeed()) / 10d;
-        value= adjust(player.getShotSkill(), value);
+        double value = ((player.getShotSkill() * 4) + (player.getShotSelection() * 2)
+                + player.getLuck() + player.getIntelligence()
+                + player.getAgility() + player.getSpeed()) / 10d;
 
-        if(player.getShotSelection() > 9) { value += 4; }
-        else if(player.getShotSelection() > 8) { value += 3; }
-        else if(player.getShotSelection() > 7) { value += 2; }
+        value += adj(player.getShotSkill());
+        value += adj(player.getShotSelection(), COMBO_FACTOR);
 
-        if(player.getSize() > 9) { value -= 2; }
-        else if(player.getSize() > 8) { value -= 1.5; }
-        else if(player.getSize() > 7) { value -= 1; }
+        // Bigs are slightly less effective from the perimeter.
+        value -= adj(player.getSize(), COMBO_FACTOR);
 
-        return round(value);
-    }
-
-    private double adjust(int attrib,  double value) {
-        if(attrib > 9) { return value += 5;}
-        else if(attrib > 8) { return value += 4;}
-        else if(attrib > 7) { return value += 3;}
-        else if(attrib > 6) { return value += 2;}
-        else if(attrib > 5) { return value += 1.5;}
-        else if(attrib < 1) { return value -= 4;}
-        else if(attrib < 2) { return value -= 3;}
-        else if(attrib < 3) { return value -= 2.5;}
-        else if(attrib < 4) { return value -= 1.5;}
-        return value;
+        return round(clamp(value));
     }
 }

@@ -8,9 +8,9 @@ import java.util.*;
 
 public class SkillSetCalculatorUnitTest {
 
-    protected static final int AVERAGE_ATTRIBUTE = 5;
+    protected static final int AVERAGE_ATTRIBUTE = 10;
     protected static final int DEFAULT_YEARS_PRO = 5;
-    protected static final double AVERAGE_SKILLSET = 5D;
+    protected static final double AVERAGE_SKILLSET = 10D;
 
     public Player player;
 
@@ -43,6 +43,11 @@ public class SkillSetCalculatorUnitTest {
         player.setSize(AVERAGE_ATTRIBUTE);
         player.setSpeed(AVERAGE_ATTRIBUTE);
         player.setStrength(AVERAGE_ATTRIBUTE);
+        player.setVerticality(AVERAGE_ATTRIBUTE);
+        player.setWingspan(AVERAGE_ATTRIBUTE);
+        player.setComposure(AVERAGE_ATTRIBUTE);
+        player.setAggression(AVERAGE_ATTRIBUTE);
+        player.setAwareness(AVERAGE_ATTRIBUTE);
         player.setYearsPro(4);
         return player;
     }

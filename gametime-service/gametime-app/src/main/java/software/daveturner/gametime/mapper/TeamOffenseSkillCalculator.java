@@ -5,38 +5,26 @@ import software.daveturner.gametime.model.Player;
 
 import java.math.BigDecimal;
 
+/**
+ * Playing within a system — ball movement, spacing, unselfish play. Intelligence
+ * and cohesion drive it; ego is a double-edged penalty.
+ */
 @Component
 public class TeamOffenseSkillCalculator implements SkillCalculator {
+
     @Override
     public BigDecimal calc(Player player) {
+        double value = ((player.getIntelligence() * 2) + player.getHandle()
+                + player.getEnergy() + player.getShotSkill()
+                + player.getShotSelection() + player.getDetermination()
+                + (player.getCohesion() * 2)) / 9d;
 
-        /*
-        ego
-        energy
-        intel
-        cohesion
-        shot select
-        shot skill
-        determination
-        handle
-         */
-        double value = (
-                (player.getIntelligence() * 2) +
-                        player.getHandle() +
-                        player.getEnergy() +
-                        player.getShotSkill() +
-                        player.getShotSelection() +
-                        player.getDetermination() +
-                        (player.getCohesion()*2)) / 9d;
+        value += adj(player.getCohesion());
+        value += adj(player.getIntelligence());
 
-        if(player.getEgo() > 9) { value -= 3;}
-        else if(player.getEgo() > 8) { value -= 2;}
-        else if(player.getEgo() > 7) { value -= 1;}
+        // Ball-stoppers hurt team offense.
+        value -= adj(player.getEgo(), COMBO_FACTOR);
 
-        if(player.getIntelligence() > 9) { value += 2; }
-        else if(player.getIntelligence() > 8) { value += 1.5; }
-        else if(player.getIntelligence() > 7) { value += 1; }
-
-        return round(value);
+        return round(clamp(value));
     }
 }

@@ -8,11 +8,18 @@ public class PostScoringSkillCalculatorTest extends SkillSetCalculatorUnitTest {
     @BeforeEach
     public void setup() {
         calc = new PostScoringSkillCalculator();
-        player  = BASE_PLAYER();
+        player = BASE_PLAYER();
     }
 
     @Test
     public void ensureAveragePostReturnsExpected() {
         assertPlayer(AVERAGE_SKILLSET, calc);
+    }
+
+    @Test
+    public void ensureBigStrongPlayerScoresInPost() {
+        player.setSize(16);
+        player.setStrength(16);
+        assertPlayer(14.8d, calc);
     }
 }

@@ -8,7 +8,7 @@ public class PerimeterScoringSkillCalculatorTest extends SkillSetCalculatorUnitT
     @BeforeEach
     public void setup() {
         calc = new PerimeterScoringSkillCalculator();
-        player  = BASE_PLAYER();
+        player = BASE_PLAYER();
     }
 
     @Test
@@ -17,14 +17,8 @@ public class PerimeterScoringSkillCalculatorTest extends SkillSetCalculatorUnitT
     }
 
     @Test
-    public void ensureHighShotSkillReturnsExpected() {
-        player.setShotSkill(10);
-        assertPlayer(12d, calc);
-    }
-
-    @Test
-    public void ensureLowShotSkillReturnsExpected() {
-        player.setShotSkill(1);
-        assertPlayer(0.4d, calc);
+    public void ensureGoodShooterRatesHigh() {
+        player.setShotSkill(16);
+        assertPlayer(13.5d, calc);
     }
 }

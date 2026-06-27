@@ -5,72 +5,27 @@ import software.daveturner.gametime.model.Player;
 
 import java.math.BigDecimal;
 
+/**
+ * Boxing out and securing defensive boards. Size, strength and determination
+ * carry it; length (wingspan) and a want-the-ball edge (ego) help on the new scale.
+ */
 @Component
-public class DefenseReboundSkillCalculator  implements SkillCalculator{
+public class DefenseReboundSkillCalculator implements SkillCalculator {
+
     @Override
     public BigDecimal calc(Player player) {
+        double value = ((player.getDetermination() * 3) + player.getEnergy()
+                + player.getIntelligence() + (player.getSize() * 2)
+                + (player.getStrength() * 2) + (player.getHealth())) / 10d;
 
-            double value =
-                    ((player.getDetermination() * 3) +
-                            player.getEnergy() + player.getIntelligence() +
-                            (player.getSize() * 2) + (player.getStrength() * 2)) / 9d;
-            if (player.getAgility() > 9) {
-                value += 3.5;
-            } else if (player.getAgility() > 8) {
-                value += 2.5;
-            } else if (player.getAgility() > 7) {
-                value += 1.5;
-            } else if (player.getAgility() > 6) {
-                value += 1;
-            }
+        value += adj(player.getSize());
+        value += adj(player.getStrength());
+        value += adj(player.getWingspan(), COMBO_FACTOR);
+        value += adj(player.getVerticality(), COMBO_FACTOR);
 
-            if (player.getSize() > 9) {
-                value += 3;
-            } else if (player.getSize() > 8) {
-                value += 2;
-            } else if (player.getSize() > 7) {
-                value += 1;
-            }
+        // Want-the-ball factor: ego helps here (double-edged elsewhere).
+        value += adj(player.getEgo(), COMBO_FACTOR);
 
-            if (player.getSpeed() > 8) {
-                value += 2;
-            } else if (player.getSpeed() > 6) {
-                value += 1;
-            }
-
-            if (player.getEgo() > 8) {
-                value += 3;
-            } else if (player.getEgo() > 6) {
-                value += 1;
-            }
-
-
-            if (player.getEgo() < 2) {
-                value -= 3;
-            } else if (player.getEgo() < 4) {
-                value -= 1;
-            }
-
-            if (player.getEndurance() < 2) {
-                value -= 3;
-            } else if (player.getEndurance() < 3) {
-                value -= 2;
-            } else if (player.getEndurance() < 4) {
-                value -= 1;
-            }
-
-            if (player.getSize() < 2) {
-                value -= 3;
-            } else if (player.getSize() < 3) {
-                value -= 2;
-            } else if (player.getSize() > 7) {
-                value += 1;
-            } else if (player.getSize() > 9) {
-                value += 2;
-            }
-
-            return round(value);
-
-
+        return round(clamp(value));
     }
 }

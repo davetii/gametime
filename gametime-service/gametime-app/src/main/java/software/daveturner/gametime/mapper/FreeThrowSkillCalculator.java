@@ -5,16 +5,22 @@ import software.daveturner.gametime.model.Player;
 
 import java.math.BigDecimal;
 
+/**
+ * Free throw shooting. Mostly raw shot skill, with composure handling the
+ * repetition/pressure element and experience providing a small refinement.
+ */
 @Component
-public class FreeThrowSkillCalculator implements SkillCalculator{
+public class FreeThrowSkillCalculator implements SkillCalculator {
+
     @Override
     public BigDecimal calc(Player player) {
-        double value = ((player.getShotSkill() * 4) + player.getShotSelection() + player.getLuck() + player.getIntelligence()) / 7d;
-        if (player.getYearsPro() > 11) { value += 3; }
-        else if (player.getYearsPro() > 9) { value += 2.5; }
-        else if (player.getYearsPro() > 7) { value += 2; }
-        else if (player.getYearsPro() > 6) { value += 1.5; }
-        else if (player.getYearsPro() > 5) { value += 1; }
-        return round(value);
+        double value = ((player.getShotSkill() * 4) + player.getShotSelection()
+                + player.getLuck() + player.getIntelligence()) / 7d;
+
+        value += adj(player.getShotSkill());
+        value += adj(player.getComposure(), COMBO_FACTOR);
+
+        value += experienceAdj(player.getYearsPro());
+        return round(clamp(value));
     }
 }

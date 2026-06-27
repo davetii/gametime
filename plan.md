@@ -67,9 +67,27 @@ position fairly. That is exactly what this plan delivers.
 
 ---
 
+## Progress log
+
+- **ALL PHASES COMPLETE.** All 23 skill calculators on the 1–20 scale, full reactor
+  builds, 84/84 tests pass (was 78). Every skill centers at 10.0 for an average
+  player; real-league distributions are sensible (means 9.6–10.3, full 1–20 range).
+  Phases B+D and the OpenAPI/fixture prerequisites all landed.
+- **Phase A — DONE.** Built the shared helper on `SkillCalculator` and validated it
+  on `IndividualDefenseSkillCalculator` (refactored) with a re-baselined test (avg
+  player → 10.0; real-data league distribution mean 10.36, full 1–20 range, minimal
+  pinning). Helper API: `adj(attr[,factor])` (deviation from 10), `comboAdj(a,b[,factor])`
+  (two-attribute, centered at 20), `experienceAdj(yearsPro)`, `clamp(value)`,
+  constants `SINGLE_FACTOR=0.18`, `COMBO_FACTOR=0.10`. Pattern: weighted-average base
+  (already ~10 on the new scale) + deviation adjustments + `round(clamp(value))`.
+- **Sequencing change discovered:** the OpenAPI spec update (5 attrs + 10 skills) and
+  the `BASE_PLAYER()` fixture update (AVERAGE_ATTRIBUTE=10 + new attrs) are
+  *prerequisites*, not Phase D/E — calculators that read new attributes won't compile
+  until the generated `Player` model has them. **Both already done during Phase A.**
+
 ## Phases
 
-### Phase A — Shared scale-aware helper
+### Phase A — Shared scale-aware helper — DONE
 Build the common math layer all calculators will use.
 - Add helper methods (on the `SkillCalculator` interface as defaults, or a small
   `SkillMath` utility):

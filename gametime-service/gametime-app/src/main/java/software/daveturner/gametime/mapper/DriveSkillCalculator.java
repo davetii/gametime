@@ -1,45 +1,36 @@
 package software.daveturner.gametime.mapper;
 
-
 import org.springframework.stereotype.Component;
 import software.daveturner.gametime.model.Player;
 
 import java.math.BigDecimal;
 
+/**
+ * Attacking the basket off the dribble. Agility, handle and speed drive it;
+ * verticality helps finish through contact; big men and aging legs are penalized.
+ */
 @Component
 public class DriveSkillCalculator implements SkillCalculator {
 
     @Override
     public BigDecimal calc(Player player) {
-        double value = ((player.getAgility() * 3) + player.getDetermination() + (player.getHandle() * 2) + player.getSpeed()) / 7d;
-        value = calc(player.getEgo(), value);
-        value = calc(player.getShotSkill(), value);
-        value = calc(player.getSpeed(), value);
-        value = calc(player.getStrength(), value);
+        double value = ((player.getAgility() * 3) + player.getDetermination()
+                + (player.getHandle() * 2) + player.getSpeed()) / 7d;
 
-        if(player.getSize() > 9) { value -= 3;}
-        else if(player.getSize()  > 7) { value -= 2;}
-        else if(player.getSize()  > 6) { value -= 1;}
+        value += adj(player.getSpeed());
+        value += adj(player.getShotSkill(), COMBO_FACTOR);
+        value += adj(player.getStrength(), COMBO_FACTOR);
+        value += adj(player.getVerticality(), COMBO_FACTOR);
 
-        if(player.getEnergy() < 1) { value -= 4;}
-        else if(player.getEnergy()  < 3) { value -= 3;}
-        else if(player.getEnergy()  < 4) { value -= 1;}
+        // Big men can't drive as well; subtract their size advantage.
+        value -= adj(player.getSize());
 
-        if(player.getYearsPro() > 14) { value -= 4; }
-        else if(player.getYearsPro() > 12) { value -= 3; }
-        else if(player.getYearsPro() > 10) { value -= 2; }
-        else if(player.getYearsPro() > 8) { value -= 1; }
+        // Drive is an athletic skill — it declines with age rather than benefiting
+        // from veteran IQ, so apply a one-sided age penalty (not experienceAdj).
+        if (player.getYearsPro() > 14) value -= 2.5;
+        else if (player.getYearsPro() > 12) value -= 2;
+        else if (player.getYearsPro() > 10) value -= 1;
 
-        return round(value);
-    }
-
-    private double calc(int a, double currentVal) {
-        if(a > 9) { currentVal += 3;}
-        else if(a > 7) { currentVal += 2;}
-        else if(a > 6) { currentVal += 1;}
-        else if(a < 2) { currentVal -= 3;}
-        else if(a < 3) { currentVal -= 2;}
-        else if(a < 4) { currentVal -= 1;}
-        return currentVal;
+        return round(clamp(value));
     }
 }

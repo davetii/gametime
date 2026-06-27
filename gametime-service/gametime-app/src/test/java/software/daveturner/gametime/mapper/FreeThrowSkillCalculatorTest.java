@@ -3,12 +3,12 @@ package software.daveturner.gametime.mapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class FreeThrowSkillCalculatorTest extends SkillSetCalculatorUnitTest{
+public class FreeThrowSkillCalculatorTest extends SkillSetCalculatorUnitTest {
 
     @BeforeEach
     public void setup() {
         calc = new FreeThrowSkillCalculator();
-        player  = BASE_PLAYER();
+        player = BASE_PLAYER();
     }
 
     @Test
@@ -17,14 +17,14 @@ public class FreeThrowSkillCalculatorTest extends SkillSetCalculatorUnitTest{
     }
 
     @Test
-    public void ensureAverage6YearPlayerReturnsExpected() {
-        player.setYearsPro(6);
-        assertPlayer(6.0, calc);
+    public void ensureGoodShooterRatesHigh() {
+        player.setShotSkill(16);
+        assertPlayer(14.5d, calc);
     }
 
     @Test
-    public void ensureAverage12YearPlayerReturnsExpected() {
+    public void ensureVeteranImproves() {
         player.setYearsPro(12);
-        assertPlayer(8, calc);
+        assertPlayer(11.5d, calc);
     }
 }

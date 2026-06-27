@@ -3,12 +3,12 @@ package software.daveturner.gametime.mapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class DriveSkillCalculatorTest extends SkillSetCalculatorUnitTest{
+public class DriveSkillCalculatorTest extends SkillSetCalculatorUnitTest {
 
     @BeforeEach
     public void setup() {
         calc = new DriveSkillCalculator();
-        player  = BASE_PLAYER();
+        player = BASE_PLAYER();
     }
 
     @Test
@@ -17,28 +17,20 @@ public class DriveSkillCalculatorTest extends SkillSetCalculatorUnitTest{
     }
 
     @Test
-    public void ensureBigEgoReturnsExpected() {
-        player.setEgo(9); assertPlayer(7, calc);
+    public void ensureQuickPlayerDrivesBetter() {
+        player.setSpeed(16);
+        assertPlayer(11.9d, calc);
     }
 
     @Test
-    public void ensureShotSkillReturnsExpected() {
-        player.setShotSkill(9); assertPlayer(7, calc);
+    public void ensureBigPlayerDrivesWorse() {
+        player.setSize(16);
+        assertPlayer(8.9d, calc);
     }
 
     @Test
-    public void ensureLargeSizeReturnsExpected() {
-        player.setSize(9); assertPlayer(3, calc);
-    }
-
-    @Test
-    public void ensureLowEnergyReturnsExpected() {
-        player.setEnergy(2); assertPlayer(2, calc);
-    }
-
-    @Test
-    public void ensureYearsProdReturnsExpected() {
+    public void ensureAgingLegsDeclineAtDrive() {
         player.setYearsPro(20);
-        assertPlayer(1.0, calc);
+        assertPlayer(7.5d, calc);
     }
 }

@@ -5,47 +5,28 @@ import software.daveturner.gametime.model.Player;
 
 import java.math.BigDecimal;
 
+/**
+ * Crashing the offensive glass for putbacks and second chances. Effort
+ * (determination, energy) plus size/strength; verticality and length help, and a
+ * want-the-ball edge (ego) helps here.
+ */
 @Component
-public class OffenseReboundSkillCalculator implements SkillCalculator{
+public class OffenseReboundSkillCalculator implements SkillCalculator {
 
     @Override
     public BigDecimal calc(Player player) {
-        double value =
-                (player.getEgo() + (player.getDetermination() * 3) +
-                        (player.getEnergy() * 2) + (player.getIntelligence() * 2) +
-                        (player.getSize() * 2) + (player.getStrength() * 2)) / 12d;
+        double value = (player.getEgo() + (player.getDetermination() * 3)
+                + (player.getEnergy() * 2) + (player.getIntelligence() * 2)
+                + (player.getSize() * 2) + (player.getStrength() * 2)) / 12d;
 
-        value = adjustValueUp(player.getDetermination(), value);
-        value = adjustValueUp(player.getAgility(), value);
-        value = adjustValueUp(player.getSize(), value);
+        value += adj(player.getDetermination());
+        value += adj(player.getSize());
+        value += adj(player.getVerticality(), COMBO_FACTOR);
+        value += adj(player.getWingspan(), COMBO_FACTOR);
 
-        if(player.getSpeed() > 8) { value += 2;}
-        else if(player.getSpeed() > 6) { value +=1; }
+        // Want-the-ball factor: ego helps on the offensive glass.
+        value += adj(player.getEgo(), COMBO_FACTOR);
 
-        if(player.getEgo() > 9) { value += 3;}
-        else if(player.getEgo() > 7) { value +=1; }
-
-        if(player.getEgo() < 2) { value -= 3;}
-        else if(player.getEgo() < 3) { value -=1.5; }
-        value = adjustValueDown(player.getEndurance(), value);
-        value = adjustValueDown(player.getSize(), value);
-        value = adjustValueDown(player.getDetermination(), value);
-        return round(value);
-    }
-
-    private double adjustValueUp(int attrib,  double value) {
-        if(attrib > 9) { value += 3.5;}
-        else if(attrib > 8) { value += 2.5;}
-        else if(attrib > 7) { value +=1.5; }
-        else if(attrib > 6) { value +=1; }
-        return value;
-    }
-
-    private double adjustValueDown(int attrib,  double value) {
-        if(attrib < 1) { value -= 4;}
-        else if(attrib < 2) { value -=3.5; }
-        else if(attrib < 3) { value -=2; }
-        else if(attrib < 4) { value -=1; }
-        return value;
+        return round(clamp(value));
     }
 }

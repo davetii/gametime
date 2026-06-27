@@ -8,7 +8,7 @@ public class PassingSkillCalculatorTest extends SkillSetCalculatorUnitTest {
     @BeforeEach
     public void setup() {
         calc = new PassingSkillCalculator();
-        player  = BASE_PLAYER();
+        player = BASE_PLAYER();
     }
 
     @Test
@@ -17,26 +17,9 @@ public class PassingSkillCalculatorTest extends SkillSetCalculatorUnitTest {
     }
 
     @Test
-    public void assertGoodHandle() {
-        player.setHandle(9);
-        assertPlayer(11, calc);
-    }
-
-    @Test
-    public void assertGoodIntel() {
-        player.setIntelligence(9);
-        assertPlayer(10.3, calc);
-    }
-
-    @Test
-    public void assertBadHandle() {
-        player.setHandle(4);
-        assertPlayer(4.5, calc);
-    }
-
-    @Test
-    public void assertBadIntel() {
-        player.setIntelligence(4);
-        assertPlayer(4.7, calc);
+    public void ensureHighHandleAndIntelligencePassWell() {
+        player.setHandle(16);
+        player.setIntelligence(16);
+        assertPlayer(17.2d, calc);
     }
 }

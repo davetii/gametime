@@ -47,6 +47,36 @@ public class SkillMapper {
     @Autowired
     private TeamOffenseSkillCalculator teamOffenseSkillCalculator;
 
+    @Autowired
+    private FinishingSkillCalculator finishingSkillCalculator;
+
+    @Autowired
+    private TransitionSkillCalculator transitionSkillCalculator;
+
+    @Autowired
+    private RimProtectionSkillCalculator rimProtectionSkillCalculator;
+
+    @Autowired
+    private StealingSkillCalculator stealingSkillCalculator;
+
+    @Autowired
+    private ShotContestSkillCalculator shotContestSkillCalculator;
+
+    @Autowired
+    private FoulDrawingSkillCalculator foulDrawingSkillCalculator;
+
+    @Autowired
+    private FoulProneSkillCalculator foulProneSkillCalculator;
+
+    @Autowired
+    private ClutchSkillCalculator clutchSkillCalculator;
+
+    @Autowired
+    private ScreenSettingSkillCalculator screenSettingSkillCalculator;
+
+    @Autowired
+    private OffBallMovementSkillCalculator offBallMovementSkillCalculator;
+
     public PlayerSkills mapSkills(Player player) {
         PlayerSkills skills = new PlayerSkills();
         skills.setAcumen(acumenSkillCalculator.calc(player));
@@ -62,6 +92,16 @@ public class SkillMapper {
         skills.setPost(postScoringSkillCalculator.calc(player));
         skills.setTeamDefense(teamDefenseSkillCalculator.calc(player));
         skills.setTeamOffense(teamOffenseSkillCalculator.calc(player));
+        skills.setFinishing(finishingSkillCalculator.calc(player));
+        skills.setTransition(transitionSkillCalculator.calc(player));
+        skills.setRimProtection(rimProtectionSkillCalculator.calc(player));
+        skills.setStealing(stealingSkillCalculator.calc(player));
+        skills.setShotContest(shotContestSkillCalculator.calc(player));
+        skills.setFoulDrawing(foulDrawingSkillCalculator.calc(player));
+        skills.setFoulProne(foulProneSkillCalculator.calc(player));
+        skills.setClutch(clutchSkillCalculator.calc(player));
+        skills.setScreenSetting(screenSettingSkillCalculator.calc(player));
+        skills.setOffBallMovement(offBallMovementSkillCalculator.calc(player));
         return skills;
     }
 }

@@ -77,6 +77,11 @@ public class EntityMapper {
         player.setSize(e.getSize());
         player.setStrength(e.getStrength());
         player.setSpeed(e.getSpeed());
+        player.setVerticality(e.getVerticality());
+        player.setWingspan(e.getWingspan());
+        player.setComposure(e.getComposure());
+        player.setAggression(e.getAggression());
+        player.setAwareness(e.getAwareness());
         player.setYearsPro(e.getYearsPro());
         player.setSkills(skillMapper.mapSkills(player));
         return player;

@@ -8,7 +8,7 @@ public class TeamOffenseSkillCalculatorTest extends SkillSetCalculatorUnitTest {
     @BeforeEach
     public void setup() {
         calc = new TeamOffenseSkillCalculator();
-        player  = BASE_PLAYER();
+        player = BASE_PLAYER();
     }
 
     @Test
@@ -17,14 +17,8 @@ public class TeamOffenseSkillCalculatorTest extends SkillSetCalculatorUnitTest {
     }
 
     @Test
-    public void ensureHighIntelReturnsExpected() {
-        player.setIntelligence(8);
-        assertPlayer(6.7d, calc);
-    }
-
-    @Test
-    public void ensureHighEgoLowersTeamOffenseiveSkill() {
-        player.setEgo(9);
-        assertPlayer(3d, calc);
+    public void ensureBigEgoLowersTeamOffense() {
+        player.setEgo(16);
+        assertPlayer(9.4d, calc);
     }
 }

@@ -313,6 +313,21 @@ components:
         strength:
           type: integer
           format: int32
+        verticality:
+          type: integer
+          format: int32
+        wingspan:
+          type: integer
+          format: int32
+        composure:
+          type: integer
+          format: int32
+        aggression:
+          type: integer
+          format: int32
+        awareness:
+          type: integer
+          format: int32
         skills:
           $ref: "#/components/schemas/PlayerSkills"
 
@@ -345,4 +360,24 @@ components:
         offenseRebound:
           type: number
         defenseRebound:
+          type: number
+        finishing:
+          type: number
+        transition:
+          type: number
+        rimProtection:
+          type: number
+        stealing:
+          type: number
+        shotContest:
+          type: number
+        foulDrawing:
+          type: number
+        foulProne:
+          type: number
+        clutch:
+          type: number
+        screenSetting:
+          type: number
+        offBallMovement:
           type: number
