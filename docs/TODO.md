@@ -47,7 +47,7 @@ pass; every skill centers at 10.0 for an average player.
 - [x] Re-tune existing 13 calculators for the 1–20 scale (replaced the old `>9`/`>7` threshold ladders with the deviation helper)
 
 ### Skills — remaining
-- [ ] Update player.md §"Skill Calculator Specifications" to document the new 1–20 formulas (was deferred until the calculators were re-tuned — now they are)
+- [x] Update player.md §"Skill Calculator Specifications" — replaced the ~530 lines of stale 1–10 pseudocode with a concise design pointer to the `*SkillCalculator` classes (code is now the authoritative source for exact formulas; doc owns the design). Conceptual content (skill list, possession mapping, design principles) retained.
 
 ### Cleanup
 - [x] Delete stale `player.csv` (superseded by `players.csv`) — also removed its orphaned, unregistered loader `release.1.0.1.player.dataload.yml`. Source of truth is now `players.csv` via `release.1.0.2.player.dataload.yml`.
