@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: loadRoster
+      author: davetii@gmail.com
+      changes:
+        - loadData:
+            encoding: UTF-8
+            file: db/roster.csv
+            separator: ','
+            schemaName: gametime
+            tableName: player_team
+            columns:
+              - column: { header: player_id,        name: player_id,        type: varchar }
+              - column: { header: team_id,          name: team_id,          type: varchar }
+              - column: { header: transaction_type, name: transaction_type, type: varchar }

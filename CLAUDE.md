@@ -1,148 +1,93 @@
-# CLAUDE.md
+# Gametime
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Basketball simulation game — API service, future React frontend.
 
-## Project Overview
+## Project structure
 
-Basketball simulator Spring Boot application built with:
-- Spring Boot 3.1.5
-- Java 17
-- OpenAPI code generation
-- Liquibase for database migrations
-- Multi-profile support (local/test)
-- Cucumber for BDD testing
+```
+gametime/
+├── CLAUDE.md                  AI session entry point (this file)
+├── docs/                      Project documentation
+│   ├── PROJECT_PLAN.md        Phased roadmap (8 phases)
+│   ├── DECISIONS.md           Architecture decision log
+│   ├── RISKS.md               Active risks and concerns
+│   ├── TODO.md                Tactical task list
+│   └── player.md              Player domain design (attributes, skills, formulas)
+├── gametime-service/          Multi-module Maven project (Spring Boot 3.5.14)
+│   ├── pom.xml                Parent POM (packaging=pom)
+│   ├── gametime-api/          OpenAPI codegen module (generates server stubs)
+│   │   ├── yml/gametime.yaml  API spec (source of truth)
+│   │   └── pom.xml            openapi-generator-maven-plugin
+│   ├── gametime-app/          Spring Boot application (hand-written code)
+│   │   └── src/
+│   ├── docker-compose.yml     Local Postgres container
+│   └── http/                  IntelliJ .http files for manual REST testing
+```
 
-## Build and Test Commands
+## Project docs
 
-### Basic Build
+Before starting work, review these for context:
+- **`docs/PROJECT_PLAN.md`** — phased roadmap, what's built vs what's needed
+- **`docs/player.md`** — player domain design: attributes, derived skills, calculator formulas (current focus)
+- **`docs/DECISIONS.md`** — past architecture choices (check before proposing alternatives)
+- **`docs/TODO.md`** — current task list
+- **`docs/RISKS.md`** — known risks and concerns
+
+## Build requirements
+
+- **Java 21** (LTS) via SDKMAN: `~/.sdkman/candidates/java/21.0.9-tem`
+- **Homebrew Maven uses JDK 25 by default** which breaks Lombok. Always set JAVA_HOME:
+  ```
+  JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn clean test
+  ```
+- Do not use JDK 25 (Homebrew default) — Lombok 1.18.x is incompatible.
+
+## Build commands
+
 ```bash
-mvn install
+# Compile
+JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn clean compile
+
+# Run tests (uses H2 in-memory, no Docker needed)
+JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn clean test
+
+# Run with Docker integration tests
+JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn verify -Ptest
 ```
 
-### Run Application
+## Module boundaries
+
+- **gametime-api**: Generated code only. Never put hand-written code here. API spec changes go in `gametime-api/yml/gametime.yaml`. Generated stubs land in `target/`.
+- **gametime-app**: All hand-written code — entities, services, repos, delegate implementations, tests, resources.
+- The app module depends on the api module as a Maven dependency.
+
+## Database
+
+- **Local dev**: Postgres in Docker container (`docker-compose.yml`), port 5432
+- **Tests (`mvn test`)**: H2 in-memory, no Docker needed. Test properties override in `src/test/resources/application-local.properties`.
+- **Schema**: All app tables live in the `gametime` schema (not `public`).
+- **Liquibase**: Manages schema creation and migrations. Changelog at `src/main/resources/db/changelog.yml`.
+- Postgres-specific features (triggers, plpgsql functions) are gated with `dbms:postgresql` in Liquibase changesets.
+- Audit columns (`create_user`, `create_date`, `update_user`, `update_date`) have defaults for H2 compatibility; Postgres triggers override them.
+
+## Local dev setup
+
 ```bash
-mvn spring-boot:run
+cd gametime-service
+docker compose up -d                    # Start Postgres
+# If fresh container needed:
+docker compose down -v && docker compose up -d
+
+# Run from IDE or:
+JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn spring-boot:run -pl gametime-app
 ```
 
-### Run Tests
-```bash
-# Run all tests (unit + integration)
-mvn verify
+App runs on port 8080. Swagger UI at http://localhost:8080/swagger-ui.html
 
-# Run only unit tests
-mvn test
+## Key conventions
 
-# Run specific test
-mvn test -Dtest=ClassName
-
-# Run Cucumber integration tests only
-mvn failsafe:integration-test
-```
-
-### Code Coverage
-```bash
-mvn jacoco:report
-```
-Note: Build enforces 80% code coverage threshold. Report generated at `target/site/jacoco/index.html`.
-
-### Docker Build
-```bash
-mvn spring-boot:build-image
-```
-
-## Profiles
-
-The application uses Spring profiles for different environments:
-
-- **local** (default): Uses H2 in-memory database
-  - H2 Console: http://127.0.0.1:8080/h2-console
-  - Liquibase changelog: `db/local/changelog.yml`
-
-- **test**: Uses PostgreSQL via Docker
-  - Automatically starts/stops docker-compose during build when profile is active
-  - Adminer: http://localhost:8083/
-  - Connection: localhost:5433, user: postgres, password: turner
-  - Liquibase changelog: `db/test/changelog.yml`
-
-To activate test profile: Set in `application.properties` or use `-Ptest` with Maven commands.
-
-## API Documentation
-
-Swagger UI: http://localhost:8080/swagger-ui/index.html
-
-The API is defined in `yml/gametime.yaml` and code is generated via openapi-generator-maven-plugin during build. Generated code goes to `target/generated-sources/openapi/`.
-
-## Architecture
-
-### Code Generation Flow
-
-1. OpenAPI spec (`yml/gametime.yaml`) defines the API contract
-2. Maven plugin generates:
-   - API interfaces: `software.daveturner.gametime.api.V1Api`
-   - Delegates: `software.daveturner.gametime.api.V1ApiDelegate`
-   - Models: `software.daveturner.gametime.model.*`
-3. Implementation: `V1ApiDelegateimpl` implements the delegate pattern
-
-**Important**: Never modify generated code directly. Changes must be made to the OpenAPI spec, then regenerate.
-
-### Layer Architecture
-
-```
-Controller (V1ApiDelegateimpl)
-    -> Service (GametimeService/GametimeServiceImp)
-    -> Repository (TeamRepo, PlayerRepo, etc.)
-    -> Entity (TeamEntity, PlayerEntity, etc.)
-```
-
-### Player Skills Calculation System
-
-Player skills are dynamically calculated from base attributes using a strategy pattern:
-
-- `SkillMapper` orchestrates 13 different skill calculators
-- Each calculator implements `SkillCalculator` interface
-- Skills calculated on-demand when mapping PlayerEntity -> Player model
-- Examples: `AcumenSkillCalculator`, `DriveSkillCalculator`, `LongRangeSkillCalculator`
-
-Skills are derived from base player attributes (agility, strength, speed, intelligence, etc.) using domain-specific formulas in each calculator.
-
-### Mapping Strategy
-
-- `EntityMapper`: Converts JPA entities to API models
-- `SkillMapper`: Calculates player skills from base attributes
-- Entity-to-model mapping happens at service layer before returning to API layer
-
-### Testing Structure
-
-- **Unit tests**: Standard JUnit tests in `src/test/java`
-- **Integration tests**: Cucumber BDD tests
-  - Features: `src/test/resources/features/*.feature`
-  - Step definitions: `cucumber/CucumberStepDefs.java`
-  - Runner: `CucumberRunner.java` (picked up by maven-failsafe-plugin)
-  - WireMock used for mocking external dependencies
-
-## Lombok Configuration
-
-Project uses Lombok with annotation processor configured in `pom.xml`. Entities use Lombok annotations for boilerplate reduction. Lombok is excluded from final build image.
-
-## JaCoCo Exclusions
-
-The following are excluded from code coverage:
-- Generated OpenAPI code (`ApiUtil`, `V1ApiController`, `V1ApiDelegate`, `V1Api`, model classes)
-- Application entry point (`GametimeApplication`)
-- Enums (`ConferenceEnum`)
-
-## Database Migrations
-
-Liquibase manages schema versions:
-- Migrations are profile-specific (local vs test)
-- SQL files in `src/main/resources/db/{profile}/`
-- Data loading handled via SQL scripts: `release.1.0.1.dataload.sql`
-
-## Key Entities
-
-- **TeamEntity**: Represents a basketball team with players, coach, GM
-- **PlayerEntity**: Player with physical attributes, position, status, and stats
-- **CoachEntity/GMEntity**: Team management roles
-- **Position**: Enum for player positions (PG, CG, BG, W, SF, F, PF, FC, C)
-- **Status**: Enum for player status (STARTER, BENCH, ROTATION, MINORS, INJURED, SUSPENDED)
-- **ConferenceEnum**: EAST, NORTH, SOUTH, WEST
+- OpenAPI delegate pattern: generated `V1ApiDelegate` interface, hand-written `V1ApiDelegateimpl` implements it.
+- Entities use Lombok `@Data` for boilerplate reduction.
+- Entity `@Table` annotations include `schema = "gametime"`.
+- Cucumber tests use JUnit 5 Platform (`@Suite` + `cucumber-junit-platform-engine`), not JUnit 4 vintage.
+- Spring profile `local` is active by default. Test profile overrides to H2 via `src/test/resources/`.

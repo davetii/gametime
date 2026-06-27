@@ -1,0 +1,14 @@
+### Actuator health check
+GET http://{{host}}/actuator/health
+Accept: application/json
+
+### Actuator info
+GET http://{{host}}/actuator/info
+Accept: application/json
+
+### OpenAPI docs
+GET http://{{host}}/api-docs
+Accept: application/json
+
+### Swagger UI
+GET http://{{host}}/swagger-ui.html

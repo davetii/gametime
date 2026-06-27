@@ -1,0 +1,24 @@
+databaseChangeLog:
+  - changeSet:
+      id: loadGM
+      author: davetii@gmail.com
+      changes:
+        - loadData:
+            encoding: UTF-8
+            file: db/gm.csv
+            separator: ','
+            schemaName: gametime
+            tableName: gm
+            columns:
+              - column:
+                  header: id
+                  name: id
+                  type: varchar
+              - column:
+                  header: first_name
+                  name: first_name
+                  type: varchar
+              - column:
+                  header: last_name
+                  name: last_name
+                  type: varchar

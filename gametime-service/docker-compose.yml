@@ -1,0 +1,14 @@
+services:
+
+  db:
+    image: postgres
+    container_name: postgres-local
+    restart: always
+    shm_size: 128mb
+    volumes:
+      - ./gametime-app/src/main/resources/db/create_postgres_database.sql:/docker-entrypoint-initdb.d/create_tables.sql
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=turner

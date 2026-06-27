@@ -1,0 +1,23 @@
+### Fetch all teams in the league
+GET http://{{host}}{{basePath}}/v1/league
+Accept: application/json
+
+### Fetch a specific team by ID
+GET http://{{host}}{{basePath}}/v1/team/NY
+Accept: application/json
+
+### Fetch team - not found
+GET http://{{host}}{{basePath}}/v1/team/INVALID
+Accept: application/json
+
+### Add player to team — paste the id of a newly created (unassigned) player
+POST http://{{host}}{{basePath}}/v1/team/NY/paste-created-player-id-here
+Accept: application/json
+
+### Add player to team — 409 (seed player already on a team)
+POST http://{{host}}{{basePath}}/v1/team/NY/330eb324-3382-4fca-b20e-2b4c7e278047
+Accept: application/json
+
+### Add player to team — 404 (team not found)
+POST http://{{host}}{{basePath}}/v1/team/INVALID/330eb324-3382-4fca-b20e-2b4c7e278047
+Accept: application/json

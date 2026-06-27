@@ -1,0 +1,92 @@
+### Read player by ID
+GET http://{{host}}{{basePath}}/v1/player/330eb324-3382-4fca-b20e-2b4c7e278047
+Accept: application/json
+
+### Read player - not found
+GET http://{{host}}{{basePath}}/v1/player/does-not-exist
+Accept: application/json
+
+### Player roster history (most recent first)
+GET http://{{host}}{{basePath}}/v1/player/330eb324-3382-4fca-b20e-2b4c7e278047/history
+Accept: application/json
+
+### Create player
+# id is omitted on purpose — the server generates a UUID and returns the
+# created player (with derived skills) in the response body. The player is
+# created unassigned (no team); use "Add player to team" below to assign it.
+POST http://{{host}}{{basePath}}/v1/player/
+Content-Type: application/json
+Accept: application/json
+
+{
+  "firstName": "Test",
+  "lastName": "Player",
+  "position": "PG",
+  "status": "BENCH",
+  "height": "6-2",
+  "weight": 195,
+  "draftSlot": "15",
+  "yearsPro": 0,
+  "origin": "Test University",
+  "agility": 10,
+  "charisma": 10,
+  "cohesion": 10,
+  "determination": 10,
+  "ego": 10,
+  "endurance": 10,
+  "energy": 10,
+  "handle": 10,
+  "health": 10,
+  "intelligence": 10,
+  "luck": 10,
+  "shotSelection": 10,
+  "shotSkill": 10,
+  "size": 10,
+  "speed": 10,
+  "strength": 10,
+  "verticality": 10,
+  "wingspan": 10,
+  "composure": 10,
+  "aggression": 10,
+  "awareness": 10
+}
+
+### Update player
+# id is required; paste the id returned by Create player above.
+PUT http://{{host}}{{basePath}}/v1/player/
+Content-Type: application/json
+Accept: application/json
+
+{
+  "id": "paste-created-player-id-here",
+  "firstName": "Test",
+  "lastName": "Player",
+  "position": "CG",
+  "status": "STARTER",
+  "height": "6-2",
+  "weight": 198,
+  "draftSlot": "15",
+  "yearsPro": 1,
+  "origin": "Test University",
+  "agility": 12,
+  "charisma": 10,
+  "cohesion": 10,
+  "determination": 11,
+  "ego": 10,
+  "endurance": 10,
+  "energy": 12,
+  "handle": 13,
+  "health": 10,
+  "intelligence": 11,
+  "luck": 10,
+  "shotSelection": 12,
+  "shotSkill": 14,
+  "size": 10,
+  "speed": 12,
+  "strength": 10,
+  "verticality": 11,
+  "wingspan": 10,
+  "composure": 12,
+  "aggression": 9,
+  "awareness": 11
+}
