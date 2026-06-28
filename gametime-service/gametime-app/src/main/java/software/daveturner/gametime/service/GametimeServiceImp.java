@@ -23,9 +23,15 @@ public class GametimeServiceImp implements GametimeService {
 
     private final EntityMapper entityMapper;
 
+    /** Max players on the active roster (everything except MINORS). */
+    static final int MAX_ACTIVE_ROSTER = 15;
+    /** Max players in the minors. */
+    static final int MAX_MINORS = 5;
+
     Comparator<Team> byConfById
             = Comparator.comparing(Team::getConference)
             .thenComparing(t -> t.getId().toString());
+
     public GametimeServiceImp(TeamRepo teamRepo, PlayerRepo playerRepo,
                               PlayerTeamRepo playerTeamRepo, PlayerTeamHistRepo playerTeamHistRepo,
                               EntityMapper entityMapper) {
@@ -87,6 +93,15 @@ public class GametimeServiceImp implements GametimeService {
         if (playerTeamRepo.existsById(playerId)) {
             throw new ResourceConflictException("Player already on a team");
         }
+        // A signed free agent lands on the active roster (INACTIVE = on roster,
+        // not yet in the playing rotation), so the active-roster cap applies.
+        long active = playerTeamRepo.findByTeamId(teamId).stream()
+                .filter(pt -> pt.getLineupRole() != software.daveturner.gametime.entity.LineupRole.MINORS)
+                .count();
+        if (active >= MAX_ACTIVE_ROSTER) {
+            throw new ResourceConflictException(
+                    "Active roster is full (max " + MAX_ACTIVE_ROSTER + ")");
+        }
         assign(playerId, teamId, TransactionType.SIGN);
     }
 
@@ -113,6 +128,12 @@ public class GametimeServiceImp implements GametimeService {
         Map<String, PlayerTeamEntity> current = playerTeamRepo.findByTeamId(teamId).stream()
                 .collect(Collectors.toMap(PlayerTeamEntity::getPlayerId, pt -> pt));
 
+        // Resulting role per roster player: start from current, override with the
+        // request. Players omitted from the request keep their existing role, so the
+        // size caps below reflect the full post-update roster, not just the request.
+        Map<String, software.daveturner.gametime.entity.LineupRole> resultingRoles = new HashMap<>();
+        current.forEach((pid, pt) -> resultingRoles.put(pid, pt.getLineupRole()));
+
         Set<String> seen = new HashSet<>();
         Set<Integer> rotationOrders = new HashSet<>();
         int starters = 0;
@@ -128,6 +149,7 @@ public class GametimeServiceImp implements GametimeService {
                 throw new ResourceBadRequestException("Missing lineup role");
             }
             software.daveturner.gametime.entity.LineupRole role = toEntityRole(e.getLineupRole());
+            resultingRoles.put(playerId, role);
             if (role == software.daveturner.gametime.entity.LineupRole.STARTER) {
                 starters++;
                 // starters are an unordered set of 5 — they carry no rotation order
@@ -143,6 +165,21 @@ public class GametimeServiceImp implements GametimeService {
         }
         if (starters != 5) {
             throw new ResourceBadRequestException("Lineup must have exactly 5 starters");
+        }
+
+        // Size caps over the resulting roster — also enforced here so role shuffles
+        // can't grow the active roster past what the sign endpoint allows.
+        long minors = resultingRoles.values().stream()
+                .filter(r -> r == software.daveturner.gametime.entity.LineupRole.MINORS)
+                .count();
+        long active = resultingRoles.size() - minors;
+        if (active > MAX_ACTIVE_ROSTER) {
+            throw new ResourceBadRequestException(
+                    "Active roster exceeds max " + MAX_ACTIVE_ROSTER);
+        }
+        if (minors > MAX_MINORS) {
+            throw new ResourceBadRequestException(
+                    "Minors exceeds max " + MAX_MINORS);
         }
 
         // all valid — apply
@@ -186,6 +223,9 @@ public class GametimeServiceImp implements GametimeService {
         current.setTeamId(teamId);
         current.setTransactionType(type);
         current.setAssignedDate(now);
+        // Default bucket: on the active roster, not yet slotted into the lineup.
+        // Set the lineup PUT to promote into STARTER/ROTATION/BENCH or demote to MINORS.
+        current.setLineupRole(software.daveturner.gametime.entity.LineupRole.INACTIVE);
         playerTeamRepo.save(current);
 
         PlayerTeamHistEntity hist = new PlayerTeamHistEntity();

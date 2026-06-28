@@ -32,9 +32,12 @@ Decisions locked 2026-06-27: lineup lives on `player_team` (not a new join
 table); lineup PUT is replace-all with a hard 5-starter invariant.
 
 ### 2.2 Roster rules (next)
-- [ ] Roster size limits (e.g. 15 active, 5 minors).
-- [ ] Position minimums/maximums per roster.
-- [ ] Roster validation on add (currently only "not already on a team").
+- [x] Roster size limits — 15 active (everything but MINORS), 5 minors. Active cap
+      enforced on sign (`POST /{playerId}` → 409) and on lineup PUT; minors cap
+      enforced on lineup PUT (→ 400). (#016)
+- [x] Roster validation on add — sign now defaults `lineupRole = INACTIVE` and
+      checks the active-roster cap (was: only "not already on a team"). (#016)
+- [ ] Position minimums/maximums per roster (lineup PUT — full assignment visible).
 
 ### 2.3 Lineup & rotation depth (feeds the engine)
 - [ ] Bench rotation order → minutes allocation.
@@ -51,3 +54,14 @@ Loose tactical chores with no phase home (deferred scope lives in
 - [ ] Hand-tune marquee/star players to 18–20 where appropriate (the rescale was
       mechanical). Deferred until the game engine shows whether it matters.
 - [ ] Evaluate Testcontainers as an alternative to H2 for integration tests.
+- [ ] Separate test seed data from production seed. Today both the `local`
+      (Postgres) and test (H2) profiles load the *same* Liquibase changelog
+      (`db/changelog.yml` → `players.csv`, `roster.csv`, `release.1.0.1.dataload.sql`),
+      so tests assert against production seed rows. Runtime league changes (trades,
+      new signings) only touch Postgres and don't affect tests, but *editing the seed
+      files* can break tests that hardcode team IDs / sizes. Introduce a small fixed
+      test-only fixture (e.g. `test/resources/db/` changelog the test profile points
+      at) so `main/resources/db/` can evolve for production independently. Interim
+      mitigation done: roster-rule tests in `RosterLineupDelegateTest` now sign their
+      own players instead of assuming seed roster sizes; remaining brittleness is the
+      hardcoded team IDs themselves.

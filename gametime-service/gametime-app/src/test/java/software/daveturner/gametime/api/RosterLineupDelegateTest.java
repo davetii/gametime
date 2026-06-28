@@ -147,6 +147,15 @@ class RosterLineupDelegateTest {
                 () -> api.setLineup("BOS", new LineupRequest().entries(List.of())));
     }
 
+    @Test
+    void ensureSetLineupThrowsBadRequestWhenEntryHasNoRole() {
+        List<String> players = rosterPlayerIds("LA");
+        LineupRequest req = validLineup(players);
+        // an entry with no lineup role is rejected
+        req.getEntries().get(0).setLineupRole(null);
+        assertThrows(ResourceBadRequestException.class, () -> api.setLineup("LA", req));
+    }
+
     // ---- removePlayerFromTeam ----
 
     @Test
@@ -180,6 +189,124 @@ class RosterLineupDelegateTest {
         // assignment exists, but for LA not SF
         assertThrows(ResourceNotFoundException.class,
                 () -> api.removePlayerFromTeam("SF", created.getId()));
+    }
+
+    // ---- roster rules: default role on sign + size caps ----
+
+    @Test
+    void ensureSignedPlayerDefaultsToInactiveLineupRole() {
+        Player created = api.createPlayer(freshPlayer()).getBody();
+        api.addPlayerToTeam("BUF", created.getId());
+        try {
+            LineupRole role = api.fetchTeam("BUF").getBody().getPlayers().stream()
+                    .filter(e -> e.getPlayer().getId().equals(created.getId()))
+                    .findFirst().orElseThrow().getLineupRole();
+            assertEquals(LineupRole.INACTIVE, role);
+        } finally {
+            api.removePlayerFromTeam("BUF", created.getId());
+        }
+    }
+
+    @Test
+    void ensureSignThrowsConflictWhenActiveRosterFull() {
+        // NY ships with the smallest seed roster; fill its active roster to the cap.
+        String teamId = "NY";
+        int existingActive = (int) api.fetchTeam(teamId).getBody().getPlayers().stream()
+                .filter(e -> e.getLineupRole() != LineupRole.MINORS)
+                .count();
+        List<String> signed = new ArrayList<>();
+        try {
+            for (int i = existingActive; i < 15; i++) {
+                Player p = api.createPlayer(freshPlayer()).getBody();
+                api.addPlayerToTeam(teamId, p.getId());
+                signed.add(p.getId());
+            }
+            // roster now at the 15-active cap — the next sign must 409
+            Player overflow = api.createPlayer(freshPlayer()).getBody();
+            signed.add(overflow.getId()); // created but should not get assigned
+            assertThrows(ResourceConflictException.class,
+                    () -> api.addPlayerToTeam(teamId, overflow.getId()));
+        } finally {
+            for (String id : signed) {
+                try { api.removePlayerFromTeam(teamId, id); } catch (RuntimeException ignored) { }
+            }
+        }
+    }
+
+    @Test
+    void ensureSetLineupThrowsBadRequestWhenMinorsExceedsCap() {
+        // Exceeding the minors cap (5) needs 5 starters + at least 6 more players, i.e.
+        // an >=11-player roster. Rather than assume a seed team is that big, sign enough
+        // fresh players to guarantee it, so the test survives any seed roster size.
+        String teamId = "HOU";
+        List<String> signed = new ArrayList<>();
+        try {
+            while (rosterPlayerIds(teamId).size() < 11) {
+                Player p = api.createPlayer(freshPlayer()).getBody();
+                api.addPlayerToTeam(teamId, p.getId());
+                signed.add(p.getId());
+            }
+            List<String> players = rosterPlayerIds(teamId);
+            LineupRequest req = validLineup(players); // first 5 STARTER, rest BENCH
+            // mark 6 of the non-starters MINORS (no rotation order) -> 6 > cap of 5
+            int minorsMarked = 0;
+            for (int i = 5; i < req.getEntries().size() && minorsMarked < 6; i++) {
+                req.getEntries().get(i).setLineupRole(LineupRole.MINORS);
+                req.getEntries().get(i).setRotationOrder(null);
+                minorsMarked++;
+            }
+            assertEquals(6, minorsMarked);
+            assertThrows(ResourceBadRequestException.class, () -> api.setLineup(teamId, req));
+        } finally {
+            for (String id : signed) {
+                try { api.removePlayerFromTeam(teamId, id); } catch (RuntimeException ignored) { }
+            }
+        }
+    }
+
+    @Test
+    void ensureSetLineupThrowsBadRequestWhenActiveExceedsCap() {
+        // VAN (11 seed players, untouched by other tests) — build a 16-player roster
+        // (15 active + 1 minors) and try to promote everyone to active via the PUT.
+        // A 16th active sign is impossible (the sign cap blocks it), so the only way to
+        // a 16-player roster is to park one in MINORS via the PUT, then sign the 16th.
+        // Only the signed players are released afterward; the seed roster is left intact.
+        String teamId = "VAN";
+        List<String> signed = new ArrayList<>();
+        try {
+            // 1. fill to the 15-active cap (VAN seeds 11 active -> sign 4)
+            int active = (int) api.fetchTeam(teamId).getBody().getPlayers().stream()
+                    .filter(e -> e.getLineupRole() != LineupRole.MINORS).count();
+            for (int i = active; i < 15; i++) {
+                Player p = api.createPlayer(freshPlayer()).getBody();
+                api.addPlayerToTeam(teamId, p.getId());
+                signed.add(p.getId());
+            }
+            // 2. PUT a valid lineup that parks a *signed* player in MINORS -> 14 active,
+            //    1 minors (park a signed one so seed roles are restored on release).
+            //    Order the parked player last so validLineup makes it bench, not a
+            //    starter — then override it to MINORS without breaking the 5-starter rule.
+            String parkId = signed.get(signed.size() - 1);
+            List<String> ordered = new ArrayList<>(rosterPlayerIds(teamId));
+            ordered.remove(parkId);
+            ordered.add(parkId); // parkId is now last -> bench in validLineup
+            LineupRequest park = validLineup(ordered);
+            park.getEntries().get(park.getEntries().size() - 1)
+                    .lineupRole(LineupRole.MINORS).rotationOrder(null);
+            assertEquals(200, api.setLineup(teamId, park).getStatusCode().value());
+            // 3. room opened (14 active) — sign the 16th player (active 14 -> 15)
+            Player p16 = api.createPlayer(freshPlayer()).getBody();
+            api.addPlayerToTeam(teamId, p16.getId());
+            signed.add(p16.getId());
+            // 4. now 16 on the roster; a lineup making all 16 active -> 16 > 15 -> 400
+            LineupRequest overfill = validLineup(rosterPlayerIds(teamId));
+            assertThrows(ResourceBadRequestException.class,
+                    () -> api.setLineup(teamId, overfill));
+        } finally {
+            for (String id : signed) {
+                try { api.removePlayerFromTeam(teamId, id); } catch (RuntimeException ignored) { }
+            }
+        }
     }
 
     private Player freshPlayer() {

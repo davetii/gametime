@@ -54,8 +54,10 @@ Two independent axes, with no shared values (decisions.md #013):
 ## Assignment & release
 
 A player is added to a team with `POST /v1/team/{teamId}/{playerId}`: it inserts
-the `player_team` row and appends a `SIGN` record to `player_team_hist`. It is
-404 if the team or player is missing, 409 if the player is already on a team.
+the `player_team` row (with `lineupRole = INACTIVE` — on the active roster, not
+yet slotted) and appends a `SIGN` record to `player_team_hist`. It is 404 if the
+team or player is missing, and **409** if the player is already on a team **or
+the active roster is full** (see Roster rules below).
 
 `DELETE /v1/team/{teamId}/{playerId}` releases a player to free agency: it
 removes the `player_team` row and appends a `RELEASE` record to
@@ -100,13 +102,28 @@ rotationOrder}`. It is valid when:
 - Every `playerId` belongs to `{teamId}` (else 404).
 - No player appears twice.
 - `rotationOrder` is unique among all non-null values.
+- The resulting roster (request overlaid on current; omitted players keep their
+  role) has **≤ 15 active** (non-`MINORS`) and **≤ 5 `MINORS`** (else 400).
+
+## Roster rules
+
+Size caps (`MAX_ACTIVE_ROSTER = 15`, `MAX_MINORS = 5` in `GametimeServiceImp`):
+
+- **Active cap (15)** = count of every `lineupRole` except `MINORS`. Enforced on
+  sign (409) — a signed player lands `INACTIVE`, which is active — and re-checked
+  on the lineup PUT (400) so role shuffles can't grow it past the sign limit.
+- **Minors cap (5)** = count of `MINORS`. A sign never lands in `MINORS`, so this
+  is purely a lineup-PUT invariant (400).
+- **Position min/max** — not yet built; will live in the lineup PUT where the
+  full assignment is visible. See decisions.md #016.
 
 ## Not yet built
 
 These touch the roster domain but are not implemented yet:
 
-- **Roster rules** — size limits (e.g. 15 active, 5 minors), position
-  minimums/maximums, enforced on add and lineup operations.
+- **Position min/max per roster** — the remaining roster rule; will be enforced
+  on the lineup PUT (size caps + the `INACTIVE`-on-sign default are done — see
+  the "Roster rules" section above and decisions.md #016).
 - **Minutes & fatigue** (Phase 3.5) — `rotationOrder` + `endurance` drive minutes
   allocation and in-game substitution.
 - **Coach rotation influence** (Phase 3.5) — gated on the Coach model (parked).
