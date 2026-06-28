@@ -42,11 +42,11 @@ For the exact `JAVA_HOME` setup, profiles, and database details, see
 
 ## Documentation
 
-- [docs/roadmap.md](docs/roadmap.md) — phased roadmap (what's built vs. planned)
-- [docs/player.md](docs/player.md) — player domain: attributes, derived skills, formulas
-- [docs/decisions.md](docs/decisions.md) — architecture decision log
-- [docs/risks.md](docs/risks.md) — active risks and concerns
-- [docs/todo.md](docs/todo.md) — tactical task list
+Start here: [docs/roadmap.md](docs/roadmap.md) (what's built vs. planned) and
+[docs/decisions.md](docs/decisions.md) (architecture decision log).
+
+The domain design docs (player, roster, coach, game …) and the full doc index
+live in [CLAUDE.md](CLAUDE.md).
 
 ## Tech stack
 
