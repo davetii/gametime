@@ -37,7 +37,10 @@ table); lineup PUT is replace-all with a hard 5-starter invariant.
       enforced on lineup PUT (→ 400). (#016)
 - [x] Roster validation on add — sign now defaults `lineupRole = INACTIVE` and
       checks the active-roster cap (was: only "not already on a team"). (#016)
-- [ ] Position minimums/maximums per roster (lineup PUT — full assignment visible).
+- [~] Position minimums/maximums per roster — **decided against** (#017). No seed
+      team carries all 9 positions, so minimums would invalidate the league; and a
+      lopsided roster (e.g. 10 centers) is best punished by the game engine, not an
+      API rule. Roster construction stays unconstrained by position.
 
 ### 2.3 Lineup & rotation depth (feeds the engine)
 - [ ] Bench rotation order → minutes allocation.

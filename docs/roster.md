@@ -114,16 +114,14 @@ Size caps (`MAX_ACTIVE_ROSTER = 15`, `MAX_MINORS = 5` in `GametimeServiceImp`):
   on the lineup PUT (400) so role shuffles can't grow it past the sign limit.
 - **Minors cap (5)** = count of `MINORS`. A sign never lands in `MINORS`, so this
   is purely a lineup-PUT invariant (400).
-- **Position min/max** — not yet built; will live in the lineup PUT where the
-  full assignment is visible. See decisions.md #016.
+- **Position** — intentionally unconstrained: there are no position minimums or
+  maximums. A team may carry any positional mix; a lopsided roster is punished by
+  the game engine, not an API rule. See decisions.md #017.
 
 ## Not yet built
 
 These touch the roster domain but are not implemented yet:
 
-- **Position min/max per roster** — the remaining roster rule; will be enforced
-  on the lineup PUT (size caps + the `INACTIVE`-on-sign default are done — see
-  the "Roster rules" section above and decisions.md #016).
 - **Minutes & fatigue** (Phase 3.5) — `rotationOrder` + `endurance` drive minutes
   allocation and in-game substitution.
 - **Coach rotation influence** (Phase 3.5) — gated on the Coach model (parked).
