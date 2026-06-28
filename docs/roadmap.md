@@ -2,9 +2,11 @@
 
 Basketball simulation game — 40-team league with attribute-driven gameplay, season management, and a React frontend.
 
+_Last updated: 2026-06-28_
+
 ## What Exists Today
 
-### Fully Built
+### Shipped
 - **21 player attributes**: agility, awareness, aggression, charisma, cohesion, composure, determination, ego, endurance, energy, handle, health, intelligence, luck, shotSelection, shotSkill, size, speed, strength, verticality, wingspan
 - **23 derived skills** on a 1–20 / avg-10 scale via a shared deviation helper: acumen, ballSecurity, passing, teamOffense, drive, freeThrows, longRange, perimeter, post, individualDefense, teamDefense, offenseRebound, defenseRebound, finishing, transition, rimProtection, stealing, shotContest, foulDrawing, foulProne, clutch, screenSetting, offBallMovement
 - **9 positions**: PG, CG, SG, W, SF, F, PF, FC, C
@@ -13,7 +15,7 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
   roster assignment — see decisions.md #013.
 - **40-team league** across 4 conferences (EAST, NORTH, SOUTH, WEST), 422 seed players (CSV-driven via Liquibase)
 - **Entity layer**: Player, Team, Coach (5 decision attributes — #018), GM (name only); player↔team decoupled via `player_team` + `player_team_hist`
-- **Roster & lineup model**: a team's roster is part of the `Team` resource (`players` are roster entries with lineup slot); lineup (starting 5 + bench rotation order) is sticky state on `player_team`; player status (availability) is separate from lineup role; roster size caps (15 active / 5 minors) enforced on sign + lineup, signed players default to `INACTIVE`. See decisions.md #013–#017.
+- **Roster & lineup model**: a team's roster is part of the `Team` resource (`players` are roster entries with lineup slot); lineup (starting 5 + bench rotation order) is sticky state on `player_team`; player status (availability) is separate from lineup role; roster size caps (15 active / 5 minors) enforced on sign + lineup, signed players default to `INACTIVE`. Roster construction is unconstrained by position — no position minimums/maximums (#017). See decisions.md #013–#017.
 - **REST endpoints**: GET league, GET player by ID + history, createPlayer, updatePlayer; GET team by ID (incl. roster), addPlayerToTeam, removePlayerFromTeam, set lineup
 - **Skill calculation engine**: SkillCalculator interface, 23 calculator implementations, SkillMapper orchestrator
 - **Entity-to-model mapping**: EntityMapper with full attribute + skill wiring
@@ -26,45 +28,11 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
   (Phase 6.3 draft scouting / 6.4 trade evaluation). Resolve with the same
   continuous 1–20 model as coach (decisions.md #018); see coach.md open-Q #3.
   *(Coach attributes — done: Design Decision #3 resolved as #018, modeled
-  end-to-end pre-Phase-3 below.)*
-
-### Known gaps (cross-cutting, no phase)
-- **API pagination** — parameters are defined in the OpenAPI spec but not wired.
+  end-to-end; see Shipped above.)*
 - **Player age** — only `yearsPro` is modeled; no birth date / true age yet.
-
----
-
-## Phase 2 — Roster & Lineup Management — COMPLETE (2026-06-28)
-
-**Goal**: Turn the static player list into a managed roster with lineup logic.
-**Done** — roster/lineup API surface, roster rules, and the lineup depth chart
-are all shipped. Tactical detail in [todo.md](todo.md).
-
-### 2.2 Roster Rules — DONE
-- [x] Roster size limits — 15 active, 5 minors (#016)
-- [x] Roster validation on add — `INACTIVE` default + active cap (#016)
-- [~] Position minimums/maximums — **decided against** (#017); roster construction
-      is unconstrained by position (a lopsided roster is punished by the engine).
-
-> **Lineup & rotation depth (former §2.3) moved to §3.5.** Minutes allocation,
-> fatigue, and coach rotation influence are gameplay ("produced by games being
-> played"), not roster content. The roster-domain input they need — the
-> `rotationOrder` bench depth chart — already shipped in 2.1 (#014).
-
----
-
-## Pre-Phase-3 — Coach model — COMPLETE (2026-06-28)
-
-**Goal**: Settle the Coach attribute model before the engine consumes it.
-Done — `CoachEntity` carries 5 continuous decision-making attributes the engine
-(§3.4/§3.5) reads for pace, shot distribution, defensive scheme, and rotation.
-Design in [coach.md](coach.md).
-
-- [x] Resolve **Design Decision #3**: continuous 1–20/avg-10, not enums (#018)
-- [x] Define the attribute set (5: pace, offensiveScheme, defensiveScheme,
-      rotationDepth, substitutionAggressiveness); playerDevelopment → Phase 6
-- [x] Implement the attribute model end-to-end (schema → entity → mapper → API,
-      seeded + tested); coaching *effects* deferred to the §3.4/§3.5 engine
+  `yearsPro` is sufficient for everything built so far; true age gains a consumer
+  at Phase 6.1 (aging & development — attribute peak/decline curves), where the
+  full date-of-birth model belongs.
 
 ---
 
@@ -97,8 +65,9 @@ Design in [coach.md](coach.md).
       (clutch/foulProne/transition etc. only get tested under real play)
 
 ### 3.5 Minutes, Fatigue & Substitution
-*(absorbs the former §2.3 — gameplay, not roster. Input: `rotationOrder` depth
-chart from 2.1/#014.)*
+*(gameplay, not roster — minutes/fatigue/coach rotation are produced by games
+being played. Input: the `rotationOrder` bench depth chart already shipped in
+the roster domain, #014.)*
 - [ ] Minutes allocation: bench `rotationOrder` → distribution of playing time
 - [ ] Per-player energy tracking within a game (`endurance` ↔ minutes played)
 - [ ] Skill degradation as energy drops
@@ -268,7 +237,7 @@ These are open questions that should be resolved before or during implementation
 The phases above are roughly sequential, but here's the critical path:
 
 ```
-[Foundation ✓] ──> Phase 2 (Rosters) ✓ ──> Coach model ──> Phase 3 (Game Engine) ──> Phase 4 (Stats)
+[Foundation ✓] ──> Phase 2 (Rosters) ✓ ──> Coach model ✓ ──> Phase 3 (Game Engine) ──> Phase 4 (Stats)
                                                         │
                                                         v
                                                 Phase 5 (Season) ──> Phase 6 (Progression)
