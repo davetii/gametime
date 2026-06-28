@@ -14,7 +14,7 @@ Active risks and concerns. Remove items as they're resolved (move to the Resolve
 ### Coach/GM attribute design is undefined
 **Severity**: Medium  
 **Description**: Coaches and GMs are currently name-only entities. The game engine needs coach attributes to influence gameplay (pace, defensive scheme, rotation depth), but the attribute model hasn't been designed yet. This is a dependency for Phase 3.  
-**Mitigation**: Resolve in Phase 1.2/1.3 before starting game engine work.
+**Mitigation**: Now the explicit **pre-Phase-3 task** (roadmap.md "Pre-Phase-3 — Coach model"; todo.md "Next"). Resolve open Design Decision #3 (continuous vs. categorical) and define the engine-facing attribute interface before starting game engine work.
 
 ### Skill formula balance
 **Severity**: Medium  

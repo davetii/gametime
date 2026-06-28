@@ -5,12 +5,12 @@ them as completed. For the big-picture phased roadmap and what's already
 shipped, see [roadmap.md](roadmap.md). Deferred work lives in the
 Backlog at the bottom.
 
-Current focus: **Phase 2 roster APIs shipped — next up: roster rules + rotation
-depth (roadmap.md §2.2/§2.3).**
+Current focus: **Phase 2 (Rosters & Lineups) COMPLETE. Before gameplay: revisit
+the Coach model (open Design Decision #3). Then Phase 3 — Game Engine.**
 
 ---
 
-## Phase 2 — Rosters & Lineups
+## Phase 2 — Rosters & Lineups — COMPLETE (2026-06-28)
 
 ### 2.1 Roster APIs — DONE (2026-06-27)
 
@@ -31,7 +31,7 @@ Three endpoints on top of the existing player↔team model, plus the lineup
 Decisions locked 2026-06-27: lineup lives on `player_team` (not a new join
 table); lineup PUT is replace-all with a hard 5-starter invariant.
 
-### 2.2 Roster rules (next)
+### 2.2 Roster rules — DONE (2026-06-28)
 - [x] Roster size limits — 15 active (everything but MINORS), 5 minors. Active cap
       enforced on sign (`POST /{playerId}` → 409) and on lineup PUT; minors cap
       enforced on lineup PUT (→ 400). (#016)
@@ -42,10 +42,21 @@ table); lineup PUT is replace-all with a hard 5-starter invariant.
       lopsided roster (e.g. 10 centers) is best punished by the game engine, not an
       API rule. Roster construction stays unconstrained by position.
 
-### 2.3 Lineup & rotation depth (feeds the engine)
-- [ ] Bench rotation order → minutes allocation.
-- [ ] Fatigue model: how `endurance` interacts with minutes played.
-- [ ] Coach attributes influence rotation depth (gated on Coach model — backlog).
+> The old §2.3 (minutes allocation, fatigue, coach rotation influence) was **not
+> roster content** — it's "produced by games being played" (gameplay), per the
+> domain boundary in roster.md. It has moved to **roadmap.md §3.5**. Its one
+> roster-domain input — the `rotationOrder` bench depth chart — already shipped
+> in 2.1 (#014).
+
+## Next — before Phase 3 (gameplay)
+
+### Coach model — revisit (gates the game engine)
+- [ ] Resolve **Design Decision #3**: coach attributes as continuous (1–10 like
+      players) vs. categorical styles (enum). `CoachEntity` is name-only today.
+- [ ] Define the coach attribute set + the interface the engine reads (pace, shot
+      distribution, defensive scheme, rotation style — consumed by §3.4/§3.5).
+- [ ] Implement only the attribute model now; the *coaching effects* land with the
+      engine that consumes them (avoid designing formulas in a vacuum — cf. #014).
 
 ---
 

@@ -32,22 +32,34 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
 
 ---
 
-## Phase 2 — Roster & Lineup Management (CURRENT)
+## Phase 2 — Roster & Lineup Management — COMPLETE (2026-06-28)
 
 **Goal**: Turn the static player list into a managed roster with lineup logic.
-The roster/lineup API surface is built (see "Fully Built"); the remaining work
-is roster rules and rotation depth. Tactical breakdown lives in
-[todo.md](todo.md).
+**Done** — roster/lineup API surface, roster rules, and the lineup depth chart
+are all shipped. Tactical detail in [todo.md](todo.md).
 
-### 2.2 Roster Rules
-- [ ] Roster size limits (e.g., 15 active, 5 minors)
-- [ ] Position minimums/maximums per roster
-- [ ] Roster validation on add/remove
+### 2.2 Roster Rules — DONE
+- [x] Roster size limits — 15 active, 5 minors (#016)
+- [x] Roster validation on add — `INACTIVE` default + active cap (#016)
+- [~] Position minimums/maximums — **decided against** (#017); roster construction
+      is unconstrained by position (a lopsided roster is punished by the engine).
 
-### 2.3 Lineup & Rotation depth (feeds the engine)
-- [ ] Bench rotation order and minutes allocation
-- [ ] Fatigue model: how does `endurance` interact with minutes played?
-- [ ] Coach attributes influence rotation depth (gated on Coach model — deferred)
+> **Lineup & rotation depth (former §2.3) moved to §3.5.** Minutes allocation,
+> fatigue, and coach rotation influence are gameplay ("produced by games being
+> played"), not roster content. The roster-domain input they need — the
+> `rotationOrder` bench depth chart — already shipped in 2.1 (#014).
+
+---
+
+## Pre-Phase-3 — Coach model (CURRENT)
+
+**Goal**: Settle the Coach attribute model before the engine consumes it.
+`CoachEntity` is name-only; the engine (§3.4/§3.5) needs defined coach attributes
+to drive pace, shot distribution, defensive scheme, and rotation style.
+
+- [ ] Resolve **Design Decision #3**: continuous (1–10) vs. categorical styles
+- [ ] Define the coach attribute set + the interface the engine reads
+- [ ] Implement the attribute model only; coaching *effects* land with the engine
 
 ---
 
@@ -79,11 +91,14 @@ is roster rules and rotation depth. Tactical breakdown lives in
 - [ ] Rebalance skill calculator formulas once possessions exercise them
       (clutch/foulProne/transition etc. only get tested under real play)
 
-### 3.5 Fatigue & Substitution
-- [ ] Per-player energy tracking within a game
+### 3.5 Minutes, Fatigue & Substitution
+*(absorbs the former §2.3 — gameplay, not roster. Input: `rotationOrder` depth
+chart from 2.1/#014.)*
+- [ ] Minutes allocation: bench `rotationOrder` → distribution of playing time
+- [ ] Per-player energy tracking within a game (`endurance` ↔ minutes played)
 - [ ] Skill degradation as energy drops
 - [ ] Automatic substitution triggers based on fatigue thresholds
-- [ ] Coach rotation style determines when subs happen
+- [ ] Coach rotation style determines when subs happen (gated on Coach model)
 
 ### 3.6 Simulation APIs
 - [ ] `POST /v1/game/simulate` — simulate a single game, return box score
@@ -246,7 +261,7 @@ These are open questions that should be resolved before or during implementation
 The phases above are roughly sequential, but here's the critical path:
 
 ```
-[Foundation ✓] ──> Phase 2 (Rosters) ──> Phase 3 (Game Engine) ──> Phase 4 (Stats)
+[Foundation ✓] ──> Phase 2 (Rosters) ✓ ──> Coach model ──> Phase 3 (Game Engine) ──> Phase 4 (Stats)
                                                         │
                                                         v
                                                 Phase 5 (Season) ──> Phase 6 (Progression)
