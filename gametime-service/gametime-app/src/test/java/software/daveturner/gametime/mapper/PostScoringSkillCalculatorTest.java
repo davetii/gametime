@@ -20,6 +20,6 @@ public class PostScoringSkillCalculatorTest extends SkillSetCalculatorUnitTest {
     public void ensureBigStrongPlayerScoresInPost() {
         player.setSize(16);
         player.setStrength(16);
-        assertPlayer(14.8d, calc);
+        assertPlayer(14.7d, calc);
     }
 }

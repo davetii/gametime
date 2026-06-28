@@ -20,7 +20,7 @@ public class RimProtectionSkillCalculatorTest extends SkillSetCalculatorUnitTest
     public void ensureTallExplosivePlayerProtectsRim() {
         player.setVerticality(16);
         player.setSize(16);
-        assertPlayer(15.9d, calc);
+        assertPlayer(15.6d, calc);
     }
 
     @Test

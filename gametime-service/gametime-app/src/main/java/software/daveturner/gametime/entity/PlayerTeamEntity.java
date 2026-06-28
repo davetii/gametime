@@ -28,4 +28,11 @@ public class PlayerTeamEntity {
     @Column(name = "assigned_date")
     private LocalDateTime assignedDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lineup_role")
+    private LineupRole lineupRole;
+
+    @Column(name = "rotation_order")
+    private Integer rotationOrder;
+
 }

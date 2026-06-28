@@ -1,27 +1,29 @@
 # Roster & Lineup Domain
 
 The player↔team **relationship**: how players are assigned to teams, how a
-team's active lineup (starting 5 + rotation) is set, how players are released,
-and how all of this is tracked over time.
+team's lineup (starting 5 + rotation) is set, how players are released, and how
+all of this is tracked over time.
 
 This is distinct from two neighboring domains:
 - **[player.md](player.md)** — the player *entity* (attributes, derived skills).
   A player's intrinsic model; says nothing about which team they're on.
-- **team.md** *(future)* — the team as a *competitive unit* (chemistry,
-  records, standings, home-court). Not yet written; arrives with Phase 3.4/4/5.
+- **gameplay docs** *(future)* — the team's *competitive behavior* (chemistry,
+  records, standings, home-court) is produced by games being played, so it lives
+  with the gameplay systems that generate it (game-engine.md / stats.md /
+  season.md), not here.
 
 Roster sits between them: it owns the `player_team` link, not the player and
 not the team's identity.
 
-## Overview
+## Data model
 
 A player belongs to at most one team at a time. The current assignment lives in
 `player_team` (player_id is the PK — a free agent simply has no row). Every
 assignment change is also appended to `player_team_hist` (append-only), so a
 player's full team history is queryable. The `Team` entity holds no JPA roster
 association; a team's roster is sourced via `PlayerTeamRepo.findByTeamId` and
-composed by `EntityMapper`. See DECISIONS.md #012 for why the link was
-decoupled from the entities.
+composed by `EntityMapper`. The link is decoupled from both entities — see
+decisions.md #012.
 
 ```
 Player (entity)        player_team (current, 1 row/player)      Team (entity)
@@ -29,86 +31,83 @@ Player (entity)        player_team (current, 1 row/player)      Team (entity)
   - 23 skills            - team_id                                 - conference
                          - transaction_type                        - coach, gm
                          - assigned_date
-                         - lineup_role     (Phase 2, new)
-                         - rotation_order  (Phase 2, new)
+                         - lineup_role
+                         - rotation_order
 
                        player_team_hist (append-only audit)
                          - every assignment + release over time
 ```
 
-## Current state (pre-Phase 2)
+`TransactionType` values: `SEED, DRAFT, TRADE, FREE_AGENCY, WAIVER, SIGN,
+RELEASE` (`SEED` = the initial CSV backfill, provenance unknown).
 
-Built and tested:
-- `addPlayerToTeam` — POST `/v1/team/{teamId}/{playerId}`. 404 if team/player
-  missing; 409 if the player is already on a team.
-- `GET /v1/player/{playerId}/history` — a player's assignment history, newest first.
-- `Player.currentTeamId` — derived, read-only, from the current `player_team` row.
+## Player status vs lineup role
 
-`TransactionType` enum already exists: SEED, DRAFT, TRADE, FREE_AGENCY, WAIVER,
-SIGN, RELEASE. (`SEED` = the initial CSV backfill, provenance unknown.)
+Two independent axes, with no shared values (decisions.md #013):
 
-## Phase 2 — Rosters & Lineups
+- `Player.status` — player-**intrinsic availability**, independent of any team:
+  `ACTIVE, INJURED, SUSPENDED`. Roster membership is *not* encoded here — a free
+  agent simply has no `player_team` row.
+- `player_team.lineupRole` — the player's **slot on a specific team**: `STARTER,
+  ROTATION, BENCH, INACTIVE, MINORS`.
 
-Goal: add the **lineup** concept (starting 5 + rotation order) the game engine
-needs, plus roster read and player release. Three endpoints (PROJECT_PLAN.md §2.1).
+## Assignment & release
 
-### Locked decisions (2026-06-27)
+A player is added to a team with `POST /v1/team/{teamId}/{playerId}`: it inserts
+the `player_team` row and appends a `SIGN` record to `player_team_hist`. It is
+404 if the team or player is missing, 409 if the player is already on a team.
 
-1. **Lineup storage** — extend `player_team` with `lineup_role` +
-   `rotation_order` columns. Lineup is a property of the *current* assignment,
-   so it lives on the row that already exists per rostered player. Avoids a
-   second team↔player join table that would duplicate the link `player_team`
-   already owns.
+`DELETE /v1/team/{teamId}/{playerId}` releases a player to free agency: it
+removes the `player_team` row and appends a `RELEASE` record to
+`player_team_hist`. The player's `currentTeamId` becomes null; past stints stay
+queryable via `/history`. This mirrors the add in reverse.
 
-2. **Release behavior** (`DELETE`) — remove the `player_team` row AND append a
-   `RELEASE` record to `player_team_hist`. Player returns to free agency
-   (`currentTeamId` becomes null); past stints stay queryable via `/history`.
-   Mirrors `addPlayerToTeam` in reverse and reuses the existing `RELEASE`
-   transaction type.
+`Player.currentTeamId` is derived (read-only) from the current `player_team`
+row, and `GET /v1/player/{playerId}/history` returns the player's assignment
+history, newest first.
 
-### Open question — lineup_role enum
+## Lineups
 
-A `Status` enum already exists (STARTER, BENCH, ROTATION, MINORS, INJURED,
-SUSPENDED). Two of those (STARTER/BENCH/ROTATION) overlap with lineup intent,
-but Status also carries availability states (INJURED/SUSPENDED) that aren't
-lineup roles. **Decision pending**: either (a) introduce a focused
-`LineupRole` enum (STARTER / ROTATION / BENCH / INACTIVE) for the lineup column,
-or (b) reuse `Status`. Leaning (a) — lineup role and availability are different
-concerns and conflating them will bite once the engine reads lineups. To be
-logged in DECISIONS.md when settled.
+A team's lineup is **sticky persistent state** on `player_team`, set with
+`PUT /v1/team/{teamId}/lineup` (decisions.md #014). The request is replace-all:
+it describes every roster player's `lineupRole` + `rotationOrder` and overwrites
+those fields. The lineup is set-on-change, not per-game — once set it persists,
+and every team is seeded with a valid 5-starter lineup. In-game substitutions
+are transient game-simulation state and never write back here.
 
-### Endpoints
+- **Starters** are an unordered set of 5 and carry **no** `rotationOrder`.
+- **`rotationOrder`** is the bench substitution queue: first off the bench = 1,
+  then 2, 3…; unique among all non-null values.
+
+## Endpoints
+
+A team's roster is **part of the team resource** — there is no separate roster
+endpoint (decisions.md #015). `GET /v1/team/{teamId}` returns the `Team` with
+`players: [RosterEntry]`, each entry = player + `lineupRole` + `rotationOrder`.
 
 | Method | Path | Purpose | Responses |
 |--------|------|---------|-----------|
-| GET | `/v1/team/{teamId}/roster` | Roster with lineup slots | 200 / 404 |
-| PUT | `/v1/team/{teamId}/lineup` | Set starting 5 + rotation order | 200 / 400 / 404 |
+| GET | `/v1/team/{teamId}` | Team incl. roster with lineup slots | 200 / 404 |
+| POST | `/v1/team/{teamId}/{playerId}` | Sign a free agent to the team | 200 / 404 / 409 |
 | DELETE | `/v1/team/{teamId}/{playerId}` | Release player to free agency | 200 / 404 |
+| PUT | `/v1/team/{teamId}/lineup` | Set starting 5 + bench order; returns the Team | 200 / 400 / 404 |
 
-- **GET roster** → a `Roster` schema: list of entries, each = player +
-  `lineup_role` + `rotation_order`.
-- **PUT lineup** → a `LineupRequest`: ordered list of {playerId, role, slot}.
-- **DELETE** → releases the player (see decision #2 above).
+`PUT /lineup` takes a `LineupRequest`: a list of `{playerId, lineupRole,
+rotationOrder}`. It is valid when:
 
-### Validation rules (PUT lineup)
+- Exactly **5** entries are `STARTER`.
+- No `STARTER` carries a `rotationOrder`.
+- Every `playerId` belongs to `{teamId}` (else 404).
+- No player appears twice.
+- `rotationOrder` is unique among all non-null values.
 
-- Exactly **5** STARTER entries.
-- Every `playerId` must belong to `{teamId}` → else 404.
-- No duplicate players in the request.
-- `rotation_order` unique among non-bench entries.
+## Not yet built
 
-### Roster rules (later in Phase 2)
+These touch the roster domain but are not implemented yet:
 
-Not in the first endpoint pass; tracked for the back half of the phase:
-- Roster size limits (e.g. 15 active, 5 minors).
-- Position minimums/maximums per roster.
-- Enforce those on add/lineup operations.
-
-## Looking ahead (not Phase 2)
-
-These touch the roster domain but belong to later phases — listed so the
-boundary is clear:
-- **Minutes & fatigue** (Phase 3.5) — rotation_order + `endurance` drive minutes
+- **Roster rules** — size limits (e.g. 15 active, 5 minors), position
+  minimums/maximums, enforced on add and lineup operations.
+- **Minutes & fatigue** (Phase 3.5) — `rotationOrder` + `endurance` drive minutes
   allocation and in-game substitution.
 - **Coach rotation influence** (Phase 3.5) — gated on the Coach model (parked).
 - **Trades / free agency / waivers** (Phase 6.4) — more `TransactionType` paths

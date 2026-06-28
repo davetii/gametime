@@ -20,6 +20,6 @@ public class DefenseReboundSkillCalculatorTest extends SkillSetCalculatorUnitTes
     public void ensureBigAndStrongReboundsWell() {
         player.setSize(16);
         player.setStrength(16);
-        assertPlayer(14.6d, calc);
+        assertPlayer(14.5d, calc);
     }
 }

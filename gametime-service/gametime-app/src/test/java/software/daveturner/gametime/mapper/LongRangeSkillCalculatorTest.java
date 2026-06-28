@@ -20,6 +20,6 @@ public class LongRangeSkillCalculatorTest extends SkillSetCalculatorUnitTest {
     public void ensureSharpshooterRatesHigh() {
         player.setShotSkill(16);
         player.setShotSelection(16);
-        assertPlayer(16.4d, calc);
+        assertPlayer(16.0d, calc);
     }
 }

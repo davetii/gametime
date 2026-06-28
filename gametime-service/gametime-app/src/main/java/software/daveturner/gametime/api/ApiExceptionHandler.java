@@ -17,4 +17,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleResourceConflict(ResourceConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
+
+    @ExceptionHandler(ResourceBadRequestException.class)
+    protected ResponseEntity<Object> handleBadRequest(ResourceBadRequestException ex) {
+        return ResponseEntity.badRequest().build();
+    }
 }

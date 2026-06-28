@@ -13,3 +13,5 @@ databaseChangeLog:
               - column: { header: player_id,        name: player_id,        type: varchar }
               - column: { header: team_id,          name: team_id,          type: varchar }
               - column: { header: transaction_type, name: transaction_type, type: varchar }
+              - column: { header: lineup_role,      name: lineup_role,      type: varchar }
+              - column: { header: rotation_order,   name: rotation_order,   type: numeric }

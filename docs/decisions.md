@@ -76,6 +76,30 @@ Log of significant design and architecture decisions. Append new entries at the 
 **Trade-off**: Two-table writes per assignment (kept atomic in one `@Transactional` service method). Roster reads are an extra query (player_team → players) rather than a JPA join. Since there are no users/data yet, the migrations were **consolidated from scratch** into `release.1.0.1.sql` (player table created without team_id; `player_team`/`player_team_hist` part of the base schema) rather than layered as patch migrations — the interim `release.1.0.2/1.0.3/1.0.4` SQL patches were removed.  
 **Alternatives considered**: Single nullable `team_id` FK (#011 — no history); a normalized `transaction` table modeling multi-player trades as one event (deferred — not needed until trades exist); season-scoped stints (no season/calendar model exists yet).
 
+### 013 — Player status (availability) split from lineup role (team slot)
+**Date**: 2026-06  
+**Decision**: Two previously-overlapping concepts are now separate enums with no shared values:
+- `Player.status` — player-**intrinsic availability**, independent of any team: `ACTIVE, INJURED, SUSPENDED`.
+- `player_team.lineupRole` — the player's **slot on a specific team**: `STARTER, ROTATION, BENCH, INACTIVE, MINORS`.
+
+Roster membership ("on a team or not") stays **derived from `player_team`** (no row = free agent) — it is *not* encoded in status (no `UNSIGNED`). `MINORS` moved out of status into `lineupRole` (it's a roster placement, not an availability state). The old `Status` enum (`STARTER, BENCH, ROTATION, MINORS, INJURED, SUSPENDED`) conflated both axes; the seed `players.csv` had been using `status` to carry lineup intent (200 STARTER / 143 ROTATION / 79 BENCH). That intent was migrated into `player_team.lineup_role` (seeded via `roster.csv`) and all player statuses set to `ACTIVE`.  
+**Rationale**: One field answering two questions ("is this player available?" and "what's their lineup slot?") is a duplicate source of truth waiting to disagree. Availability is a fact about the person; lineup slot is a fact about the assignment. Separating them removes the four-value collision and gives each a single owner.  
+**Alternatives considered**: Add `UNSIGNED` to status to mirror roster membership (rejected — second source of truth vs. `player_team`); keep `MINORS` in status (rejected — it's a roster concept).
+
+### 014 — Lineup is sticky persistent state; rotationOrder is the bench queue
+**Date**: 2026-06  
+**Decision**: `PUT /v1/team/{teamId}/lineup` is **replace-all** and sets persistent state on `player_team` (`lineup_role` + `rotation_order`). It is **set-on-change**, not called per game: once set, the lineup persists until explicitly changed, and every team boots with a valid 5-starter lineup from the seed. In-game substitutions are **transient game-simulation state** (Phase 3) and never write back to `player_team`. Validation: exactly 5 `STARTER`; no duplicate players; all players must be on the team (else 404). `rotationOrder` semantics: **starters are an unordered set of 5 and carry no rotation order**; `rotationOrder` is the **bench substitution queue** (first off the bench = 1, then 2, 3…), and must be unique among all non-null values.  
+**Rationale**: The coach's lineup is a standing plan, not a per-game action — modeling it as sticky state means unchanged rotations need no API call, and the engine simply reads it. Forcing starters to carry an order would fabricate data the engine doesn't need (all 5 are on the floor at tip-off); ordering only has a real meaning for the bench sub queue.  
+**Trade-off**: rotationOrder has no consumer until the Phase 3 engine exists — it is correct-but-latent plumbing laid ahead of its use.  
+**Alternatives considered**: Per-game lineup submission (rejected — churns roster state every game); a full 1→N depth chart including starters (deferred — additive if the engine later needs starter ordering); starters all sharing `rotationOrder = 1` (rejected — not-null but not-distinct, the worst of both).
+
+### 015 — Team is the single source of roster state; `/roster` endpoint removed
+**Date**: 2026-06  
+**Decision**: `GET /v1/team/{teamId}` is the **one** complete view of a team's state with respect to its players. `Team.players` is now a list of `RosterEntry` (`player` + `lineupRole` + `rotationOrder`) rather than bare `Player`. The separate `GET /v1/team/{teamId}/roster` endpoint and the `Roster` schema were **removed**; `PUT /lineup` now returns the updated `Team`. `GET /v1/league` likewise exposes lineup slots per player.  
+**Rationale**: The two read endpoints each carried half of "a team's state w.r.t. players" — `/team/{id}` had team context but no lineup, `/roster` had lineup but no team context — forcing clients to call both and stitch. A player's lineup slot is part of the team's state; there should be one endpoint. (Same overload-elimination principle as #013.)  
+**Trade-off**: `GET /team` and `GET /league` now hydrate lineup fields for every player even when a caller only wanted names; trivial at 40 teams, and a lean projection can be added later if it ever matters. `PUT /lineup` and `DELETE /{playerId}` are unchanged (they are actions, not redundant reads).  
+**Alternatives considered**: Keep both as summary vs. detail tiers (rejected — two endpoints to keep coherent, no real consumer for the split); fold team context into `/roster` instead (rejected — `Team` is the more fundamental resource).
+
 ---
 
 *Template for new entries:*

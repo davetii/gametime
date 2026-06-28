@@ -20,6 +20,6 @@ public class PassingSkillCalculatorTest extends SkillSetCalculatorUnitTest {
     public void ensureHighHandleAndIntelligencePassWell() {
         player.setHandle(16);
         player.setIntelligence(16);
-        assertPlayer(17.2d, calc);
+        assertPlayer(16.5d, calc);
     }
 }

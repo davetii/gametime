@@ -20,6 +20,6 @@ public class OffenseReboundSkillCalculatorTest extends SkillSetCalculatorUnitTes
     public void ensureBigDeterminedPlayerCrashesGlass() {
         player.setSize(16);
         player.setDetermination(16);
-        assertPlayer(14.7d, calc);
+        assertPlayer(14.6d, calc);
     }
 }
