@@ -36,11 +36,9 @@ these attributes (the `f(...)` effects deferred here). See roadmap.md §3.
 - [x] Attribute *model* only — coaching *effects* deferred to the Phase 3 engine
       that consumes them (no formulas in a vacuum — cf. #014).
 
-**Coach model: complete.** Remaining design open questions (not blocking):
-- Derived **archetype label** for display ("modern offense") — compute-on-read,
-  add when a UI consumer is real (Phase 7). coach.md open-Q #1.
-- **GM attributes** — same name-only gap; consumers are further off (Phase 6.4).
-  Resolve separately, later. coach.md open-Q #3.
+**Coach model: complete.** Non-blocking design open questions live in
+[coach.md](coach.md) (archetype label → Phase 7; GM attributes → Phase 6.4),
+with phase homes tracked in [roadmap.md](roadmap.md) §7.1 / §6.4.
 
 ---
 
