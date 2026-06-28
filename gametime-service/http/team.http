@@ -22,16 +22,9 @@ Accept: application/json
 POST http://{{host}}{{basePath}}/v1/team/INVALID/330eb324-3382-4fca-b20e-2b4c7e278047
 Accept: application/json
 
-### Fetch team roster with lineup slots
-GET http://{{host}}{{basePath}}/v1/team/BOS/roster
-Accept: application/json
-
-### Fetch roster — 404 (team not found)
-GET http://{{host}}{{basePath}}/v1/team/INVALID/roster
-Accept: application/json
-
 ### Set lineup (replace-all; exactly 5 STARTER) — paste this team's real player ids
-# Fetch /roster first to get player ids. Every roster player should appear here.
+# Fetch GET /v1/team/BOS first to get player ids (players carry their lineup
+# slot). Every roster player should appear here.
 PUT http://{{host}}{{basePath}}/v1/team/BOS/lineup
 Content-Type: application/json
 Accept: application/json

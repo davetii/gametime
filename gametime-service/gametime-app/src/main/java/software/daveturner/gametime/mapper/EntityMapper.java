@@ -18,9 +18,12 @@ public class EntityMapper {
 
     /**
      * Map a team with its current roster. The roster is sourced from player_team
-     * (not a JPA association on the team), so the caller supplies the players.
+     * (not a JPA association on the team): the caller supplies the current
+     * assignments (carrying lineup role + rotation order) and a lookup of the
+     * corresponding players. Each roster entry pairs a player with its lineup slot.
      */
-    public Team entityToTeam(TeamEntity entity, List<PlayerEntity> roster) {
+    public Team entityToTeam(TeamEntity entity, List<PlayerTeamEntity> assignments,
+                             Map<String, PlayerEntity> players) {
         if(entity == null) { return new Team(); }
         Team team = new Team();
         if(entity.getCoach() != null) {
@@ -35,16 +38,13 @@ public class EntityMapper {
         team.setId(Team.IdEnum.fromValue(entity.getId()));
         team.setConference(Team.ConferenceEnum.fromValue(entity.getConference()));
         team.setPlayers(new ArrayList<>());
-        entityPlayersToPlayers(team, roster);
+        if (assignments != null) {
+            assignments.stream()
+                    .filter(pt -> players.containsKey(pt.getPlayerId()))
+                    .map(pt -> toRosterEntry(players.get(pt.getPlayerId()), pt))
+                    .forEach(team.getPlayers()::add);
+        }
         return team;
-    }
-
-    private void entityPlayersToPlayers(Team team, List<PlayerEntity> players) {
-        if (players == null || players.size() == 0) { return; }
-        players.forEach(e -> {
-            Player player =mapEntityToPlayer(e);
-            team.getPlayers().add(player);
-        });
     }
 
     public Player mapEntityToPlayer(PlayerEntity e) {

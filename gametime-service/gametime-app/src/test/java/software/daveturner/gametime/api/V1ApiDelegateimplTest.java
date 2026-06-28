@@ -114,7 +114,7 @@ class V1ApiDelegateimplTest {
         assertEquals(200, api.addPlayerToTeam("NY", created.getId()).getStatusCode().value());
         // the newly assigned player now shows up on the team's roster
         boolean onRoster = api.fetchTeam("NY").getBody().getPlayers().stream()
-                .anyMatch(p -> created.getId().equals(p.getId()));
+                .anyMatch(e -> created.getId().equals(e.getPlayer().getId()));
         assertTrue(onRoster);
         // and the player now reports its current team
         assertEquals("NY", api.readPlayer(created.getId()).getBody().getCurrentTeamId());

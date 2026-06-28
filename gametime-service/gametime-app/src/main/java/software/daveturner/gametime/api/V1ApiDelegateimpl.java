@@ -62,12 +62,7 @@ public class V1ApiDelegateimpl implements V1ApiDelegate {
     }
 
     @Override
-    public ResponseEntity<Roster> fetchRoster(String teamId) {
-        return ResponseEntity.ok(service.getRoster(teamId));
-    }
-
-    @Override
-    public ResponseEntity<Roster> setLineup(String teamId, LineupRequest lineupRequest) {
+    public ResponseEntity<Team> setLineup(String teamId, LineupRequest lineupRequest) {
         return ResponseEntity.ok(service.setLineup(teamId, lineupRequest));
     }
 

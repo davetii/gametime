@@ -23,7 +23,7 @@ class RosterLineupDelegateTest {
     V1ApiDelegate api;
 
     private List<String> rosterPlayerIds(String teamId) {
-        return api.fetchRoster(teamId).getBody().getEntries().stream()
+        return api.fetchTeam(teamId).getBody().getPlayers().stream()
                 .map(e -> e.getPlayer().getId())
                 .collect(Collectors.toList());
     }
@@ -47,27 +47,21 @@ class RosterLineupDelegateTest {
         return new LineupRequest().entries(entries);
     }
 
-    // ---- fetchRoster ----
+    // ---- team roster (players now carry lineup slots) ----
 
     @Test
-    void ensureFetchRosterReturnsEntries() {
-        var resp = api.fetchRoster("BOS");
+    void ensureFetchTeamReturnsRosterEntriesWithLineup() {
+        var resp = api.fetchTeam("BOS");
         assertEquals(200, resp.getStatusCode().value());
-        assertEquals("BOS", resp.getBody().getTeamId());
-        assertFalse(resp.getBody().getEntries().isEmpty());
+        assertFalse(resp.getBody().getPlayers().isEmpty());
         // each entry carries a hydrated player
-        assertNotNull(resp.getBody().getEntries().get(0).getPlayer().getId());
-    }
-
-    @Test
-    void ensureFetchRosterThrowsNotFoundForMissingTeam() {
-        assertThrows(ResourceNotFoundException.class, () -> api.fetchRoster("NOPE"));
+        assertNotNull(resp.getBody().getPlayers().get(0).getPlayer().getId());
     }
 
     @Test
     void ensureSeededRosterHasLineupRolesFromSeedData() {
         // roster.csv seeds player_team.lineup_role; every team ships with 5 STARTERs.
-        long starters = api.fetchRoster("BOS").getBody().getEntries().stream()
+        long starters = api.fetchTeam("BOS").getBody().getPlayers().stream()
                 .filter(e -> e.getLineupRole() == LineupRole.STARTER)
                 .count();
         assertEquals(5, starters);
@@ -76,17 +70,17 @@ class RosterLineupDelegateTest {
     // ---- setLineup happy path ----
 
     @Test
-    void ensureSetLineupAssignsRolesAndReturnsRoster() {
+    void ensureSetLineupAssignsRolesAndReturnsTeam() {
         List<String> players = rosterPlayerIds("CHI");
         var resp = api.setLineup("CHI", validLineup(players));
         assertEquals(200, resp.getStatusCode().value());
 
-        long starters = resp.getBody().getEntries().stream()
+        long starters = resp.getBody().getPlayers().stream()
                 .filter(e -> e.getLineupRole() == LineupRole.STARTER)
                 .count();
         assertEquals(5, starters);
         // role persists across a re-fetch
-        long startersAfter = api.fetchRoster("CHI").getBody().getEntries().stream()
+        long startersAfter = api.fetchTeam("CHI").getBody().getPlayers().stream()
                 .filter(e -> e.getLineupRole() == LineupRole.STARTER)
                 .count();
         assertEquals(5, startersAfter);

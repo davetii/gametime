@@ -39,7 +39,13 @@ class EntityMapperTest {
         TeamEntity entity  = testTeamEntity();
         entity.setCoach(testCoachEntity());
         entity.setGm(testGMEntity());
-        Team team = mapper.entityToTeam(entity, List.of(testPLayerEntity()));
+        PlayerEntity player = testPLayerEntity();
+        PlayerTeamEntity assignment = new PlayerTeamEntity();
+        assignment.setPlayerId(player.getId());
+        assignment.setTeamId(TESTID);
+        assignment.setLineupRole(software.daveturner.gametime.entity.LineupRole.STARTER);
+        Team team = mapper.entityToTeam(entity, List.of(assignment),
+                Map.of(player.getId(), player));
         assertTeam(team);
         assertEquals(CONFERENCEID, team.getConference().getValue());
         assertEquals(COACHFIRSTNAME, team.getCoach().getFirstName());
@@ -48,8 +54,10 @@ class EntityMapperTest {
         assertEquals(GMLASTNAME, team.getGm().getLastName());
         assertEquals(1, team.getPlayers().size());
         assertTrue(team.getPlayers().stream().findFirst().isPresent());
-        assertEquals(PLAYERFIRSTNAME, team.getPlayers().stream().findFirst().get().getFirstName());
-        assertEquals(PLAYERLASTNAME, team.getPlayers().stream().findFirst().get().getLastName());
+        assertEquals(software.daveturner.gametime.model.LineupRole.STARTER,
+                team.getPlayers().get(0).getLineupRole());
+        assertEquals(PLAYERFIRSTNAME, team.getPlayers().get(0).getPlayer().getFirstName());
+        assertEquals(PLAYERLASTNAME, team.getPlayers().get(0).getPlayer().getLastName());
     }
 
     private void assertTeam(Team t) {
@@ -85,7 +93,7 @@ class EntityMapperTest {
     public void ensureEntityToTeamReturnsExpectedWithNullGM() {
         TeamEntity entity = testTeamEntity();
         entity.setCoach(testCoachEntity());
-        Team team = mapper.entityToTeam(entity, List.of());
+        Team team = mapper.entityToTeam(entity, List.of(), Map.of());
         assertEquals(TEAMNAME, team.getName());
         assertEquals(TEAMID, team.getId().toString());
         assertEquals(mapper.entityToCoach(testCoachEntity()).getFirstName(), team.getCoach().getFirstName());
@@ -96,7 +104,7 @@ class EntityMapperTest {
     public void ensureEntityToTeamReturnsExpectedWithNullCoach() {
         TeamEntity entity = testTeamEntity();
         entity.setGm(testGMEntity());
-        Team team = mapper.entityToTeam(entity, List.of());
+        Team team = mapper.entityToTeam(entity, List.of(), Map.of());
         assertEquals(TEAMNAME, team.getName());
         assertEquals(TEAMID, team.getId().toString());
         assertEquals(mapper.entityToGm(testGMEntity()).getFirstName(), team.getGm().getFirstName());
@@ -151,7 +159,7 @@ class EntityMapperTest {
 
     @Test public void ensureEntityToTeamHandlesNull() {
         Team emptyTeam = new Team();
-        Assertions.assertEquals(emptyTeam.getId(), mapper.entityToTeam(null, List.of()).getId());;
+        Assertions.assertEquals(emptyTeam.getId(), mapper.entityToTeam(null, List.of(), Map.of()).getId());;
     }
 
     @Test public void ensureEntityToGmHandlesNull() {

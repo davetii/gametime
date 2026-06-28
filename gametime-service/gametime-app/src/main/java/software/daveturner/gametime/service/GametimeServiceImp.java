@@ -101,18 +101,9 @@ public class GametimeServiceImp implements GametimeService {
     }
 
     @Override
-    public Roster getRoster(String teamId) {
-        if (!teamRepo.existsById(teamId)) {
-            throw new ResourceNotFoundException();
-        }
-        return buildRoster(teamId);
-    }
-
-    @Override
-    public Roster setLineup(String teamId, LineupRequest request) {
-        if (!teamRepo.existsById(teamId)) {
-            throw new ResourceNotFoundException();
-        }
+    public Team setLineup(String teamId, LineupRequest request) {
+        TeamEntity team = teamRepo.findById(teamId)
+                .orElseThrow(ResourceNotFoundException::new);
         List<LineupEntry> entries = request == null ? null : request.getEntries();
         if (entries == null || entries.isEmpty()) {
             throw new ResourceBadRequestException("Lineup is empty");
@@ -161,7 +152,7 @@ public class GametimeServiceImp implements GametimeService {
             pt.setRotationOrder(e.getRotationOrder());
             playerTeamRepo.save(pt);
         }
-        return buildRoster(teamId);
+        return toTeamWithRoster(team);
     }
 
     @Override
@@ -184,23 +175,6 @@ public class GametimeServiceImp implements GametimeService {
     private software.daveturner.gametime.entity.LineupRole toEntityRole(
             software.daveturner.gametime.model.LineupRole role) {
         return software.daveturner.gametime.entity.LineupRole.valueOf(role.getValue());
-    }
-
-    private Roster buildRoster(String teamId) {
-        List<PlayerTeamEntity> assignments = playerTeamRepo.findByTeamId(teamId);
-        Map<String, PlayerEntity> players = assignments.isEmpty()
-                ? Map.of()
-                : playerRepo.findByIdIn(assignments.stream()
-                        .map(PlayerTeamEntity::getPlayerId).collect(Collectors.toList()))
-                .stream().collect(Collectors.toMap(PlayerEntity::getId, p -> p));
-
-        Roster roster = new Roster();
-        roster.setTeamId(teamId);
-        roster.setEntries(assignments.stream()
-                .filter(pt -> players.containsKey(pt.getPlayerId()))
-                .map(pt -> entityMapper.toRosterEntry(players.get(pt.getPlayerId()), pt))
-                .collect(Collectors.toList()));
-        return roster;
     }
 
     /** Set the current assignment and append a history row. */
@@ -231,12 +205,12 @@ public class GametimeServiceImp implements GametimeService {
     }
 
     private Team toTeamWithRoster(TeamEntity entity) {
-        List<String> playerIds = playerTeamRepo.findByTeamId(entity.getId()).stream()
-                .map(PlayerTeamEntity::getPlayerId)
-                .collect(Collectors.toList());
-        List<PlayerEntity> roster = playerIds.isEmpty()
-                ? List.of()
-                : playerRepo.findByIdIn(playerIds);
-        return entityMapper.entityToTeam(entity, roster);
+        List<PlayerTeamEntity> assignments = playerTeamRepo.findByTeamId(entity.getId());
+        Map<String, PlayerEntity> players = assignments.isEmpty()
+                ? Map.of()
+                : playerRepo.findByIdIn(assignments.stream()
+                        .map(PlayerTeamEntity::getPlayerId).collect(Collectors.toList()))
+                .stream().collect(Collectors.toMap(PlayerEntity::getId, p -> p));
+        return entityMapper.entityToTeam(entity, assignments, players);
     }
 }
