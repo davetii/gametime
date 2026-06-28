@@ -5,40 +5,12 @@ them as completed. For the big-picture phased roadmap and what's already
 shipped, see [roadmap.md](roadmap.md). Deferred work lives in the
 Backlog at the bottom.
 
-Current focus: **Coach model** — the pre-gameplay prerequisite. Phase 2
-(Rosters & Lineups) is complete; its record lives in [roadmap.md](roadmap.md)
-§2 and decisions.md #013–#017.
+Current focus: **none active** — between phases. Everything shipped to date is
+recorded in [roadmap.md](roadmap.md) and decisions.md; this list stays empty
+until the next phase's tactical work begins.
 
----
-
-## Coach model (COMPLETE — unblocks the game engine)
-
-Was: `CoachEntity` name-only, so Phase 3 (§3.4/§3.5) had nothing to build
-against. Now: 5 continuous attributes (decisions.md #018) modeled end-to-end
-(schema → entity → mapper → API), seeded, and tested. Design in
-[coach.md](coach.md). The next move is **Phase 3** — the engine that reads
-these attributes (the `f(...)` effects deferred here). See roadmap.md §3.
-
-- [x] Resolve **Design Decision #3**: coach attributes continuous vs. categorical.
-      → **#018**: continuous **1–20, avg 10** (matches players #008), not enums.
-      Engine-led rationale; 1–10 rejected (forks the avg-10 deviation helper).
-- [x] Define the coach attribute set + the engine-facing interface. → **5**
-      attributes (pace, offensiveScheme, defensiveScheme, rotationDepth,
-      substitutionAggressiveness), all §3.4/§3.5 consumers; `playerDevelopment`
-      deferred to Phase 6 (its only consumer). See [coach.md](coach.md).
-- [x] Schema + entity: 5 `SMALLINT` columns added to the `coach` table
-      (`release.1.0.1.sql`) + dataload XML + 5 `Integer` fields on `CoachEntity`.
-      Seeded into `coach.csv` **wide-spread** (mean 10.0, stdev 3.4, range 3–18).
-- [x] Map attributes through `EntityMapper.entityToCoach`; **exposed** on the
-      `Coach` schema in `gametime.yaml`, so they surface in `GET /team` & `/league`.
-- [x] Tests for the new mapping (`EntityMapperTest`, distinct values to catch
-      transposition); full suite + JaCoCo `verify` gate green (114 tests).
-- [x] Attribute *model* only — coaching *effects* deferred to the Phase 3 engine
-      that consumes them (no formulas in a vacuum — cf. #014).
-
-**Coach model: complete.** Non-blocking design open questions live in
-[coach.md](coach.md) (archetype label → Phase 7; GM attributes → Phase 6.4),
-with phase homes tracked in [roadmap.md](roadmap.md) §7.1 / §6.4.
+**Next up: Phase 3 — Game Simulation Engine** (roadmap.md §3). When that work
+starts, break §3.1–§3.6 into tactical items here.
 
 ---
 
