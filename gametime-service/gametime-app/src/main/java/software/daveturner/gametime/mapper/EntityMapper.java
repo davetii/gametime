@@ -179,6 +179,11 @@ public class EntityMapper {
         Coach coach = new Coach();
         coach.setLastName(coachEntity.getLastName());
         coach.setFirstName(coachEntity.getFirstName());
+        coach.setPace(coachEntity.getPace());
+        coach.setOffensiveScheme(coachEntity.getOffensiveScheme());
+        coach.setDefensiveScheme(coachEntity.getDefensiveScheme());
+        coach.setRotationDepth(coachEntity.getRotationDepth());
+        coach.setSubstitutionAggressiveness(coachEntity.getSubstitutionAggressiveness());
         return coach;
     }
 }

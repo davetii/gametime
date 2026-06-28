@@ -11,22 +11,36 @@ Current focus: **Coach model** — the pre-gameplay prerequisite. Phase 2
 
 ---
 
-## Coach model (CURRENT — gates the game engine)
+## Coach model (COMPLETE — unblocks the game engine)
 
-`CoachEntity` is name-only; Phase 3 (§3.4/§3.5) can't be built against it.
-Design work goes in [coach.md](coach.md); this is the task checklist.
+Was: `CoachEntity` name-only, so Phase 3 (§3.4/§3.5) had nothing to build
+against. Now: 5 continuous attributes (decisions.md #018) modeled end-to-end
+(schema → entity → mapper → API), seeded, and tested. Design in
+[coach.md](coach.md). The next move is **Phase 3** — the engine that reads
+these attributes (the `f(...)` effects deferred here). See roadmap.md §3.
 
-- [ ] Resolve **Design Decision #3**: coach attributes as continuous (1–10 like
-      players) vs. categorical styles (enum). Write the decision into decisions.md.
-- [ ] Define the coach attribute set + the engine-facing interface (pace, shot
-      distribution, defensive scheme, rotation style — consumed by §3.4/§3.5).
-- [ ] Schema + entity: add the attributes to `CoachEntity` / `coach` table
-      (Liquibase changeset), seed values into `coach.csv`.
-- [ ] Map attributes through `EntityMapper`; expose on the coach in `GET /team`
-      if the API should surface them.
-- [ ] Tests for the new mapping/entity (JaCoCo gate).
-- [ ] Implement the attribute *model* only — coaching *effects* land with the
-      engine that consumes them (avoid designing formulas in a vacuum — cf. #014).
+- [x] Resolve **Design Decision #3**: coach attributes continuous vs. categorical.
+      → **#018**: continuous **1–20, avg 10** (matches players #008), not enums.
+      Engine-led rationale; 1–10 rejected (forks the avg-10 deviation helper).
+- [x] Define the coach attribute set + the engine-facing interface. → **5**
+      attributes (pace, offensiveScheme, defensiveScheme, rotationDepth,
+      substitutionAggressiveness), all §3.4/§3.5 consumers; `playerDevelopment`
+      deferred to Phase 6 (its only consumer). See [coach.md](coach.md).
+- [x] Schema + entity: 5 `SMALLINT` columns added to the `coach` table
+      (`release.1.0.1.sql`) + dataload XML + 5 `Integer` fields on `CoachEntity`.
+      Seeded into `coach.csv` **wide-spread** (mean 10.0, stdev 3.4, range 3–18).
+- [x] Map attributes through `EntityMapper.entityToCoach`; **exposed** on the
+      `Coach` schema in `gametime.yaml`, so they surface in `GET /team` & `/league`.
+- [x] Tests for the new mapping (`EntityMapperTest`, distinct values to catch
+      transposition); full suite + JaCoCo `verify` gate green (114 tests).
+- [x] Attribute *model* only — coaching *effects* deferred to the Phase 3 engine
+      that consumes them (no formulas in a vacuum — cf. #014).
+
+**Coach model: complete.** Remaining design open questions (not blocking):
+- Derived **archetype label** for display ("modern offense") — compute-on-read,
+  add when a UI consumer is real (Phase 7). coach.md open-Q #1.
+- **GM attributes** — same name-only gap; consumers are further off (Phase 6.4).
+  Resolve separately, later. coach.md open-Q #3.
 
 ---
 

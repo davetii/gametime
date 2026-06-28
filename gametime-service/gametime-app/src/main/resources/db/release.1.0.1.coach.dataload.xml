@@ -21,6 +21,11 @@
             <column header="id" name="id" type="varchar"/>
             <column header="first_name" name="first_name" type="varchar"/>
             <column header="last_name" name="last_name" type="varchar"/>
+            <column header="pace" name="pace" type="numeric"/>
+            <column header="offensive_scheme" name="offensive_scheme" type="numeric"/>
+            <column header="defensive_scheme" name="defensive_scheme" type="numeric"/>
+            <column header="rotation_depth" name="rotation_depth" type="numeric"/>
+            <column header="substitution_aggressiveness" name="substitution_aggressiveness" type="numeric"/>
         </loadData>
     </changeSet>
 </databaseChangeLog>

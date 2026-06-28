@@ -1,4 +1,4 @@
-# Coach Domain *(design — not yet built)*
+# Coach Domain *(design — Decision #3 decided, not yet built)*
 
 The Coach is a team's **decision-maker model**: the inputs the game engine reads
 to decide how a team plays — pace, shot distribution, defensive posture, and how
@@ -16,7 +16,7 @@ effects, §3.5 rotation/substitution) has something concrete to build against.
 
 ---
 
-## Decision #3 — continuous, not categorical *(proposed)*
+## Decision #3 — continuous, not categorical *(decided — see decisions.md #018)*
 
 **Recommendation: continuous 1–20 attributes, average = 10 — the same scale as
 player attributes.**
@@ -44,7 +44,8 @@ and translation cost above.
 ## Proposed attributes (1–20, avg 10)
 
 Each attribute exists **because a named Phase 3 consumer needs it** — no
-attribute without a consumer (the #014 discipline). Six to start:
+attribute without a *live* consumer (the #014 discipline). **Five to start**,
+all read by the Phase 3 engine on a possession:
 
 | Attribute | Drives | Consumed by |
 |-----------|--------|-------------|
@@ -53,10 +54,20 @@ attribute without a consumer (the #014 discipline). Six to start:
 | **defensiveScheme** | Aggressiveness — pressure/steal-seeking vs. contain | §3.4 defensive scheme |
 | **rotationDepth** | How many players see real minutes (tight 7 vs. deep 10) | §3.5 minutes allocation |
 | **substitutionAggressiveness** | How early/eagerly fatigued starters are pulled | §3.5 sub triggers |
-| **playerDevelopment** | Off-court: rate players improve under this coach | Phase 6 progression |
 
-Deliberately deferred until a consumer is real: in-game adjustments, timeout
-usage, matchup/iso targeting, clutch-time tweaks. Add them when §3.x asks.
+These form two coherent pairs plus pace: the **§3.4** schemes (what shots happen
+on each end) and the **§3.5** rotation knobs (who is on the floor) — mapping to
+the two things a coach controls during a game.
+
+**Deferred until a consumer is live:**
+
+- **playerDevelopment** (rate players improve under this coach) — its only
+  consumer is **Phase 6 progression**, not Phase 3. Unlike the five above it
+  bends a *season*, not a possession, so by the #014/#017 "no attribute ahead of
+  its consumer" discipline it lands with Phase 6 (accepting a second migration
+  then rather than fabricating a latent column now).
+- In-game adjustments, timeout usage, matchup/iso targeting, clutch-time tweaks —
+  add when §3.x asks.
 
 ---
 

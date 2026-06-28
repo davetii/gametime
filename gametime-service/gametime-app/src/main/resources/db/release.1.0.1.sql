@@ -18,6 +18,13 @@ CREATE TABLE gametime.coach
 	id VARCHAR primary key,
 	first_name VARCHAR not null,
 	last_name VARCHAR not null,
+	-- Decision-making attributes (1-20, avg 10) read by the Phase 3 engine.
+	-- Modifiers on a baseline, not absolutes (decisions.md #018, coach.md).
+	pace SMALLINT,
+	offensive_scheme SMALLINT,
+	defensive_scheme SMALLINT,
+	rotation_depth SMALLINT,
+	substitution_aggressiveness SMALLINT,
     create_user VARCHAR default 'system' not null,
     create_date timestamp default CURRENT_TIMESTAMP not null,
     update_user VARCHAR default 'system' not null,
