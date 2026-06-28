@@ -1,13 +1,14 @@
-# Coach Domain *(design — Decision #3 decided, not yet built)*
+# Coach Domain *(attribute model built; effects are Phase 3)*
 
 The Coach is a team's **decision-maker model**: the inputs the game engine reads
 to decide how a team plays — pace, shot distribution, defensive posture, and how
 deep/early the bench gets used.
 
-Today `CoachEntity` is **name-only** (`firstName`, `lastName`, `id`, `team`).
-This doc resolves **Design Decision #3** (continuous vs. categorical) and defines
-the attribute set + the engine-facing interface, so Phase 3 (§3.4 coaching
-effects, §3.5 rotation/substitution) has something concrete to build against.
+`CoachEntity` now carries **5 continuous decision attributes** (was name-only).
+This doc resolved **Design Decision #3** (continuous vs. categorical — see
+decisions.md #018) and defines the attribute set + the engine-facing interface,
+so Phase 3 (§3.4 coaching effects, §3.5 rotation/substitution) has something
+concrete to build against.
 
 > **Scope discipline** (cf. decisions.md #014): build the *attribute model* now;
 > the *coaching effects* (how an attribute bends a possession) land with the

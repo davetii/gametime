@@ -12,7 +12,7 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
   separate `lineupRole` (STARTER, ROTATION, BENCH, INACTIVE, MINORS) on the
   roster assignment — see decisions.md #013.
 - **40-team league** across 4 conferences (EAST, NORTH, SOUTH, WEST), 422 seed players (CSV-driven via Liquibase)
-- **Entity layer**: Player, Team, Coach (name only), GM (name only); player↔team decoupled via `player_team` + `player_team_hist`
+- **Entity layer**: Player, Team, Coach (5 decision attributes — #018), GM (name only); player↔team decoupled via `player_team` + `player_team_hist`
 - **Roster & lineup model**: a team's roster is part of the `Team` resource (`players` are roster entries with lineup slot); lineup (starting 5 + bench rotation order) is sticky state on `player_team`; player status (availability) is separate from lineup role; roster size caps (15 active / 5 minors) enforced on sign + lineup, signed players default to `INACTIVE`. See decisions.md #013–#017.
 - **REST endpoints**: GET league, GET player by ID + history, createPlayer, updatePlayer; GET team by ID (incl. roster), addPlayerToTeam, removePlayerFromTeam, set lineup
 - **Skill calculation engine**: SkillCalculator interface, 23 calculator implementations, SkillMapper orchestrator
