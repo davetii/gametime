@@ -12,7 +12,9 @@ gametime/
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list
-│   └── player.md              Player domain design (attributes, skills, formulas)
+│   ├── player.md              Player domain design (attributes, skills, formulas)
+│   ├── roster.md              Roster & lineup domain (player↔team, lineups)
+│   └── coach.md               Coach domain design (attributes — not yet built)
 ├── gametime-service/          Multi-module Maven project (Spring Boot 3.5.14)
 │   ├── pom.xml                Parent POM (packaging=pom)
 │   ├── gametime-api/          OpenAPI codegen module (generates server stubs)
@@ -30,6 +32,7 @@ Before starting work, review these for context:
 - **`docs/roadmap.md`** — phased roadmap, what's built vs what's needed
 - **`docs/roster.md`** — roster & lineup domain: player↔team link, lineups, transactions
 - **`docs/player.md`** — player domain reference: attributes, derived skills, calculator design
+- **`docs/coach.md`** — coach domain design: attribute model + engine interface (pre-Phase-3)
 - **`docs/decisions.md`** — past architecture choices (check before proposing alternatives)
 - **`docs/todo.md`** — current task list
 - **`docs/risks.md`** — known risks and concerns
