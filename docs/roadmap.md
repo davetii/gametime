@@ -8,59 +8,38 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
 - **21 player attributes**: agility, awareness, aggression, charisma, cohesion, composure, determination, ego, endurance, energy, handle, health, intelligence, luck, shotSelection, shotSkill, size, speed, strength, verticality, wingspan
 - **23 derived skills** on a 1–20 / avg-10 scale via a shared deviation helper: acumen, ballSecurity, passing, teamOffense, drive, freeThrows, longRange, perimeter, post, individualDefense, teamDefense, offenseRebound, defenseRebound, finishing, transition, rimProtection, stealing, shotContest, foulDrawing, foulProne, clutch, screenSetting, offBallMovement
 - **9 positions**: PG, CG, SG, W, SF, F, PF, FC, C
-- **6 player statuses**: STARTER, BENCH, ROTATION, MINORS, INJURED, SUSPENDED
+- **Player status** (availability): ACTIVE, INJURED, SUSPENDED. Lineup slot is a
+  separate `lineupRole` (STARTER, ROTATION, BENCH, INACTIVE, MINORS) on the
+  roster assignment — see decisions.md #013.
 - **40-team league** across 4 conferences (EAST, NORTH, SOUTH, WEST), 422 seed players (CSV-driven via Liquibase)
 - **Entity layer**: Player, Team, Coach (name only), GM (name only); player↔team decoupled via `player_team` + `player_team_hist`
-- **6 working REST endpoints**: GET league, GET player by ID, GET team by ID, createPlayer, updatePlayer, addPlayerToTeam, GET player history
+- **Roster & lineup model**: a team's roster is part of the `Team` resource (`players` are roster entries with lineup slot); lineup (starting 5 + bench rotation order) is sticky state on `player_team`; player status (availability) is separate from lineup role. See decisions.md #013–#015.
+- **REST endpoints**: GET league, GET player by ID + history, createPlayer, updatePlayer; GET team by ID (incl. roster), addPlayerToTeam, removePlayerFromTeam, set lineup
 - **Skill calculation engine**: SkillCalculator interface, 23 calculator implementations, SkillMapper orchestrator
 - **Entity-to-model mapping**: EntityMapper with full attribute + skill wiring
 - **Database**: Postgres (local dev) + H2 (tests), Liquibase migrations, gametime schema, audit triggers
 - **Test suite**: unit + Cucumber integration, 80% line coverage enforced (JaCoCo gate)
 - **Build pipeline**: Multi-module Maven, OpenAPI codegen with delegate pattern, Docker Compose
 
----
+### Deferred
+- **Coach / GM attributes** — the name-only `Coach`/`GM` slots stay until the
+  game engine defines what their attributes must drive (continuous vs. style
+  enum is open — see Design Decisions #3). Revisit with Phase 3.4/3.5 and 6.4.
 
-## Phase 1 — Foundation — DONE
-
-**Goal**: Player model + CRUD API surface.
-
-### 1.1 REST Endpoints — DONE
-- [x] `createPlayer`, `updatePlayer`, `addPlayerToTeam` — built, validated, tested.
-- [x] ~~`fetchConference`~~ — DROPPED; clients filter `/v1/league`. See DECISIONS.md #010.
-
-### 1.2 / 1.3 Coach & GM Models — PARKED
-Deferred (2026-06-27): the name-only `Coach`/`GM` slots stay until the game
-engine defines what their attributes must drive. Revisit with Phase 3.4/3.5
-and Phase 6.
-- [ ] Coach attributes — open question: continuous vs. style enum (see open question #3 below).
-- [ ] GM attributes (scouting, negotiation, draft strategy, analytics).
-
-### 1.4 Health Attribute — DONE
-- [x] `health` wired into `individualDefense` and `defenseRebound`.
-
-### 1.5 Player model hardening + data eval — DONE
-- [x] Rescaled to 21 attributes / 23 skills on a 1–20 / avg-10 scale; CSV-driven seed data.
-- [x] Cleanup (orphaned dir removed, `.http` verified, endpoint tests added).
-- [x] Data-model evaluation (2026-06-27): renamed BG→SG, reviewed all tweener
-      positions (CG/W/F/FC), reclassified 3 forwards, tuned outliers. Model
-      confirmed sound; final skill balance deferred to post-engine. See TODO.md
-      Phase 1c.
+### Known gaps (cross-cutting, no phase)
+- **API pagination** — parameters are defined in the OpenAPI spec but not wired.
+- **Player age** — only `yearsPro` is modeled; no birth date / true age yet.
 
 ---
 
 ## Phase 2 — Roster & Lineup Management (CURRENT)
 
 **Goal**: Turn the static player list into a managed roster with lineup logic.
+The roster/lineup API surface is built (see "Fully Built"); the remaining work
+is roster rules and rotation depth. Tactical breakdown lives in
+[todo.md](todo.md).
 
-Tactical breakdown, decisions, and validation rules live in
-[TODO.md](TODO.md) Phase 2. Roadmap-level scope:
-
-### 2.1 Roster APIs (immediate)
-- [ ] `GET /v1/team/{teamId}/roster` — roster with lineup slots
-- [ ] `PUT /v1/team/{teamId}/lineup` — set starting 5 + rotation order
-- [ ] `DELETE /v1/team/{teamId}/{playerId}` — remove player (release to free agency, keep history)
-
-### 2.2 Roster Rules (later in phase)
+### 2.2 Roster Rules
 - [ ] Roster size limits (e.g., 15 active, 5 minors)
 - [ ] Position minimums/maximums per roster
 - [ ] Roster validation on add/remove
@@ -68,7 +47,7 @@ Tactical breakdown, decisions, and validation rules live in
 ### 2.3 Lineup & Rotation depth (feeds the engine)
 - [ ] Bench rotation order and minutes allocation
 - [ ] Fatigue model: how does `endurance` interact with minutes played?
-- [ ] Coach attributes influence rotation depth (gated on Coach model — parked)
+- [ ] Coach attributes influence rotation depth (gated on Coach model — deferred)
 
 ---
 
@@ -97,6 +76,8 @@ Tactical breakdown, decisions, and validation rules live in
 - [ ] Passing skill influences assist rate and ball movement
 - [ ] Acumen influences shot selection quality
 - [ ] Coach system modifies possession pace, shot distribution, defensive scheme
+- [ ] Rebalance skill calculator formulas once possessions exercise them
+      (clutch/foulProne/transition etc. only get tested under real play)
 
 ### 3.5 Fatigue & Substitution
 - [ ] Per-player energy tracking within a game
@@ -265,7 +246,7 @@ These are open questions that should be resolved before or during implementation
 The phases above are roughly sequential, but here's the critical path:
 
 ```
-Phase 1 (Foundation) ──> Phase 2 (Rosters) ──> Phase 3 (Game Engine) ──> Phase 4 (Stats)
+[Foundation ✓] ──> Phase 2 (Rosters) ──> Phase 3 (Game Engine) ──> Phase 4 (Stats)
                                                         │
                                                         v
                                                 Phase 5 (Season) ──> Phase 6 (Progression)

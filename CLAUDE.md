@@ -8,10 +8,10 @@ Basketball simulation game — API service, future React frontend.
 gametime/
 ├── CLAUDE.md                  AI session entry point (this file)
 ├── docs/                      Project documentation
-│   ├── PROJECT_PLAN.md        Phased roadmap (8 phases)
-│   ├── DECISIONS.md           Architecture decision log
-│   ├── RISKS.md               Active risks and concerns
-│   ├── TODO.md                Tactical task list
+│   ├── roadmap.md        Phased roadmap (8 phases)
+│   ├── decisions.md           Architecture decision log
+│   ├── risks.md               Active risks and concerns
+│   ├── todo.md                Tactical task list
 │   └── player.md              Player domain design (attributes, skills, formulas)
 ├── gametime-service/          Multi-module Maven project (Spring Boot 3.5.14)
 │   ├── pom.xml                Parent POM (packaging=pom)
@@ -27,12 +27,12 @@ gametime/
 ## Project docs
 
 Before starting work, review these for context:
-- **`docs/PROJECT_PLAN.md`** — phased roadmap, what's built vs what's needed
-- **`docs/roster.md`** — roster & lineup domain: player↔team link, lineups, transactions (current focus, Phase 2)
-- **`docs/player.md`** — player domain design: attributes, derived skills, calculator formulas
-- **`docs/DECISIONS.md`** — past architecture choices (check before proposing alternatives)
-- **`docs/TODO.md`** — current task list
-- **`docs/RISKS.md`** — known risks and concerns
+- **`docs/roadmap.md`** — phased roadmap, what's built vs what's needed
+- **`docs/roster.md`** — roster & lineup domain: player↔team link, lineups, transactions
+- **`docs/player.md`** — player domain reference: attributes, derived skills, calculator design
+- **`docs/decisions.md`** — past architecture choices (check before proposing alternatives)
+- **`docs/todo.md`** — current task list
+- **`docs/risks.md`** — known risks and concerns
 
 ## Build requirements
 

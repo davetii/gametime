@@ -42,11 +42,11 @@ For the exact `JAVA_HOME` setup, profiles, and database details, see
 
 ## Documentation
 
-- [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) — phased roadmap (what's built vs. planned)
+- [docs/roadmap.md](docs/roadmap.md) — phased roadmap (what's built vs. planned)
 - [docs/player.md](docs/player.md) — player domain: attributes, derived skills, formulas
-- [docs/DECISIONS.md](docs/DECISIONS.md) — architecture decision log
-- [docs/RISKS.md](docs/RISKS.md) — active risks and concerns
-- [docs/TODO.md](docs/TODO.md) — tactical task list
+- [docs/decisions.md](docs/decisions.md) — architecture decision log
+- [docs/risks.md](docs/risks.md) — active risks and concerns
+- [docs/todo.md](docs/todo.md) — tactical task list
 
 ## Tech stack
 

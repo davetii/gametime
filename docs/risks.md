@@ -39,7 +39,7 @@ Active risks and concerns. Remove items as they're resolved (move to the Resolve
 **Resolved**: 2026-06 — `health` is now consumed by the `individualDefense` and `defenseRebound` skill calculators (wired in during the 1–20 skills pass). No longer an orphaned attribute.
 
 ### No roster/trade history (player→team was current-state only)
-**Resolved**: 2026-06 — Built the `player_team` (current) + `player_team_hist` (append-only) model; `player.team_id` removed. See DECISIONS.md #012. History is now first-class: `addPlayerToTeam` appends a transaction row and `GET /v1/player/{id}/history` exposes it. (A normalized multi-player-trade `transaction` table is still a future option but not needed until trades exist.)
+**Resolved**: 2026-06 — Built the `player_team` (current) + `player_team_hist` (append-only) model; `player.team_id` removed. See decisions.md #012. History is now first-class: `addPlayerToTeam` appends a transaction row and `GET /v1/player/{id}/history` exposes it. (A normalized multi-player-trade `transaction` table is still a future option but not needed until trades exist.)
 
 *Move resolved items here with a note on the resolution.*
 

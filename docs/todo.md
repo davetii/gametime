@@ -2,11 +2,11 @@
 
 Tactical task list for the **current phase only**. Check items off or remove
 them as completed. For the big-picture phased roadmap and what's already
-shipped, see [PROJECT_PLAN.md](PROJECT_PLAN.md). Deferred work lives in the
+shipped, see [roadmap.md](roadmap.md). Deferred work lives in the
 Backlog at the bottom.
 
 Current focus: **Phase 2 roster APIs shipped — next up: roster rules + rotation
-depth (PROJECT_PLAN.md §2.2/§2.3).**
+depth (roadmap.md §2.2/§2.3).**
 
 ---
 
@@ -17,11 +17,11 @@ depth (PROJECT_PLAN.md §2.2/§2.3).**
 Three endpoints on top of the existing player↔team model, plus the lineup
 (starting 5 + rotation order) concept the game engine needs.
 
-- [x] `GET /v1/team/{teamId}/roster` — `Roster` of entries (player + lineupRole
-      + rotationOrder). 200/404.
+- [x] Team roster with lineup slots — folded into `GET /v1/team/{teamId}`
+      (`Team.players` are `RosterEntry`); standalone `/roster` removed (#015).
 - [x] `PUT /v1/team/{teamId}/lineup` — replace-all `LineupRequest`; hard 400 on
-      ≠5 STARTER, dup player, or dup rotation order; 404 if a player isn't on
-      the team. Returns the updated roster.
+      ≠5 STARTER, starter-with-order, dup player, or dup rotation order; 404 if a
+      player isn't on the team. Returns the updated Team.
 - [x] `DELETE /v1/team/{teamId}/{playerId}` — release to free agency: drop the
       `player_team` row, append a `RELEASE` row to `player_team_hist`. 200/404.
 - [x] Schema: `release.1.0.4.lineup.sql` adds `lineup_role` + `rotation_order`
@@ -45,20 +45,9 @@ table); lineup PUT is replace-all with a hard 5-starter invariant.
 
 ## Backlog
 
-Deferred by decision — not in flight. Promote into a phase section when picked up.
+Loose tactical chores with no phase home (deferred scope lives in
+[roadmap.md](roadmap.md), not here):
 
 - [ ] Hand-tune marquee/star players to 18–20 where appropriate (the rescale was
       mechanical). Deferred until the game engine shows whether it matters.
-- [ ] Design Coach attribute model (open question: continuous attrs vs. style
-      enum — see PROJECT_PLAN.md open question #3, DECISIONS.md). Parked
-      2026-06-27 until the engine defines what coach attributes must drive;
-      revisit alongside Phase 3.4/3.5 and Phase 6.
-- [ ] Design GM attribute model (scouting, negotiation, draft, analytics). Parked
-      with Coach above; revisit alongside Phase 6.4.
-- [ ] Update OpenAPI spec once Coach/GM models are decided.
-- [ ] Review skill calculator formulas for balance after the game engine exists
-      (clutch/foulProne/transition etc. only get exercised once possessions run).
-- [ ] Evaluate Testcontainers as alternative to H2 for integration tests.
-- [ ] Add API pagination (parameters already defined in OpenAPI spec but not wired).
-- [ ] Consider adding player age field (currently only yearsPro, no birth date).
-- [ ] Set up React project in `gametime-frontend/`.
+- [ ] Evaluate Testcontainers as an alternative to H2 for integration tests.
