@@ -100,6 +100,20 @@ Roster membership ("on a team or not") stays **derived from `player_team`** (no 
 **Trade-off**: `GET /team` and `GET /league` now hydrate lineup fields for every player even when a caller only wanted names; trivial at 40 teams, and a lean projection can be added later if it ever matters. `PUT /lineup` and `DELETE /{playerId}` are unchanged (they are actions, not redundant reads).  
 **Alternatives considered**: Keep both as summary vs. detail tiers (rejected — two endpoints to keep coherent, no real consumer for the split); fold team context into `/roster` instead (rejected — `Team` is the more fundamental resource).
 
+### 016 — Roster size caps; signed players default to `INACTIVE`
+**Date**: 2026-06  
+**Decision**: A team's roster is capped at **15 active** (every `lineupRole` except `MINORS`) + **5 minors**. Signing a free agent (`POST /v1/team/{teamId}/{playerId}`) now defaults the new `player_team.lineupRole` to **`INACTIVE`** ("on the active roster, not yet slotted") and rejects with **409** when the active roster is already full. The lineup PUT also re-checks both caps over the *resulting* roster (request overlaid on current, omitted players keep their role) and rejects with **400** if active > 15 or minors > 5. Caps live as constants `MAX_ACTIVE_ROSTER` / `MAX_MINORS` in `GametimeServiceImp`.  
+**Rationale**: The sign endpoint had no role to set, leaving a just-signed player in a fourth, null-bucket state that size limits couldn't count. Defaulting to `INACTIVE` (chosen over a new `RESERVE` value or splitting `lineupRole` into a separate `rosterStatus` field) eliminates the null without reversing #013/#014's single-field model. The seed data made this safe with no migration: all 422 `roster.csv` rows already carry a bucket (zero nulls), `INACTIVE` was referenced nowhere but the enum decl, and every seeded team is 9–12 players — under the 15 cap, so no grandfathering. The active cap is enforced at *both* sign and lineup PUT so role shuffles can't grow the active roster past what signing allows.  
+**Trade-off**: `INACTIVE` now carries a slight double meaning — "just signed, unslotted" and the eventual in-game "dressed but not playing"; acceptable since the latter has no consumer yet. Position min/max is still unbuilt (deferred to the lineup PUT where the full assignment is visible).  
+**Alternatives considered**: Add a dedicated `RESERVE` lineupRole (rejected — extra enum value for a state `INACTIVE` already covers); split `lineupRole` into membership-tier + in-game-slot fields (rejected — partially reverses #013/#014 and still needs a sign-time default); treat null as a first-class "unassigned" state (rejected — pushes null-handling into every count + the engine).
+
+### 017 — No position min/max roster rules (won't build)
+**Date**: 2026-06  
+**Decision**: Roster construction is **not** constrained by player position. There are no per-position (or position-group) minimums or maximums on a roster or lineup. A team may carry any positional mix it likes.  
+**Rationale**: Two reasons. (1) The seed data can't support minimums — no team carries all 9 positions (each has 6–8 of 9), and CG/WING are thin league-wide, so any per-position floor would invalidate most seeded rosters on day one (same trap avoided in #016). (2) Maximums solve a problem the game engine should own: a lopsided roster (e.g. 10 centers) is naturally punished by losing — poor guard play, no spacing — rather than by an API validation rule. Pre-empting that with a roster-layer cap fabricates a constraint ahead of any consumer, against the "let the engine decide" principle (cf. #014 deferring rotationOrder to the engine).  
+**Trade-off**: A user *can* build a nonsensical roster. Accepted — it's their loss in simulation, and it keeps the roster API free of balance rules that belong in gameplay.  
+**Revisit if**: the game engine ships and playtesting shows unconstrained rosters produce degenerate or unfun results that the simulation alone doesn't correct — then position rules become an engine-informed feature, not a guessed-at one.
+
 ---
 
 *Template for new entries:*
