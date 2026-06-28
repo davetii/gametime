@@ -271,6 +271,31 @@ components:
           type: string
         lastName:
           type: string
+        pace:
+          type: integer
+          format: int32
+          description: Decision-making attribute (1-20, avg 10). Possessions per
+            game / shot-clock urgency. Read by the Phase 3 engine.
+        offensiveScheme:
+          type: integer
+          format: int32
+          description: Decision-making attribute (1-20, avg 10). Shot distribution
+            — perimeter/3pt lean vs. inside/post.
+        defensiveScheme:
+          type: integer
+          format: int32
+          description: Decision-making attribute (1-20, avg 10). Defensive
+            aggressiveness — pressure/steal-seeking vs. contain.
+        rotationDepth:
+          type: integer
+          format: int32
+          description: Decision-making attribute (1-20, avg 10). How many players
+            see real minutes (tight vs. deep rotation).
+        substitutionAggressiveness:
+          type: integer
+          format: int32
+          description: Decision-making attribute (1-20, avg 10). How early/eagerly
+            fatigued starters are pulled.
 
     GM:
       type: object

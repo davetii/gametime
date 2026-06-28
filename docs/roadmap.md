@@ -12,7 +12,7 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
   separate `lineupRole` (STARTER, ROTATION, BENCH, INACTIVE, MINORS) on the
   roster assignment — see decisions.md #013.
 - **40-team league** across 4 conferences (EAST, NORTH, SOUTH, WEST), 422 seed players (CSV-driven via Liquibase)
-- **Entity layer**: Player, Team, Coach (name only), GM (name only); player↔team decoupled via `player_team` + `player_team_hist`
+- **Entity layer**: Player, Team, Coach (5 decision attributes — #018), GM (name only); player↔team decoupled via `player_team` + `player_team_hist`
 - **Roster & lineup model**: a team's roster is part of the `Team` resource (`players` are roster entries with lineup slot); lineup (starting 5 + bench rotation order) is sticky state on `player_team`; player status (availability) is separate from lineup role; roster size caps (15 active / 5 minors) enforced on sign + lineup, signed players default to `INACTIVE`. See decisions.md #013–#017.
 - **REST endpoints**: GET league, GET player by ID + history, createPlayer, updatePlayer; GET team by ID (incl. roster), addPlayerToTeam, removePlayerFromTeam, set lineup
 - **Skill calculation engine**: SkillCalculator interface, 23 calculator implementations, SkillMapper orchestrator
@@ -22,9 +22,11 @@ Basketball simulation game — 40-team league with attribute-driven gameplay, se
 - **Build pipeline**: Multi-module Maven, OpenAPI codegen with delegate pattern, Docker Compose
 
 ### Deferred
-- **Coach / GM attributes** — the name-only `Coach`/`GM` slots stay until the
-  game engine defines what their attributes must drive (continuous vs. style
-  enum is open — see Design Decisions #3). Revisit with Phase 3.4/3.5 and 6.4.
+- **GM attributes** — the name-only `GM` slot stays until its consumers are real
+  (Phase 6.3 draft scouting / 6.4 trade evaluation). Resolve with the same
+  continuous 1–20 model as coach (decisions.md #018); see coach.md open-Q #3.
+  *(Coach attributes — done: Design Decision #3 resolved as #018, modeled
+  end-to-end pre-Phase-3 below.)*
 
 ### Known gaps (cross-cutting, no phase)
 - **API pagination** — parameters are defined in the OpenAPI spec but not wired.
@@ -51,15 +53,18 @@ are all shipped. Tactical detail in [todo.md](todo.md).
 
 ---
 
-## Pre-Phase-3 — Coach model (CURRENT)
+## Pre-Phase-3 — Coach model — COMPLETE (2026-06-28)
 
 **Goal**: Settle the Coach attribute model before the engine consumes it.
-`CoachEntity` is name-only; the engine (§3.4/§3.5) needs defined coach attributes
-to drive pace, shot distribution, defensive scheme, and rotation style.
+Done — `CoachEntity` carries 5 continuous decision-making attributes the engine
+(§3.4/§3.5) reads for pace, shot distribution, defensive scheme, and rotation.
+Design in [coach.md](coach.md).
 
-- [ ] Resolve **Design Decision #3**: continuous (1–10) vs. categorical styles
-- [ ] Define the coach attribute set + the interface the engine reads
-- [ ] Implement the attribute model only; coaching *effects* land with the engine
+- [x] Resolve **Design Decision #3**: continuous 1–20/avg-10, not enums (#018)
+- [x] Define the attribute set (5: pace, offensiveScheme, defensiveScheme,
+      rotationDepth, substitutionAggressiveness); playerDevelopment → Phase 6
+- [x] Implement the attribute model end-to-end (schema → entity → mapper → API,
+      seeded + tested); coaching *effects* deferred to the §3.4/§3.5 engine
 
 ---
 
@@ -185,7 +190,8 @@ chart from 2.1/#014.)*
 - [ ] Salary cap
 - [ ] Free agent signing period
 - [ ] Trade logic: player-for-player, picks, salary matching
-- [ ] GM attributes influence trade evaluation
+- [ ] GM attributes influence trade evaluation (model as continuous 1–20 like
+      coach #018 — see coach.md open-Q #3)
 
 ---
 
@@ -195,7 +201,8 @@ chart from 2.1/#014.)*
 
 ### 7.1 Core Views
 - [ ] League dashboard — all 40 teams by conference
-- [ ] Team detail — roster, coach, GM, current record
+- [ ] Team detail — roster, coach, GM, current record (surface coach attributes +
+      a derived archetype label, computed on read — see coach.md open-Q #1)
 - [ ] Player detail — attributes, skills radar chart, stats, game log
 - [ ] Game view — box score, play-by-play
 

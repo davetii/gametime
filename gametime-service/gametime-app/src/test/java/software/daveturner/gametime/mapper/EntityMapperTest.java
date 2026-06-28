@@ -26,6 +26,12 @@ class EntityMapperTest {
     private static final String CONFERENCENAME = "TEST_CONFERENCE_NAME";
     public static final String COACHFIRSTNAME = "coachfirstname";
     public static final String COACHLASTNAME = "coachlastname";
+    // Distinct values so a transposed-field mapping bug fails the test.
+    public static final Integer COACH_PACE = 11;
+    public static final Integer COACH_OFFENSIVE_SCHEME = 12;
+    public static final Integer COACH_DEFENSIVE_SCHEME = 13;
+    public static final Integer COACH_ROTATION_DEPTH = 14;
+    public static final Integer COACH_SUBSTITUTION_AGGRESSIVENESS = 15;
     public static final String GMLASTNAME = "gmlastname";
     public static final String TEAMID = "NY";
     public static final String TEAMLOCALE = "TEAM_LOCALE";
@@ -77,6 +83,11 @@ class EntityMapperTest {
         Coach coach = mapper.entityToCoach(testCoachEntity());
         assertEquals(COACHFIRSTNAME, coach.getFirstName());
         assertEquals(COACHLASTNAME, coach.getLastName());
+        assertEquals(COACH_PACE, coach.getPace());
+        assertEquals(COACH_OFFENSIVE_SCHEME, coach.getOffensiveScheme());
+        assertEquals(COACH_DEFENSIVE_SCHEME, coach.getDefensiveScheme());
+        assertEquals(COACH_ROTATION_DEPTH, coach.getRotationDepth());
+        assertEquals(COACH_SUBSTITUTION_AGGRESSIVENESS, coach.getSubstitutionAggressiveness());
     }
 
     @Test
@@ -203,6 +214,11 @@ class EntityMapperTest {
         CoachEntity entity = new CoachEntity();
         entity.setFirstName(COACHFIRSTNAME);
         entity.setLastName(COACHLASTNAME);
+        entity.setPace(COACH_PACE);
+        entity.setOffensiveScheme(COACH_OFFENSIVE_SCHEME);
+        entity.setDefensiveScheme(COACH_DEFENSIVE_SCHEME);
+        entity.setRotationDepth(COACH_ROTATION_DEPTH);
+        entity.setSubstitutionAggressiveness(COACH_SUBSTITUTION_AGGRESSIVENESS);
         return entity;
     }
 

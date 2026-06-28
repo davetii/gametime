@@ -11,11 +11,6 @@ Active risks and concerns. Remove items as they're resolved (move to the Resolve
 **Description**: A full season is potentially 40 teams x 40+ games = 800+ games. If each game simulates possession-by-possession (~200 possessions per game), that's 160,000+ possessions to compute and potentially persist. Need to decide early whether to store play-by-play events or only box scores.  
 **Mitigation**: Design the game engine with configurable detail level. Benchmark early.
 
-### Coach/GM attribute design is undefined
-**Severity**: Medium  
-**Description**: Coaches and GMs are currently name-only entities. The game engine needs coach attributes to influence gameplay (pace, defensive scheme, rotation depth), but the attribute model hasn't been designed yet. This is a dependency for Phase 3.  
-**Mitigation**: Now the explicit **pre-Phase-3 task** (roadmap.md "Pre-Phase-3 — Coach model"; todo.md "Next"). Resolve open Design Decision #3 (continuous vs. categorical) and define the engine-facing attribute interface before starting game engine work.
-
 ### Skill formula balance
 **Severity**: Medium  
 **Description**: The 13 skill calculators have hand-tuned threshold values. Until games are simulated and stats reviewed, we won't know if the formulas produce realistic distributions. A player with maxed shotSkill + shotSelection might be unrealistically dominant.  
@@ -40,6 +35,9 @@ Active risks and concerns. Remove items as they're resolved (move to the Resolve
 
 ### No roster/trade history (player→team was current-state only)
 **Resolved**: 2026-06 — Built the `player_team` (current) + `player_team_hist` (append-only) model; `player.team_id` removed. See decisions.md #012. History is now first-class: `addPlayerToTeam` appends a transaction row and `GET /v1/player/{id}/history` exposes it. (A normalized multi-player-trade `transaction` table is still a future option but not needed until trades exist.)
+
+### Coach attribute design was undefined (Phase 3 dependency)
+**Resolved**: 2026-06-28 — Coach is no longer name-only. Design Decision #3 resolved as decisions.md **#018** (continuous 1–20/avg-10, not enums); 5 decision attributes (`pace`, `offensiveScheme`, `defensiveScheme`, `rotationDepth`, `substitutionAggressiveness`) modeled end-to-end and seeded. The Phase 3 engine now has a defined interface to read. **GM attributes** remain name-only but are *not* a Phase 3 blocker — their consumers are Phase 6.3/6.4, to be modeled with the same continuous approach (roadmap.md Deferred + §6.4; coach.md open-Q #3).
 
 *Move resolved items here with a note on the resolution.*
 
