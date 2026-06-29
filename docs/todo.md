@@ -136,26 +136,52 @@ and NOT persisted in §3.2.** Build to this:
   supports >4). *(This sub-choice is fine to finalize during implementation; it
   doesn't change the schema.)*
 
-### Decision C — Where do shot probabilities come from (calibration)?
+### Decision C — Probability formula shape ✅ RESOLVED (decisions.md #021); constants are tunable, not binding
 
-**Question**: The roadmap says "probability based on shooter skills vs defender
-skills." What's the concrete formula family, and what baseline makes league
-averages realistic?
+**Settled: the formula *shape* and the rule that all constants live in one
+tunable config. The specific numbers below are suggested starting points, NOT
+binding** — the implementing session picks/adjusts them, and §3.4 tunes them
+empirically by simulating games. You do **not** need NBA accuracy here; you need
+*plausible, bounded, reconciling* output.
 
-- **Recommended**: a **logistic/contest model** over the deviation-from-10 the
-  skill system already uses — e.g. `P(make) = base(shotType) + k * (shooterSkill −
-  defenderContestSkill)/10`, clamped to a sane range. Reuse the *spirit* of
-  `SkillCalculator`'s deviation helpers (avg-10, soft clamp) so the engine and
-  skill layer speak the same scale (the #018 "one scale, no translation" win).
-- **You do not need real NBA accuracy in §3.2** — you need *plausible, bounded,
-  testable* outputs (an average shooter vs. average defender lands near a sensible
-  base FG%; a 20-skill shooter beats a 1-skill defender most of the time).
-  Roadmap §3.4 explicitly defers **rebalancing the formulas** "once possessions
-  exercise them," so pick reasonable constants now and leave a TODO to tune.
-- Map the skills to shot types: `drive`/`finishing` (rim), `perimeter` (mid),
-  `longRange` (3pt), `post` (inside); defender side: `individualDefense`,
-  `shotContest`, `rimProtection`. `ballSecurity` vs `stealing`/`individualDefense`
-  for turnovers; `foulDrawing` vs `foulProne` + `freeThrows` for the foul/FT path.
+**Shape — logistic contest over the avg-10 deviation the skill system uses:**
+
+```
+p_make = base(shotType) + SENSITIVITY * (offenseSkill − defenseSkill) / 10   // clamped, e.g. [0.02, 0.97]
+```
+
+- Two average players (10 vs 10) → deviation 0 → you get exactly `base(shotType)`.
+- Reuse the *spirit* of `SkillCalculator`'s deviation helpers (avg-10) so engine
+  and skill layer speak one scale — the #018 "one scale, no translation" win.
+- `SENSITIVITY` is the main dial: how much a skill gap swings the outcome.
+
+**The rule that actually matters: constants live in ONE place.** Put
+`base(shotType)`, `SENSITIVITY`, turnover/foul/FT bases, and the pace value
+(Decision B) in a single injectable `SimConfig` (or constants holder) — **never
+magic numbers scattered through the resolvers.** This is what makes the §3.4
+calibration loop possible; without it, tuning can't happen.
+
+**Suggested starting constants (placeholders to tune, not facts):**
+
+| Path | Skills (offense vs. defense) | Base |
+|------|------------------------------|------|
+| Rim / finish | `drive`/`finishing` vs `rimProtection` | ~0.60 make |
+| Mid / perimeter | `perimeter` vs `individualDefense`/`shotContest` | ~0.42 make |
+| Three | `longRange` vs `shotContest` | ~0.36 make |
+| Post | `post` vs `individualDefense` | ~0.48 make |
+| Turnover (per poss.) | `ballSecurity` vs `stealing`/`individualDefense` | ~0.13 |
+| Foul (on drive/post) | `foulDrawing` vs `foulProne` | ~0.15 |
+| Free throw made | `freeThrows` (no defender) | `0.75 + (freeThrows−10)/10 * 0.20` |
+
+- `SENSITIVITY` start ≈ `0.5` (a 10-point edge swings make-prob ~25pts). Tune later.
+- Clamp every probability to a sane floor/ceiling so no path hits 0 or 1.
+
+**Acceptance bar for §3.2 (needs zero NBA expertise):** a full game yields a
+believable final score (~85–125/team); an all-average matchup lands near the
+base rates; a lopsided matchup the better team clearly wins; and box-score totals
+**reconcile** with the event log (points from `SHOT`/`FREE_THROW` events == box
+score points). Formula *rebalancing* is explicitly **§3.4** (roadmap), done by
+simulating and comparing — not in §3.2.
 
 ### Decision D — Shot-selection model (who shoots, what shot)
 
@@ -230,14 +256,14 @@ averages realistic?
 > + tests land — the per-package gate only shows up there. Tick the `[ ]` box as
 > each step lands.
 
-- [ ] **1. Resolve the remaining decisions (C–E)** above. **Decisions A and B are
-  already resolved** — seeded `RandomGenerator` with seed as a per-`simulate()`
-  parameter (A), and abstract configurable possession count with event time
-  derived-not-stored in §3.2 (B). Both recorded in decisions.md #021. Finalize C
-  (shot-probability formula), D (shot-selection), E (output contract), record them
-  (extend #021 or add #022), and fill in [game.md](game.md)'s `GameEvent` section
-  with the now-known possession flow (which `play_type`s the loop emits, what
-  `outcome` strings mean). *Output: docs updated; no engine code yet.*
+- [ ] **1. Resolve the remaining decisions (D–E)** above. **Decisions A, B, and C
+  are already resolved** — seeded `RandomGenerator`, seed per `simulate()` (A);
+  abstract configurable possession count, event time derived-not-stored (B); and
+  the logistic-contest probability *shape* + tunable `SimConfig` rule (C). All in
+  decisions.md #021. Finalize D (shot-selection) and E (output contract), record
+  them (extend #021 or add #022), and fill in [game.md](game.md)'s `GameEvent`
+  section with the now-known possession flow (which `play_type`s the loop emits,
+  what `outcome` strings mean). *Output: docs updated; no engine code yet.*
 
 - [ ] **2. Scaffold the `sim` package.** Create
   `src/main/java/software/daveturner/gametime/sim/`. Define the engine entry point
