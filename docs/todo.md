@@ -55,11 +55,21 @@ ship the smallest correct loop, then layer.
   `gametime-app` code — there is no existing engine to copy, so this section
   *establishes* the pattern. Keep it a plain Spring `@Component`/`@Service` graph,
   constructor-injected, like `GametimeServiceImp` + the `*SkillCalculator` beans.
-- **Reads** (already exposed — do not re-model): player skills via
-  `SkillMapper.mapSkills(player)` → `PlayerSkills` (23 `BigDecimal` skills on the
-  1–20/avg-10 scale), the team roster + lineup via the existing `Team` model
-  (`RosterEntry` carries `lineupRole`/`rotationOrder`), and `Coach` attributes are
-  *available* on `Team.coach` but **not consumed yet** (see §3.4 above).
+- **Input entry point**: get each team via **`GametimeService.getTeam(teamId)`** →
+  `Optional<Team>`. The returned `Team` is fully hydrated for the engine: each
+  `RosterEntry` in `Team.getPlayers()` carries a `Player` whose `getSkills()` is
+  **already populated** (`EntityMapper.mapEntityToPlayer` calls
+  `SkillMapper.mapSkills`), plus its `lineupRole` + `rotationOrder`, and
+  `Team.getCoach()` carries the coach attributes. So the engine does **not** need
+  to call `SkillMapper` itself or assemble rosters — one `getTeam` call per side
+  gives skills + lineup + coach. (Filter `Team.getPlayers()` to `STARTER`s for the
+  on-floor 5 — §3.2 plays the starters all game, per Scope Discipline.)
+- **Reads** (already exposed — do not re-model): player skills are on
+  `player.getSkills()` → `PlayerSkills` (23 `BigDecimal` skills on the
+  1–20/avg-10 scale; convert to `double` at the engine boundary), the team roster +
+  lineup via the `Team` model (`RosterEntry` carries `lineupRole`/`rotationOrder`),
+  and `Coach` attributes are *available* on `Team.coach` but **not consumed yet**
+  (see §3.4 above).
 - **Writes** the §3.1 entities: builds `GameEntity` + ordered `GameEventEntity`s +
   `BoxScoreEntity`s and persists them via the existing `GameRepo` /
   `GameEventRepo` / `BoxScoreRepo`. Box score is **accumulated during the loop**,
