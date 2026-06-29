@@ -40,10 +40,14 @@ _Last updated: 2026-06-28_
 
 **Goal**: Build the core possession-by-possession simulation.
 
-### 3.1 Game Model
-- [ ] Define `Game` entity: homeTeam, awayTeam, quarter structure, final score
-- [ ] Define `GameEvent` model: possessions, plays, outcomes
-- [ ] Define `BoxScore` model: per-player stats for a single game
+### 3.1 Game Model ✓
+- [x] Define `Game` entity: homeTeam, awayTeam, quarter structure, final score
+- [x] Define `GameEvent` model: possessions, plays, outcomes
+- [x] Define `BoxScore` model: per-player stats for a single game
+
+_Shipped: `GameEntity` / `GameEventEntity` / `BoxScoreEntity` + repos, Liquibase
+`release.1.0.4.game.sql`, persistence-only (no API surface — §3.6). See
+decisions.md #020 and game.md for the modeling choices._
 
 ### 3.2 Possession Engine
 - [ ] Possession flow: inbound → set play / fast break → shot clock → outcome

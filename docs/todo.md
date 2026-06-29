@@ -5,7 +5,9 @@ them as completed. For the big-picture phased roadmap and what's already
 shipped, see [roadmap.md](roadmap.md). Deferred work lives in the
 Backlog at the bottom.
 
-Current focus: **Phase 3, Section 3.1 — Game Model** (roadmap.md §3.1).
+Current focus: **Phase 3.1 — Game Model: ✓ COMPLETE.** Entities, schema, repos,
+and tests shipped (see roadmap.md §3.1, decisions.md #020). **Next up: §3.2 —
+Possession Engine**; break it into tactical items here when that work starts.
 
 ---
 
@@ -117,12 +119,12 @@ them. Full rationale is in [decisions.md](decisions.md) #020 and
    doc-decision work remains. **First code step:** skim #020 + game.md once so
    the shapes are fresh, then start at step 2.
 
-- [ ] **2. Enums.** Add `entity/GameStatus.java` (`SCHEDULED, IN_PROGRESS, FINAL`) and
+- [x] **2. Enums.** Add `entity/GameStatus.java` (`SCHEDULED, IN_PROGRESS, FINAL`) and
    `entity/PlayType.java` (`SHOT, TURNOVER, REBOUND, FOUL, FREE_THROW`). Plain
    Java enums — copy the style of `entity/TransactionType.java` /
    `entity/LineupRole.java`.
 
-- [ ] **3. Liquibase schema.** Create
+- [x] **3. Liquibase schema.** Create
    `src/main/resources/db/release.1.0.4.game.sql` (next free release number;
    1.0.1–1.0.3 are taken). Define `gametime.game`, `gametime.game_event`, and
    `gametime.box_score`. Follow `release.1.0.1.sql` exactly:
@@ -136,7 +138,7 @@ them. Full rationale is in [decisions.md](decisions.md) #020 and
    Then **register it** in `db/changelog.yml` with an `include` at the **end**
    (after the roster dataload), since these tables depend on team/player.
 
-- [ ] **4. Entities.** Add to `entity/`:
+- [x] **4. Entities.** Add to `entity/`:
    - `GameEntity` — home/away team ids, `GameStatus`, period scores + final
      score, (no season FK). Copy `@Entity`/`@Table(schema = "gametime")`/`@Data`
      from `CoachEntity`/`PlayerTeamEntity`. Use `@Id` matching the table PK type
@@ -151,19 +153,19 @@ them. Full rationale is in [decisions.md](decisions.md) #020 and
      codebase) over a composite key, for consistency.
    Match column-name `@Column(name = "...")` snake_case to the SQL.
 
-- [ ] **5. Repos.** Add Spring Data interfaces in `repo/` extending
+- [x] **5. Repos.** Add Spring Data interfaces in `repo/` extending
    `CrudRepository<Entity, IdType>` (copy `PlayerTeamRepo`). Add finder methods
    the §3.6 endpoints will need, e.g. `GameRepo` (by id is free via
    `CrudRepository`), `BoxScoreRepo.findByGameId(String)`,
    `GameEventRepo.findByGameIdOrderBySequenceAsc(String)`. **Only add finders
    with a near-term consumer** — don't speculatively add query methods.
 
-- [ ] **6. No API / mapping work.** Per Decision C (#020), §3.1 is persistence-only —
+- [x] **6. No API / mapping work.** Per Decision C (#020), §3.1 is persistence-only —
    **do not** touch `gametime.yaml` or `EntityMapper`. The OpenAPI schemas and
    simulate/fetch endpoints land in §3.6. (Step kept as a marker so nobody adds
    an orphaned schema; skip to tests.)
 
-- [ ] **7. Tests** (this is the gate — see test-coverage skill). Add under
+- [x] **7. Tests** (this is the gate — see test-coverage skill). Add under
    `src/test/.../entity/`:
    - `GameEntityTest`, `GameEventEntityTest`, `BoxScoreEntityTest` —
      exercise constructor + every getter/setter so Lombok boilerplate
@@ -176,7 +178,7 @@ them. Full rationale is in [decisions.md](decisions.md) #020 and
      tests bootstrap the context (`GametimeApplicationTests`,
      `RosterLineupDelegateTest`) and follow that.
 
-- [ ] **8. Verify the gate.**
+- [x] **8. Verify the gate.**
    `JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn clean test`
    must pass with JaCoCo ≥ 0.80 (target ~0.90). If new `@Data` getters/setters
    drag the ratio down, add the missing entity-test coverage rather than
@@ -184,7 +186,7 @@ them. Full rationale is in [decisions.md](decisions.md) #020 and
    `JAVA_HOME=... mvn verify -Ptest` for the Docker/Postgres path to confirm the
    `dbms:postgresql` triggers are valid.
 
-- [ ] **9. Docs cleanup.** Check the §3.1 boxes in [roadmap.md](roadmap.md) (lines
+- [x] **9. Docs cleanup.** Check the §3.1 boxes in [roadmap.md](roadmap.md) (lines
    ~44–46). [game.md](game.md) and [decisions.md](decisions.md) #020 are already
    in sync with these decisions — only update them if you deviated from the
    resolved shapes while building. Reset this "Current focus" line to point at
