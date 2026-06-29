@@ -71,14 +71,14 @@ ship the smallest correct loop, then layer.
 
 ---
 
-## 🚧 Decisions to make BEFORE writing the engine
+## ✅ Decisions — ALL RESOLVED (decisions.md #021)
 
-These are blocking and shape the whole engine. Resolve each, then record the
-outcome in [decisions.md](decisions.md) as the next entry (**#021**) and reflect
-the possession-flow choices in [game.md](game.md) (its `GameEvent` section says
-the shape "grows additively with the §3.2 engine" — fill that in). Use the
-decisions.md template at the bottom of that file. Roadmap "Design Decisions To
-Make" #1, #2, #7 map directly onto A/B below.
+The blocking §3.2 modeling decisions (A–E) are **all settled** and recorded in
+[decisions.md](decisions.md) #021 — **do not re-open them, just build to them.**
+The one remaining doc task before code is to fill in [game.md](game.md)'s
+`GameEvent` section with the now-known possession flow (which `play_type`s the
+loop emits, what `outcome` strings mean) — see task 1 below. The resolved calls,
+in brief:
 
 ### Decision A — Determinism / RNG ✅ RESOLVED (decisions.md #021)
 
@@ -200,16 +200,33 @@ assists deferred to §3.4 (left at 0 in §3.2).** Build to this:
   assist attribution is a §3.4 model — don't fabricate a trivial "assist on every
   made shot" now; record it properly when ball movement exists.
 
-### Decision E — Engine output contract & transaction boundary
+### Decision E — Engine output contract & transaction boundary ✅ RESOLVED (decisions.md #021)
 
-**Question**: What does `simulate(...)` return, and what does it persist?
+**Settled: one game-level `@Transactional` `simulate()`, pure-sim separated from
+persistence, returns a small result object. Event slicing is a §3.6 read concern,
+NOT an engine return mode.** Build to this:
 
-- **Recommended**: a single `@Transactional` service method that builds and saves
-  the `Game` (status `FINAL`), all `GameEvent`s, and all `BoxScore`s atomically,
-  returning the persisted `Game` id (or a small result object). Keep persistence
-  in the service boundary; keep the *pure* simulation (loop + math) in
-  side-effect-free classes that return data, so they're unit-testable without a
-  DB. This mirrors `GametimeServiceImp`'s `@Transactional` multi-write methods.
+- `simulate(homeTeamId, awayTeamId, seed, pace)` is a **single `@Transactional`
+  service method** that runs the whole game and **persists atomically**: the
+  `Game` (status `FINAL`, period + final scores), all `GameEvent`s, and all
+  `BoxScore`s — via `GameRepo`/`GameEventRepo`/`BoxScoreRepo`. A game is the atomic
+  unit; there is no "simulate a quarter" — the box score/final score only exist
+  once the game completes.
+- **Returns a small result object** — `gameId` + home/away final score (and maybe
+  event/score counts). Not just the bare id (the score makes the engine's own
+  tests assertable without a DB read-back); not the full event list (it's
+  persisted and re-readable). Plain return value — no schema, no API model.
+- **Pure simulation is side-effect-free.** The loop + resolvers + math live in
+  classes that *return data* (a built `Game`/events/box-scores in memory), so they
+  unit-test with **no DB**. Persistence happens **only at the service boundary**
+  (the `@Transactional` method calls the repos). Mirrors `GametimeServiceImp`'s
+  multi-write transactional methods.
+- **Configurable retrieval (game / quarter / half / N events / pagination) is
+  §3.6**, the read endpoint — not an engine output mode. Events are persisted
+  (#020), so any slice is a `findByGameId...` query; the front end requests
+  whatever window it wants from `GET /{gameId}/play-by-play`. #019 already
+  earmarks play-by-play for pagination there. Do **not** build return-slice options
+  into `simulate()` (no consumer in §3.2 — #014/#017).
 
 ---
 
@@ -259,15 +276,14 @@ assists deferred to §3.4 (left at 0 in §3.2).** Build to this:
 > + tests land — the per-package gate only shows up there. Tick the `[ ]` box as
 > each step lands.
 
-- [ ] **1. Resolve the last decision (E)** above. **Decisions A–D are already
-  resolved** — seeded `RandomGenerator`, seed per `simulate()` (A); abstract
-  configurable possession count, event time derived-not-stored (B); logistic-
-  contest probability *shape* + tunable `SimConfig` rule (C); skill-weighted shot
-  selection, assists deferred (D). All in decisions.md #021. Finalize E (output
-  contract / transaction boundary), record it (extend #021 or add #022), and fill
-  in [game.md](game.md)'s `GameEvent` section with the now-known possession flow
-  (which `play_type`s the loop emits, what `outcome` strings mean). *Output: docs
-  updated; no engine code yet.*
+- [ ] **1. (Decisions A–E already resolved — start here.)** All §3.2 modeling
+  decisions are settled in decisions.md #021 (see the RESOLVED block above); no
+  decision work remains. The only doc task before code: **fill in
+  [game.md](game.md)'s `GameEvent` section** with the now-known possession flow —
+  which `play_type`s the loop emits (`SHOT`/`TURNOVER`/`FOUL`/`FREE_THROW`;
+  `REBOUND` not emitted until §3.3) and what the `outcome` free-text strings mean
+  (e.g. made/missed, 2pt/3pt). Skim #021 once so the shapes are fresh, then go to
+  step 2. *Output: game.md updated; no engine code yet.*
 
 - [ ] **2. Scaffold the `sim` package.** Create
   `src/main/java/software/daveturner/gametime/sim/`. Define the engine entry point
