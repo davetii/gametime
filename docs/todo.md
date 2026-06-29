@@ -183,19 +183,22 @@ base rates; a lopsided matchup the better team clearly wins; and box-score total
 score points). Formula *rebalancing* is explicitly **§3.4** (roadmap), done by
 simulating and comparing — not in §3.2.
 
-### Decision D — Shot-selection model (who shoots, what shot)
+### Decision D — Shot-selection model ✅ RESOLVED (decisions.md #021)
 
-**Question**: How is the shooter and shot type chosen each possession?
+**Settled: skill-weighted random pick among the 5 on-floor offensive players;
+assists deferred to §3.4 (left at 0 in §3.2).** Build to this:
 
-- **Recommended**: a **skill-weighted random pick** among the 5 on-floor
-  offensive players — players with higher offensive skills get the ball more, and
-  each player's shot-type distribution follows their relative drive/perimeter/
-  post/longRange skills. Keep it simple and weighted; `acumen`-driven
-  shot-*quality* and `passing`-driven assist/ball-movement are **§3.4**, not §3.2
-  (use raw weighting now, leave the seam).
-- Assists: §3.2 can leave `assists` at 0 (ball-movement is §3.4) **or** record a
-  trivial assist on made shots — recommend leaving assists for §3.4 to avoid
-  fabricating a model; document whichever you choose.
+- Each possession, pick the shooter by a **weighted random draw** over the 5
+  offensive players on the floor, weighted by offensive skill — higher offensive
+  skill ⇒ more shot attempts. Then pick that player's **shot type** by a weighted
+  draw over their relative `drive`/`finishing`/`perimeter`/`post`/`longRange`
+  skills. Use the seeded RNG from Decision A for both draws (so it's reproducible).
+- Keep it **raw skill weighting** only. `acumen`-driven shot *quality* and
+  `passing`-driven ball movement are **§3.4** — do not read them here; leave the
+  seam (the weighting is a function you can later bend with team/coach effects).
+- **Assists: left at 0 in §3.2** (`BoxScore.assists` stays 0). Ball-movement /
+  assist attribution is a §3.4 model — don't fabricate a trivial "assist on every
+  made shot" now; record it properly when ball movement exists.
 
 ### Decision E — Engine output contract & transaction boundary
 
@@ -256,14 +259,15 @@ simulating and comparing — not in §3.2.
 > + tests land — the per-package gate only shows up there. Tick the `[ ]` box as
 > each step lands.
 
-- [ ] **1. Resolve the remaining decisions (D–E)** above. **Decisions A, B, and C
-  are already resolved** — seeded `RandomGenerator`, seed per `simulate()` (A);
-  abstract configurable possession count, event time derived-not-stored (B); and
-  the logistic-contest probability *shape* + tunable `SimConfig` rule (C). All in
-  decisions.md #021. Finalize D (shot-selection) and E (output contract), record
-  them (extend #021 or add #022), and fill in [game.md](game.md)'s `GameEvent`
-  section with the now-known possession flow (which `play_type`s the loop emits,
-  what `outcome` strings mean). *Output: docs updated; no engine code yet.*
+- [ ] **1. Resolve the last decision (E)** above. **Decisions A–D are already
+  resolved** — seeded `RandomGenerator`, seed per `simulate()` (A); abstract
+  configurable possession count, event time derived-not-stored (B); logistic-
+  contest probability *shape* + tunable `SimConfig` rule (C); skill-weighted shot
+  selection, assists deferred (D). All in decisions.md #021. Finalize E (output
+  contract / transaction boundary), record it (extend #021 or add #022), and fill
+  in [game.md](game.md)'s `GameEvent` section with the now-known possession flow
+  (which `play_type`s the loop emits, what `outcome` strings mean). *Output: docs
+  updated; no engine code yet.*
 
 - [ ] **2. Scaffold the `sim` package.** Create
   `src/main/java/software/daveturner/gametime/sim/`. Define the engine entry point
