@@ -64,9 +64,12 @@ Initial (intentionally minimal — grows additively with the §3.2 engine):
 - `primary_player_id` — the one player the event is about, for now. Richer
   participation (assister, defender, rebounder vs. shooter) is **additive** when
   §3.2 defines it.
-- *No in-game clock yet.* A ticking clock only has meaning once §3.2 decides how
-  time elapses per possession; `period` + `sequence` give full ordering today. A
-  nullable clock column is additive later.
+- *No in-game clock column yet.* §3.2 models time as an **abstract, configurable
+  possession count** (decisions.md #021), and event time is **derived on read**
+  (pace + `period` + `sequence`) for play-by-play display — not stored. A stored
+  per-event time column (single value vs. range — undecided) is **deferred to
+  §3.6**, where the play-by-play display is its consumer. `period` + `sequence`
+  give full ordering today.
 
 ---
 

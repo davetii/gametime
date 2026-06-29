@@ -82,6 +82,8 @@ the roster domain, #014.)*
 - [ ] `POST /v1/game/simulate` — simulate a single game, return box score
 - [ ] `GET /v1/game/{gameId}` — retrieve game result
 - [ ] `GET /v1/game/{gameId}/play-by-play` — event log
+- [ ] Decide + migrate a stored per-event **time column** for play-by-play
+      display (single value vs. range — deferred from §3.2, decisions.md #021)
 
 ---
 
