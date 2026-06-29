@@ -8,8 +8,8 @@ Active risks and concerns. Remove items as they're resolved (move to the Resolve
 
 ### Simulation performance at scale
 **Severity**: Medium  
-**Description**: A full season is potentially 40 teams x 40+ games = 800+ games. If each game simulates possession-by-possession (~200 possessions per game), that's 160,000+ possessions to compute and potentially persist. Need to decide early whether to store play-by-play events or only box scores.  
-**Mitigation**: Design the game engine with configurable detail level. Benchmark early.
+**Description**: A full season is potentially 40 teams x 40+ games = 800+ games. If each game simulates possession-by-possession (~200 possessions per game), that's 160,000+ possessions to compute and persist. The store-events-vs-box-scores question is **decided** — every `GameEvent` is persisted (decisions.md #020) — so the live concern is now purely throughput/volume: computing and writing ~150–200 event rows per game across a season, and reading them back (play-by-play is the large result set #019 earmarks for pagination at §3.6/Phase 4).  
+**Mitigation**: Benchmark once the §3.2 engine runs a full game; keep the pure simulation side-effect-free (decisions.md #021) so batch/season runs can persist efficiently. Bound/paginate the play-by-play read endpoint at §3.6.
 
 ### Skill formula balance
 **Severity**: Medium  
