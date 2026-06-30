@@ -32,11 +32,12 @@ Roadmap §3.4 deliverables:
   shot base rates, etc.)
 
 > ⚠️ **Decisions gate.** Unlike §3.3 (whose decisions were pre-resolved), §3.4
-> has genuinely open decisions — **resolve A–E below with the user BEFORE
-> finalizing the task sequence.** Decision **B** in particular determines whether
-> §3.4 touches the database schema, which changes the scope fence and reorders
-> tasks. The task sequence at the bottom is a **draft**; tasks marked
-> *(decision-dependent)* must be confirmed against the resolved decisions first.
+> has open decisions. **D & E are decided and A is a confirmed lean — the two
+> still to resolve with the user are B and C.** Resolve them BEFORE finalizing
+> the task sequence. Decision **B** in particular determines whether §3.4 touches
+> the database schema, which changes the scope fence and reorders tasks. The task
+> sequence at the bottom is a **draft**; tasks marked *(decision-dependent)* must
+> be confirmed against the resolved decisions first.
 
 ---
 
@@ -75,7 +76,9 @@ code has moved):
 ## Decisions to resolve BEFORE the task sequence
 
 Mirror of §3.2's A–E. Each is framed so the next session can resolve it with the
-user and apply it correctly. **Status: A leaning, E decided, B/C/D open.**
+user and apply it correctly. **Status: D & E decided, A leaning (confirm at impl),
+B & C open.** The two genuinely-open decisions are **B (assist model — gates
+whether §3.4 touches the schema)** and **C (where acumen/team skills hook in)**.
 
 ### Decision A — Coach/chemistry modifier shape  *(leaning; confirm at impl)*
 
@@ -156,27 +159,37 @@ with user.
 **Resolution changes**: which resolver/selector gets the new modifier and whether
 `PlayerGameState` extracts `acumen`/`teamOffense`/`teamDefense` (likely yes).
 
-### Decision D — Calibration approach (§3.4 is the empirical-tuning phase)  *(open)*
+### Decision D — Calibration approach (§3.4 is the empirical-tuning phase)  *(DECIDED — D1)*
 
 **Question**: §3.4 must "rebalance constants empirically by simulating games"
 (decisions.md #021, roadmap §3.4) — but there is **no harness to observe
-aggregate output** today. Tests assert plausibility *bounds*, not realism.
+aggregate output** today. Tests assert plausibility *bounds*, not realism, so you
+can't *see* the distributions you're tuning toward.
 
-**Options**:
-- **(D1) Build a small calibration harness** — a test/util that simulates N games
-  (e.g. 100) and prints aggregate distributions (avg team points, FG%, 3P%,
-  reb%, assists/game, TO/game). Tune constants against real-basketball
-  benchmarks, then keep the harness for future tuning. (risks.md "Skill formula
-  balance" + "Seed data realism" are the consumers.)
-- **(D2) Tune by eye** against the existing plausibility-bound tests. Cheaper, no
-  new code, but no visibility into *distributions* — only pass/fail bounds.
+**Decided (D1)**: build a small **calibration harness** — a test/util that
+simulates N games (e.g. 100) over the H2-seeded league and reports aggregate
+distributions (avg team points, FG%, 3P%, reb%, assists/game, TO/game, etc.).
+Tune the `SimConfig` constants (the §3.4 coach knobs *and* the placeholder
+§3.2/§3.3 `BASE_*` rates) against agreed real-basketball benchmarks, watching the
+aggregates converge. Keep the harness for future re-tuning. The user explicitly
+wants a **fast, automated** way to iterate constants → observe output → converge,
+rather than guess-and-check against pass/fail bounds (D2, rejected).
 
-**Recommendation**: D1 — a lightweight aggregate harness is the only honest way to
-calibrate, and it's reusable for the §3.2/§3.3 constants too. Confirm scope (a
-disabled-by-default test vs. a small runner) with user.
+Note: the `SimConfig` knobs already exist (#021 put all constants in one place) —
+D1 builds the *observation instrument*, not the knobs.
 
-**Resolution changes**: whether there's a "build calibration harness" task and how
-the "tune constants" task is verified.
+**Open sub-questions for implementation** (not blockers):
+- **Form**: a JUnit test disabled-by-default (e.g. `@Disabled` / a tag excluded
+  from the normal build, run on demand) vs. a small standalone runner with a
+  `main()`. Lean: disabled-by-default test — reuses the `@SpringBootTest` H2 setup
+  and stays out of the coverage-gate path. Pick while building.
+- **Target benchmarks**: agree the numbers to tune toward (e.g. ~112 pts/team,
+  ~47% FG, ~36% 3P, ~26 assists/game, ~14 TO/game) with the user before declaring
+  the constants "calibrated" (see the calibration risk below).
+
+**Resolution applied**: the task sequence includes a "build calibration harness"
+task (task 10) feeding a "tune constants" task (task 11); "calibrated" is verified
+against the agreed benchmarks via the harness, not by eye.
 
 ### Decision E — Scope fence: rotation attributes are §3.5, not §3.4  *(DECIDED)*
 
@@ -250,9 +263,10 @@ Keep out:
 > Tick `[ ]` as each lands. The §3.4 session should rewrite/expand this list once
 > A–E are settled (e.g. add/remove the migration + mapper tasks per Decision B).
 
-- [ ] **1. Resolve Decisions A–E with the user.** Record outcomes here and, where
-  they're architectural, append to decisions.md (a new entry, e.g. #022, for the
-  §3.4 modifier model + assist decision — mirroring how #021 captured §3.2).
+- [ ] **1. Resolve the open decisions (B & C) with the user; confirm A.** D & E
+  are already decided in the decisions section above. Record all outcomes there
+  and, where architectural, append to decisions.md (a new entry, e.g. #022, for
+  the §3.4 modifier model + assist decision — mirroring how #021 captured §3.2).
 
 - [ ] **2. Update docs for the agreed model.** game.md: add the assist vocabulary
   if Decision B adds an event/outcome; note coach-modifier effects on the
@@ -302,10 +316,12 @@ Keep out:
 - [ ] **9. Wire assist counts in `GameSimulator`.** Replace `bs.setAssists(0)`
   with the real count. *File: `sim/GameSimulator.java`.*
 
-- [ ] **10. Build the calibration harness** *(if Decision D = D1)*. A test/util
-  that simulates N games and reports aggregate distributions; use it to tune the
-  `SimConfig` constants (coach + the placeholder §3.2/§3.3 `BASE_*`). Record the
-  agreed target benchmarks. *(decision-dependent on D)*
+- [ ] **10. Build the calibration harness** (Decision D = D1, decided). A
+  disabled-by-default test (or small runner) that simulates N games over the
+  H2-seeded league and reports aggregate distributions (avg pts, FG%, 3P%, reb%,
+  assists/game, TO/game). Keep it for future re-tuning. Record the agreed target
+  benchmarks here. *Pattern: `sim/GameSimulatorIntegrationTest` for the
+  @SpringBootTest H2 setup.*
 
 - [ ] **11. Tune the constants.** Adjust `SimConfig` base rates + sensitivities
   until aggregates land in the agreed ranges. Document the final values' rationale.
