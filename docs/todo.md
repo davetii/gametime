@@ -5,9 +5,9 @@ them as completed. For the big-picture phased roadmap and what's already
 shipped, see [roadmap.md](roadmap.md). Deferred work lives in the
 Backlog at the bottom.
 
-Current focus: **Phase 3.2 — Possession Engine** (roadmap.md §3.2). The §3.1
-Game Model is shipped (see roadmap.md §3.1, decisions.md #020); §3.2 is the first
-code that *fills* those models.
+Current focus: **Phase 3.3 — Rebounding** (roadmap.md §3.3). §3.1 Game Model
+and §3.2 Possession Engine are shipped; §3.3 adds offensive/defensive rebounds
+and second-chance possessions to the sim loop.
 
 ---
 
@@ -286,7 +286,7 @@ NOT an engine return mode.** Build to this:
 > + tests land — the per-package gate only shows up there. Tick the `[ ]` box as
 > each step lands.
 
-- [ ] **1. (Decisions A–E already resolved — start here.)** All §3.2 modeling
+- [x] **1. (Decisions A–E already resolved — start here.)** All §3.2 modeling
   decisions are settled in decisions.md #021 (see the RESOLVED block above); no
   decision work remains. The only doc task before code: **fill in
   [game.md](game.md)'s `GameEvent` section** with the now-known possession flow —
@@ -295,7 +295,7 @@ NOT an engine return mode.** Build to this:
   (e.g. made/missed, 2pt/3pt). Skim #021 once so the shapes are fresh, then go to
   step 2. *Output: game.md updated; no engine code yet.*
 
-- [ ] **2. Scaffold the `sim` package.** Create
+- [x] **2. Scaffold the `sim` package.** Create
   `src/main/java/software/daveturner/gametime/sim/`. Define the engine entry point
   (e.g. `GameSimulator` `@Service`) and the small collaborators (possession loop,
   shot resolver, turnover resolver, foul resolver, an injected
@@ -304,37 +304,37 @@ NOT an engine return mode.** Build to this:
   simulation side-effect-free; persistence lives only in the service-boundary
   method (Decision E).
 
-- [ ] **3. Possession loop (no shooting yet).** Implement the period/possession
+- [x] **3. Possession loop (no shooting yet).** Implement the period/possession
   structure (Decision B): alternate possessions between teams, increment the
   game-wide `sequence`, advance `period`. Produce placeholder events to prove the
   loop + ordering, then build outward. Verify a game runs to completion with a
   bounded possession count.
 
-- [ ] **4. Shot selection + outcome** (Decisions C, D). Pick shooter + shot type
+- [x] **4. Shot selection + outcome** (Decisions C, D). Pick shooter + shot type
   (skill-weighted), resolve make/miss from shooter vs. defender skills via the
   logistic/contest formula. On a make: award points (2 or 3), emit a `SHOT` event,
   update the shooter's box score (FGM/FGA, points; 3PM/3PA for `longRange`). On a
   miss: emit the `SHOT` event with a "missed" outcome and **end the possession**
   (rebounding is §3.3 — leave the seam).
 
-- [ ] **5. Turnovers** (Decision C). Before/at shot time, roll turnover from
+- [x] **5. Turnovers** (Decision C). Before/at shot time, roll turnover from
   offensive `ballSecurity` vs. defender `individualDefense`/`stealing`. On a
   turnover: emit `TURNOVER`, credit the defender a steal where applicable, end the
   possession.
 
-- [ ] **6. Fouls + free throws** (Decision C). On drive/post attempts, roll a foul
+- [x] **6. Fouls + free throws** (Decision C). On drive/post attempts, roll a foul
   from `foulDrawing` vs. `foulProne`. On a foul: emit `FOUL`, then resolve free
   throws via the `freeThrows` skill (emit `FREE_THROW` events, update FTA/FTM +
   points + fouls). Keep bonus/and-1 nuance minimal — note any simplification.
 
-- [ ] **7. Assemble + persist** (Decision E). The `@Transactional` `simulate(...)`
+- [x] **7. Assemble + persist** (Decision E). The `@Transactional` `simulate(...)`
   method: run the loop, build the `GameEntity` (status `FINAL`, period + final
   scores), the ordered `GameEventEntity` list, and the per-player
   `BoxScoreEntity`s; save via `GameRepo`/`GameEventRepo`/`BoxScoreRepo`. Confirm
   box-score totals reconcile with the event log (points from `SHOT`/`FREE_THROW`
   events == box score points).
 
-- [ ] **8. Tests** (the gate — see test-coverage skill). Under
+- [x] **8. Tests** (the gate — see test-coverage skill). Under
   `src/test/.../sim/`:
   - **Pure-math unit tests** with a fixed seed for each resolver (shot, turnover,
     foul): assert outcomes at skill extremes (1 vs 20 drives each branch) and that
@@ -349,14 +349,14 @@ NOT an engine return mode.** Build to this:
   - Cover edge branches: a possession ending in make / miss / turnover / foul; OT
     tie-break path.
 
-- [ ] **9. Verify the gate.**
+- [x] **9. Verify the gate.**
   `JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -f gametime-service/pom.xml clean install`
   must print `All coverage checks have been met.` and `BUILD SUCCESS`. If the new
   `sim` package is under 0.80, add resolver tests (don't lower the gate, don't
   write token tests — exercise real branches with seeds). Optionally
   `mvn verify -Ptest` for the Docker/Postgres path.
 
-- [ ] **10. Docs cleanup.** Check the §3.2 boxes in [roadmap.md](roadmap.md) and
+- [x] **10. Docs cleanup.** Check the §3.2 boxes in [roadmap.md](roadmap.md) and
   add a one-line "Shipped" note under §3.2 (mirror the §3.1 note style). Make sure
   [game.md](game.md) `GameEvent` section reflects the real emitted `play_type`s /
   `outcome` vocabulary. Reset this "Current focus" line to **§3.3 — Rebounding**

@@ -52,24 +52,77 @@ The possession-by-possession event log: possessions, plays, outcomes. One game
 is an ordered sequence of these. **Every event is persisted** (event-persistence
 section above; decisions.md #020).
 
-Initial (intentionally minimal — grows additively with the §3.2 engine):
+### Columns
 
 - `game_id` — FK to `game`
 - `sequence` — monotonic ordering **across the whole game; does not restart per
   period**, so play-by-play is a single `ORDER BY sequence` read
 - `period`
 - `offense_team_id` / `defense_team_id`
-- `play_type` — enum, start small: `SHOT, TURNOVER, REBOUND, FOUL, FREE_THROW`
-- `outcome` — free text for now (enum-ify when the engine's outcomes are known)
-- `primary_player_id` — the one player the event is about, for now. Richer
-  participation (assister, defender, rebounder vs. shooter) is **additive** when
-  §3.2 defines it.
+- `play_type` — enum: `SHOT, TURNOVER, REBOUND, FOUL, FREE_THROW`
+- `outcome` — free text (vocabulary below)
+- `primary_player_id` — the one player the event is about (shooter, turnover
+  committer, fouler, free-throw shooter)
 - *No in-game clock column yet.* §3.2 models time as an **abstract, configurable
   possession count** (decisions.md #021), and event time is **derived on read**
   (pace + `period` + `sequence`) for play-by-play display — not stored. A stored
   per-event time column (single value vs. range — undecided) is **deferred to
   §3.6**, where the play-by-play display is its consumer. `period` + `sequence`
   give full ordering today.
+
+### Possession flow (§3.2) — see also [possession-flow.puml](possession-flow.puml)
+
+Each possession produces **one or more** `GameEvent` rows in this order:
+
+1. **Turnover check** — rolled before the shot. If triggered:
+   - `TURNOVER` event → possession ends, ball goes to the other team.
+2. **Foul check** — rolled on `DRIVE` and `POST` shot types only. If triggered:
+   - `FOUL` event (primary_player = fouling defender) → free throws follow.
+   - Two `FREE_THROW` events (primary_player = shooter), each with its own
+     make/miss outcome. Possession ends after free throws.
+3. **Shot** — if no turnover and no foul:
+   - `SHOT` event → made or missed. On a miss, possession ends (rebounding is
+     §3.3 — the seam is the `MISSED_*` outcome). On a make, points are scored.
+
+A single possession therefore emits exactly **one** of these patterns:
+- `TURNOVER`
+- `FOUL` → `FREE_THROW` → `FREE_THROW`
+- `SHOT` (made or missed)
+
+All events in a possession share the same `offense_team_id` / `defense_team_id`
+and `period`. `sequence` increments globally (not per possession).
+
+### `play_type` values and their `outcome` vocabulary
+
+| `play_type` | `outcome` | Meaning |
+|---|---|---|
+| `SHOT` | `MADE_2PT_DRIVE` | Made 2-point field goal (drive/finish at rim) |
+| `SHOT` | `MADE_2PT_PERIMETER` | Made 2-point field goal (mid-range / perimeter) |
+| `SHOT` | `MADE_2PT_POST` | Made 2-point field goal (post move) |
+| `SHOT` | `MADE_3PT` | Made 3-point field goal (long range) |
+| `SHOT` | `MISSED_2PT_DRIVE` | Missed 2-point field goal (drive/finish at rim) |
+| `SHOT` | `MISSED_2PT_PERIMETER` | Missed 2-point field goal (mid-range / perimeter) |
+| `SHOT` | `MISSED_2PT_POST` | Missed 2-point field goal (post move) |
+| `SHOT` | `MISSED_3PT` | Missed 3-point field goal (long range) |
+| `TURNOVER` | `STOLEN` | Ball handler lost the ball; defender credited a steal |
+| `TURNOVER` | `LOST_BALL` | Unforced turnover (no steal credited) |
+| `FOUL` | `SHOOTING_FOUL` | Defensive foul on a drive/post attempt; free throws follow |
+| `FREE_THROW` | `MADE` | Free throw converted |
+| `FREE_THROW` | `MISSED` | Free throw missed |
+| `REBOUND` | *(not emitted in §3.2)* | Deferred to §3.3 — a missed shot ends the possession |
+
+**§3.2 does NOT emit** `REBOUND` events. A missed shot simply ends the
+possession and the ball goes to the other team. The `MISSED_*` outcome on `SHOT`
+is the seam where §3.3's rebounding model hooks in.
+
+### Shot types → skill matchups (decisions.md #021, Decision C)
+
+| Shot type | Offensive skill(s) | Defensive skill(s) | Points |
+|---|---|---|---|
+| Drive / finish | `drive`, `finishing` | `rimProtection` | 2 |
+| Perimeter / mid-range | `perimeter` | `individualDefense`, `shotContest` | 2 |
+| Post | `post` | `individualDefense` | 2 |
+| Long range / three | `longRange` | `shotContest` | 3 |
 
 ---
 

@@ -1,0 +1,66 @@
+@startuml possession-flow
+title Possession Resolution (§3.2)
+
+skinparam ActivityDiamondFontSize 11
+skinparam ActivityFontSize 12
+skinparam NoteFontSize 10
+
+start
+
+:ShotSelector
+  pick shooter (offensive-weight draw)
+  pick shot type (skill-weight draw);
+
+partition "TurnoverResolver" {
+  if (turnover?\n//ballSecurity vs stealing/individualDefense//) then (yes)
+    if (stolen?) then (yes)
+      :TURNOVER — STOLEN
+      credit defender steal;
+    else (no)
+      :TURNOVER — LOST_BALL;
+    endif
+    stop
+  endif
+}
+
+partition "FoulResolver" {
+  if (DRIVE or POST?) then (yes)
+    if (foul?\n//foulDrawing vs (20 − foulProne)//) then (yes)
+      :FOUL — SHOOTING_FOUL
+      charge defender foul;
+
+      repeat
+        if (free throw made?\n//freeThrows skill//) then (yes)
+          :FREE_THROW — MADE
+          +1 point;
+        else (no)
+          :FREE_THROW — MISSED;
+        endif
+      repeat while (2 FTs done?) is (no) not (yes)
+      stop
+    endif
+  endif
+}
+
+partition "ShotResolver" {
+  :record FGA (+ 3PA if THREE);
+
+  if (shot made?\n//offense skill vs defense skill//) then (yes)
+    :SHOT — MADE_*
+    +2 or +3 points;
+  else (no)
+    :SHOT — MISSED_*
+    //§3.3 rebound seam//;
+  endif
+}
+
+stop
+
+legend bottom left
+  **Probability formula (all resolvers)**
+  p = base(path) + SENSITIVITY × (offense − defense) / 10
+  Clamped [0.02, 0.97]. Average vs average → base rate.
+  All constants in SimConfig.
+endlegend
+
+@enduml

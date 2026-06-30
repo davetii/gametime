@@ -49,12 +49,20 @@ _Shipped: `GameEntity` / `GameEventEntity` / `BoxScoreEntity` + repos, Liquibase
 `release.1.0.4.game.sql`, persistence-only (no API surface — §3.6). See
 decisions.md #020 and game.md for the modeling choices._
 
-### 3.2 Possession Engine
-- [ ] Possession flow: inbound → set play / fast break → shot clock → outcome
-- [ ] Shot selection logic: which player gets the ball, what type of shot (drive, perimeter, post, longRange)
-- [ ] Shot outcome: probability based on shooter skills vs defender skills
-- [ ] Turnover probability: ballSecurity vs defender individualDefense
-- [ ] Foul model: drive/post attempts → foul probability → freeThrow skill
+### 3.2 Possession Engine ✓
+- [x] Possession flow: inbound → set play / fast break → shot clock → outcome
+- [x] Shot selection logic: which player gets the ball, what type of shot (drive, perimeter, post, longRange)
+- [x] Shot outcome: probability based on shooter skills vs defender skills
+- [x] Turnover probability: ballSecurity vs defender individualDefense
+- [x] Foul model: drive/post attempts → foul probability → freeThrow skill
+
+_Shipped: `sim` package — `GameSimulator` @Service (transactional simulate()),
+`PossessionEngine` (pure-sim loop), `ShotResolver`/`TurnoverResolver`/`FoulResolver`
+(logistic-contest math per decisions.md #021), `ShotSelector` (skill-weighted),
+`SimConfig` (all constants in one place for §3.4 tuning). Seeded RNG for
+determinism. Missed shot ends possession (rebounding seam for §3.3). Starters
+play the whole game (minutes/fatigue is §3.5). Assists left at 0 (§3.4).
+Constants are placeholder starting points; §3.4 calibrates empirically._
 
 ### 3.3 Rebounding
 - [ ] Offensive rebound probability: offenseRebound skills vs defenseRebound skills
