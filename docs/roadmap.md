@@ -2,7 +2,7 @@
 
 Basketball simulation game — 40-team league with attribute-driven gameplay, season management, and a React frontend.
 
-_Last updated: 2026-06-28_
+_Last updated: 2026-06-30_
 
 ## What Exists Today
 
@@ -64,9 +64,22 @@ determinism. Missed shot ends possession (rebounding seam for §3.3). Starters
 play the whole game (minutes/fatigue is §3.5). Assists left at 0 (§3.4).
 Constants are placeholder starting points; §3.4 calibrates empirically._
 
-### 3.3 Rebounding
-- [ ] Offensive rebound probability: offenseRebound skills vs defenseRebound skills
-- [ ] Second-chance possessions
+### 3.3 Rebounding ✓
+- [x] Offensive rebound probability: offenseRebound skills vs defenseRebound skills
+- [x] Second-chance possessions
+
+_Shipped: `ReboundResolver` @Component in the `sim` package (logistic-contest
+`isOffensiveRebound()` per decisions.md #021 shape; skill-weighted
+`pickOffensiveRebounder()`/`pickDefensiveRebounder()` mirroring `ShotSelector`).
+`PossessionEngine.resolvePossession()` now resolves a rebound after every missed
+shot: a `DEFENSIVE` rebound ends the possession, an `OFFENSIVE` rebound runs a
+second-chance possession through the full flow (turnover → foul → shot), capped
+at `SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` (a loop, not recursion).
+`PlayType.REBOUND` is now live (outcomes `OFFENSIVE`/`DEFENSIVE`); box-score
+offensive/defensive rebound counts are real (no longer hardcoded 0). Coach/
+chemistry modifiers (§3.4), fatigue (§3.5), blocks, and team box-out are
+deliberately out of scope — raw `offenseRebound` vs `defenseRebound` skills only.
+`BASE_OFFENSIVE_REBOUND` is a placeholder (~0.27); §3.4 calibrates empirically._
 
 ### 3.4 Team Chemistry & Coaching Effects
 - [ ] teamOffense/teamDefense affect overall team efficiency
@@ -92,6 +105,35 @@ the roster domain, #014.)*
 - [ ] `GET /v1/game/{gameId}/play-by-play` — event log
 - [ ] Decide + migrate a stored per-event **time column** for play-by-play
       display (single value vs. range — deferred from §3.2, decisions.md #021)
+
+### 3.x Deferred sim-fidelity details
+
+Real-basketball events the §3.2/§3.3 engine deliberately does **not** model yet.
+Each is correct to defer until a consumer cares about the distinction — adding
+one now would fabricate event-log detail with no behavioral effect (the
+#014/#017/#020 discipline: don't shape data ahead of a consumer). Listed here,
+attached to the engine phase, so a future §3.4/§3.6/Phase 4 session finds them
+instead of re-deriving or prematurely building them. Each notes its seam.
+
+- [ ] **Missed shot out of bounds (no rebound).** A missed shot that sails OOB
+      untouched, or a rebound tipped OOB, ends the possession the same as a
+      defensive rebound — so today it's folded into the `REBOUND — DEFENSIVE`
+      outcome. A distinct OOB outcome only matters once play-by-play *reads*
+      differently (§3.6) or a ball-movement model (§3.4) produces deflections.
+      Add then as a third branch off the rebound roll (retained vs lost inbound).
+- [ ] **Loose-ball / rebounding fouls.** A foul committed *during* the rebound
+      phase (box-out push, over-the-back). §3.3 only models shooting fouls on
+      drive/post attempts; the rebound contest is foul-free. When added, it's a
+      foul roll on the rebound contest → non-shooting foul (possession retained,
+      or bonus free throws once a team-foul/bonus model exists). Gated on a
+      team-foul-count model that doesn't exist yet.
+- [ ] **And-1 / shooting foul on a made basket.** Today a foul check happens
+      *instead of* a shot (drive/post → foul → 2 FTs), never *with* a made shot.
+      A real and-1 is: made FG + 1 foul shot. Needs the foul model to roll
+      alongside (not before) shot resolution. Belongs with §3.4's foul-model work.
+- [ ] **Non-shooting turnovers with richer causes.** §3.2 models only `STOLEN` /
+      `LOST_BALL`. Offensive fouls (charges), shot-clock violations, bad passes
+      OOB, 3-seconds, etc. are deferred to the §3.4 ball-movement model.
 
 ---
 
