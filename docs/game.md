@@ -70,7 +70,7 @@ section above; decisions.md #020).
   §3.6**, where the play-by-play display is its consumer. `period` + `sequence`
   give full ordering today.
 
-### Possession flow (§3.2) — see also [possession-flow.puml](possession-flow.puml)
+### Possession flow (§3.2–§3.3) — see also [possession-flow.puml](possession-flow.puml)
 
 Each possession produces **one or more** `GameEvent` rows in this order:
 
@@ -81,13 +81,25 @@ Each possession produces **one or more** `GameEvent` rows in this order:
    - Two `FREE_THROW` events (primary_player = shooter), each with its own
      make/miss outcome. Possession ends after free throws.
 3. **Shot** — if no turnover and no foul:
-   - `SHOT` event → made or missed. On a miss, possession ends (rebounding is
-     §3.3 — the seam is the `MISSED_*` outcome). On a make, points are scored.
+   - `SHOT` event → made or missed. On a make, points are scored and the
+     possession ends. On a **miss**, a rebound is resolved (§3.3):
+4. **Rebound** (§3.3) — rolled only after a missed `SHOT`:
+   - `REBOUND` event with outcome `DEFENSIVE` (primary_player = defensive
+     rebounder) → possession ends, ball goes to the other team; **or**
+   - `REBOUND` event with outcome `OFFENSIVE` (primary_player = offensive
+     rebounder) → the shooting team retains the ball and runs a **second-chance
+     possession** through the full flow above (turnover → foul → shot → rebound).
+     Offensive rebounds are capped per possession
+     (`MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`); after the cap a miss is forced to
+     a defensive rebound so the possession terminates.
 
-A single possession therefore emits exactly **one** of these patterns:
+A single possession therefore emits one of these patterns (a missed shot is
+always followed by a `REBOUND`):
 - `TURNOVER`
 - `FOUL` → `FREE_THROW` → `FREE_THROW`
-- `SHOT` (made or missed)
+- `SHOT` (made) — possession ends
+- `SHOT` (missed) → `REBOUND` (`DEFENSIVE`) — possession ends
+- `SHOT` (missed) → `REBOUND` (`OFFENSIVE`) → … second-chance possession …
 
 All events in a possession share the same `offense_team_id` / `defense_team_id`
 and `period`. `sequence` increments globally (not per possession).
@@ -109,11 +121,13 @@ and `period`. `sequence` increments globally (not per possession).
 | `FOUL` | `SHOOTING_FOUL` | Defensive foul on a drive/post attempt; free throws follow |
 | `FREE_THROW` | `MADE` | Free throw converted |
 | `FREE_THROW` | `MISSED` | Free throw missed |
-| `REBOUND` | *(not emitted in §3.2)* | Deferred to §3.3 — a missed shot ends the possession |
+| `REBOUND` | `OFFENSIVE` | Offensive rebound; ball stays with the shooting team for a second-chance possession |
+| `REBOUND` | `DEFENSIVE` | Defensive rebound; possession ends, ball goes to the other team |
 
-**§3.2 does NOT emit** `REBOUND` events. A missed shot simply ends the
-possession and the ball goes to the other team. The `MISSED_*` outcome on `SHOT`
-is the seam where §3.3's rebounding model hooks in.
+After a missed `SHOT`, §3.3 rolls a rebound: the `REBOUND` event's
+`primary_player_id` is the rebounder. An `OFFENSIVE` rebound keeps the ball with
+the shooting team (a second-chance possession runs through the full flow again);
+a `DEFENSIVE` rebound ends the possession. See the possession-flow section below.
 
 ### Shot types → skill matchups (decisions.md #021, Decision C)
 

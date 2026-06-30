@@ -83,8 +83,8 @@ public class GameSimulator {
             bs.setGameId(gameId);
             bs.setPlayerId(p.getPlayerId());
             bs.setPoints(p.getPoints());
-            bs.setOffensiveRebounds(0);
-            bs.setDefensiveRebounds(0);
+            bs.setOffensiveRebounds(p.getOffensiveRebounds());
+            bs.setDefensiveRebounds(p.getDefensiveRebounds());
             bs.setAssists(0);
             bs.setSteals(p.getSteals());
             bs.setBlocks(0);

@@ -22,6 +22,53 @@ class PlayerGameStateTest {
         assertEquals(15.0, p.getShotContest());
         assertEquals(15.0, p.getStealing());
         assertEquals(15.0, p.getFoulProne());
+        assertEquals(15.0, p.getOffenseRebound());
+        assertEquals(15.0, p.getDefenseRebound());
+    }
+
+    @Test
+    void reboundSkillsExtractedFrom15ParamFactory() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1",
+                10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18.0, 7.0);
+        assertEquals(18.0, p.getOffenseRebound());
+        assertEquals(7.0, p.getDefenseRebound());
+    }
+
+    @Test
+    void reboundSkillsDefaultToAverageFrom13ParamFactory() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1",
+                10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10);
+        assertEquals(SimConfig.SCALE_AVG, p.getOffenseRebound());
+        assertEquals(SimConfig.SCALE_AVG, p.getDefenseRebound());
+    }
+
+    @Test
+    void reboundAccumulators() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        assertEquals(0, p.getOffensiveRebounds());
+        assertEquals(0, p.getDefensiveRebounds());
+
+        p.recordOffensiveRebound();
+        p.recordOffensiveRebound();
+        p.recordDefensiveRebound();
+
+        assertEquals(2, p.getOffensiveRebounds());
+        assertEquals(1, p.getDefensiveRebounds());
+    }
+
+    @Test
+    void nullReboundSkillsDefaultToAverage() {
+        var player = new software.daveturner.gametime.model.Player();
+        player.setId("p1");
+        var skills = new software.daveturner.gametime.model.PlayerSkills();
+        // leave rebound skills null
+        player.setSkills(skills);
+        var entry = new software.daveturner.gametime.model.RosterEntry();
+        entry.setPlayer(player);
+
+        PlayerGameState p = new PlayerGameState("p1", "T1", entry);
+        assertEquals(SimConfig.SCALE_AVG, p.getOffenseRebound());
+        assertEquals(SimConfig.SCALE_AVG, p.getDefenseRebound());
     }
 
     @Test

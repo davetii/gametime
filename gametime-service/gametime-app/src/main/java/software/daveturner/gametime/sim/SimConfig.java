@@ -33,6 +33,14 @@ public class SimConfig {
     public static final double FT_SENSITIVITY = 0.20;
     public static final int FREE_THROWS_PER_FOUL = 2;
 
+    // --- Rebounding (§3.3) ---
+    // Base offensive-rebound rate at an average-vs-average contest (NBA ~25–28%).
+    // Tuned empirically in §3.4. Rebound contests reuse the global SENSITIVITY.
+    public static final double BASE_OFFENSIVE_REBOUND = 0.27;
+    // Cap on offensive rebounds per possession to bound the second-chance loop;
+    // after the cap, a missed shot is forced to a defensive rebound.
+    public static final int MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION = 3;
+
     public double clampProbability(double p) {
         return Math.max(PROB_FLOOR, Math.min(PROB_CEILING, p));
     }

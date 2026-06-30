@@ -110,6 +110,46 @@ class GameSimulatorIntegrationTest {
                 "Away score: " + result.getAwayScore());
     }
 
+    @Test
+    void simulateProducesNonZeroRebounds() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+        int totalOff = boxScores.stream().mapToInt(BoxScoreEntity::getOffensiveRebounds).sum();
+        int totalDef = boxScores.stream().mapToInt(BoxScoreEntity::getDefensiveRebounds).sum();
+
+        assertTrue(totalOff + totalDef > 0,
+                "§3.3: box-score rebounds must no longer be all zeros");
+        // Every missed shot is rebounded, so defensive rebounds should be common.
+        assertTrue(totalDef > 0, "Should record defensive rebounds");
+    }
+
+    @Test
+    void simulateReboundsReconcileWithReboundEvents() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        long offReboundEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.REBOUND
+                        && "OFFENSIVE".equals(e.getOutcome()))
+                .count();
+        long defReboundEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.REBOUND
+                        && "DEFENSIVE".equals(e.getOutcome()))
+                .count();
+
+        int boxOff = boxScores.stream().mapToInt(BoxScoreEntity::getOffensiveRebounds).sum();
+        int boxDef = boxScores.stream().mapToInt(BoxScoreEntity::getDefensiveRebounds).sum();
+
+        assertEquals(offReboundEvents, boxOff,
+                "Offensive rebound box totals must match OFFENSIVE rebound events");
+        assertEquals(defReboundEvents, boxDef,
+                "Defensive rebound box totals must match DEFENSIVE rebound events");
+    }
+
     private int pointsFromEntity(GameEventEntity e) {
         if (e.getPlayType() == PlayType.SHOT && e.getOutcome().startsWith("MADE")) {
             return e.getOutcome().contains("3PT") ? 3 : 2;

@@ -13,15 +13,17 @@ public class PossessionEngine {
     private final ShotResolver shotResolver;
     private final TurnoverResolver turnoverResolver;
     private final FoulResolver foulResolver;
+    private final ReboundResolver reboundResolver;
     private final SimConfig config;
 
     public PossessionEngine(ShotSelector shotSelector, ShotResolver shotResolver,
                             TurnoverResolver turnoverResolver, FoulResolver foulResolver,
-                            SimConfig config) {
+                            ReboundResolver reboundResolver, SimConfig config) {
         this.shotSelector = shotSelector;
         this.shotResolver = shotResolver;
         this.turnoverResolver = turnoverResolver;
         this.foulResolver = foulResolver;
+        this.reboundResolver = reboundResolver;
         this.config = config;
     }
 
@@ -66,69 +68,100 @@ public class PossessionEngine {
                           String offTeamId, String defTeamId,
                           int period, int sequence, RandomGenerator rng) {
 
-        PlayerGameState shooter = shotSelector.pickShooter(offense, rng);
-        ShotType shotType = shotSelector.pickShotType(shooter, rng);
-        PlayerGameState defender = shotSelector.pickDefender(defense, rng);
+        // The offense keeps the ball as long as it grabs offensive rebounds, up
+        // to MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION. Each attempt runs the full
+        // flow (turnover → foul → shot); a missed shot rolls a rebound (§3.3).
+        int offensiveRebounds = 0;
+        while (true) {
+            PlayerGameState shooter = shotSelector.pickShooter(offense, rng);
+            ShotType shotType = shotSelector.pickShotType(shooter, rng);
+            PlayerGameState defender = shotSelector.pickDefender(defense, rng);
 
-        // 1. Turnover check
-        if (turnoverResolver.isTurnover(shooter, defense, rng)) {
-            boolean stolen = turnoverResolver.isStolen(rng);
-            String outcome;
-            if (stolen) {
-                PlayerGameState stealer = turnoverResolver.pickStealer(defense, rng);
-                stealer.recordSteal();
-                outcome = "STOLEN";
-            } else {
-                outcome = "LOST_BALL";
+            // 1. Turnover check
+            if (turnoverResolver.isTurnover(shooter, defense, rng)) {
+                boolean stolen = turnoverResolver.isStolen(rng);
+                String outcome;
+                if (stolen) {
+                    PlayerGameState stealer = turnoverResolver.pickStealer(defense, rng);
+                    stealer.recordSteal();
+                    outcome = "STOLEN";
+                } else {
+                    outcome = "LOST_BALL";
+                }
+                shooter.recordTurnover();
+                data.addEvent(offTeamId, defTeamId, period, sequence,
+                        PlayType.TURNOVER, outcome, shooter.getPlayerId());
+                return sequence + 1;
             }
-            shooter.recordTurnover();
-            data.addEvent(offTeamId, defTeamId, period, sequence,
-                    PlayType.TURNOVER, outcome, shooter.getPlayerId());
-            return sequence + 1;
-        }
 
-        // 2. Foul check (drive/post only)
-        if (foulResolver.isFoul(shotType, shooter, defender, rng)) {
-            defender.recordFoul();
+            // 2. Foul check (drive/post only)
+            if (foulResolver.isFoul(shotType, shooter, defender, rng)) {
+                defender.recordFoul();
+                data.addEvent(offTeamId, defTeamId, period, sequence,
+                        PlayType.FOUL, "SHOOTING_FOUL", defender.getPlayerId());
+                sequence++;
+
+                for (int ft = 0; ft < SimConfig.FREE_THROWS_PER_FOUL; ft++) {
+                    shooter.recordFreeThrowAttempt();
+                    boolean made = foulResolver.isFreeThrowMade(shooter, rng);
+                    if (made) {
+                        shooter.recordFreeThrowMade();
+                        data.addScore(offTeamId, 1);
+                    }
+                    data.addEvent(offTeamId, defTeamId, period, sequence,
+                            PlayType.FREE_THROW, made ? "MADE" : "MISSED", shooter.getPlayerId());
+                    sequence++;
+                }
+                return sequence;
+            }
+
+            // 3. Shot
+            shooter.recordFieldGoalAttempt();
+            if (shotType == ShotType.THREE) {
+                shooter.recordThreePointAttempt();
+            }
+
+            boolean made = shotResolver.isMade(shotType, shooter, defender, rng);
+            String outcome = buildShotOutcome(made, shotType);
+
+            if (made) {
+                int pts = shotType.getPoints();
+                shooter.recordFieldGoalMade(pts);
+                if (shotType == ShotType.THREE) {
+                    shooter.recordThreePointMade();
+                }
+                data.addScore(offTeamId, pts);
+                data.addEvent(offTeamId, defTeamId, period, sequence,
+                        PlayType.SHOT, outcome, shooter.getPlayerId());
+                return sequence + 1;
+            }
+
+            // Missed shot — emit the SHOT event, then resolve the rebound (§3.3).
             data.addEvent(offTeamId, defTeamId, period, sequence,
-                    PlayType.FOUL, "SHOOTING_FOUL", defender.getPlayerId());
+                    PlayType.SHOT, outcome, shooter.getPlayerId());
             sequence++;
 
-            for (int ft = 0; ft < SimConfig.FREE_THROWS_PER_FOUL; ft++) {
-                shooter.recordFreeThrowAttempt();
-                boolean made = foulResolver.isFreeThrowMade(shooter, rng);
-                if (made) {
-                    shooter.recordFreeThrowMade();
-                    data.addScore(offTeamId, 1);
-                }
+            // 4. Rebound
+            PlayerGameState offRebounder = reboundResolver.pickOffensiveRebounder(offense, rng);
+            PlayerGameState defRebounder = reboundResolver.pickDefensiveRebounder(defense, rng);
+            boolean capReached = offensiveRebounds >= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION;
+            boolean offensiveRebound = !capReached
+                    && reboundResolver.isOffensiveRebound(offRebounder, defRebounder, rng);
+
+            if (offensiveRebound) {
+                offRebounder.recordOffensiveRebound();
                 data.addEvent(offTeamId, defTeamId, period, sequence,
-                        PlayType.FREE_THROW, made ? "MADE" : "MISSED", shooter.getPlayerId());
+                        PlayType.REBOUND, "OFFENSIVE", offRebounder.getPlayerId());
                 sequence++;
+                offensiveRebounds++;
+                // Offense retains the ball — loop for a second-chance possession.
+            } else {
+                defRebounder.recordDefensiveRebound();
+                data.addEvent(offTeamId, defTeamId, period, sequence,
+                        PlayType.REBOUND, "DEFENSIVE", defRebounder.getPlayerId());
+                return sequence + 1;
             }
-            return sequence;
         }
-
-        // 3. Shot
-        shooter.recordFieldGoalAttempt();
-        if (shotType == ShotType.THREE) {
-            shooter.recordThreePointAttempt();
-        }
-
-        boolean made = shotResolver.isMade(shotType, shooter, defender, rng);
-        String outcome = buildShotOutcome(made, shotType);
-
-        if (made) {
-            int pts = shotType.getPoints();
-            shooter.recordFieldGoalMade(pts);
-            if (shotType == ShotType.THREE) {
-                shooter.recordThreePointMade();
-            }
-            data.addScore(offTeamId, pts);
-        }
-
-        data.addEvent(offTeamId, defTeamId, period, sequence,
-                PlayType.SHOT, outcome, shooter.getPlayerId());
-        return sequence + 1;
     }
 
     String buildShotOutcome(boolean made, ShotType shotType) {

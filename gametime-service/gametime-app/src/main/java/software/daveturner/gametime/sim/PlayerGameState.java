@@ -27,6 +27,10 @@ public class PlayerGameState {
     private final double stealing;
     private final double foulProne;
 
+    // Rebounding skills (§3.3)
+    private final double offenseRebound;
+    private final double defenseRebound;
+
     // Box score accumulators
     private int points;
     private int fieldGoalsAttempted;
@@ -38,6 +42,8 @@ public class PlayerGameState {
     private int turnovers;
     private int steals;
     private int fouls;
+    private int offensiveRebounds;
+    private int defensiveRebounds;
 
     public PlayerGameState(String playerId, String teamId, RosterEntry entry) {
         this.playerId = playerId;
@@ -56,6 +62,8 @@ public class PlayerGameState {
         this.shotContest = toDouble(skills.getShotContest());
         this.stealing = toDouble(skills.getStealing());
         this.foulProne = toDouble(skills.getFoulProne());
+        this.offenseRebound = toDouble(skills.getOffenseRebound());
+        this.defenseRebound = toDouble(skills.getDefenseRebound());
     }
 
     private static double toDouble(BigDecimal bd) {
@@ -100,6 +108,8 @@ public class PlayerGameState {
     public double getShotContest() { return shotContest; }
     public double getStealing() { return stealing; }
     public double getFoulProne() { return foulProne; }
+    public double getOffenseRebound() { return offenseRebound; }
+    public double getDefenseRebound() { return defenseRebound; }
 
     // Box score
     public int getPoints() { return points; }
@@ -112,6 +122,8 @@ public class PlayerGameState {
     public int getTurnovers() { return turnovers; }
     public int getSteals() { return steals; }
     public int getFouls() { return fouls; }
+    public int getOffensiveRebounds() { return offensiveRebounds; }
+    public int getDefensiveRebounds() { return defensiveRebounds; }
 
     public void recordFieldGoalAttempt() { fieldGoalsAttempted++; }
     public void recordFieldGoalMade(int pts) { fieldGoalsMade++; points += pts; }
@@ -122,4 +134,6 @@ public class PlayerGameState {
     public void recordTurnover() { turnovers++; }
     public void recordSteal() { steals++; }
     public void recordFoul() { fouls++; }
+    public void recordOffensiveRebound() { offensiveRebounds++; }
+    public void recordDefensiveRebound() { defensiveRebounds++; }
 }

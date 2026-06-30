@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2)
+title Possession Resolution (§3.2–§3.3)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -7,6 +7,7 @@ skinparam NoteFontSize 10
 
 start
 
+repeat
 :ShotSelector
   pick shooter (offensive-weight draw)
   pick shot type (skill-weight draw);
@@ -48,12 +49,28 @@ partition "ShotResolver" {
   if (shot made?\n//offense skill vs defense skill//) then (yes)
     :SHOT — MADE_*
     +2 or +3 points;
+    stop
   else (no)
-    :SHOT — MISSED_*
-    //§3.3 rebound seam//;
+    :SHOT — MISSED_*;
   endif
 }
 
+partition "ReboundResolver (§3.3)" {
+  :pick offensive rebounder (offenseRebound draw)
+  pick defensive rebounder (defenseRebound draw);
+  if (offensive rebound?\n//offenseRebound vs defenseRebound//\n//(forced defensive once cap hit)//) then (yes)
+    :REBOUND — OFFENSIVE
+    credit off rebounder;
+    note right: offense retains ball →\nsecond-chance possession
+  else (no)
+    :REBOUND — DEFENSIVE
+    credit def rebounder;
+    stop
+  endif
+}
+repeat while (off rebounds < MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION?) is (yes) not (no)
+
+:cap reached → next miss forced to DEFENSIVE rebound;
 stop
 
 legend bottom left

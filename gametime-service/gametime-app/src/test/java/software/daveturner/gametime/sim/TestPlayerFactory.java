@@ -10,15 +10,30 @@ class TestPlayerFactory {
         return create(id, teamId, allSkillLevel, allSkillLevel, allSkillLevel,
                 allSkillLevel, allSkillLevel, allSkillLevel, allSkillLevel,
                 allSkillLevel, allSkillLevel, allSkillLevel, allSkillLevel,
-                allSkillLevel, allSkillLevel);
+                allSkillLevel, allSkillLevel, allSkillLevel, allSkillLevel);
     }
 
+    // 13-skill overload (no rebound skills) — rebounds default to league average.
     static PlayerGameState create(String id, String teamId,
                                   double drive, double finishing, double perimeter,
                                   double post, double longRange, double ballSecurity,
                                   double freeThrows, double foulDrawing,
                                   double individualDefense, double rimProtection,
                                   double shotContest, double stealing, double foulProne) {
+        return create(id, teamId, drive, finishing, perimeter, post, longRange,
+                ballSecurity, freeThrows, foulDrawing, individualDefense,
+                rimProtection, shotContest, stealing, foulProne,
+                SimConfig.SCALE_AVG, SimConfig.SCALE_AVG);
+    }
+
+    // 15-skill overload — adds offenseRebound/defenseRebound (§3.3).
+    static PlayerGameState create(String id, String teamId,
+                                  double drive, double finishing, double perimeter,
+                                  double post, double longRange, double ballSecurity,
+                                  double freeThrows, double foulDrawing,
+                                  double individualDefense, double rimProtection,
+                                  double shotContest, double stealing, double foulProne,
+                                  double offenseRebound, double defenseRebound) {
         Player player = new Player();
         player.setId(id);
         PlayerSkills skills = new PlayerSkills();
@@ -35,6 +50,8 @@ class TestPlayerFactory {
         skills.setShotContest(bd(shotContest));
         skills.setStealing(bd(stealing));
         skills.setFoulProne(bd(foulProne));
+        skills.setOffenseRebound(bd(offenseRebound));
+        skills.setDefenseRebound(bd(defenseRebound));
         player.setSkills(skills);
 
         RosterEntry entry = new RosterEntry();
