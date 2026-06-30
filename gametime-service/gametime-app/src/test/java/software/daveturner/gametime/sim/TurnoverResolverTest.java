@@ -102,4 +102,34 @@ class TurnoverResolverTest {
         }
         assertTrue(elitePicked > 800, "Elite stealer should be picked most often");
     }
+
+    // --- §3.4 defensive-pressure modifier ---
+
+    @Test
+    void higherDefensivePressureRaisesTurnoverRate() {
+        PlayerGameState handler = TestPlayerFactory.create("h1", "A", 10.0);
+        List<PlayerGameState> defenders = List.of(TestPlayerFactory.create("d1", "B", 10.0));
+        int trials = 10_000;
+        int neutral = 0;
+        int pressured = 0;
+        RandomGenerator r1 = rng(42);
+        RandomGenerator r2 = rng(42);
+        for (int i = 0; i < trials; i++) {
+            if (resolver.isTurnover(handler, defenders, 1.0, r1)) neutral++;
+            if (resolver.isTurnover(handler, defenders, 1.5, r2)) pressured++;
+        }
+        assertTrue(pressured > neutral,
+                "Higher defensive pressure should force more turnovers: pressured=" + pressured
+                        + " neutral=" + neutral);
+    }
+
+    @Test
+    void defensivePressureOfOneMatchesUnmodified() {
+        PlayerGameState handler = TestPlayerFactory.create("h1", "A", 11.0);
+        List<PlayerGameState> defenders = List.of(TestPlayerFactory.create("d1", "B", 9.0));
+        assertEquals(
+                resolver.isTurnover(handler, defenders, rng(33)),
+                resolver.isTurnover(handler, defenders, 1.0, rng(33)),
+                "Pressure 1.0 must equal the unmodified overload for the same seed");
+    }
 }

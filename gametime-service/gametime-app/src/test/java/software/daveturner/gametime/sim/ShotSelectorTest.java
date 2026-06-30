@@ -82,4 +82,37 @@ class ShotSelectorTest {
         PlayerGameState chosen = selector.pickDefender(defenders, rng(42));
         assertTrue(defenders.contains(chosen));
     }
+
+    // --- §3.4 shot-mix lean (offensiveScheme) ---
+
+    @Test
+    void shotMixLeanShiftsDrawTowardPerimeterAndThree() {
+        // A balanced shooter: a >1 lean should take more PERIMETER/THREE shots
+        // than the neutral (1.0) draw over the same seed stream.
+        PlayerGameState balanced = TestPlayerFactory.create("p1", "A", 10.0);
+        int neutralJumpers = 0;
+        int leanedJumpers = 0;
+        RandomGenerator r1 = rng(42);
+        RandomGenerator r2 = rng(42);
+        for (int i = 0; i < 5_000; i++) {
+            if (isJumper(selector.pickShotType(balanced, 1.0, r1))) neutralJumpers++;
+            if (isJumper(selector.pickShotType(balanced, 1.6, r2))) leanedJumpers++;
+        }
+        assertTrue(leanedJumpers > neutralJumpers,
+                "A >1 shot-mix lean should produce more jumpers: leaned=" + leanedJumpers
+                        + " neutral=" + neutralJumpers);
+    }
+
+    @Test
+    void shotMixLeanOfOneMatchesUnmodifiedDraw() {
+        PlayerGameState balanced = TestPlayerFactory.create("p1", "A", 10.0);
+        assertEquals(
+                selector.pickShotType(balanced, rng(7)),
+                selector.pickShotType(balanced, 1.0, rng(7)),
+                "Lean 1.0 must match the unmodified draw for the same seed");
+    }
+
+    private boolean isJumper(ShotType t) {
+        return t == ShotType.PERIMETER || t == ShotType.THREE;
+    }
 }

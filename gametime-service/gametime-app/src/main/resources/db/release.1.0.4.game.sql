@@ -46,6 +46,10 @@ CREATE TABLE gametime.game_event
     play_type VARCHAR (15) not null,
     outcome VARCHAR,
     primary_player_id VARCHAR,
+    -- Optional assister on a made-FG SHOT event (§3.4 ball movement). Nullable —
+    -- not every made shot is assisted, and non-SHOT events never carry one.
+    -- BoxScore.assists reconciles against the count of SHOT events with this set.
+    assist_player_id VARCHAR,
     create_user VARCHAR default 'system' not null,
     create_date timestamp default CURRENT_TIMESTAMP not null,
     update_user VARCHAR default 'system' not null,
@@ -60,6 +64,11 @@ alter table gametime.game_event
 alter table gametime.game_event
     add constraint fk_game_event_player
     foreign key (primary_player_id)
+    REFERENCES gametime.player (id);
+
+alter table gametime.game_event
+    add constraint fk_game_event_assist_player
+    foreign key (assist_player_id)
     REFERENCES gametime.player (id);
 
 -- Per-player stat line for a single game, one row per (game, player). No

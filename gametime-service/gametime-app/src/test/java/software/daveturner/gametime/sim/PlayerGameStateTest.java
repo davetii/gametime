@@ -128,6 +128,55 @@ class PlayerGameStateTest {
         assertEquals(1, p.getFouls());
     }
 
+    // --- §3.4 chemistry skills + assist accumulator ---
+
+    @Test
+    void chemistrySkillsExtractedFrom19ParamFactory() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1",
+                10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+                17.0, 14.0, 19.0, 6.0);
+        assertEquals(17.0, p.getTeamOffense());
+        assertEquals(14.0, p.getTeamDefense());
+        assertEquals(19.0, p.getPassing());
+        assertEquals(6.0, p.getAcumen());
+    }
+
+    @Test
+    void chemistrySkillsDefaultToAverageFromShorterFactories() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1",
+                10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18.0, 7.0);
+        assertEquals(SimConfig.SCALE_AVG, p.getTeamOffense());
+        assertEquals(SimConfig.SCALE_AVG, p.getTeamDefense());
+        assertEquals(SimConfig.SCALE_AVG, p.getPassing());
+        assertEquals(SimConfig.SCALE_AVG, p.getAcumen());
+    }
+
+    @Test
+    void nullChemistrySkillsDefaultToAverage() {
+        var player = new software.daveturner.gametime.model.Player();
+        player.setId("p1");
+        var skills = new software.daveturner.gametime.model.PlayerSkills();
+        // leave chemistry skills null
+        player.setSkills(skills);
+        var entry = new software.daveturner.gametime.model.RosterEntry();
+        entry.setPlayer(player);
+
+        PlayerGameState p = new PlayerGameState("p1", "T1", entry);
+        assertEquals(SimConfig.SCALE_AVG, p.getTeamOffense());
+        assertEquals(SimConfig.SCALE_AVG, p.getTeamDefense());
+        assertEquals(SimConfig.SCALE_AVG, p.getPassing());
+        assertEquals(SimConfig.SCALE_AVG, p.getAcumen());
+    }
+
+    @Test
+    void assistAccumulator() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        assertEquals(0, p.getAssists());
+        p.recordAssist();
+        p.recordAssist();
+        assertEquals(2, p.getAssists());
+    }
+
     @Test
     void nullSkillsDefaultToAverage() {
         // Create with null skills to test the null-safe toDouble path

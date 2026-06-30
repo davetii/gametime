@@ -81,13 +81,34 @@ chemistry modifiers (§3.4), fatigue (§3.5), blocks, and team box-out are
 deliberately out of scope — raw `offenseRebound` vs `defenseRebound` skills only.
 `BASE_OFFENSIVE_REBOUND` is a placeholder (~0.27); §3.4 calibrates empirically._
 
-### 3.4 Team Chemistry & Coaching Effects
-- [ ] teamOffense/teamDefense affect overall team efficiency
-- [ ] Passing skill influences assist rate and ball movement
-- [ ] Acumen influences shot selection quality
-- [ ] Coach system modifies possession pace, shot distribution, defensive scheme
-- [ ] Rebalance skill calculator formulas once possessions exercise them
-      (clutch/foulProne/transition etc. only get tested under real play)
+### 3.4 Team Chemistry & Coaching Effects ✓
+- [x] teamOffense/teamDefense affect overall team efficiency
+- [x] Passing skill influences assist rate and ball movement
+- [x] Acumen influences shot selection quality
+- [x] Coach system modifies possession pace, shot distribution, defensive scheme
+- [x] Rebalance skill calculator formulas once possessions exercise them
+      (calibrated empirically against modern-NBA benchmarks)
+
+_Shipped (decisions.md #022): coach + chemistry modifiers layered onto the §3.2/
+§3.3 flow as a thumb on the scale, plus the deferred empirical calibration pass.
+All effects use the avg-10 deviation multiplier `base × (1 + COACH_SENSITIVITY ×
+(attr−10)/10)`. `CoachModifiers` value object turns a `Coach` into pace / shot-mix
+/ defensive-pressure multipliers (reads `pace`/`offensiveScheme`/`defensiveScheme`
+ONLY — rotation attrs are §3.5); a `TeamContext` (players + modifiers) threads
+them through `PossessionEngine` without re-churning signatures. **pace scales the
+possession count**, offensiveScheme leans the `ShotSelector` shot-type draw,
+defensiveScheme scales turnover/foul pressure. `PlayerGameState` now extracts
+`teamOffense`/`teamDefense`/`passing`/`acumen`: `acumen` is a small make-rate nudge
++ `teamOffense`/`teamDefense` a possession-level efficiency multiplier in
+`ShotResolver` (Decision C). **Assists are now real (Decision B1)**: a made FG may
+be assisted (rolled from the supporting cast's passing), the assister picked by a
+weighted passing draw over the other four and stamped on a new nullable
+`game_event.assist_player_id` column (first schema change since §3.1; OpenAPI
+deferred to §3.6); `BoxScore.assists` reconciles against assisted-SHOT events
+(#020). A disabled-by-default `CalibrationHarness` simulates ~100 games and reports
+aggregates; `SimConfig` base rates were tuned to land near ~112 pts / 47% FG / 36%
+3P / 26 ast / 14 TO per team. Minutes/fatigue (§3.5) stays out of scope — starters
+play the whole game._
 
 ### 3.5 Minutes, Fatigue & Substitution
 *(gameplay, not roster — minutes/fatigue/coach rotation are produced by games
@@ -132,8 +153,17 @@ instead of re-deriving or prematurely building them. Each notes its seam.
       A real and-1 is: made FG + 1 foul shot. Needs the foul model to roll
       alongside (not before) shot resolution. Belongs with §3.4's foul-model work.
 - [ ] **Non-shooting turnovers with richer causes.** §3.2 models only `STOLEN` /
-      `LOST_BALL`. Offensive fouls (charges), shot-clock violations, bad passes
-      OOB, 3-seconds, etc. are deferred to the §3.4 ball-movement model.
+      `LOST_BALL` — and §3.4 kept it that way (assists were the only ball-movement
+      work it picked up). Offensive fouls (charges), shot-clock violations, bad
+      passes OOB, 3-seconds, etc. remain deferred to a future ball-movement pass.
+- [ ] **Blocked shots.** No `BLOCK` play type today; a blocked shot is
+      indistinguishable from a normal miss (it becomes a `MISSED` `SHOT` → rebound)
+      and `BoxScore.blocks` is hardcoded 0. When added, it's a defender
+      `rimProtection`/`shotContest` roll that converts a contested miss into a
+      recorded `BLOCK` (crediting the blocker, miss still attributed to the
+      shooter), then the rebound resolves as normal. The seam is the shot-resolution
+      branch in `PossessionEngine` / `ShotResolver`; gated on a consumer that reads
+      blocks (Phase 4 stats, or a §3.x defensive-fidelity pass).
 
 ---
 

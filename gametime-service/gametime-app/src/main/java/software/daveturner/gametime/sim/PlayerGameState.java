@@ -31,6 +31,12 @@ public class PlayerGameState {
     private final double offenseRebound;
     private final double defenseRebound;
 
+    // Team chemistry skills (§3.4)
+    private final double teamOffense;
+    private final double teamDefense;
+    private final double passing;
+    private final double acumen;
+
     // Box score accumulators
     private int points;
     private int fieldGoalsAttempted;
@@ -44,6 +50,7 @@ public class PlayerGameState {
     private int fouls;
     private int offensiveRebounds;
     private int defensiveRebounds;
+    private int assists;
 
     public PlayerGameState(String playerId, String teamId, RosterEntry entry) {
         this.playerId = playerId;
@@ -64,6 +71,10 @@ public class PlayerGameState {
         this.foulProne = toDouble(skills.getFoulProne());
         this.offenseRebound = toDouble(skills.getOffenseRebound());
         this.defenseRebound = toDouble(skills.getDefenseRebound());
+        this.teamOffense = toDouble(skills.getTeamOffense());
+        this.teamDefense = toDouble(skills.getTeamDefense());
+        this.passing = toDouble(skills.getPassing());
+        this.acumen = toDouble(skills.getAcumen());
     }
 
     private static double toDouble(BigDecimal bd) {
@@ -110,6 +121,10 @@ public class PlayerGameState {
     public double getFoulProne() { return foulProne; }
     public double getOffenseRebound() { return offenseRebound; }
     public double getDefenseRebound() { return defenseRebound; }
+    public double getTeamOffense() { return teamOffense; }
+    public double getTeamDefense() { return teamDefense; }
+    public double getPassing() { return passing; }
+    public double getAcumen() { return acumen; }
 
     // Box score
     public int getPoints() { return points; }
@@ -124,6 +139,7 @@ public class PlayerGameState {
     public int getFouls() { return fouls; }
     public int getOffensiveRebounds() { return offensiveRebounds; }
     public int getDefensiveRebounds() { return defensiveRebounds; }
+    public int getAssists() { return assists; }
 
     public void recordFieldGoalAttempt() { fieldGoalsAttempted++; }
     public void recordFieldGoalMade(int pts) { fieldGoalsMade++; points += pts; }
@@ -136,4 +152,5 @@ public class PlayerGameState {
     public void recordFoul() { fouls++; }
     public void recordOffensiveRebound() { offensiveRebounds++; }
     public void recordDefensiveRebound() { defensiveRebounds++; }
+    public void recordAssist() { assists++; }
 }

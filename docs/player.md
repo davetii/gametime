@@ -46,7 +46,9 @@ PlayerEntity (DB)  →  EntityMapper  →  Player (API model)
 
 - `yearsPro` — experience modifier used in skill calculations
 - `height`, `weight`, `draftSlot`, `origin` — biographical
-- `position`, `status`, `team_id` — roster placement
+- `position` — positional slot; `status` — intrinsic availability (see Status
+  below). **No `team_id`** — the player↔team link is decoupled into
+  `player_team` / `player_team_hist` (decisions.md #012); see [roster.md](roster.md).
 
 ---
 
@@ -137,12 +139,14 @@ Each skill is computed by a dedicated `SkillCalculator` Spring bean. 23 skills:
 
 ## Status
 
+`Player.status` is the player's **intrinsic availability** only — independent of
+any team (decisions.md #013). The roster *slot* (STARTER / BENCH / ROTATION /
+INACTIVE / MINORS) is a separate axis, `player_team.lineupRole`, owned by the
+roster domain ([roster.md](roster.md)) — it is **not** a player status.
+
 | Status | Meaning |
 |--------|---------|
-| STARTER | Starting lineup |
-| BENCH | Active bench player |
-| ROTATION | In rotation but not primary bench |
-| MINORS | Development league / end of roster |
+| ACTIVE | Available to play |
 | INJURED | Currently injured |
 | SUSPENDED | Suspended from play |
 
@@ -188,7 +192,17 @@ All 23 skills are listed with their primary inputs under "Derived Skills" above.
 
 ## How Attributes Map to Game Engine Needs
 
-Every possession in the Phase 3 game engine resolves through decisions backed by attribute coverage:
+This is the **design map** of which skills *should* back each possession decision —
+it is broader than what the engine resolves today. As of §3.4, the engine wires:
+shot selection (`drive`/`finishing`/`perimeter`/`post`/`longRange`), shot contest
+(`shotContest`/`individualDefense`/`rimProtection`), turnovers (`ballSecurity` vs
+`stealing`), shooting fouls (`foulDrawing` vs `foulProne`), free throws
+(`freeThrows`), rebounding (`offenseRebound`/`defenseRebound`), assists (`passing`,
+scaled by `teamOffense`), and shot-quality/efficiency (`acumen`,
+`teamOffense`/`teamDefense`). Rows below not in that list — transition,
+pick-and-roll (`screenSetting`/`offBallMovement`), off-ball movement, and the
+`clutch` late-game modifier — are **not modeled yet** (future §3.x); they stay
+here as the target so the attribute coverage is visible.
 
 | Possession Event | Skills Used |
 |-----------------|-------------|

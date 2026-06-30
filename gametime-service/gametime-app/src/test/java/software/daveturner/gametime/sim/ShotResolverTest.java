@@ -83,4 +83,34 @@ class ShotResolverTest {
         boolean result2 = resolver.isMade(ShotType.THREE, shooter, defender, rng(123));
         assertEquals(result1, result2);
     }
+
+    // --- §3.4 chemistry make-multiplier (Decision C) ---
+
+    @Test
+    void chemistryMultiplierAboveOneRaisesMakeRate() {
+        PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 10.0);
+        PlayerGameState defender = TestPlayerFactory.create("d1", "B", 10.0);
+        int trials = 10_000;
+        int neutralMakes = 0;
+        int boostedMakes = 0;
+        RandomGenerator r1 = rng(42);
+        RandomGenerator r2 = rng(42);
+        for (int i = 0; i < trials; i++) {
+            if (resolver.isMade(ShotType.PERIMETER, shooter, defender, 1.0, r1)) neutralMakes++;
+            if (resolver.isMade(ShotType.PERIMETER, shooter, defender, 1.15, r2)) boostedMakes++;
+        }
+        assertTrue(boostedMakes > neutralMakes,
+                "A >1 chemistry multiplier should raise the make rate: boosted=" + boostedMakes
+                        + " neutral=" + neutralMakes);
+    }
+
+    @Test
+    void chemistryMultiplierOfOneMatchesUnmodified() {
+        PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 13.0);
+        PlayerGameState defender = TestPlayerFactory.create("d1", "B", 9.0);
+        assertEquals(
+                resolver.isMade(ShotType.POST, shooter, defender, rng(55)),
+                resolver.isMade(ShotType.POST, shooter, defender, 1.0, rng(55)),
+                "Multiplier 1.0 must equal the unmodified overload for the same seed");
+    }
 }

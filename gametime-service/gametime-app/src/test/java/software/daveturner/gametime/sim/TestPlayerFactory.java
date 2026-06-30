@@ -26,7 +26,8 @@ class TestPlayerFactory {
                 SimConfig.SCALE_AVG, SimConfig.SCALE_AVG);
     }
 
-    // 15-skill overload — adds offenseRebound/defenseRebound (§3.3).
+    // 15-skill overload — adds offenseRebound/defenseRebound (§3.3); chemistry
+    // skills (§3.4) default to league average.
     static PlayerGameState create(String id, String teamId,
                                   double drive, double finishing, double perimeter,
                                   double post, double longRange, double ballSecurity,
@@ -34,6 +35,24 @@ class TestPlayerFactory {
                                   double individualDefense, double rimProtection,
                                   double shotContest, double stealing, double foulProne,
                                   double offenseRebound, double defenseRebound) {
+        return create(id, teamId, drive, finishing, perimeter, post, longRange,
+                ballSecurity, freeThrows, foulDrawing, individualDefense,
+                rimProtection, shotContest, stealing, foulProne,
+                offenseRebound, defenseRebound,
+                SimConfig.SCALE_AVG, SimConfig.SCALE_AVG,
+                SimConfig.SCALE_AVG, SimConfig.SCALE_AVG);
+    }
+
+    // 19-skill overload — adds teamOffense/teamDefense/passing/acumen (§3.4).
+    static PlayerGameState create(String id, String teamId,
+                                  double drive, double finishing, double perimeter,
+                                  double post, double longRange, double ballSecurity,
+                                  double freeThrows, double foulDrawing,
+                                  double individualDefense, double rimProtection,
+                                  double shotContest, double stealing, double foulProne,
+                                  double offenseRebound, double defenseRebound,
+                                  double teamOffense, double teamDefense,
+                                  double passing, double acumen) {
         Player player = new Player();
         player.setId(id);
         PlayerSkills skills = new PlayerSkills();
@@ -52,6 +71,10 @@ class TestPlayerFactory {
         skills.setFoulProne(bd(foulProne));
         skills.setOffenseRebound(bd(offenseRebound));
         skills.setDefenseRebound(bd(defenseRebound));
+        skills.setTeamOffense(bd(teamOffense));
+        skills.setTeamDefense(bd(teamDefense));
+        skills.setPassing(bd(passing));
+        skills.setAcumen(bd(acumen));
         player.setSkills(skills);
 
         RosterEntry entry = new RosterEntry();

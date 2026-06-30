@@ -16,8 +16,15 @@ public class GameData {
     public void addEvent(String offTeamId, String defTeamId, int period,
                          int sequence, PlayType playType, String outcome,
                          String primaryPlayerId) {
+        addEvent(offTeamId, defTeamId, period, sequence, playType, outcome,
+                primaryPlayerId, null);
+    }
+
+    public void addEvent(String offTeamId, String defTeamId, int period,
+                         int sequence, PlayType playType, String outcome,
+                         String primaryPlayerId, String assistPlayerId) {
         events.add(new EventRecord(offTeamId, defTeamId, period, sequence,
-                playType, outcome, primaryPlayerId));
+                playType, outcome, primaryPlayerId, assistPlayerId));
     }
 
     public void addScore(String teamId, int points) {
@@ -40,5 +47,5 @@ public class GameData {
 
     public record EventRecord(String offTeamId, String defTeamId, int period,
                                int sequence, PlayType playType, String outcome,
-                               String primaryPlayerId) {}
+                               String primaryPlayerId, String assistPlayerId) {}
 }

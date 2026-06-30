@@ -24,6 +24,27 @@ class PossessionEngineTest {
         return RandomGeneratorFactory.of("L64X128MixRandom").create(seed);
     }
 
+    // --- TeamContext wrappers: existing tests call the engine with player lists +
+    // team ids; these wrap them in neutral-coach TeamContexts (×1.0 modifiers) so
+    // the pre-§3.4 behavior is preserved. Coach-effect tests build TeamContexts
+    // with non-neutral CoachModifiers directly.
+    private GameData simulate(List<PlayerGameState> home, List<PlayerGameState> away,
+                              String homeId, String awayId, int poss, RandomGenerator rng) {
+        return engine.simulate(
+                new TeamContext(homeId, home, CoachModifiers.neutral()),
+                new TeamContext(awayId, away, CoachModifiers.neutral()),
+                poss, rng);
+    }
+
+    private int resolvePossession(GameData data, List<PlayerGameState> offense,
+                                  List<PlayerGameState> defense, String offId, String defId,
+                                  int period, int seq, RandomGenerator rng) {
+        return engine.resolvePossession(data,
+                new TeamContext(offId, offense, CoachModifiers.neutral()),
+                new TeamContext(defId, defense, CoachModifiers.neutral()),
+                period, seq, rng);
+    }
+
     private List<PlayerGameState> teamOf5(String teamId, double skill) {
         List<PlayerGameState> players = new ArrayList<>();
         for (int i = 1; i <= 5; i++) {
@@ -34,7 +55,7 @@ class PossessionEngineTest {
 
     @Test
     void fullGameCompletesWithBoundedPossessionCount() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         assertTrue(data.getEvents().size() > 0);
@@ -45,7 +66,7 @@ class PossessionEngineTest {
 
     @Test
     void sequenceIsMonotonicallyIncreasingAcrossGame() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         int prevSequence = 0;
@@ -58,7 +79,7 @@ class PossessionEngineTest {
 
     @Test
     void periodAdvancesCorrectly() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         int lastPeriod = 0;
@@ -71,7 +92,7 @@ class PossessionEngineTest {
 
     @Test
     void gameProducesAllEventTypes() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         Set<PlayType> seen = new HashSet<>();
@@ -87,7 +108,7 @@ class PossessionEngineTest {
     void boxScorePointsReconcileWithShotAndFreeThrowEvents() {
         List<PlayerGameState> home = teamOf5("H", 10);
         List<PlayerGameState> away = teamOf5("A", 10);
-        GameData data = engine.simulate(home, away, "H", "A", 25, rng(42));
+        GameData data = simulate(home, away, "H", "A", 25, rng(42));
 
         int eventHomePoints = 0;
         int eventAwayPoints = 0;
@@ -110,7 +131,7 @@ class PossessionEngineTest {
     void lopsidedMatchupBetterTeamWins() {
         int eliteWins = 0;
         for (long seed = 1; seed <= 20; seed++) {
-            GameData data = engine.simulate(teamOf5("H", 18), teamOf5("A", 3),
+            GameData data = simulate(teamOf5("H", 18), teamOf5("A", 3),
                     "H", "A", 25, rng(seed));
             if (data.getHomeScore() > data.getAwayScore()) eliteWins++;
         }
@@ -119,7 +140,7 @@ class PossessionEngineTest {
 
     @Test
     void believableFinalScore() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         assertTrue(data.getHomeScore() >= 50 && data.getHomeScore() <= 160,
@@ -130,9 +151,9 @@ class PossessionEngineTest {
 
     @Test
     void determinismSameSeedSameResult() {
-        GameData data1 = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data1 = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
-        GameData data2 = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data2 = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         assertEquals(data1.getHomeScore(), data2.getHomeScore());
@@ -151,9 +172,9 @@ class PossessionEngineTest {
 
     @Test
     void determinismDifferentSeedDifferentResult() {
-        GameData data1 = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data1 = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
-        GameData data2 = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data2 = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(999));
 
         boolean anyDifference = data1.getHomeScore() != data2.getHomeScore()
@@ -167,7 +188,7 @@ class PossessionEngineTest {
         // Try many seeds to find one that produces OT, or verify structure is correct
         boolean foundOT = false;
         for (long seed = 1; seed <= 200; seed++) {
-            GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+            GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                     "H", "A", 25, rng(seed));
             if (data.getPeriods() > SimConfig.PERIODS) {
                 foundOT = true;
@@ -193,7 +214,7 @@ class PossessionEngineTest {
 
     @Test
     void foulEventsFollowedByTwoFreeThrows() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         List<GameData.EventRecord> events = data.getEvents();
@@ -208,7 +229,7 @@ class PossessionEngineTest {
 
     @Test
     void gameProducesReboundEvents() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         boolean anyRebound = data.getEvents().stream()
@@ -218,7 +239,7 @@ class PossessionEngineTest {
 
     @Test
     void everyMissedShotIsFollowedByARebound() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         List<GameData.EventRecord> events = data.getEvents();
@@ -235,7 +256,7 @@ class PossessionEngineTest {
 
     @Test
     void reboundOutcomesAreOnlyOffensiveOrDefensive() {
-        GameData data = engine.simulate(teamOf5("H", 10), teamOf5("A", 10),
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         for (GameData.EventRecord e : data.getEvents()) {
@@ -266,7 +287,7 @@ class PossessionEngineTest {
         GameData data = new GameData();
         int possessions = 500;
         for (long seed = 1; seed <= possessions; seed++) {
-            engine.resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(seed));
+            resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(seed));
         }
         long offRebounds = data.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.REBOUND && e.outcome().equals("OFFENSIVE"))
@@ -297,7 +318,7 @@ class PossessionEngineTest {
         boolean anyOffensiveRebound = false;
         for (long seed = 1; seed <= 100 && !anyOffensiveRebound; seed++) {
             GameData data = new GameData();
-            engine.resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(seed));
+            resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(seed));
             anyOffensiveRebound = data.getEvents().stream()
                     .anyMatch(e -> e.playType() == PlayType.REBOUND
                             && e.outcome().equals("OFFENSIVE"));
@@ -329,7 +350,7 @@ class PossessionEngineTest {
 
         for (long seed = 1; seed <= 300; seed++) {
             GameData data = new GameData();
-            engine.resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(seed));
+            resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(seed));
             long offRebounds = data.getEvents().stream()
                     .filter(e -> e.playType() == PlayType.REBOUND
                             && e.outcome().equals("OFFENSIVE"))
@@ -354,7 +375,7 @@ class PossessionEngineTest {
         }
 
         GameData data = new GameData();
-        int next = engine.resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(7));
+        int next = resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(7));
         int prev = 0;
         for (GameData.EventRecord e : data.getEvents()) {
             assertEquals(prev + 1, e.sequence(),
@@ -368,7 +389,7 @@ class PossessionEngineTest {
     void boxScoreReboundsReconcileWithReboundEvents() {
         List<PlayerGameState> home = teamOf5("H", 10);
         List<PlayerGameState> away = teamOf5("A", 10);
-        GameData data = engine.simulate(home, away, "H", "A", 25, rng(42));
+        GameData data = simulate(home, away, "H", "A", 25, rng(42));
 
         long offReboundEvents = data.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.REBOUND && e.outcome().equals("OFFENSIVE"))
@@ -386,6 +407,157 @@ class PossessionEngineTest {
                 "Offensive rebound counts must reconcile with OFFENSIVE rebound events");
         assertEquals(defReboundEvents, boxDefRebounds,
                 "Defensive rebound counts must reconcile with DEFENSIVE rebound events");
+    }
+
+    // ===================== §3.4 coach / chemistry / assists =====================
+
+    // A team of 5 with all-skill level + explicit chemistry skills (teamOffense,
+    // teamDefense, passing, acumen) so assist/efficiency behavior is controllable.
+    private List<PlayerGameState> teamOf5WithPassing(String teamId, double passing) {
+        List<PlayerGameState> players = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            players.add(TestPlayerFactory.create(teamId + "-p" + i, teamId,
+                    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+                    10, 10, passing, 10));
+        }
+        return players;
+    }
+
+    private GameData simulateWithCoaches(List<PlayerGameState> home, CoachModifiers homeMods,
+                                         List<PlayerGameState> away, CoachModifiers awayMods,
+                                         int poss, RandomGenerator rng) {
+        return engine.simulate(
+                new TeamContext("H", home, homeMods),
+                new TeamContext("A", away, awayMods),
+                poss, rng);
+    }
+
+    @Test
+    void madeShotsCanBeAssistedAndReconcile() {
+        // Good passers → assists should appear, and assisted-SHOT events must equal
+        // the box-score assist totals (Decision B1 reconciliation).
+        List<PlayerGameState> home = teamOf5WithPassing("H", 16);
+        List<PlayerGameState> away = teamOf5WithPassing("A", 16);
+        GameData data = simulate(home, away, "H", "A", 25, rng(42));
+
+        long assistedShotEvents = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.SHOT && e.assistPlayerId() != null)
+                .count();
+        int boxAssists = home.stream().mapToInt(PlayerGameState::getAssists).sum()
+                + away.stream().mapToInt(PlayerGameState::getAssists).sum();
+
+        assertTrue(assistedShotEvents > 0, "Good passers should produce assists");
+        assertEquals(assistedShotEvents, boxAssists,
+                "Assisted SHOT events must reconcile with box-score assists");
+    }
+
+    @Test
+    void assistsOnlyAttachToMadeShots() {
+        GameData data = simulate(teamOf5WithPassing("H", 14), teamOf5WithPassing("A", 14),
+                "H", "A", 25, rng(7));
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (e.assistPlayerId() != null) {
+                assertEquals(PlayType.SHOT, e.playType(), "Only SHOT events carry an assister");
+                assertTrue(e.outcome().startsWith("MADE"), "Only made shots are assisted");
+            }
+        }
+    }
+
+    @Test
+    void assisterIsNeverTheShooter() {
+        GameData data = simulate(teamOf5WithPassing("H", 18), teamOf5WithPassing("A", 18),
+                "H", "A", 25, rng(99));
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (e.assistPlayerId() != null) {
+                assertNotEquals(e.primaryPlayerId(), e.assistPlayerId(),
+                        "The shooter cannot assist their own basket");
+            }
+        }
+    }
+
+    @Test
+    void betterPassingTeamsRecordMoreAssists() {
+        GameData lowPass = simulate(teamOf5WithPassing("H", 3), teamOf5WithPassing("A", 3),
+                "H", "A", 25, rng(42));
+        GameData highPass = simulate(teamOf5WithPassing("H", 18), teamOf5WithPassing("A", 18),
+                "H", "A", 25, rng(42));
+
+        long lowAssists = lowPass.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.SHOT && e.assistPlayerId() != null).count();
+        long highAssists = highPass.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.SHOT && e.assistPlayerId() != null).count();
+
+        assertTrue(highAssists > lowAssists,
+                "Better-passing teams should record more assists: high=" + highAssists
+                        + " low=" + lowAssists);
+    }
+
+    @Test
+    void resolveAssistReturnsNullForLonePlayerOffense() {
+        // A one-player offense has no supporting cast → never assisted.
+        List<PlayerGameState> solo = new ArrayList<>();
+        solo.add(TestPlayerFactory.create("solo", "H", 10));
+        PlayerGameState shooter = solo.get(0);
+        for (long seed = 1; seed <= 50; seed++) {
+            assertNull(engine.resolveAssist(solo, shooter, rng(seed)),
+                    "No supporting cast ⇒ no assist");
+        }
+    }
+
+    @Test
+    void fasterCoachRunsMorePossessions() {
+        CoachModifiers fast = CoachModifiers.from(coach(20, 10, 10), config);
+        CoachModifiers slow = CoachModifiers.from(coach(1, 10, 10), config);
+
+        GameData fastGame = simulateWithCoaches(teamOf5("H", 10), fast,
+                teamOf5("A", 10), fast, 25, rng(42));
+        GameData slowGame = simulateWithCoaches(teamOf5("H", 10), slow,
+                teamOf5("A", 10), slow, 25, rng(42));
+
+        long fastShots = fastGame.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.SHOT).count();
+        long slowShots = slowGame.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.SHOT).count();
+        assertTrue(fastShots > slowShots,
+                "A fast coach should run more possessions (more shots): fast=" + fastShots
+                        + " slow=" + slowShots);
+    }
+
+    @Test
+    void aggressiveDefensiveSchemeForcesMoreTurnovers() {
+        CoachModifiers aggressive = CoachModifiers.from(coach(10, 10, 20), config);
+        CoachModifiers passive = CoachModifiers.from(coach(10, 10, 1), config);
+        CoachModifiers neutral = CoachModifiers.neutral();
+
+        // Home defense aggressive vs. home defense passive — compare turnovers the
+        // AWAY offense commits (i.e. forced by the home defense).
+        int aggressiveTOs = 0;
+        int passiveTOs = 0;
+        for (long seed = 1; seed <= 30; seed++) {
+            GameData aggGame = simulateWithCoaches(teamOf5("H", 10), aggressive,
+                    teamOf5("A", 10), neutral, 25, rng(seed));
+            GameData pasGame = simulateWithCoaches(teamOf5("H", 10), passive,
+                    teamOf5("A", 10), neutral, 25, rng(seed));
+            aggressiveTOs += countAwayTurnovers(aggGame);
+            passiveTOs += countAwayTurnovers(pasGame);
+        }
+        assertTrue(aggressiveTOs > passiveTOs,
+                "An aggressive defense should force more turnovers: agg=" + aggressiveTOs
+                        + " passive=" + passiveTOs);
+    }
+
+    private int countAwayTurnovers(GameData data) {
+        return (int) data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.TURNOVER && e.offTeamId().equals("A"))
+                .count();
+    }
+
+    private software.daveturner.gametime.model.Coach coach(Integer pace, Integer off, Integer def) {
+        software.daveturner.gametime.model.Coach c = new software.daveturner.gametime.model.Coach();
+        c.setPace(pace);
+        c.setOffensiveScheme(off);
+        c.setDefensiveScheme(def);
+        return c;
     }
 
     private int pointsFromEvent(GameData.EventRecord e) {

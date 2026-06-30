@@ -124,6 +124,9 @@ These touch the roster domain but are not implemented yet:
 
 - **Minutes & fatigue** (Phase 3.5) — `rotationOrder` + `endurance` drive minutes
   allocation and in-game substitution.
-- **Coach rotation influence** (Phase 3.5) — gated on the Coach model (parked).
+- **Coach rotation influence** (Phase 3.5) — the Coach model is built and its §3.4
+  effects (pace / shot / defensive scheme) ship; the rotation attributes
+  (`rotationDepth` / `substitutionAggressiveness`) are seeded but unread until §3.5
+  wires them to the substitution model. See [coach.md](coach.md).
 - **Trades / free agency / waivers** (Phase 6.4) — more `TransactionType` paths
   through the same `player_team` / `player_team_hist` machinery.

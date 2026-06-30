@@ -23,15 +23,17 @@ public class GameSimulator {
     private final GameRepo gameRepo;
     private final GameEventRepo gameEventRepo;
     private final BoxScoreRepo boxScoreRepo;
+    private final SimConfig config;
 
     public GameSimulator(GametimeService gametimeService, PossessionEngine possessionEngine,
                          GameRepo gameRepo, GameEventRepo gameEventRepo,
-                         BoxScoreRepo boxScoreRepo) {
+                         BoxScoreRepo boxScoreRepo, SimConfig config) {
         this.gametimeService = gametimeService;
         this.possessionEngine = possessionEngine;
         this.gameRepo = gameRepo;
         this.gameEventRepo = gameEventRepo;
         this.boxScoreRepo = boxScoreRepo;
+        this.config = config;
     }
 
     public SimResult simulate(String homeTeamId, String awayTeamId, long seed, int possessionsPerPeriod) {
@@ -43,11 +45,16 @@ public class GameSimulator {
         List<PlayerGameState> homePlayers = buildStarters(homeTeam);
         List<PlayerGameState> awayPlayers = buildStarters(awayTeam);
 
+        // §3.4: bundle each team's players + coach modifiers into a TeamContext.
+        TeamContext home = new TeamContext(homeTeamId, homePlayers,
+                CoachModifiers.from(homeTeam.getCoach(), config));
+        TeamContext away = new TeamContext(awayTeamId, awayPlayers,
+                CoachModifiers.from(awayTeam.getCoach(), config));
+
         RandomGenerator rng = RandomGeneratorFactory.of("L64X128MixRandom")
                 .create(seed);
 
-        GameData data = possessionEngine.simulate(homePlayers, awayPlayers,
-                homeTeamId, awayTeamId, possessionsPerPeriod, rng);
+        GameData data = possessionEngine.simulate(home, away, possessionsPerPeriod, rng);
 
         String gameId = UUID.randomUUID().toString();
 
@@ -72,6 +79,7 @@ public class GameSimulator {
             event.setPlayType(e.playType());
             event.setOutcome(e.outcome());
             event.setPrimaryPlayerId(e.primaryPlayerId());
+            event.setAssistPlayerId(e.assistPlayerId());
             gameEventRepo.save(event);
         }
 
@@ -85,7 +93,7 @@ public class GameSimulator {
             bs.setPoints(p.getPoints());
             bs.setOffensiveRebounds(p.getOffensiveRebounds());
             bs.setDefensiveRebounds(p.getDefensiveRebounds());
-            bs.setAssists(0);
+            bs.setAssists(p.getAssists());
             bs.setSteals(p.getSteals());
             bs.setBlocks(0);
             bs.setTurnovers(p.getTurnovers());

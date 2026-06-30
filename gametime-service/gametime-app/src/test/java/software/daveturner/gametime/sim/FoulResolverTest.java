@@ -121,4 +121,45 @@ class FoulResolverTest {
         double rate = (double) makes / trials;
         assertTrue(rate < 0.65, "Poor FT shooter should make < 65%, got " + rate);
     }
+
+    // --- §3.4 defensive-pressure modifier ---
+
+    @Test
+    void higherDefensivePressureRaisesFoulRate() {
+        PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 10.0);
+        PlayerGameState defender = TestPlayerFactory.create("d1", "B", 10.0);
+        int trials = 10_000;
+        int neutral = 0;
+        int pressured = 0;
+        RandomGenerator r1 = rng(42);
+        RandomGenerator r2 = rng(42);
+        for (int i = 0; i < trials; i++) {
+            if (resolver.isFoul(ShotType.DRIVE, shooter, defender, 1.0, r1)) neutral++;
+            if (resolver.isFoul(ShotType.DRIVE, shooter, defender, 1.5, r2)) pressured++;
+        }
+        assertTrue(pressured > neutral,
+                "Higher defensive pressure should concede more fouls: pressured=" + pressured
+                        + " neutral=" + neutral);
+    }
+
+    @Test
+    void pressureStillNeverFoulsOnJumpShots() {
+        PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 20.0);
+        PlayerGameState defender = TestPlayerFactory.create("d1", "B", 1.0);
+        RandomGenerator r = rng(42);
+        for (int i = 0; i < 1_000; i++) {
+            assertFalse(resolver.isFoul(ShotType.THREE, shooter, defender, 2.0, r),
+                    "Even max pressure cannot foul on a three");
+        }
+    }
+
+    @Test
+    void defensivePressureOfOneMatchesUnmodified() {
+        PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 12.0);
+        PlayerGameState defender = TestPlayerFactory.create("d1", "B", 8.0);
+        assertEquals(
+                resolver.isFoul(ShotType.DRIVE, shooter, defender, rng(21)),
+                resolver.isFoul(ShotType.DRIVE, shooter, defender, 1.0, rng(21)),
+                "Pressure 1.0 must equal the unmodified overload for the same seed");
+    }
 }

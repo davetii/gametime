@@ -150,6 +150,45 @@ class GameSimulatorIntegrationTest {
                 "Defensive rebound box totals must match DEFENSIVE rebound events");
     }
 
+    @Test
+    void simulateProducesNonZeroAssists() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+        int totalAssists = boxScores.stream().mapToInt(BoxScoreEntity::getAssists).sum();
+
+        assertTrue(totalAssists > 0,
+                "§3.4: box-score assists must no longer be all zeros");
+    }
+
+    @Test
+    void simulateAssistsReconcileWithAssistedShotEvents() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        // Every assisted-SHOT event carries an assister; box-score assists must
+        // equal that count (decisions.md #022/#020 — events are the source of truth).
+        long assistedShotEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.SHOT && e.getAssistPlayerId() != null)
+                .count();
+        int boxAssists = boxScores.stream().mapToInt(BoxScoreEntity::getAssists).sum();
+
+        assertEquals(assistedShotEvents, boxAssists,
+                "Box-score assists must reconcile with assisted SHOT events");
+
+        // Assisters are only ever stamped on made field goals.
+        for (GameEventEntity e : events) {
+            if (e.getAssistPlayerId() != null) {
+                assertEquals(PlayType.SHOT, e.getPlayType());
+                assertTrue(e.getOutcome().startsWith("MADE"),
+                        "Only made shots carry an assister");
+            }
+        }
+    }
+
     private int pointsFromEntity(GameEventEntity e) {
         if (e.getPlayType() == PlayType.SHOT && e.getOutcome().startsWith("MADE")) {
             return e.getOutcome().contains("3PT") ? 3 : 2;

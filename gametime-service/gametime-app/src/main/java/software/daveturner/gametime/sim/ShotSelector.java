@@ -22,18 +22,34 @@ public class ShotSelector {
     }
 
     public ShotType pickShotType(PlayerGameState shooter, RandomGenerator rng) {
+        return pickShotType(shooter, 1.0, rng);
+    }
+
+    /**
+     * §3.4: {@code shotMixLean} (the offensive coach's offensiveScheme modifier)
+     * leans the draw toward perimeter shooting — the PERIMETER and THREE weights
+     * are scaled by it, so a high-offensiveScheme coach takes more jumpers and a
+     * low one leans inside (drive/post). 1.0 = the raw skill-weighted draw.
+     */
+    public ShotType pickShotType(PlayerGameState shooter, double shotMixLean,
+                                 RandomGenerator rng) {
         ShotType[] types = ShotType.values();
         double totalWeight = 0;
         for (ShotType t : types) {
-            totalWeight += shooter.shotTypeWeight(t);
+            totalWeight += leanedWeight(shooter, t, shotMixLean);
         }
         double roll = rng.nextDouble() * totalWeight;
         double cumulative = 0;
         for (ShotType t : types) {
-            cumulative += shooter.shotTypeWeight(t);
+            cumulative += leanedWeight(shooter, t, shotMixLean);
             if (roll < cumulative) return t;
         }
         return types[types.length - 1];
+    }
+
+    private double leanedWeight(PlayerGameState shooter, ShotType type, double shotMixLean) {
+        double w = shooter.shotTypeWeight(type);
+        return (type == ShotType.PERIMETER || type == ShotType.THREE) ? w * shotMixLean : w;
     }
 
     public PlayerGameState pickDefender(List<PlayerGameState> defensivePlayers, RandomGenerator rng) {

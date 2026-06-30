@@ -72,4 +72,69 @@ class SimConfigTest {
         assertTrue(result < 0.75);
         assertTrue(result >= SimConfig.PROB_FLOOR);
     }
+
+    // --- §3.4 coach / chemistry helpers (decisions.md #022) ---
+
+    @Test
+    void coachModifierAverageAttributeIsNoEffect() {
+        assertEquals(1.0, config.coachModifier(10), 0.0001);
+    }
+
+    @Test
+    void coachModifierNullAttributeIsNoEffect() {
+        assertEquals(1.0, config.coachModifier(null), 0.0001);
+    }
+
+    @Test
+    void coachModifierAboveAverageExceedsOne() {
+        assertEquals(1.0 + SimConfig.COACH_SENSITIVITY, config.coachModifier(20), 0.0001);
+        assertTrue(config.coachModifier(15) > 1.0);
+    }
+
+    @Test
+    void coachModifierBelowAverageBelowOne() {
+        assertTrue(config.coachModifier(5) < 1.0);
+        assertTrue(config.coachModifier(1) < 1.0);
+    }
+
+    @Test
+    void assistProbabilityAveragePassingReturnsBase() {
+        assertEquals(SimConfig.BASE_ASSIST, config.assistProbability(10.0), 0.0001);
+    }
+
+    @Test
+    void assistProbabilityHigherPassingAssistsMore() {
+        assertTrue(config.assistProbability(20.0) > SimConfig.BASE_ASSIST);
+    }
+
+    @Test
+    void assistProbabilityLowerPassingAssistsLess() {
+        assertTrue(config.assistProbability(1.0) < SimConfig.BASE_ASSIST);
+    }
+
+    @Test
+    void assistProbabilityClampedToValidRange() {
+        assertTrue(config.assistProbability(20.0) <= SimConfig.PROB_CEILING);
+        assertTrue(config.assistProbability(1.0) >= SimConfig.PROB_FLOOR);
+    }
+
+    @Test
+    void chemistryMakeMultiplierAllAverageIsNoEffect() {
+        assertEquals(1.0, config.chemistryMakeMultiplier(10.0, 10.0, 10.0), 0.0001);
+    }
+
+    @Test
+    void chemistryMakeMultiplierHighAcumenLifts() {
+        assertTrue(config.chemistryMakeMultiplier(20.0, 10.0, 10.0) > 1.0);
+    }
+
+    @Test
+    void chemistryMakeMultiplierTeamOffenseEdgeLifts() {
+        assertTrue(config.chemistryMakeMultiplier(10.0, 20.0, 10.0) > 1.0);
+    }
+
+    @Test
+    void chemistryMakeMultiplierStrongOppDefenseSuppresses() {
+        assertTrue(config.chemistryMakeMultiplier(10.0, 10.0, 20.0) < 1.0);
+    }
 }

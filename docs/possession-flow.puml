@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.3)
+title Possession Resolution (§3.2–§3.4)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -7,13 +7,19 @@ skinparam NoteFontSize 10
 
 start
 
+note right
+  **§3.4 coach pace** scales the possession COUNT
+  (loop bound), blended across both coaches.
+end note
+
 repeat
 :ShotSelector
   pick shooter (offensive-weight draw)
-  pick shot type (skill-weight draw);
+  pick shot type (skill-weight draw
+  //× offensiveScheme shot-mix lean §3.4//);
 
 partition "TurnoverResolver" {
-  if (turnover?\n//ballSecurity vs stealing/individualDefense//) then (yes)
+  if (turnover?\n//ballSecurity vs stealing/individualDefense//\n//× defensiveScheme pressure §3.4//) then (yes)
     if (stolen?) then (yes)
       :TURNOVER — STOLEN
       credit defender steal;
@@ -29,6 +35,7 @@ partition "FoulResolver" {
     if (foul?\n//foulDrawing vs (20 − foulProne)//) then (yes)
       :FOUL — SHOOTING_FOUL
       charge defender foul;
+      note right: foul rate × defensiveScheme pressure §3.4
 
       repeat
         if (free throw made?\n//freeThrows skill//) then (yes)
@@ -46,9 +53,15 @@ partition "FoulResolver" {
 partition "ShotResolver" {
   :record FGA (+ 3PA if THREE);
 
-  if (shot made?\n//offense skill vs defense skill//) then (yes)
+  if (shot made?\n//offense skill vs defense skill//\n//× acumen + teamOffense/teamDefense §3.4//) then (yes)
     :SHOT — MADE_*
     +2 or +3 points;
+    partition "Assist (§3.4)" {
+      if (assisted?\n//supporting-cast passing draw//) then (yes)
+        :stamp assist_player_id
+        credit assister;
+      endif
+    }
     stop
   else (no)
     :SHOT — MISSED_*;
@@ -78,6 +91,11 @@ legend bottom left
   p = base(path) + SENSITIVITY × (offense − defense) / 10
   Clamped [0.02, 0.97]. Average vs average → base rate.
   All constants in SimConfig.
+
+  **§3.4 coach / chemistry modifiers** (decisions.md #022)
+  Each is the avg-10 deviation multiplier
+  m(attr) = 1 + COACH_SENSITIVITY × (attr − 10) / 10
+  applied as a thumb on the scale over the contest above.
 endlegend
 
 @enduml

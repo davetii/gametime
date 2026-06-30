@@ -43,4 +43,13 @@ public class GameEventEntity {
     @Column(name = "primary_player_id")
     private String primaryPlayerId;
 
+    /**
+     * Optional assister on a made-FG SHOT event (§3.4 ball movement). Null on
+     * unassisted makes and on every non-SHOT event. {@code BoxScore.assists}
+     * reconciles against the count of SHOT events carrying this (decisions.md
+     * #022 / #020 — events are the source of truth).
+     */
+    @Column(name = "assist_player_id")
+    private String assistPlayerId;
+
 }

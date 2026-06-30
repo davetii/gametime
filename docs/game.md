@@ -1,4 +1,4 @@
-# Game Domain *(model is Phase 3.1; the engine that fills it is §3.2+)*
+# Game Domain *(model shipped §3.1; engine fills it through §3.4)*
 
 The Game domain is the **data a simulated game produces**: the matchup and its
 result (`Game`), the event log that records how it unfolded (`GameEvent`), and
@@ -7,15 +7,19 @@ shape — a `Game` *has* `GameEvent`s and *produces* a `BoxScore` — so they li
 one doc, the way [roster.md](roster.md) holds player↔team + lineups + transactions
 together.
 
-This doc covers **§3.1 — the model only**. The possession engine that *fills*
-these models (§3.2 shot selection/outcomes, §3.3 rebounding, §3.4 coaching
-effects, §3.5 minutes/fatigue) is designed against the real possession flow when
-that work starts — not guessed at here.
+The **model** shipped in §3.1; the **possession engine** that fills it is built
+through §3.4 and this doc now documents both:
+- **§3.2** possession flow — shot selection / turnover / foul / shot outcome
+- **§3.3** rebounding — the second-chance loop after a missed shot
+- **§3.4** coaching + chemistry — coach modifiers on the flow, and real assists
+- **§3.5** minutes / fatigue — still future; `BoxScore.minutes` is unmodeled (0)
 
-> **Scope discipline** (cf. decisions.md #014, #017): define the *entities* now;
-> the *simulation logic* that produces them lands with the engine that consumes
-> them. We shape the data, not the algorithm, ahead of a consumer that doesn't
-> exist yet.
+The "Possession flow" section below reflects what the engine actually does today.
+
+> **Scope discipline** (cf. decisions.md #014, #017, #020): the entities shipped
+> §3.1 shaped for their consumers, not guessing the algorithm; each piece of
+> simulation logic + any event-shape change (e.g. §3.4's `assist_player_id`)
+> landed *with* the engine phase that consumes it, additively.
 
 ---
 
@@ -63,6 +67,13 @@ section above; decisions.md #020).
 - `outcome` — free text (vocabulary below)
 - `primary_player_id` — the one player the event is about (shooter, turnover
   committer, fouler, free-throw shooter)
+- `assist_player_id` — **(§3.4)** the assister on a made-FG `SHOT` event, or
+  `null`. Nullable because not every made shot is assisted, and non-`SHOT` events
+  never carry one (decisions.md #022). It is a *second participant* on the SHOT
+  event, not its own event — so `BoxScore.assists` reconciles against the count of
+  `SHOT` events whose `assist_player_id` is set (events are the source of truth,
+  #020). *Not surfaced in the OpenAPI `GameEvent` model yet — that lands in §3.6
+  with the play-by-play read endpoint.*
 - *No in-game clock column yet.* §3.2 models time as an **abstract, configurable
   possession count** (decisions.md #021), and event time is **derived on read**
   (pace + `period` + `sequence`) for play-by-play display — not stored. A stored
@@ -82,7 +93,12 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      make/miss outcome. Possession ends after free throws.
 3. **Shot** — if no turnover and no foul:
    - `SHOT` event → made or missed. On a make, points are scored and the
-     possession ends. On a **miss**, a rebound is resolved (§3.3):
+     possession ends. On a made FG, an **assist** may be attributed (§3.4): a roll
+     (scaled by the other on-floor offensive players' `passing` / team
+     `teamOffense`) decides whether the make was assisted; if so, an assister is
+     picked by a weighted `passing` draw over the other four offensive players
+     (the shooter excluded) and stamped on the SHOT event's `assist_player_id`.
+     Not every make is assisted. On a **miss**, a rebound is resolved (§3.3):
 4. **Rebound** (§3.3) — rolled only after a missed `SHOT`:
    - `REBOUND` event with outcome `DEFENSIVE` (primary_player = defensive
      rebounder) → possession ends, ball goes to the other team; **or**
@@ -103,6 +119,21 @@ always followed by a `REBOUND`):
 
 All events in a possession share the same `offense_team_id` / `defense_team_id`
 and `period`. `sequence` increments globally (not per possession).
+
+**Coach modifiers (§3.4)** bend this flow without changing its shape (decisions.md
+#022, all effects via the avg-10 deviation multiplier
+`base × (1 + COACH_SENSITIVITY·(attr−10)/10)`):
+- **`pace`** scales the **possession count** — a faster coach runs more
+  possessions per game (more events), a slower coach fewer.
+- **`offensiveScheme`** leans the shot-type draw (perimeter/three vs. inside/post)
+  in `ShotSelector`.
+- **`defensiveScheme`** scales the defense's turnover/foul pressure.
+- Team chemistry skills also enter resolution: **`acumen`** is a small make-rate
+  nudge in `ShotResolver`, and **`teamOffense`/`teamDefense`** a single
+  possession-level efficiency multiplier. All are a modest thumb on the scale over
+  the player-skill contest, not a replacement. `rotationDepth` /
+  `substitutionAggressiveness` are **not** read in §3.4 — they belong to §3.5
+  minutes/fatigue (Decision E).
 
 ### `play_type` values and their `outcome` vocabulary
 
@@ -151,7 +182,19 @@ into season totals).
   player on" (the duplicate-source trap of #013/#015). If "team in *this* game"
   ever needs to survive a mid-season trade, derive it from `player_team_hist` by
   date, or denormalize then with a real consumer — not now.
-- per-player counters: points, rebounds (off/def), assists, steals, blocks,
-  turnovers, fouls, minutes, FGA/FGM, 3PA/3PM, FTA/FTM (cf. roadmap §4.1).
+- per-player counters: points, rebounds (off/def), assists, steals, turnovers,
+  fouls, FGA/FGM, 3PA/3PM, FTA/FTM (cf. roadmap §4.1).
 - **accumulated during simulation**, then reconciled against the persisted
   `GameEvent` log (events are the source of truth — decisions.md #020).
+- **Two columns exist but are not modeled yet — always `0`:**
+  - **`blocks`** — there is no `BLOCK` play type; a blocked shot is currently
+    indistinguishable from a normal miss (it becomes a `MISSED` `SHOT` → rebound).
+    A real block model (a defender's `rimProtection`/`shotContest` converting a
+    contest into a recorded block, with the miss attributed) is future §3.x work —
+    the same honest "not modeled yet, stored as 0" state assists were in before
+    §3.4. *(See roadmap §3.x deferred sim-fidelity.)*
+  - **`minutes`** — no minutes/fatigue model exists; starters play the whole game
+    (§3.5). Set to 0 until §3.5 allocates playing time.
+
+  Every other counter is real and reconciles against the event log; `assists`
+  became real in §3.4 (Decision B1).

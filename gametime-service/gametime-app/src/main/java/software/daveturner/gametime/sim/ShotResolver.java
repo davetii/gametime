@@ -15,10 +15,24 @@ public class ShotResolver {
 
     public boolean isMade(ShotType shotType, PlayerGameState shooter,
                           PlayerGameState defender, RandomGenerator rng) {
+        return isMade(shotType, shooter, defender, 1.0, rng);
+    }
+
+    /**
+     * §3.4 (Decision C): {@code chemistryMultiplier} bends the contested make
+     * probability — the shooter's {@code acumen} (shot-quality nudge) and the
+     * team-efficiency edge ({@code teamOffense} − opponent {@code teamDefense}),
+     * combined in {@link SimConfig#chemistryMakeMultiplier}. 1.0 = the raw
+     * player-skill contest (a modest thumb on the scale, not a replacement).
+     */
+    public boolean isMade(ShotType shotType, PlayerGameState shooter,
+                          PlayerGameState defender, double chemistryMultiplier,
+                          RandomGenerator rng) {
         double offense = shooter.offenseSkillForShot(shotType);
         double defense = defenseSkillForShot(shotType, defender);
         double base = baseProbability(shotType);
-        double prob = config.contestProbability(base, offense, defense);
+        double prob = config.clampProbability(
+                chemistryMultiplier * config.contestProbability(base, offense, defense));
         return rng.nextDouble() < prob;
     }
 
