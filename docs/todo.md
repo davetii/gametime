@@ -31,13 +31,12 @@ Roadmap §3.4 deliverables:
   (and rebounds) exercise them (clutch/foulProne/transition, `BASE_OFFENSIVE_REBOUND`,
   shot base rates, etc.)
 
-> ⚠️ **Decisions gate.** Unlike §3.3 (whose decisions were pre-resolved), §3.4
-> has open decisions. **D & E are decided and A is a confirmed lean — the two
-> still to resolve with the user are B and C.** Resolve them BEFORE finalizing
-> the task sequence. Decision **B** in particular determines whether §3.4 touches
-> the database schema, which changes the scope fence and reorders tasks. The task
-> sequence at the bottom is a **draft**; tasks marked *(decision-dependent)* must
-> be confirmed against the resolved decisions first.
+> ✅ **Decisions resolved.** All five §3.4 decisions (A–E) are settled with the
+> user — see the decisions section below. Notably **B = B1**: §3.4 **does** touch
+> the database schema (a nullable `assist_player_id` column on `game_event`), so
+> unlike §3.3 this phase has a Liquibase + entity + mapper task. The §3.4 session
+> can proceed straight to implementation: record A–E in decisions.md (#022),
+> finalize the task sequence below against the resolved decisions, and build.
 
 ---
 
@@ -75,18 +74,26 @@ code has moved):
 
 ## Decisions to resolve BEFORE the task sequence
 
-Mirror of §3.2's A–E. Each is framed so the next session can resolve it with the
-user and apply it correctly. **Status: D & E decided, A leaning (confirm at impl),
-B & C open.** The two genuinely-open decisions are **B (assist model — gates
-whether §3.4 touches the schema)** and **C (where acumen/team skills hook in)**.
+Mirror of §3.2's A–E. **Status: ALL FIVE RESOLVED with the user (2026-06-30).**
+A confirmed (avg-10 deviation multiplier), B decided B1 (assists first-class —
+`assist_player_id` on `game_event`, attributed by weighted `passing` draw; §3.4
+IS schema-touching), C decided (acumen → make-prob modifier in `ShotResolver`,
+teamOffense/teamDefense → possession-level efficiency multiplier), D decided D1
+(build a calibration harness), E decided (rotation attrs are §3.5). Only
+implementation-time details remain open: A's pace-vs-loop sub-question, the
+harness form, and the target benchmarks — all settled while building.
 
-### Decision A — Coach/chemistry modifier shape  *(leaning; confirm at impl)*
+The §3.4 session should record these in a decisions.md entry (#022) and proceed
+straight to implementation — no decisions remain to resolve with the user first.
+
+### Decision A — Coach/chemistry modifier shape  *(CONFIRMED)*
 
 **Question**: how does a coach attribute (or team-chemistry skill) bend a
 baseline value?
 
-**Lean (confirm)**: reuse the avg-10 deviation form from decisions.md #021/#018 so
-coach numbers and player numbers compose with no translation layer. A multiplier:
+**Confirmed (user)**: reuse the avg-10 deviation form from decisions.md #021/#018
+so coach numbers and player numbers compose with no translation layer. A
+multiplier:
 ```
 effectiveValue = baseValue × (1 + COACH_SENSITIVITY × (attr − 10) / 10)
 ```
@@ -104,57 +111,61 @@ plumbing.
 **Resolution changes**: the signature of the modifier helper and whether the sim
 loop bound becomes coach-derived.
 
-### Decision B — Assist model (THE scope-defining decision)  *(open)*
+### Decision B — Assist model (THE scope-defining decision)  *(DECIDED — B1, first-class & reconcilable)*
 
 **Question**: how does `passing` produce assists on made field goals, and **does
 this require a schema change?**
 
-**Why it's the crux**: `BoxScore.assists` is 0 and `GameEvent` has only
-`primary_player_id` — there is no assister participant field. To credit an
-assister you must either:
-- **(B1) Add an assister to the event model** — a new nullable
-  `secondary_player_id` (or `assist_player_id`) column on `game_event`. This is a
-  **Liquibase changeset + entity + mapper touch** — the *first schema change since
-  §3.1* — and possibly an OpenAPI/model addition. It makes assists reconcilable
-  against the event log (the #020 "events are source of truth" property).
-- **(B2) Accumulate assists in `PlayerGameState` only** (box-score counter), no
-  event-model change. Simpler, no migration — but assists then are **not**
-  represented in the event log, breaking the §3.3 reconciliation pattern (box ==
-  events) for this stat. A play-by-play feed (§3.6) couldn't show "assisted by".
+**Decided (user): B1 — assists are first-class and reconcilable against the event
+log.** Add a nullable **`assist_player_id`** column to `game_event` (the assister
+participant). This is the **first schema change since §3.1**, so §3.4 DOES touch:
+- **Liquibase** — a changeset adding `assist_player_id` to `game_event`
+  (H2-compatible; follow the existing audit-column / `dbms:postgresql` conventions).
+- **`GameEventEntity`** — add the field.
+- **`EntityMapper`** / event persistence in `GameSimulator` — emit + persist it.
+- **OpenAPI** — only if/when the play-by-play model surfaces it (likely §3.6, not
+  required here; add to `game_event`/`GameEvent` model only if a §3.4 read needs
+  it). Default: schema + entity now, OpenAPI deferred to §3.6.
 
-**Recommendation to weigh with user**: B1 if we want assists first-class and
-reconcilable (consistent with #020); B2 if §3.4 should stay schema-free and
-assists are box-score-only for now (defer the event field to §3.6 when
-play-by-play is the consumer). **This decision sets the "what §3.4 must NOT
-touch" fence** — if B2, §3.4 touches no schema/OpenAPI/mapper (like §3.3); if B1,
-it does.
+Assists reconcile the §3.3 way: `BoxScore.assists` is derived from / checked
+against the count of made-FG events carrying an `assist_player_id` (events are the
+source of truth, #020). The integration test extends the existing reconciliation
+to cover assists.
 
-**Also decide**: the assist *attribution model* — e.g. on a made FG, roll whether
-it was assisted (probability scaled by the **passing** of the other 4 on-floor
-offensive players / team `teamOffense`), then pick the assister by `passing`
-weight (mirrors `ShotSelector` weighted draw). Keep it simple — not every make is
-assisted.
+**Attribution model (decided)**: on a **made field goal**, roll whether it was
+assisted (probability scaled by the **passing** of the other on-floor offensive
+players and/or team `teamOffense` — tune in calibration). If assisted, **pick the
+assister by weighted `passing` draw** over the other 4 offensive players (the
+shooter is excluded), mirroring `ShotSelector.pickShooter`. Credit that player an
+assist and stamp `assist_player_id` on the SHOT event. Not every make is assisted.
 
-**Resolution changes**: whether there's a migration task, a mapper task, and an
-OpenAPI task; the §3.4 scope fence.
+**This UNLOCKS the scope fence**: §3.4 is **no longer schema-free** (unlike §3.3).
+The "what §3.4 must NOT touch" list below is adjusted — a `game_event` migration +
+entity + mapper change is now in scope; broader API surface stays out (§3.6).
 
-### Decision C — Where `acumen` / `teamOffense` enter shot selection  *(open)*
+**Resolution applied**: the task sequence gains a Liquibase/entity/mapper task and
+an assist-attribution task; the integration test gains assist reconciliation.
+
+### Decision C — Where `acumen` / `teamOffense` enter shot selection  *(DECIDED — per recommendation)*
 
 **Question**: `acumen` is meant to influence **shot quality**, and `teamOffense`/
 `teamDefense` team efficiency. Where do they hook in?
 
-**Options to weigh**:
-- `acumen` as a modifier on **shot-make probability** (better shot selection ⇒
-  higher-quality looks ⇒ a small make bonus) — a modifier in `ShotResolver`.
-- `acumen` as a modifier on **shot-type weighting** in `ShotSelector` (steers
-  toward higher-percentage shots) — bends the draw, not the make rate.
-- `teamOffense`/`teamDefense` as a **team-level multiplier** applied once per
-  possession (the "overall efficiency" deliverable) vs. folded into each contest.
+**Decided (user, per recommendation)**: keep the individual skill contests as they
+are; layer two new modifiers, both using the Decision-A modifier form:
+- **`acumen` → a small shot-make-probability modifier in `ShotResolver`** (better
+  shot selection ⇒ higher-quality looks ⇒ a modest make bonus). NOT a shot-type
+  reweighting — it bends the make rate, not the draw.
+- **`teamOffense` / `teamDefense` → a single possession-level efficiency
+  multiplier** (the roadmap's "overall team efficiency" deliverable), applied once
+  per possession rather than folded into every individual contest.
 
-**Recommendation**: keep individual contests as-is; add `teamOffense`/
-`teamDefense` as a single possession-level efficiency multiplier and `acumen` as a
-small make-probability modifier — both via the Decision-A modifier form. Confirm
-with user.
+Keep the modifiers **modest** — they're a thumb on the scale over the player-skill
+contest, not a replacement. Sensitivities live in `SimConfig` and are tuned in
+calibration (Decision D).
+
+**Resolution applied**: `PlayerGameState` extracts `acumen` / `teamOffense` /
+`teamDefense`; `ShotResolver` gains the acumen + team-efficiency modifiers.
 
 **Resolution changes**: which resolver/selector gets the new modifier and whether
 `PlayerGameState` extracts `acumen`/`teamOffense`/`teamDefense` (likely yes).
@@ -212,8 +223,10 @@ Keep out:
 - **§3.5 minutes / fatigue / substitution** — no `rotationDepth` /
   `substitutionAggressiveness` reads (Decision E); starters play the whole game;
   no energy/fatigue.
-- **§3.6 endpoints** — no `POST /simulate` API, no play-by-play endpoint. (If
-  Decision B is B1, an assister *column* may be added, but no API operation.)
+- **§3.6 endpoints / API surface** — no `POST /simulate` API, no play-by-play
+  endpoint. Decision B (B1) adds the `assist_player_id` **column + entity + mapper**
+  but **NOT** an OpenAPI operation or (unless a §3.4 read needs it) a `GameEvent`
+  model field — surfacing the assister in the API is §3.6.
 - **Phase 6 coach progression / `playerDevelopment`** — coach attributes are read
   only, never written or evolved.
 - **The deferred sim-fidelity items** (OOB, rebounding fouls, and-1, richer
@@ -231,11 +244,14 @@ Keep out:
   signature change once, up front (consider a `TeamContext`/`CoachModifiers`
   value object so future coach effects don't re-churn the signature). Budget for
   updating every call site, same as §3.3 did for the factory.
-- **Decision B can silently expand scope into a schema migration.** If B resolves
-  to B1, §3.4 suddenly touches Liquibase + entity + mapper (+ maybe OpenAPI) —
-  the first schema change since §3.1. **Significance**: do NOT start the assist
-  task before B is resolved, or you may build B2 and then have to add a migration
-  (or build B1 and bloat a "schema-free" phase). The decision gates the fence.
+- **Decision B1 adds the first schema migration since §3.1 (H2/Postgres risk).**
+  §3.4 adds a nullable `assist_player_id` column to `game_event` via Liquibase.
+  **Significance**: tests run on H2, production on Postgres (risks.md "H2/Postgres
+  divergence") — keep the changeset dual-compatible (nullable column, no
+  Postgres-only syntax unless gated `dbms:postgresql`), and remember existing dev
+  Postgres DBs need `docker compose down -v` to pick up the new column (decisions.md
+  #009 trade-off). Do the schema task (task 2) early so the entity/persistence
+  work builds on a migrated schema.
 - **Calibration has no objective target.** §3.4's "tune the constants" goal is
   inherently fuzzy — "realistic" is a judgment call, and the seed data itself may
   be unrealistic (risks.md "Seed data realism"). **Significance**: without a
@@ -255,66 +271,73 @@ Keep out:
 
 ---
 
-## Task sequence (DRAFT — finalize after Decisions A–E)
+## Task sequence
 
-> Tasks marked *(decision-dependent)* must be confirmed against the resolved
-> decisions before starting. Run `mvn -f gametime-service/pom.xml clean install`
-> (JDK 21) after engine + tests land — the per-package gate only shows there.
-> Tick `[ ]` as each lands. The §3.4 session should rewrite/expand this list once
-> A–E are settled (e.g. add/remove the migration + mapper tasks per Decision B).
+> All decisions (A–E) are resolved, so this is the working sequence (no longer a
+> draft). Run `mvn -f gametime-service/pom.xml clean install` (JDK 21) after
+> engine + tests land — the per-package gate only shows there. Tick `[ ]` as each
+> lands. Order is roughly: record decisions → schema → skills/constants →
+> modifiers → thread into engine → assists → calibrate → test → close out.
 
-- [ ] **1. Resolve the open decisions (B & C) with the user; confirm A.** D & E
-  are already decided in the decisions section above. Record all outcomes there
-  and, where architectural, append to decisions.md (a new entry, e.g. #022, for
-  the §3.4 modifier model + assist decision — mirroring how #021 captured §3.2).
+- [ ] **1. Record Decisions A–E in decisions.md (#022).** One entry capturing the
+  §3.4 modifier model (A), the assist model + `assist_player_id` schema choice
+  (B1), the acumen/team-efficiency hooks (C), the calibration harness (D1), and
+  the §3.5 scope fence (E) — mirroring how #021 captured §3.2. No user decisions
+  remain; this is transcription.
 
-- [ ] **2. Update docs for the agreed model.** game.md: add the assist vocabulary
-  if Decision B adds an event/outcome; note coach-modifier effects on the
-  possession flow. coach.md: fill in the `f(...)` formulas now that they're
-  decided (the doc currently says "formulas TBD with the engine").
-  *(decision-dependent on A, B)*
+- [ ] **2. Add the `assist_player_id` schema (Decision B1).** Liquibase changeset
+  adding a nullable `assist_player_id` to `game_event` (H2-compatible; follow the
+  audit-column / `dbms:postgresql` conventions in the existing changelog). Add the
+  field to `GameEventEntity`. *No OpenAPI/model change — surfacing it in the API
+  is §3.6.* *Files: `db/changelog.yml` (+ a release SQL), `entity/GameEventEntity.java`.*
 
-- [ ] **3. Add §3.4 constants to `SimConfig`.** `COACH_SENSITIVITY` (+ per-effect
-  variants if Decision A split them), assist base rate (if B), any
-  team-efficiency sensitivity. *File: `sim/SimConfig.java`.* *(dep: A, B, C)*
+- [ ] **3. Update docs for the agreed model.** game.md: add the `assist_player_id`
+  participant to the `GameEvent` section + note that a made `SHOT` may carry an
+  assister; note coach-modifier effects on the possession flow. coach.md: fill in
+  the `f(...)` formulas now that Decision A is settled (the doc says "formulas TBD
+  with the engine"). *Files: `docs/game.md`, `docs/coach.md`.*
 
-- [ ] **4. Extract chemistry skills in `PlayerGameState`.** Add `teamOffense`,
+- [ ] **4. Add §3.4 constants to `SimConfig`.** `COACH_SENSITIVITY` (single, to
+  start — split per-effect only if calibration needs it), an assist base rate, and
+  an `acumen` / team-efficiency sensitivity. *File: `sim/SimConfig.java`.*
+
+- [ ] **5. Extract chemistry skills in `PlayerGameState`.** Add `teamOffense`,
   `teamDefense`, `passing`, `acumen` (double, via `toDouble()` from
-  `PlayerSkills`), getters, and — if Decision B is B2 or B1 — a
-  `recordAssist()` accumulator + getter. Update `TestPlayerFactory` (add an
-  overload or extend params; same approach as §3.3's 15-param overload).
-  *File: `sim/PlayerGameState.java`, `test/.../sim/TestPlayerFactory.java`.*
-  *(dep: B, C)*
+  `PlayerSkills`), getters, and a `recordAssist()` accumulator + getter. Update
+  `TestPlayerFactory` (add an overload; same approach as §3.3's 15-param overload,
+  see commit c509f87). *File: `sim/PlayerGameState.java`,
+  `test/.../sim/TestPlayerFactory.java`.*
 
-- [ ] **5. Build the coach-modifier seam.** A `CoachModifiers` value object (or
-  helper on `SimConfig`) that turns a `Coach` into the multipliers from Decision
-  A: `paceMultiplier()`, `shotMixLean()`, `defensivePressure()`. Pure math,
-  unit-tested with seeded values. *Pattern: `sim/SimConfig.contestProbability`.*
-  *(dep: A, E — read pace/offensiveScheme/defensiveScheme ONLY)*
+- [ ] **6. Build the coach-modifier seam.** A `CoachModifiers` value object (or
+  helper) that turns a `Coach` into the Decision-A multipliers: `paceMultiplier()`,
+  `shotMixLean()`, `defensivePressure()`. Reads `pace` / `offensiveScheme` /
+  `defensiveScheme` ONLY (Decision E — not the rotation attrs). Pure math, seeded
+  unit tests. *Pattern: `sim/SimConfig.contestProbability` / `sim/FoulResolver`.*
 
-- [ ] **6. Thread the coach into the engine (the breaking change).** Pass each
-  team's coach/modifiers from `GameSimulator.simulate()` → `buildStarters` stays
-  player-only, but `PossessionEngine.simulate()` / `resolvePossession()` gain a
-  coach/modifier parameter (consider a `TeamContext` to avoid future re-churn).
-  Apply: pace → possession count or shot urgency (per A's sub-question);
-  offensiveScheme → `ShotSelector` shot-type lean; defensiveScheme →
-  turnover/foul pressure. Update all existing `sim` test call sites.
-  *File: `sim/PossessionEngine.java`, `sim/GameSimulator.java`.* *(dep: A, C, E)*
+- [ ] **7. Thread the coach into the engine (the breaking change).** Pass each
+  team's coach/modifiers from `GameSimulator.simulate()` into
+  `PossessionEngine.simulate()` / `resolvePossession()` (consider a `TeamContext`
+  value object so future coach effects don't re-churn the signature).
+  `buildStarters` stays player-only. Apply: pace → possession count or shot
+  urgency (settle A's pace-vs-loop sub-question here); offensiveScheme →
+  `ShotSelector` shot-type lean; defensiveScheme → turnover/foul pressure. Update
+  all existing `sim` test call sites. *File: `sim/PossessionEngine.java`,
+  `sim/GameSimulator.java`.*
 
-- [ ] **7. Wire chemistry skills into resolution.** `teamOffense`/`teamDefense`
-  efficiency multiplier (per Decision C); `acumen` shot-quality modifier.
-  *File: `sim/ShotResolver.java` / `sim/ShotSelector.java`.* *(dep: C)*
+- [ ] **8. Wire chemistry skills into resolution (Decision C).** `acumen` → small
+  make-probability modifier in `ShotResolver`; `teamOffense`/`teamDefense` → a
+  single possession-level efficiency multiplier. Keep both modest (thumb on the
+  scale). *File: `sim/ShotResolver.java`.*
 
-- [ ] **8. Implement assists.** Per Decision B: roll whether a made FG is
-  assisted (scaled by other players' `passing` / `teamOffense`), pick the
-  assister by `passing` weight, credit it. **If B1**: add `game_event` assister
-  column (Liquibase changeset + `GameEventEntity` + `EntityMapper` + emit the
-  participant), wire `BoxScore.assists` from the event log. **If B2**: accumulate
-  in `PlayerGameState`, wire `GameSimulator` `bs.setAssists(p.getAssists())`.
-  *Files depend on B.* *(decision-dependent on B — may add migration/mapper/OpenAPI tasks)*
-
-- [ ] **9. Wire assist counts in `GameSimulator`.** Replace `bs.setAssists(0)`
-  with the real count. *File: `sim/GameSimulator.java`.*
+- [ ] **9. Implement assists (Decision B1 attribution).** On a made FG, roll
+  whether it was assisted (probability scaled by the other on-floor offensive
+  players' `passing` / team `teamOffense`); if assisted, pick the assister by
+  weighted `passing` draw over the other 4 (shooter excluded, mirrors
+  `ShotSelector.pickShooter`), credit `recordAssist()`, and stamp the assister on
+  the made SHOT event (`assist_player_id`). Persist it in `GameSimulator` event
+  writes; derive `BoxScore.assists` reconcilable against the events (#020).
+  Replace `bs.setAssists(0)` with the real count. *File: `sim/PossessionEngine.java`,
+  `sim/GameData.java` (event record carries the assister), `sim/GameSimulator.java`.*
 
 - [ ] **10. Build the calibration harness** (Decision D = D1, decided). A
   disabled-by-default test (or small runner) that simulates N games over the
@@ -328,10 +351,12 @@ Keep out:
 
 - [ ] **12. Tests.** Seeded-RNG unit tests for `CoachModifiers`, chemistry
   modifiers, and the assist model; `PossessionEngineTest` additions for
-  coach-influenced flow; `GameSimulatorIntegrationTest` additions (assists no
-  longer 0; if B1, assist events reconcile with box scores — extend the existing
-  reconciliation). Re-baseline determinism tests whose seeded values shifted.
-  Keep `sim` ≥80% line (target ~90%).
+  coach-influenced flow; `GameSimulatorIntegrationTest` additions — assists are no
+  longer 0, and **assist events reconcile with box-score assists** (extend the
+  existing points/rebound reconciliation: count of made-SHOT events carrying an
+  `assist_player_id` == sum of box-score assists). Re-baseline determinism tests
+  whose seeded values shifted (new RNG draws move the stream). Keep `sim` ≥80%
+  line (target ~90%).
 
 - [ ] **13. Verify the gate.**
   `JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -f gametime-service/pom.xml clean install`
@@ -339,10 +364,11 @@ Keep out:
 
 - [ ] **14. Update docs/diagrams + close out.** Check §3.4 boxes in roadmap.md +
   add a "Shipped" note (mirror §3.2/§3.3 style); update possession-flow.puml if
-  the flow changed (coach modifiers / assist branch); add the decisions.md entry;
-  reset this "Current focus" to **§3.5 — Minutes, Fatigue & Substitution**; remove
-  completed §3.4 content from this file (keep focus line + the pointers to
-  backlog.md / roadmap.md deferred sections).
+  the flow changed (coach modifiers / assist on the made-shot branch); verify the
+  decisions.md #022 entry (task 1) matches what shipped; reset this "Current
+  focus" to **§3.5 — Minutes, Fatigue & Substitution**; remove completed §3.4
+  content from this file (keep focus line + the pointers to backlog.md /
+  roadmap.md deferred sections).
 
 ---
 
