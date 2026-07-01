@@ -152,10 +152,22 @@ instead of re-deriving or prematurely building them. Each notes its seam.
       *instead of* a shot (drive/post → foul → 2 FTs), never *with* a made shot.
       A real and-1 is: made FG + 1 foul shot. Needs the foul model to roll
       alongside (not before) shot resolution. Belongs with §3.4's foul-model work.
-- [ ] **Non-shooting turnovers with richer causes.** §3.2 models only `STOLEN` /
-      `LOST_BALL` — and §3.4 kept it that way (assists were the only ball-movement
-      work it picked up). Offensive fouls (charges), shot-clock violations, bad
-      passes OOB, 3-seconds, etc. remain deferred to a future ball-movement pass.
+- [ ] **Turnover sub-categories (richer causes).** §3.2 models only two turnover
+      outcomes — `STOLEN` / `LOST_BALL` — and §3.4 kept it that way (assists were
+      the only ball-movement work it picked up). A fuller turnover *taxonomy* is
+      deferred: offensive fouls (charges), **shot-clock violations**, bad passes,
+      travels, out-of-bounds, 3-seconds, 8-second/backcourt, etc. **Modeling
+      approach (important — do NOT reverse decisions.md #021):** each sub-category is
+      a new **`outcome` value on a `TURNOVER` `GameEvent`** (the `outcome` field is
+      open-ended free text, #020 — so **no schema change**) produced by a
+      **probability roll**, exactly like the existing `BASE_TURNOVER` model — NOT by
+      simulating a sub-possession 24-second clock or ball-tracking. E.g. a
+      shot-clock violation is a small per-possession chance (scaled by weak
+      `teamOffense` / low `acumen` / a stalling `defensiveScheme`) that emits
+      `TURNOVER` / `SHOT_CLOCK_VIOLATION`; a charge is `TURNOVER` /
+      `OFFENSIVE_FOUL`. The seam is `TurnoverResolver` + `SimConfig`. Gated on a
+      consumer that cares about the distinction — play-by-play display (§3.6) or a
+      turnover-breakdown stat (Phase 4); until then two outcomes suffice.
 - [ ] **Blocked shots.** No `BLOCK` play type today; a blocked shot is
       indistinguishable from a normal miss (it becomes a `MISSED` `SHOT` → rebound)
       and `BoxScore.blocks` is hardcoded 0. When added, it's a defender
