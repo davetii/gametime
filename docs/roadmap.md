@@ -2,7 +2,7 @@
 
 Basketball simulation game — 40-team league with attribute-driven gameplay, season management, and a React frontend.
 
-_Last updated: 2026-06-30_
+_Last updated: 2026-07-10_
 
 ## What Exists Today
 
@@ -110,15 +110,39 @@ aggregates; `SimConfig` base rates were tuned to land near ~112 pts / 47% FG / 3
 3P / 26 ast / 14 TO per team. Minutes/fatigue (§3.5) stays out of scope — starters
 play the whole game._
 
-### 3.5 Minutes, Fatigue & Substitution
+### 3.5 Minutes, Fatigue & Substitution ✓
 *(gameplay, not roster — minutes/fatigue/coach rotation are produced by games
 being played. Input: the `rotationOrder` bench depth chart already shipped in
 the roster domain, #014.)*
-- [ ] Minutes allocation: bench `rotationOrder` → distribution of playing time
-- [ ] Per-player energy tracking within a game (`endurance` ↔ minutes played)
-- [ ] Skill degradation as energy drops
-- [ ] Automatic substitution triggers based on fatigue thresholds
-- [ ] Coach rotation style determines when subs happen (gated on Coach model)
+- [x] Minutes allocation: bench `rotationOrder` → distribution of playing time
+- [x] Per-player energy tracking within a game (`endurance` ↔ minutes played)
+- [x] Skill degradation as energy drops
+- [x] Automatic substitution triggers based on fatigue thresholds
+- [x] Coach rotation style determines when subs happen (gated on Coach model)
+
+_Shipped (decisions.md #023): the on-floor five is now **dynamic** — bench players
+enter, fatigue accumulates, and the coach's `rotationDepth` /
+`substitutionAggressiveness` (the two attributes §3.4 deliberately left unread)
+drive substitutions. A new `RotationState` (per team, held by `TeamContext`) owns
+the full squad + the current five, exposes `onFloor()` (always exactly 5), and runs
+a **between-possession** sub step in `PossessionEngine.simulate()`: drain on-floor
+energy (scaled by `endurance`), recover the benched, force off any fouled-out player,
+then run a fatigue sub (most-tired starter below a `substitutionAggressiveness`-scaled
+threshold → freshest bench within `rotationDepth`; starters pulled later / return
+first). The step is **deterministic given (energy, fouls, coach attrs) and consumes
+no RNG** — the §3.4 seed-pinned stream only shifts because the five now change.
+`PlayerGameState` gained `currentEnergy` (drain/recover, flat full-tank start) + an
+on-floor-possession accumulator; a single `fatigueFactor(energy)` multiplier bends
+each contest skill (shot/turnover/foul/rebound), composed multiplicatively with the
+§3.4 modifiers. **Minutes are real** (`BoxScore.minutes`): a possession-share
+projection (no game clock, #021), and **every player who took the floor gets a
+box-score row** — team minutes sum to 5 × game-minutes. **Foul-outs** (`FOUL_OUT_LIMIT
+= 6`) are a **derived predicate** over the existing foul counter (no stored flag),
+forcing a sub from the full roster; the floor never drops below 5. §3.5 is
+**schema-free** (within-game fatigue only; `box_score.minutes` already existed). The
+`CalibrationHarness` was extended with per-slot minutes + period FG% reporting; the
+§3.4 aggregates held with fatigue on (112.4 pts / 47.2% FG / 35.4% 3P / 27.6 ast /
+13.4 TO) and the minutes curve lands on target (top starter ~37, none over ~42)._
 
 ### 3.6 Simulation APIs
 - [ ] `POST /v1/game/simulate` — simulate a single game, return box score

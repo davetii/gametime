@@ -137,4 +137,72 @@ class SimConfigTest {
     void chemistryMakeMultiplierStrongOppDefenseSuppresses() {
         assertTrue(config.chemistryMakeMultiplier(10.0, 10.0, 20.0) < 1.0);
     }
+
+    // --- §3.5 fatigue / rotation helpers (decisions.md #023) ---
+
+    @Test
+    void fatigueFactorFullEnergyIsNoEffect() {
+        assertEquals(1.0, config.fatigueFactor(SimConfig.MAX_ENERGY), 0.0001);
+    }
+
+    @Test
+    void fatigueFactorEmptyEnergyIsMaxPenalty() {
+        assertEquals(1.0 - SimConfig.FATIGUE_MAX_PENALTY, config.fatigueFactor(0.0), 0.0001);
+    }
+
+    @Test
+    void fatigueFactorDecreasesMonotonicallyWithEnergy() {
+        assertTrue(config.fatigueFactor(SimConfig.MAX_ENERGY) > config.fatigueFactor(50.0));
+        assertTrue(config.fatigueFactor(50.0) > config.fatigueFactor(10.0));
+    }
+
+    @Test
+    void fatigueFactorClampsOutOfRangeEnergy() {
+        assertEquals(1.0, config.fatigueFactor(SimConfig.MAX_ENERGY + 50), 0.0001);
+        assertEquals(1.0 - SimConfig.FATIGUE_MAX_PENALTY, config.fatigueFactor(-10.0), 0.0001);
+    }
+
+    @Test
+    void energyDrainAverageEnduranceIsBaseDrain() {
+        assertEquals(SimConfig.ENERGY_DRAIN_PER_POSSESSION, config.energyDrain(10.0), 0.0001);
+    }
+
+    @Test
+    void energyDrainHigherEnduranceDrainsLess() {
+        assertTrue(config.energyDrain(20.0) < config.energyDrain(10.0));
+        assertTrue(config.energyDrain(10.0) < config.energyDrain(1.0));
+    }
+
+    @Test
+    void energyDrainScaleIsFloored() {
+        // Even an off-the-charts endurance drains at least MIN_DRAIN_SCALE × base.
+        double minDrain = SimConfig.ENERGY_DRAIN_PER_POSSESSION * SimConfig.MIN_DRAIN_SCALE;
+        assertEquals(minDrain, config.energyDrain(1000.0), 0.0001);
+    }
+
+    @Test
+    void rotationDepthScalesWithFactorAndFloorsAtOne() {
+        assertEquals(SimConfig.BASE_ROTATION_DEPTH, config.rotationDepth(1.0));
+        assertTrue(config.rotationDepth(1.5) > SimConfig.BASE_ROTATION_DEPTH);
+        assertTrue(config.rotationDepth(0.5) < SimConfig.BASE_ROTATION_DEPTH);
+        assertEquals(1, config.rotationDepth(0.0), "depth never drops below 1");
+    }
+
+    @Test
+    void subEnergyThresholdStartersToleratedLonger() {
+        double bench = config.subEnergyThreshold(1.0, false);
+        double starter = config.subEnergyThreshold(1.0, true);
+        assertEquals(SimConfig.BASE_SUB_ENERGY_THRESHOLD, bench, 0.0001);
+        assertEquals(SimConfig.BASE_SUB_ENERGY_THRESHOLD - SimConfig.STARTER_SUB_THRESHOLD_BONUS,
+                starter, 0.0001);
+        assertTrue(starter < bench, "starters have a lower sub threshold (pulled later)");
+    }
+
+    @Test
+    void subEnergyThresholdAggressiveCoachPullsEarlier() {
+        double passive = config.subEnergyThreshold(0.8, false);
+        double aggressive = config.subEnergyThreshold(1.2, false);
+        assertTrue(aggressive > passive,
+                "a more aggressive coach has a higher threshold (pulls earlier)");
+    }
 }

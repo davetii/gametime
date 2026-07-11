@@ -192,4 +192,88 @@ class PlayerGameStateTest {
         assertEquals(SimConfig.SCALE_AVG, p.getDrive());
         assertEquals(SimConfig.SCALE_AVG, p.getFinishing());
     }
+
+    // --- §3.5 fatigue / rotation state (decisions.md #023) ---
+
+    @Test
+    void extractsEnduranceEnergyAndRotationIdentity() {
+        PlayerGameState p = TestPlayerFactory.createRotationPlayer("p1", "T1", 10.0,
+                software.daveturner.gametime.model.LineupRole.ROTATION, 3, 14, 16);
+        assertEquals(14.0, p.getEndurance());
+        assertEquals(16.0, p.getEnergy());
+        assertFalse(p.isStarter());
+        assertEquals(3, p.getRotationOrder());
+    }
+
+    @Test
+    void nullEnduranceEnergyDefaultToAverage() {
+        var player = new software.daveturner.gametime.model.Player();
+        player.setId("p1");
+        player.setSkills(new software.daveturner.gametime.model.PlayerSkills());
+        var entry = new software.daveturner.gametime.model.RosterEntry();
+        entry.setPlayer(player);
+        PlayerGameState p = new PlayerGameState("p1", "T1", entry);
+        assertEquals(SimConfig.SCALE_AVG, p.getEndurance());
+        assertEquals(SimConfig.SCALE_AVG, p.getEnergy());
+    }
+
+    @Test
+    void starterFlagSetFromLineupRole() {
+        PlayerGameState starter = TestPlayerFactory.create("s", "T1", 10.0); // factory sets STARTER
+        assertTrue(starter.isStarter());
+        PlayerGameState bench = TestPlayerFactory.createRotationPlayer("b", "T1", 10.0,
+                software.daveturner.gametime.model.LineupRole.BENCH, 5, 10, 10);
+        assertFalse(bench.isStarter());
+    }
+
+    @Test
+    void startsAtFullEnergyWithNeutralFatigue() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        assertEquals(SimConfig.MAX_ENERGY, p.getCurrentEnergy(), 0.0001);
+        assertEquals(1.0, p.fatigueFactor(), 0.0001);
+        assertEquals(0, p.getOnFloorPossessions());
+    }
+
+    @Test
+    void drainReducesEnergyAndCountsPossession() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        p.drainForPossession();
+        assertTrue(p.getCurrentEnergy() < SimConfig.MAX_ENERGY);
+        assertEquals(1, p.getOnFloorPossessions());
+        assertTrue(p.fatigueFactor() < 1.0);
+    }
+
+    @Test
+    void recoverRaisesEnergyButNeverAboveMax() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        // Drain a bunch, then recover.
+        for (int i = 0; i < 10; i++) p.drainForPossession();
+        double drained = p.getCurrentEnergy();
+        p.recoverForPossession();
+        assertTrue(p.getCurrentEnergy() > drained);
+        // Recovering from full stays capped at full.
+        PlayerGameState fresh = TestPlayerFactory.create("p2", "T1", 10.0);
+        fresh.recoverForPossession();
+        assertEquals(SimConfig.MAX_ENERGY, fresh.getCurrentEnergy(), 0.0001);
+    }
+
+    @Test
+    void recoverDoesNotCountAsOnFloorPossession() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        p.recoverForPossession();
+        assertEquals(0, p.getOnFloorPossessions(), "benched possessions don't count toward minutes");
+    }
+
+    @Test
+    void fouledOutIsDerivedFromFoulCounter() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        assertFalse(p.isFouledOut());
+        for (int i = 0; i < SimConfig.FOUL_OUT_LIMIT - 1; i++) {
+            p.recordFoul();
+            assertFalse(p.isFouledOut(), "not fouled out below the limit");
+        }
+        p.recordFoul(); // hits the limit
+        assertTrue(p.isFouledOut());
+        assertEquals(SimConfig.FOUL_OUT_LIMIT, p.getFouls());
+    }
 }

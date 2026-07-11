@@ -1,4 +1,4 @@
-# Coach Domain *(attribute model + §3.4 effects built; §3.5 rotation effects pending)*
+# Coach Domain *(attribute model + §3.4 scheme/pace effects + §3.5 rotation effects built)*
 
 The Coach is a team's **decision-maker model**: the inputs the game engine reads
 to decide how a team plays — pace, shot distribution, defensive posture, and how
@@ -9,9 +9,9 @@ deep/early the bench gets used.
 **#018**, and the §3.4 coaching effects (`pace`, `offensiveScheme`,
 `defensiveScheme`) are **implemented end-to-end** — entity, mapper, and the
 possession engine all consume them (decisions.md #022). The §3.5 rotation
-attributes (`rotationDepth`, `substitutionAggressiveness`) are modeled and seeded
-but **not yet read by any engine** — their consumers are §3.5 (minutes/fatigue/
-substitution).
+attributes (`rotationDepth`, `substitutionAggressiveness`) are now **also consumed
+end-to-end** — the §3.5 minutes/fatigue/substitution model reads them through
+`CoachModifiers` (decisions.md #023).
 
 > **Scope discipline** (cf. decisions.md #014): the *attribute model* shipped
 > ahead of its consumers, but each effect's *formula* landed with the engine phase
@@ -58,8 +58,8 @@ attributes exist and are read by nothing until §3.5 builds minutes/fatigue).
 | **pace** | Possessions per game (scales the possession **count**) | §3.4 possession flow | ✅ read |
 | **offensiveScheme** | Shot distribution — perimeter/3pt lean vs. inside/post | §3.4 `ShotSelector` lean | ✅ read |
 | **defensiveScheme** | Aggressiveness — turnover/foul pressure vs. contain | §3.4 turnover/foul pressure | ✅ read |
-| **rotationDepth** | How many players see real minutes (tight 7 vs. deep 10) | §3.5 minutes allocation | ⏳ unread |
-| **substitutionAggressiveness** | How early/eagerly fatigued starters are pulled | §3.5 sub triggers | ⏳ unread |
+| **rotationDepth** | How many players see real minutes (tight 7 vs. deep 10) | §3.5 minutes allocation | ✅ read |
+| **substitutionAggressiveness** | How early/eagerly fatigued starters are pulled | §3.5 sub triggers | ✅ read |
 
 These form two coherent pairs plus pace: the **§3.4** schemes (what shots happen
 on each end) and the **§3.5** rotation knobs (who is on the floor) — mapping to
@@ -95,17 +95,21 @@ numbers on one scale with no translation layer. Concretely:
 basePace        × f(pace)                 → team possessions  (scales the possession COUNT, §3.4)
 baseShotMix     × f(offensiveScheme)      → perimeter vs. interior shot share  (§3.4 ShotSelector lean)
 basePressure    × f(defensiveScheme)      → turnover/foul pressure on defense   (§3.4)
-rotationOrder   + f(rotationDepth)        → who plays, how many minutes  (input: #014; §3.5)
-fatigueThreshold× f(substitutionAggr.)    → when a sub fires             (§3.5)
+benchDepth      × f(rotationDepth)        → how far down rotationOrder the bench plays  (input: #014; §3.5)
+subThreshold    × f(substitutionAggr.)    → energy level at which a tired starter is pulled  (§3.5)
 ```
 
-**§3.4 reads the first three only** (`pace`, `offensiveScheme`, `defensiveScheme`
-— decisions.md #022 Decision E); `rotationDepth` / `substitutionAggressiveness`
-are §3.5 (minutes/fatigue) and are not read until then. `pace` scales the
-**possession count** (a faster coach runs more possessions, not merely quicker
-shots — Decision A, settled while building). The single `COACH_SENSITIVITY` lives
-in `SimConfig` and is tuned in §3.4 calibration; it splits per-effect only if one
-knob can't fit all effects.
+All five are now read. **§3.4 reads the first three** (`pace`, `offensiveScheme`,
+`defensiveScheme` — decisions.md #022 Decision E); **§3.5 reads the last two**
+(`rotationDepth`, `substitutionAggressiveness` — decisions.md #023). Concretely
+(§3.5, Decision D): `rotationDepthFactor()` sets how far down the `rotationOrder`
+bench queue substitutions may draw (a tighter rotation leaves the deep bench on
+the pine); `subAggressivenessFactor()` scales the between-possession energy
+threshold at which a fatigued starter is pulled (a more aggressive coach subs
+earlier). `pace` scales the **possession count** (a faster coach runs more
+possessions, not merely quicker shots — Decision A, settled while building). The
+single `COACH_SENSITIVITY` lives in `SimConfig` and is reused by all five effects
+(tuned in calibration); it splits per-effect only if one knob can't fit all.
 
 `rotationOrder` (the bench depth chart, already shipped in #014) is the roster's
 contribution; `rotationDepth` / `substitutionAggressiveness` are how the coach
@@ -128,11 +132,13 @@ remaining work.
 | 6. **Mapping** — wire through `EntityMapper` | ✅ `entityToCoach` (API exposure still open — see below) |
 | 7. **Tests** — entity + mapping coverage | ✅ `EntityMapperTest` |
 | 8. **§3.4 effects** — `pace`/`offensiveScheme`/`defensiveScheme` → engine | ✅ decisions.md #022 (`CoachModifiers` + `TeamContext`) |
-| 9. **§3.5 effects** — `rotationDepth`/`substitutionAggressiveness` → minutes/fatigue | ⏳ pending §3.5 |
+| 9. **§3.5 effects** — `rotationDepth`/`substitutionAggressiveness` → minutes/fatigue | ✅ decisions.md #023 (`CoachModifiers.rotationDepthFactor()`/`subAggressivenessFactor()` + `RotationState`) |
 
-The §3.4 effects (`f(...)` in the interface above) are implemented as the
+All five effects (`f(...)` in the interface above) are implemented as the
 `CoachModifiers` value object, threaded through `PossessionEngine` via
-`TeamContext`. The §3.5 effects await the minutes/fatigue/substitution model.
+`TeamContext`. The §3.4 scheme/pace effects bend the possession flow; the §3.5
+rotation effects drive the between-possession substitution check in
+`RotationState` (who is on the floor, and when a tired starter is pulled).
 
 ---
 

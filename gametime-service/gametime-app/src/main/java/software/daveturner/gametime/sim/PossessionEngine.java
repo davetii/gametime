@@ -53,6 +53,16 @@ public class PossessionEngine {
                 TeamContext offense = homeOnOffense ? home : away;
                 TeamContext defense = homeOnOffense ? away : home;
 
+                // §3.5 (Decisions C/F): the between-possession substitution step.
+                // Both teams are on the floor for every possession (one offense,
+                // one defense), so both rotations advance once per possession —
+                // drain the on-floor five's energy, recover the benched, force off
+                // fouled-out players, run fatigue subs. Deterministic, RNG-free,
+                // emits no events. Ordering (home then away, then resolve) is fixed
+                // so the seed-pinned stream stays reproducible.
+                home.rotation().advancePossession();
+                away.rotation().advancePossession();
+
                 sequence = resolvePossession(data, offense, defense,
                         period, sequence, rng);
             }
@@ -69,8 +79,11 @@ public class PossessionEngine {
 
     int resolvePossession(GameData data, TeamContext offenseCtx, TeamContext defenseCtx,
                           int period, int sequence, RandomGenerator rng) {
-        List<PlayerGameState> offense = offenseCtx.players();
-        List<PlayerGameState> defense = defenseCtx.players();
+        // §3.5: read the CURRENT on-floor five (the substitution step may have
+        // swapped players since last possession). This single seam is where the
+        // dynamic rotation reaches every downstream pick.
+        List<PlayerGameState> offense = offenseCtx.onFloor();
+        List<PlayerGameState> defense = defenseCtx.onFloor();
         String offTeamId = offenseCtx.teamId();
         String defTeamId = defenseCtx.teamId();
         double shotMixLean = offenseCtx.modifiers().shotMixLean();

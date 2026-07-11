@@ -30,9 +30,14 @@ public class FoulResolver {
         if (!shotType.isContactType()) return false;
         // Both foulDrawing and foulProne increase foul probability.
         // foulProne is inverted: a high value means the defender fouls more (low discipline).
-        double effectiveDefense = SimConfig.SCALE_AVG * 2 - defender.getFoulProne();
+        // §3.5: fatigue scales each contestant's skill — a tired defender's
+        // discipline (effectiveDefense) drops, so they foul more; a tired shooter
+        // draws fouls slightly less.
+        double effectiveDefense = (SimConfig.SCALE_AVG * 2 - defender.getFoulProne())
+                * defender.fatigueFactor();
+        double foulDrawing = shooter.getFoulDrawing() * shooter.fatigueFactor();
         double prob = config.clampProbability(defensivePressure * config.contestProbability(
-                SimConfig.BASE_FOUL, shooter.getFoulDrawing(), effectiveDefense));
+                SimConfig.BASE_FOUL, foulDrawing, effectiveDefense));
         return rng.nextDouble() < prob;
     }
 

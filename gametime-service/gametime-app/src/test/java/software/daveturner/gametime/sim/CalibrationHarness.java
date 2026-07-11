@@ -8,10 +8,17 @@ import org.springframework.transaction.annotation.Transactional;
 import software.daveturner.gametime.entity.BoxScoreEntity;
 import software.daveturner.gametime.entity.GameEventEntity;
 import software.daveturner.gametime.entity.PlayType;
+import software.daveturner.gametime.model.RosterEntry;
+import software.daveturner.gametime.model.Team;
 import software.daveturner.gametime.repo.BoxScoreRepo;
 import software.daveturner.gametime.repo.GameEventRepo;
+import software.daveturner.gametime.service.GametimeService;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -38,6 +45,14 @@ import java.util.List;
  *   <li>~14 turnovers</li>
  * </ul>
  * "Calibrated" means the aggregates below land near these, observed here — not by eye.
+ *
+ * <p><b>§3.5 additions (decisions.md #023, Decision E):</b> the report also shows a
+ * <b>per-slot minutes distribution</b> (each team-game's box scores sorted by
+ * minutes descending, averaged by slot — so slot 1 is the biggest-minutes player)
+ * and a <b>period-by-period FG%</b> so the fatigue effect is visible (FG% should
+ * sag in later periods as legs tire). §3.5 minutes targets (user-agreed): top
+ * starter ~34–36, no one over ~42, benches scaled by rotationDepth. The §3.4
+ * aggregates above must still hold with fatigue on.
  */
 @SpringBootTest
 @Transactional
@@ -61,6 +76,9 @@ class CalibrationHarness {
 
     @Autowired
     BoxScoreRepo boxScoreRepo;
+
+    @Autowired
+    GametimeService gametimeService;
 
     @Test
     @EnabledIfSystemProperty(named = "calibration", matches = "true")
@@ -109,6 +127,25 @@ class CalibrationHarness {
             agg.defReb += nz(bs.getDefensiveRebounds());
         }
 
+        // §3.5: per-slot minutes distribution — for each team-game, sort that
+        // team's box scores by minutes descending so slot 0 is the biggest-minutes
+        // player, slot 1 next, etc. Accumulated by slot across all team-games.
+        accumulateMinutesBySlot(home, boxScores, agg);
+        accumulateMinutesBySlot(away, boxScores, agg);
+
+        // §3.5: period-by-period FG% (from the event log) so fatigue's sag shows.
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() == PlayType.SHOT) {
+                int p = e.getPeriod();
+                if (p >= 1 && p <= Agg.MAX_TRACKED_PERIODS) {
+                    agg.periodFga[p - 1]++;
+                    if (e.getOutcome() != null && e.getOutcome().startsWith("MADE")) {
+                        agg.periodFgm[p - 1]++;
+                    }
+                }
+            }
+        }
+
         // Assist reconciliation sanity: assisted SHOT events == box-score assists.
         long assistedShots = events.stream()
                 .filter(e -> e.getPlayType() == PlayType.SHOT && e.getAssistPlayerId() != null)
@@ -119,18 +156,53 @@ class CalibrationHarness {
         }
     }
 
+    /** Sort one team's box scores by minutes desc and add to the per-slot totals. */
+    private void accumulateMinutesBySlot(String teamId, List<BoxScoreEntity> boxScores, Agg agg) {
+        Set<String> teamPlayers = teamPlayerIds(teamId);
+        List<BoxScoreEntity> teamBox = new ArrayList<>();
+        for (BoxScoreEntity bs : boxScores) {
+            if (teamPlayers.contains(bs.getPlayerId())) {
+                teamBox.add(bs);
+            }
+        }
+        teamBox.sort(Comparator.comparingInt((BoxScoreEntity b) -> nz(b.getMinutes())).reversed());
+        for (int slot = 0; slot < teamBox.size() && slot < Agg.MAX_TRACKED_SLOTS; slot++) {
+            agg.minutesBySlot[slot] += nz(teamBox.get(slot).getMinutes());
+            agg.slotCounts[slot]++;
+        }
+    }
+
+    private Set<String> teamPlayerIds(String teamId) {
+        Team team = gametimeService.getTeam(teamId).orElseThrow();
+        Set<String> ids = new HashSet<>();
+        for (RosterEntry e : team.getPlayers()) {
+            ids.add(e.getPlayer().getId());
+        }
+        return ids;
+    }
+
     private static int nz(Integer v) {
         return v == null ? 0 : v;
     }
 
     /** Mutable accumulator over all simulated team-games. */
     private static final class Agg {
+        static final int MAX_TRACKED_SLOTS = 15;   // deepest roster we report
+        static final int MAX_TRACKED_PERIODS = 4;  // regulation periods for FG% sag
+
         int gameCount;
         int teamGames;
         long points;
         long fga, fgm, tpa, tpm, assists, turnovers, offReb, defReb;
         long periods;
         int reconciliationMismatches;
+
+        // §3.5 per-slot minutes (slot 0 = biggest-minutes player per team-game).
+        final long[] minutesBySlot = new long[MAX_TRACKED_SLOTS];
+        final int[] slotCounts = new int[MAX_TRACKED_SLOTS];
+        // §3.5 period-by-period FG (regulation only).
+        final long[] periodFga = new long[MAX_TRACKED_PERIODS];
+        final long[] periodFgm = new long[MAX_TRACKED_PERIODS];
 
         void print(int games) {
             double tg = teamGames;
@@ -151,8 +223,25 @@ class CalibrationHarness {
                             : reconciliationMismatches + " MISMATCH(es)"));
 
             System.out.println();
-            System.out.println("================ §3.4 CALIBRATION REPORT ================");
+            System.out.println("=========== §3.4 + §3.5 CALIBRATION REPORT =============");
             lines.forEach(System.out::println);
+
+            // §3.5 minutes distribution (per team-game, biggest-minutes slot first).
+            System.out.println("--- Minutes by rotation slot (avg per team-game) ---");
+            System.out.println("    (§3.5 targets: top ~34–36, no one over ~42)");
+            for (int slot = 0; slot < MAX_TRACKED_SLOTS; slot++) {
+                if (slotCounts[slot] == 0) continue;
+                System.out.printf("  slot %-2d: %5.1f min  (played in %d team-games)%n",
+                        slot + 1, minutesBySlot[slot] / (double) slotCounts[slot], slotCounts[slot]);
+            }
+
+            // §3.5 period-by-period FG% (fatigue should sag it slightly late).
+            System.out.println("--- FG% by period (fatigue sag check) ---");
+            for (int p = 0; p < MAX_TRACKED_PERIODS; p++) {
+                System.out.printf("  period %d: %.1f%%  (%d FGA)%n",
+                        p + 1, pct(periodFgm[p], periodFga[p]), periodFga[p]);
+            }
+
             System.out.println("========================================================");
             System.out.println();
         }

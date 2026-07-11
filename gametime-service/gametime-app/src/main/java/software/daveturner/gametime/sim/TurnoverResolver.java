@@ -26,12 +26,16 @@ public class TurnoverResolver {
      */
     public boolean isTurnover(PlayerGameState ballHandler, List<PlayerGameState> defenders,
                               double defensivePressure, RandomGenerator rng) {
+        // §3.5: fatigue scales each contestant's skill — tired defenders force
+        // fewer turnovers, a tired ball handler protects the ball worse.
         double avgDefense = defenders.stream()
-                .mapToDouble(d -> (d.getStealing() + d.getIndividualDefense()) / 2.0)
+                .mapToDouble(d -> (d.getStealing() + d.getIndividualDefense()) / 2.0
+                        * d.fatigueFactor())
                 .average()
                 .orElse(SimConfig.SCALE_AVG);
+        double ballSecurity = ballHandler.getBallSecurity() * ballHandler.fatigueFactor();
         double prob = config.clampProbability(defensivePressure * config.contestProbability(
-                SimConfig.BASE_TURNOVER, avgDefense, ballHandler.getBallSecurity()));
+                SimConfig.BASE_TURNOVER, avgDefense, ballSecurity));
         return rng.nextDouble() < prob;
     }
 

@@ -13,6 +13,7 @@ gametime/
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list (current phase only)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
+│   ├── ideas.md               Parking lot — untriaged future-improvement ideas
 │   ├── player.md              Player domain design (attributes, skills, formulas)
 │   ├── roster.md              Roster & lineup domain (player↔team, lineups)
 │   ├── coach.md               Coach domain design (5 decision attributes, #018)
@@ -39,6 +40,7 @@ Before starting work, review these for context:
 - **`docs/decisions.md`** — past architecture choices (check before proposing alternatives)
 - **`docs/todo.md`** — current-phase task list (deferred work lives in backlog.md + roadmap.md)
 - **`docs/backlog.md`** — cross-phase infra/tooling chores with no phase home
+- **`docs/ideas.md`** — parking lot: untriaged future-improvement ideas (not planned work)
 - **`docs/risks.md`** — known risks and concerns
 
 ## Build requirements

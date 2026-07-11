@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.4)
+title Possession Resolution (§3.2–§3.5)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -12,6 +12,21 @@ note right
   (loop bound), blended across both coaches.
 end note
 
+partition "RotationState — between-possession sub (§3.5)" {
+  :drain on-floor energy (× endurance)
+  recover benched energy;
+  :force off any fouled-out player
+  //getFouls() >= FOUL_OUT_LIMIT// → sub from full roster;
+  :fatigue sub — pull most-tired starter below
+  //subAggressiveness// threshold for freshest bench
+  within //rotationDepth//; starters pulled later / return first;
+  note right
+    Deterministic given (energy, fouls, coach attrs).
+    **Consumes no RNG, emits no events.** onFloor()
+    is always exactly 5 (least-fouled stays as last resort).
+  end note
+}
+
 repeat
 :ShotSelector
   pick shooter (offensive-weight draw)
@@ -19,7 +34,7 @@ repeat
   //× offensiveScheme shot-mix lean §3.4//);
 
 partition "TurnoverResolver" {
-  if (turnover?\n//ballSecurity vs stealing/individualDefense//\n//× defensiveScheme pressure §3.4//) then (yes)
+  if (turnover?\n//ballSecurity vs stealing/individualDefense//\n//× defensiveScheme pressure §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
     if (stolen?) then (yes)
       :TURNOVER — STOLEN
       credit defender steal;
@@ -32,7 +47,7 @@ partition "TurnoverResolver" {
 
 partition "FoulResolver" {
   if (DRIVE or POST?) then (yes)
-    if (foul?\n//foulDrawing vs (20 − foulProne)//) then (yes)
+    if (foul?\n//foulDrawing vs (20 − foulProne)//\n//× fatigueFactor per player §3.5//) then (yes)
       :FOUL — SHOOTING_FOUL
       charge defender foul;
       note right: foul rate × defensiveScheme pressure §3.4
@@ -53,7 +68,7 @@ partition "FoulResolver" {
 partition "ShotResolver" {
   :record FGA (+ 3PA if THREE);
 
-  if (shot made?\n//offense skill vs defense skill//\n//× acumen + teamOffense/teamDefense §3.4//) then (yes)
+  if (shot made?\n//offense skill vs defense skill//\n//× acumen + teamOffense/teamDefense §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
     :SHOT — MADE_*
     +2 or +3 points;
     partition "Assist (§3.4)" {
@@ -71,7 +86,7 @@ partition "ShotResolver" {
 partition "ReboundResolver (§3.3)" {
   :pick offensive rebounder (offenseRebound draw)
   pick defensive rebounder (defenseRebound draw);
-  if (offensive rebound?\n//offenseRebound vs defenseRebound//\n//(forced defensive once cap hit)//) then (yes)
+  if (offensive rebound?\n//offenseRebound vs defenseRebound//\n//× fatigueFactor per player §3.5//\n//(forced defensive once cap hit)//) then (yes)
     :REBOUND — OFFENSIVE
     credit off rebounder;
     note right: offense retains ball →\nsecond-chance possession
@@ -96,6 +111,12 @@ legend bottom left
   Each is the avg-10 deviation multiplier
   m(attr) = 1 + COACH_SENSITIVITY × (attr − 10) / 10
   applied as a thumb on the scale over the contest above.
+
+  **§3.5 fatigue / substitution** (decisions.md #023)
+  Between-possession sub (top, RNG-free) changes WHO is on
+  the floor; each contest skill is × fatigueFactor(energy),
+  ×1.0 at a full tank. Minutes are a possession-share
+  projection (no game clock). Foul-out = getFouls() >= 6.
 endlegend
 
 @enduml

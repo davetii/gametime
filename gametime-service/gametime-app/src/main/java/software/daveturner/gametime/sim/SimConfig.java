@@ -19,6 +19,20 @@ import org.springframework.stereotype.Component;
  * below ~0.04 — pushing it lower distorts the steal distribution for &lt;1 TO of
  * gain. 15.3 is within ~10% of target, accepted. Re-run the harness after any
  * change here to re-observe the aggregates (it is disabled in the normal build).
+ *
+ * <p><b>§3.5 calibration (decisions.md #023, Decision E).</b> With fatigue +
+ * substitution on, the §3.4 aggregates still hold (harness, 102 games):
+ * <pre>
+ *   Points/team 112.4 | FG% 47.2% | 3P% 35.4% | Assists 27.6 | Turnovers 13.4
+ * </pre>
+ * and the minutes distribution lands on the user-agreed §3.5 targets — top starter
+ * ~37, no one over ~42, benches scaling down (34/32/29/27/24/22/20/16). Note: the
+ * period-by-period FG% stays roughly flat rather than sagging late — this is the
+ * correct emergent behavior, not a miss: substitution pulls tired legs and cycles
+ * fresh ones in, so the on-floor FG% holds even as {@code FATIGUE_MAX_PENALTY}
+ * bites harder. Fatigue shows up as <i>who is on the floor</i> (the minutes curve),
+ * and it degrades players who <i>stay</i> on tired (thin benches, foul trouble,
+ * exhausted deep-bench late games).
  */
 @Component
 public class SimConfig {
@@ -61,9 +75,56 @@ public class SimConfig {
 
     // --- Coach / chemistry modifiers (§3.4, decisions.md #022) ---
     // Single avg-10 deviation sensitivity shared by all coach effects
-    // (pace / offensiveScheme / defensiveScheme). attr 10 ⇒ ×1.0. Split
-    // per-effect only if calibration shows one knob can't fit all effects.
+    // (pace / offensiveScheme / defensiveScheme, plus the §3.5 rotationDepth /
+    // substitutionAggressiveness). attr 10 ⇒ ×1.0. Split per-effect only if
+    // calibration shows one knob can't fit all effects.
     public static final double COACH_SENSITIVITY = 0.20;
+
+    // --- Minutes / fatigue / substitution (§3.5, decisions.md #023) ---
+    // Foul-out disqualification limit (Decision F). A player with >= this many
+    // fouls is forced off the floor and ineligible to return (a derived predicate
+    // over the existing PlayerGameState.fouls counter — no stored flag).
+    public static final int FOUL_OUT_LIMIT = 6;
+
+    // Wall-clock minutes a full regulation game represents (PERIODS × MINUTES_PER
+    // = 48) and per-OT (Decision A). Minutes are a possession-share projection:
+    // team on-floor possessions map to (regulation + OT) minutes by ratio.
+    public static final int MINUTES_PER_PERIOD = 12;
+    public static final int OT_MINUTES = 5;
+
+    // Energy (Decision B): a single per-player currentEnergy, full at tip-off,
+    // draining per on-floor possession and recovering while benched. Effect is one
+    // fatigue multiplier over the player's skills at contest time. All within-game.
+    public static final double MAX_ENERGY = 100.0;
+    // Base drain per possession a player is on the floor, before the endurance
+    // scale. At endurance 10 this is the raw drain; higher endurance drains less.
+    public static final double ENERGY_DRAIN_PER_POSSESSION = 2.6;
+    // How strongly endurance slows the drain (avg-10 deviation): drain is scaled
+    // by 1 − ENDURANCE_DRAIN_SENSITIVITY × (endurance − 10)/10, clamped ≥ a floor
+    // so an elite-endurance player still tires, just far slower.
+    public static final double ENDURANCE_DRAIN_SENSITIVITY = 0.6;
+    public static final double MIN_DRAIN_SCALE = 0.25;
+    // Recovery per possession spent benched.
+    public static final double ENERGY_RECOVERY_PER_POSSESSION = 5.5;
+    // Fatigue multiplier over skills: at full energy ×1.0; as energy falls toward
+    // 0 the multiplier falls toward (1 − FATIGUE_MAX_PENALTY). Tuned in §3.5
+    // calibration so tired players degrade visibly (late-period FG% sags a touch)
+    // while still a thumb on the scale, not a cliff (Decision B).
+    public static final double FATIGUE_MAX_PENALTY = 0.28;
+
+    // Substitution (Decisions C/D): a tired on-floor starter is pulled when their
+    // energy drops below a threshold. The base threshold is scaled per-coach by
+    // substitutionAggressiveness (higher ⇒ pull earlier ⇒ higher threshold).
+    public static final double BASE_SUB_ENERGY_THRESHOLD = 62.0;
+    // Starters tolerate more fatigue before being pulled (Decision C star
+    // retention): their effective threshold is lowered by this many energy points,
+    // so a starter is pulled later than a bench player at the same energy. Tuned in
+    // §3.5 calibration to land the top starter near ~36 min (not 38+).
+    public static final double STARTER_SUB_THRESHOLD_BONUS = 8.0;
+    // Base bench depth (players drawn off the rotationOrder queue) at an average
+    // (10) rotationDepth coach, scaled by rotationDepthFactor. Full squad is always
+    // available for forced (foul-out) subs regardless of this.
+    public static final int BASE_ROTATION_DEPTH = 4;
 
     // Base probability that a made field goal is assisted, at an average passing
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
@@ -114,6 +175,64 @@ public class SimConfig {
         double teamFactor = 1.0
                 + TEAM_EFFICIENCY_SENSITIVITY * (teamOffense - oppTeamDefense) / SCALE_AVG;
         return acumenFactor * teamFactor;
+    }
+
+    /**
+     * §3.5 (Decision B): the energy a player loses for one on-floor possession,
+     * scaled by endurance — a high-endurance player drains slower. The scale is
+     * the avg-10 deviation form, floored at {@link #MIN_DRAIN_SCALE} so even an
+     * elite-endurance player still tires (just far more slowly).
+     */
+    public double energyDrain(double endurance) {
+        double scale = 1.0 - ENDURANCE_DRAIN_SENSITIVITY * (endurance - SCALE_AVG) / SCALE_AVG;
+        scale = Math.max(MIN_DRAIN_SCALE, scale);
+        return ENERGY_DRAIN_PER_POSSESSION * scale;
+    }
+
+    /**
+     * §3.5 (Decision B): the fatigue multiplier over a player's skills at contest
+     * time. Full energy ⇒ ×1.0; as energy falls to 0 the multiplier falls linearly
+     * to {@code 1 − FATIGUE_MAX_PENALTY}. A modest thumb on the scale, not a cliff.
+     */
+    public double fatigueFactor(double energy) {
+        double frac = Math.max(0.0, Math.min(1.0, energy / MAX_ENERGY));
+        return 1.0 - FATIGUE_MAX_PENALTY * (1.0 - frac);
+    }
+
+    /**
+     * §3.5 (Decision D): the avg-10 deviation multiplier for a rotation coach
+     * attribute (rotationDepth / substitutionAggressiveness), reusing the single
+     * {@link #COACH_SENSITIVITY}. attr 10 (or null coach) ⇒ ×1.0. Used by
+     * {@link CoachModifiers} to precompute the two rotation factors.
+     */
+    public double rotationModifier(Integer attr) {
+        return coachModifier(attr);
+    }
+
+    /**
+     * §3.5 (Decision D): how many bench players (drawn down the {@code
+     * rotationOrder} queue) this coach uses for fatigue subs — {@link
+     * #BASE_ROTATION_DEPTH} scaled by the coach's rotationDepth factor, at least 1.
+     * Forced (foul-out) subs may still reach the full roster regardless of this.
+     */
+    public int rotationDepth(double rotationDepthFactor) {
+        int depth = (int) Math.round(BASE_ROTATION_DEPTH * rotationDepthFactor);
+        return Math.max(1, depth);
+    }
+
+    /**
+     * §3.5 (Decisions C/D): the energy threshold below which an on-floor player is
+     * a fatigue-sub candidate. The base is scaled up by the coach's
+     * substitutionAggressiveness factor (a more aggressive coach pulls earlier ⇒
+     * higher threshold); starters get a lower effective threshold (tolerate more
+     * fatigue — Decision C star retention).
+     */
+    public double subEnergyThreshold(double subAggressivenessFactor, boolean starter) {
+        double threshold = BASE_SUB_ENERGY_THRESHOLD * subAggressivenessFactor;
+        if (starter) {
+            threshold -= STARTER_SUB_THRESHOLD_BONUS;
+        }
+        return threshold;
     }
 
     public double clampProbability(double p) {

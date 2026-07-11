@@ -1,4 +1,4 @@
-# Game Domain *(model shipped §3.1; engine fills it through §3.4)*
+# Game Domain *(model shipped §3.1; engine fills it through §3.5)*
 
 The Game domain is the **data a simulated game produces**: the matchup and its
 result (`Game`), the event log that records how it unfolded (`GameEvent`), and
@@ -12,7 +12,8 @@ through §3.4 and this doc now documents both:
 - **§3.2** possession flow — shot selection / turnover / foul / shot outcome
 - **§3.3** rebounding — the second-chance loop after a missed shot
 - **§3.4** coaching + chemistry — coach modifiers on the flow, and real assists
-- **§3.5** minutes / fatigue — still future; `BoxScore.minutes` is unmodeled (0)
+- **§3.5** minutes / fatigue / substitution — the on-floor five changes during a
+  game; `BoxScore.minutes` is now real (derived from possession share)
 
 The "Possession flow" section below reflects what the engine actually does today.
 
@@ -120,6 +121,25 @@ always followed by a `REBOUND`):
 All events in a possession share the same `offense_team_id` / `defense_team_id`
 and `period`. `sequence` increments globally (not per possession).
 
+**Substitution + fatigue + foul-outs (§3.5)** run as a **between-possession** step
+that changes *who* is on the floor without altering the possession flow's shape
+(decisions.md #023). Before each possession the engine, for the team about to
+play: drains the on-floor five's `currentEnergy` (drain scaled by `endurance`),
+recovers the benched players' energy, **forces off any player who has fouled out**
+(a derived predicate `getFouls() >= FOUL_OUT_LIMIT`, not a stored flag), then runs
+a fatigue substitution (pull the most-tired starter below a
+`substitutionAggressiveness`-scaled threshold for the freshest eligible bench
+player, drawing down the `rotationOrder` queue only as far as `rotationDepth`
+allows; starters tolerate more fatigue and return first). The whole step is
+**deterministic given (energy, fouls, coach attrs) and consumes NO RNG** — it
+produces no `GameEvent` rows and does not touch the seeded stream. The on-floor
+five (`RotationState.onFloor()`) is **always exactly 5**: if the roster is
+exhausted (everyone fouled out), the least-fouled available player stays on so the
+floor never drops below 5. A fatigue **multiplier** over each on-floor player's
+skills (`effectiveSkill = skill × fatigueFactor(energy)`) then bends shot/defense/
+rebound contests — a modest thumb on the scale composed multiplicatively with the
+§3.4 coach/chemistry modifiers.
+
 **Coach modifiers (§3.4)** bend this flow without changing its shape (decisions.md
 #022, all effects via the avg-10 deviation multiplier
 `base × (1 + COACH_SENSITIVITY·(attr−10)/10)`):
@@ -182,6 +202,10 @@ into season totals).
   player on" (the duplicate-source trap of #013/#015). If "team in *this* game"
   ever needs to survive a mid-season trade, derive it from `player_team_hist` by
   date, or denormalize then with a real consumer — not now.
+- **Every player who took the floor gets a row (§3.5), not just the 5 starters.**
+  With substitutions live, bench players who entered the game accumulate stats and
+  minutes and so get their own box-score row. A player who never checked in gets no
+  row (nothing to reconcile).
 - per-player counters: points, rebounds (off/def), assists, steals, turnovers,
   fouls, FGA/FGM, 3PA/3PM, FTA/FTM (cf. roadmap §4.1).
 - **accumulated during simulation**, then reconciled against the persisted
@@ -193,8 +217,13 @@ into season totals).
     contest into a recorded block, with the miss attributed) is future §3.x work —
     the same honest "not modeled yet, stored as 0" state assists were in before
     §3.4. *(See roadmap §3.x deferred sim-fidelity.)*
-  - **`minutes`** — no minutes/fatigue model exists; starters play the whole game
-    (§3.5). Set to 0 until §3.5 allocates playing time.
-
   Every other counter is real and reconciles against the event log; `assists`
-  became real in §3.4 (Decision B1).
+  became real in §3.4 (Decision B1), and `minutes` became real in §3.5 (below).
+
+- **`minutes` is real as of §3.5 (decisions.md #023, Decision A).** The engine has
+  no game clock (#021), so minutes are a **derived possession-share projection**,
+  not a clocked measurement: each on-floor player accumulates a possession counter,
+  and at box-score-write time the game's total possessions map to
+  `PERIODS × 12` (+5 per OT) minutes by ratio, attributing each player their share.
+  Team minutes sum to `5 × game-minutes` by construction. `blocks` remains an
+  unmodeled `0` (no `BLOCK` play type — future §3.x).

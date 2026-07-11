@@ -74,4 +74,53 @@ class CoachModifiersTest {
         assertEquals(1.0, m.shotMixLean(), 0.0001);
         assertTrue(m.defensivePressure() < 1.0);
     }
+
+    // --- §3.5 rotation readers (decisions.md #023, Decision D) ---
+
+    private Coach rotationCoach(Integer rotationDepth, Integer subAggressiveness) {
+        Coach c = coach(10, 10, 10);
+        c.setRotationDepth(rotationDepth);
+        c.setSubstitutionAggressiveness(subAggressiveness);
+        return c;
+    }
+
+    @Test
+    void rotationFactorsAreNeutralForNullOrAverage() {
+        assertEquals(1.0, CoachModifiers.neutral().rotationDepthFactor(), 0.0001);
+        assertEquals(1.0, CoachModifiers.neutral().subAggressivenessFactor(), 0.0001);
+        assertEquals(1.0, CoachModifiers.from(null, config).rotationDepthFactor(), 0.0001);
+        assertEquals(1.0, CoachModifiers.from(null, config).subAggressivenessFactor(), 0.0001);
+        CoachModifiers avg = CoachModifiers.from(rotationCoach(10, 10), config);
+        assertEquals(1.0, avg.rotationDepthFactor(), 0.0001);
+        assertEquals(1.0, avg.subAggressivenessFactor(), 0.0001);
+    }
+
+    @Test
+    void nullRotationAttributesFallBackToAverage() {
+        // The pre-§3.5 coach(...) leaves rotation attrs null → neutral factors.
+        CoachModifiers m = CoachModifiers.from(coach(10, 10, 10), config);
+        assertEquals(1.0, m.rotationDepthFactor(), 0.0001);
+        assertEquals(1.0, m.subAggressivenessFactor(), 0.0001);
+    }
+
+    @Test
+    void aboveAverageRotationAttributesLiftFactors() {
+        CoachModifiers m = CoachModifiers.from(rotationCoach(20, 20), config);
+        assertEquals(1.0 + SimConfig.COACH_SENSITIVITY, m.rotationDepthFactor(), 0.0001);
+        assertEquals(1.0 + SimConfig.COACH_SENSITIVITY, m.subAggressivenessFactor(), 0.0001);
+    }
+
+    @Test
+    void belowAverageRotationAttributesLowerFactors() {
+        CoachModifiers m = CoachModifiers.from(rotationCoach(1, 1), config);
+        assertTrue(m.rotationDepthFactor() < 1.0);
+        assertTrue(m.subAggressivenessFactor() < 1.0);
+    }
+
+    @Test
+    void rotationAttributesAreIndependent() {
+        CoachModifiers m = CoachModifiers.from(rotationCoach(20, 1), config);
+        assertTrue(m.rotationDepthFactor() > 1.0);
+        assertTrue(m.subAggressivenessFactor() < 1.0);
+    }
 }

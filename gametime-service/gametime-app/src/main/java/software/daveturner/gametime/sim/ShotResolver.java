@@ -28,8 +28,12 @@ public class ShotResolver {
     public boolean isMade(ShotType shotType, PlayerGameState shooter,
                           PlayerGameState defender, double chemistryMultiplier,
                           RandomGenerator rng) {
-        double offense = shooter.offenseSkillForShot(shotType);
-        double defense = defenseSkillForShot(shotType, defender);
+        // §3.5: fatigue is a modest multiplier over each contestant's skill —
+        // a tired shooter finishes worse, a tired defender contests worse. Composes
+        // multiplicatively with the §3.4 chemistryMultiplier (same thumb-on-scale
+        // discipline). Full energy ⇒ ×1.0 (no change to §3.4 behavior).
+        double offense = shooter.offenseSkillForShot(shotType) * shooter.fatigueFactor();
+        double defense = defenseSkillForShot(shotType, defender) * defender.fatigueFactor();
         double base = baseProbability(shotType);
         double prob = config.clampProbability(
                 chemistryMultiplier * config.contestProbability(base, offense, defense));

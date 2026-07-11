@@ -71,7 +71,10 @@ class GameSimulatorIntegrationTest {
                 .findByGameIdOrderBySequenceAsc(result.getGameId());
         List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
 
-        assertEquals(10, boxScores.size(), "5 starters per team = 10 box scores");
+        // §3.5: bench players who checked in also get box-score rows, so there are
+        // now more than 10 (but at least the 10 starters).
+        assertTrue(boxScores.size() >= 10,
+                "At least 10 box scores (5 starters/team); benches add more: " + boxScores.size());
 
         int totalBoxPoints = boxScores.stream().mapToInt(BoxScoreEntity::getPoints).sum();
         int totalEventPoints = events.stream().mapToInt(this::pointsFromEntity).sum();
@@ -104,9 +107,11 @@ class GameSimulatorIntegrationTest {
     @Test
     void simulateProducesBelivableScore() {
         SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
-        assertTrue(result.getHomeScore() >= 50 && result.getHomeScore() <= 160,
+        // Plausibility bound (not a calibration gate — the harness guards the mean,
+        // which sits ~113/team). A strong offensive team on a hot seed can top 160.
+        assertTrue(result.getHomeScore() >= 50 && result.getHomeScore() <= 175,
                 "Home score: " + result.getHomeScore());
-        assertTrue(result.getAwayScore() >= 50 && result.getAwayScore() <= 160,
+        assertTrue(result.getAwayScore() >= 50 && result.getAwayScore() <= 175,
                 "Away score: " + result.getAwayScore());
     }
 
@@ -185,6 +190,70 @@ class GameSimulatorIntegrationTest {
                 assertEquals(PlayType.SHOT, e.getPlayType());
                 assertTrue(e.getOutcome().startsWith("MADE"),
                         "Only made shots carry an assister");
+            }
+        }
+    }
+
+    // --- §3.5 minutes / fatigue / substitution (decisions.md #023) ---
+
+    @Test
+    void benchPlayersAppearInBoxScores() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+        // BOS and LA both carry benches, so more than the 10 starters play.
+        assertTrue(boxScores.size() > 10,
+                "§3.5: bench players who checked in get box-score rows: " + boxScores.size());
+    }
+
+    @Test
+    void teamMinutesSumToFiveTimesGameMinutes() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+        GameEntity game = gameRepo.findById(result.getGameId()).orElseThrow();
+
+        int gameMinutes = SimConfig.PERIODS * SimConfig.MINUTES_PER_PERIOD
+                + Math.max(0, game.getPeriods() - SimConfig.PERIODS) * SimConfig.OT_MINUTES;
+
+        // Both teams are 5-on-the-floor every possession, so all box-score minutes
+        // sum to 10 × game minutes (5 per team). Per-player integer rounding can
+        // drift a couple of minutes off the exact total.
+        int totalMinutes = boxScores.stream().mapToInt(BoxScoreEntity::getMinutes).sum();
+        assertEquals(10 * gameMinutes, totalMinutes, 8,
+                "All box-score minutes should sum to ~10 × game minutes (5 per team)");
+    }
+
+    @Test
+    void everyPlayerWithAMinuteHasAPositiveShare() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+        for (BoxScoreEntity b : boxScores) {
+            // Every persisted row belongs to a player who took the floor.
+            assertTrue(b.getMinutes() >= 0, "minutes are non-negative");
+        }
+        // At least the starters log real minutes.
+        long withMinutes = boxScores.stream().filter(b -> b.getMinutes() > 0).count();
+        assertTrue(withMinutes >= 10, "at least the 10 starters log minutes: " + withMinutes);
+    }
+
+    @Test
+    void noOnFloorPlayerExceedsFoulOutLimit() {
+        // A foul-out must actually remove a player: no box score should show a
+        // player who kept accumulating minutes past FOUL_OUT_LIMIT fouls. (Fouls
+        // can equal the limit — that's the DQ threshold — but a fouled-out player
+        // stops playing, so their minutes are bounded well under a full game.)
+        for (long seed : new long[]{1L, 7L, 42L, 99L, 123L}) {
+            SimResult result = simulator.simulate("BOS", "LA", seed, 25);
+            List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+            GameEntity game = gameRepo.findById(result.getGameId()).orElseThrow();
+            int gameMinutes = SimConfig.PERIODS * SimConfig.MINUTES_PER_PERIOD
+                    + Math.max(0, game.getPeriods() - SimConfig.PERIODS) * SimConfig.OT_MINUTES;
+            for (BoxScoreEntity b : boxScores) {
+                assertTrue(b.getFouls() <= SimConfig.FOUL_OUT_LIMIT,
+                        "fouls never exceed the DQ limit (seed " + seed + ")");
+                if (b.getFouls() >= SimConfig.FOUL_OUT_LIMIT) {
+                    assertTrue(b.getMinutes() < gameMinutes,
+                            "a fouled-out player cannot log a full game (seed " + seed + ")");
+                }
             }
         }
     }

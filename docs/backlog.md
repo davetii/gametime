@@ -7,7 +7,9 @@ to track only the current one).
 
 For deferred *gameplay* scope (sim-fidelity events the engine doesn't model yet),
 see the **§3.x Deferred sim-fidelity details** section of [roadmap.md](roadmap.md)
-— those have a phase home and live with the phase that will consume them.
+— those have a phase home and live with the phase that will consume them. For
+untriaged *future-improvement ideas* with no phase home yet (not chores, not
+planned features), see [ideas.md](ideas.md).
 
 ---
 

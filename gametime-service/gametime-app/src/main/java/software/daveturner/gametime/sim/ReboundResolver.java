@@ -29,10 +29,12 @@ public class ReboundResolver {
     public boolean isOffensiveRebound(PlayerGameState offRebounder,
                                       PlayerGameState defRebounder,
                                       RandomGenerator rng) {
+        // §3.5: fatigue scales each rebounder's skill — a tired crasher and a tired
+        // box-out man both work the glass worse. Full energy ⇒ ×1.0.
         double prob = config.contestProbability(
                 SimConfig.BASE_OFFENSIVE_REBOUND,
-                offRebounder.getOffenseRebound(),
-                defRebounder.getDefenseRebound());
+                offRebounder.getOffenseRebound() * offRebounder.fatigueFactor(),
+                defRebounder.getDefenseRebound() * defRebounder.fatigueFactor());
         return rng.nextDouble() < prob;
     }
 

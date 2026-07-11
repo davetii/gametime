@@ -12,7 +12,6 @@ import software.daveturner.gametime.service.GametimeService;
 import java.util.*;
 import java.util.random.RandomGenerator;
 import java.util.random.RandomGeneratorFactory;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -42,14 +41,18 @@ public class GameSimulator {
         Team awayTeam = gametimeService.getTeam(awayTeamId)
                 .orElseThrow(ResourceNotFoundException::new);
 
-        List<PlayerGameState> homePlayers = buildStarters(homeTeam);
-        List<PlayerGameState> awayPlayers = buildStarters(awayTeam);
+        List<PlayerGameState> homeSquad = buildRotation(homeTeam);
+        List<PlayerGameState> awaySquad = buildRotation(awayTeam);
 
-        // §3.4: bundle each team's players + coach modifiers into a TeamContext.
-        TeamContext home = new TeamContext(homeTeamId, homePlayers,
-                CoachModifiers.from(homeTeam.getCoach(), config));
-        TeamContext away = new TeamContext(awayTeamId, awayPlayers,
-                CoachModifiers.from(awayTeam.getCoach(), config));
+        // §3.4/§3.5: bundle each team's rotation (full squad + on-floor five) +
+        // coach modifiers into a TeamContext. The RotationState makes the on-floor
+        // five dynamic — substitutions mutate it between possessions (§3.5).
+        CoachModifiers homeMods = CoachModifiers.from(homeTeam.getCoach(), config);
+        CoachModifiers awayMods = CoachModifiers.from(awayTeam.getCoach(), config);
+        TeamContext home = new TeamContext(homeTeamId,
+                new RotationState(homeSquad, homeMods, config), homeMods);
+        TeamContext away = new TeamContext(awayTeamId,
+                new RotationState(awaySquad, awayMods, config), awayMods);
 
         RandomGenerator rng = RandomGeneratorFactory.of("L64X128MixRandom")
                 .create(seed);
@@ -83,9 +86,19 @@ public class GameSimulator {
             gameEventRepo.save(event);
         }
 
-        List<PlayerGameState> allPlayers = new ArrayList<>(homePlayers);
-        allPlayers.addAll(awayPlayers);
+        // §3.5: every player who took the floor gets a box-score row, not just the
+        // 5 starters. A player who never checked in (onFloorPossessions == 0) has
+        // nothing to reconcile, so they get no row.
+        List<PlayerGameState> allPlayers = new ArrayList<>(homeSquad);
+        allPlayers.addAll(awaySquad);
+        int totalGameMinutes = SimConfig.PERIODS * SimConfig.MINUTES_PER_PERIOD
+                + Math.max(0, data.getPeriods() - SimConfig.PERIODS) * SimConfig.OT_MINUTES;
+        int homePossessions = totalOnFloorPossessions(homeSquad);
+        int awayPossessions = totalOnFloorPossessions(awaySquad);
         for (PlayerGameState p : allPlayers) {
+            if (p.getOnFloorPossessions() == 0) {
+                continue;
+            }
             BoxScoreEntity bs = new BoxScoreEntity();
             bs.setId(UUID.randomUUID().toString());
             bs.setGameId(gameId);
@@ -98,7 +111,17 @@ public class GameSimulator {
             bs.setBlocks(0);
             bs.setTurnovers(p.getTurnovers());
             bs.setFouls(p.getFouls());
-            bs.setMinutes(0);
+            // §3.5 (Decision A): minutes are a possession-share projection. The
+            // team is 5-on-the-floor every possession, so team on-floor possessions
+            // sum to 5 × (team possessions); a player's minutes are their share of
+            // that × the team's total minutes (5 × game minutes). No game clock.
+            int teamPossessions = p.getTeamId().equals(homeTeamId)
+                    ? homePossessions : awayPossessions;
+            int minutes = teamPossessions == 0 ? 0
+                    : (int) Math.round(
+                            (double) p.getOnFloorPossessions() / teamPossessions
+                                    * 5.0 * totalGameMinutes);
+            bs.setMinutes(minutes);
             bs.setFieldGoalsAttempted(p.getFieldGoalsAttempted());
             bs.setFieldGoalsMade(p.getFieldGoalsMade());
             bs.setThreePointersAttempted(p.getThreePointersAttempted());
@@ -113,10 +136,38 @@ public class GameSimulator {
                 data.getPeriods(), data.getEvents().size());
     }
 
-    List<PlayerGameState> buildStarters(Team team) {
-        return team.getPlayers().stream()
-                .filter(e -> e.getLineupRole() == software.daveturner.gametime.model.LineupRole.STARTER)
-                .map(e -> new PlayerGameState(e.getPlayer().getId(), team.getId().getValue(), e))
-                .collect(Collectors.toList());
+    /**
+     * §3.5: build the full rotation for a team — the 5 STARTERs first, then every
+     * other roster entry that carries a {@code rotationOrder} (the bench queue,
+     * #014) in ascending order. Entries with a null rotationOrder that aren't
+     * starters (e.g. INACTIVE / MINORS) are excluded — they're not in the game-day
+     * rotation. The starters-first, bench-by-rotationOrder ordering is what
+     * {@link RotationState} uses for sub priority and rested-return.
+     */
+    List<PlayerGameState> buildRotation(Team team) {
+        String teamId = team.getId().getValue();
+        List<RosterEntry> starters = new ArrayList<>();
+        List<RosterEntry> bench = new ArrayList<>();
+        for (RosterEntry e : team.getPlayers()) {
+            if (e.getLineupRole() == software.daveturner.gametime.model.LineupRole.STARTER) {
+                starters.add(e);
+            } else if (e.getRotationOrder() != null) {
+                bench.add(e);
+            }
+        }
+        bench.sort(Comparator.comparingInt(RosterEntry::getRotationOrder));
+
+        List<PlayerGameState> rotation = new ArrayList<>();
+        for (RosterEntry e : starters) {
+            rotation.add(new PlayerGameState(e.getPlayer().getId(), teamId, e));
+        }
+        for (RosterEntry e : bench) {
+            rotation.add(new PlayerGameState(e.getPlayer().getId(), teamId, e));
+        }
+        return rotation;
+    }
+
+    private int totalOnFloorPossessions(List<PlayerGameState> squad) {
+        return squad.stream().mapToInt(PlayerGameState::getOnFloorPossessions).sum();
     }
 }

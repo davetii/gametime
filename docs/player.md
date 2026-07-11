@@ -28,8 +28,8 @@ PlayerEntity (DB)  →  EntityMapper  →  Player (API model)
 | composure | Mental steadiness under pressure, consistency |
 | determination | Effort, hustle, willingness to grind |
 | ego | Self-confidence (high values penalize team play) |
-| endurance | Stamina over a game/season |
-| energy | Burst effort, motor |
+| endurance | Stamina over a game/season — §3.5 drives in-game fatigue: higher endurance drains `currentEnergy` slower |
+| energy | Burst effort, motor — §3.5 seeds a player's starting in-game energy |
 | handle | Ball-handling ability |
 | health | Durability, injury resistance |
 | intelligence | Basketball IQ, reading the game |
@@ -199,10 +199,13 @@ shot selection (`drive`/`finishing`/`perimeter`/`post`/`longRange`), shot contes
 `stealing`), shooting fouls (`foulDrawing` vs `foulProne`), free throws
 (`freeThrows`), rebounding (`offenseRebound`/`defenseRebound`), assists (`passing`,
 scaled by `teamOffense`), and shot-quality/efficiency (`acumen`,
-`teamOffense`/`teamDefense`). Rows below not in that list — transition,
-pick-and-roll (`screenSetting`/`offBallMovement`), off-ball movement, and the
-`clutch` late-game modifier — are **not modeled yet** (future §3.x); they stay
-here as the target so the attribute coverage is visible.
+`teamOffense`/`teamDefense`). §3.5 adds in-game **fatigue**: the `endurance`/
+`energy` attributes seed and drain a per-game `currentEnergy` that applies a
+single modest multiplier over a player's skills at contest time (decisions.md
+#023). Rows below not in that list — transition, pick-and-roll
+(`screenSetting`/`offBallMovement`), off-ball movement, and the `clutch` late-game
+modifier — are **not modeled yet** (future §3.x); they stay here as the target so
+the attribute coverage is visible.
 
 | Possession Event | Skills Used |
 |-----------------|-------------|

@@ -84,6 +84,48 @@ class TestPlayerFactory {
         return new PlayerGameState(id, teamId, entry);
     }
 
+    /**
+     * §3.5 overload: an all-average-skill player with an explicit rotation slot
+     * (lineupRole + rotationOrder) and endurance/energy attributes, for testing
+     * fatigue, substitution, and minutes. Skills are all {@code allSkillLevel}.
+     */
+    static PlayerGameState createRotationPlayer(String id, String teamId, double allSkillLevel,
+                                                LineupRole role, Integer rotationOrder,
+                                                int endurance, int energy) {
+        Player player = new Player();
+        player.setId(id);
+        player.setEndurance(endurance);
+        player.setEnergy(energy);
+        PlayerSkills skills = new PlayerSkills();
+        skills.setDrive(bd(allSkillLevel));
+        skills.setFinishing(bd(allSkillLevel));
+        skills.setPerimeter(bd(allSkillLevel));
+        skills.setPost(bd(allSkillLevel));
+        skills.setLongRange(bd(allSkillLevel));
+        skills.setBallSecurity(bd(allSkillLevel));
+        skills.setFreeThrows(bd(allSkillLevel));
+        skills.setFoulDrawing(bd(allSkillLevel));
+        skills.setIndividualDefense(bd(allSkillLevel));
+        skills.setRimProtection(bd(allSkillLevel));
+        skills.setShotContest(bd(allSkillLevel));
+        skills.setStealing(bd(allSkillLevel));
+        skills.setFoulProne(bd(allSkillLevel));
+        skills.setOffenseRebound(bd(allSkillLevel));
+        skills.setDefenseRebound(bd(allSkillLevel));
+        skills.setTeamOffense(bd(allSkillLevel));
+        skills.setTeamDefense(bd(allSkillLevel));
+        skills.setPassing(bd(allSkillLevel));
+        skills.setAcumen(bd(allSkillLevel));
+        player.setSkills(skills);
+
+        RosterEntry entry = new RosterEntry();
+        entry.setPlayer(player);
+        entry.setLineupRole(role);
+        entry.setRotationOrder(rotationOrder);
+
+        return new PlayerGameState(id, teamId, entry);
+    }
+
     private static BigDecimal bd(double val) {
         return BigDecimal.valueOf(val);
     }

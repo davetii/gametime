@@ -25,14 +25,20 @@ class PossessionEngineTest {
     }
 
     // --- TeamContext wrappers: existing tests call the engine with player lists +
-    // team ids; these wrap them in neutral-coach TeamContexts (×1.0 modifiers) so
-    // the pre-§3.4 behavior is preserved. Coach-effect tests build TeamContexts
-    // with non-neutral CoachModifiers directly.
+    // team ids; these wrap them in neutral-coach TeamContexts (×1.0 modifiers)
+    // around a neutral RotationState of exactly the given players. With a squad of
+    // exactly 5 and full energy, no substitution ever fires, so the pre-§3.5
+    // fixed-five behavior is preserved. Coach-effect tests build TeamContexts with
+    // non-neutral CoachModifiers directly.
+    private TeamContext ctx(String teamId, List<PlayerGameState> players, CoachModifiers mods) {
+        return new TeamContext(teamId, new RotationState(players, mods, config), mods);
+    }
+
     private GameData simulate(List<PlayerGameState> home, List<PlayerGameState> away,
                               String homeId, String awayId, int poss, RandomGenerator rng) {
         return engine.simulate(
-                new TeamContext(homeId, home, CoachModifiers.neutral()),
-                new TeamContext(awayId, away, CoachModifiers.neutral()),
+                ctx(homeId, home, CoachModifiers.neutral()),
+                ctx(awayId, away, CoachModifiers.neutral()),
                 poss, rng);
     }
 
@@ -40,8 +46,8 @@ class PossessionEngineTest {
                                   List<PlayerGameState> defense, String offId, String defId,
                                   int period, int seq, RandomGenerator rng) {
         return engine.resolvePossession(data,
-                new TeamContext(offId, offense, CoachModifiers.neutral()),
-                new TeamContext(defId, defense, CoachModifiers.neutral()),
+                ctx(offId, offense, CoachModifiers.neutral()),
+                ctx(defId, defense, CoachModifiers.neutral()),
                 period, seq, rng);
     }
 
@@ -427,8 +433,8 @@ class PossessionEngineTest {
                                          List<PlayerGameState> away, CoachModifiers awayMods,
                                          int poss, RandomGenerator rng) {
         return engine.simulate(
-                new TeamContext("H", home, homeMods),
-                new TeamContext("A", away, awayMods),
+                ctx("H", home, homeMods),
+                ctx("A", away, awayMods),
                 poss, rng);
     }
 
@@ -558,6 +564,99 @@ class PossessionEngineTest {
         c.setOffensiveScheme(off);
         c.setDefensiveScheme(def);
         return c;
+    }
+
+    // ===================== §3.5 substitution / fatigue / foul-out =====================
+
+    private CoachModifiers rotationCoach(int rotationDepth, int subAggressiveness) {
+        software.daveturner.gametime.model.Coach c = coach(10, 10, 10);
+        c.setRotationDepth(rotationDepth);
+        c.setSubstitutionAggressiveness(subAggressiveness);
+        return CoachModifiers.from(c, config);
+    }
+
+    /** A full rotation: 5 starters + benchCount bench players (rotationOrder 1..n). */
+    private List<PlayerGameState> rotationOf(String teamId, int benchCount, double skill) {
+        List<PlayerGameState> players = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            players.add(TestPlayerFactory.createRotationPlayer(teamId + "-S" + i, teamId, skill,
+                    software.daveturner.gametime.model.LineupRole.STARTER, null, 10, 10));
+        }
+        for (int i = 1; i <= benchCount; i++) {
+            players.add(TestPlayerFactory.createRotationPlayer(teamId + "-B" + i, teamId, skill,
+                    software.daveturner.gametime.model.LineupRole.ROTATION, i, 10, 10));
+        }
+        return players;
+    }
+
+    private GameData simulateRotations(List<PlayerGameState> home, CoachModifiers homeMods,
+                                       List<PlayerGameState> away, CoachModifiers awayMods,
+                                       int poss, RandomGenerator rng) {
+        return engine.simulate(
+                new TeamContext("H", new RotationState(home, homeMods, config), homeMods),
+                new TeamContext("A", new RotationState(away, awayMods, config), awayMods),
+                poss, rng);
+    }
+
+    @Test
+    void benchPlayersAccumulateStatsOverAFullGame() {
+        List<PlayerGameState> home = rotationOf("H", 5, 10);
+        List<PlayerGameState> away = rotationOf("A", 5, 10);
+        simulateRotations(home, rotationCoach(15, 15), away, rotationCoach(15, 15), 25, rng(42));
+
+        // At least some bench player logged on-floor possessions (checked in).
+        long benchWhoPlayed = home.stream()
+                .filter(p -> !p.isStarter() && p.getOnFloorPossessions() > 0)
+                .count();
+        assertTrue(benchWhoPlayed > 0, "bench players should enter the game and play");
+    }
+
+    @Test
+    void substitutionKeepsExactlyFiveOnFloorAllGame() {
+        List<PlayerGameState> home = rotationOf("H", 6, 10);
+        List<PlayerGameState> away = rotationOf("A", 6, 10);
+        RotationState homeRot = new RotationState(home, rotationCoach(20, 20), config);
+        RotationState awayRot = new RotationState(away, rotationCoach(20, 20), config);
+        engine.simulate(
+                new TeamContext("H", homeRot, rotationCoach(20, 20)),
+                new TeamContext("A", awayRot, rotationCoach(20, 20)),
+                25, rng(7));
+        assertEquals(5, homeRot.onFloor().size());
+        assertEquals(5, awayRot.onFloor().size());
+    }
+
+    @Test
+    void starterLogsMoreMinutesThanDeepBench() {
+        // Starters tolerate more fatigue + return first, so a starter should log
+        // more on-floor possessions than the last bench player over a full game.
+        List<PlayerGameState> home = rotationOf("H", 5, 10);
+        List<PlayerGameState> away = rotationOf("A", 5, 10);
+        simulateRotations(home, rotationCoach(12, 12), away, rotationCoach(12, 12), 25, rng(42));
+
+        int starterPoss = home.get(0).getOnFloorPossessions();
+        int deepBenchPoss = home.get(home.size() - 1).getOnFloorPossessions();
+        assertTrue(starterPoss > deepBenchPoss,
+                "a starter should out-play the deep bench: starter=" + starterPoss
+                        + " deepBench=" + deepBenchPoss);
+    }
+
+    @Test
+    void determinismHoldsWithSubstitutionOn() {
+        List<PlayerGameState> h1 = rotationOf("H", 5, 10);
+        List<PlayerGameState> a1 = rotationOf("A", 5, 10);
+        GameData d1 = simulateRotations(h1, rotationCoach(15, 15), a1, rotationCoach(15, 15), 25, rng(42));
+        List<PlayerGameState> h2 = rotationOf("H", 5, 10);
+        List<PlayerGameState> a2 = rotationOf("A", 5, 10);
+        GameData d2 = simulateRotations(h2, rotationCoach(15, 15), a2, rotationCoach(15, 15), 25, rng(42));
+
+        assertEquals(d1.getHomeScore(), d2.getHomeScore());
+        assertEquals(d1.getAwayScore(), d2.getAwayScore());
+        assertEquals(d1.getEvents().size(), d2.getEvents().size());
+        // Same seed ⇒ same minutes distribution too (subs are deterministic).
+        for (int i = 0; i < h1.size(); i++) {
+            assertEquals(h1.get(i).getOnFloorPossessions(), h2.get(i).getOnFloorPossessions(),
+                    "sub decisions are deterministic given the seed");
+        }
     }
 
     private int pointsFromEvent(GameData.EventRecord e) {
