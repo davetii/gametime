@@ -30,8 +30,9 @@ The headline §3.1 choice (roadmap Design Decision #9) is settled: **every
 `GameEvent` is persisted.** Play-by-play (§3.6 `GET /{gameId}/play-by-play`)
 replays from stored rows rather than re-simulating, and the Phase 4 stats model
 reconciles against the actual event log. The trade-off is row volume
-(~150–200 events/game) — bounded/paginated at the *read* endpoint in §3.6 / Phase
-4 (the large-result-set case #019 flagged), not by dropping the data. See
+(~200–350 events/game) — served **unpaginated** as a flat ordered list at the §3.6
+read endpoint (#024 D found the volume modest; pagination deferred, not dropped),
+not by dropping the data. See
 decisions.md #020 for the full call (status lifecycle, box-score keying, event
 shape).
 
@@ -73,14 +74,15 @@ section above; decisions.md #020).
   never carry one (decisions.md #022). It is a *second participant* on the SHOT
   event, not its own event — so `BoxScore.assists` reconciles against the count of
   `SHOT` events whose `assist_player_id` is set (events are the source of truth,
-  #020). *Not surfaced in the OpenAPI `GameEvent` model yet — that lands in §3.6
-  with the play-by-play read endpoint.*
-- *No in-game clock column yet.* §3.2 models time as an **abstract, configurable
+  #020). *Surfaced in the OpenAPI `GameEvent` model as `assistPlayerId` in §3.6
+  (#024 D — see the API surface section below).*
+- *No in-game clock column.* §3.2 models time as an **abstract, configurable
   possession count** (decisions.md #021), and event time is **derived on read**
-  (pace + `period` + `sequence`) for play-by-play display — not stored. A stored
-  per-event time column (single value vs. range — undecided) is **deferred to
-  §3.6**, where the play-by-play display is its consumer. `period` + `sequence`
-  give full ordering today.
+  (pace + `period` + `sequence`) for play-by-play display — not stored. §3.6
+  resolved #021 B's open "single value vs. range" question by keeping time
+  **derived, not stored** (#024 E); the storage shape is revisited only if the
+  Phase 7 game view needs a per-event clock. `period` + `sequence` give full
+  ordering today.
 
 ### Possession flow (§3.2–§3.3) — see also [possession-flow.puml](possession-flow.puml)
 
@@ -227,3 +229,81 @@ into season totals).
   `PERIODS × 12` (+5 per OT) minutes by ratio, attributing each player their share.
   Team minutes sum to `5 × game-minutes` by construction. `blocks` remains an
   unmodeled `0` (no `BLOCK` play type — future §3.x).
+
+---
+
+## API surface — §3.6 *(decisions.md #024)*
+
+§3.6 exposes the persisted game engine over OpenAPI. It is **API + read-projection +
+entity→model mapping only** — no new engine logic (the engine is done through §3.5).
+Spec lives in `gametime-api/yml/gametime.yaml`; the hand-written delegate is
+`api/V1ApiDelegateimpl.java`.
+
+### Operations
+
+| Verb | Path | Request | Response | Errors |
+|------|------|---------|----------|--------|
+| `POST` | `/v1/game/simulate` | `SimulateGameRequest` | `200 GameResult` | `404` unknown team · `422` same-team |
+| `GET`  | `/v1/game/{gameId}` | — | `200 GameResult` | `404` unknown game |
+| `GET`  | `/v1/game/{gameId}/play-by-play` | — | `200 [GameEvent]` | `404` unknown game |
+
+### Models
+
+- **`GameResult`** *(the shared "here's your game" object — same shape for simulate
+  and get; #024 A)*: `game: Game`, `homeBoxScore: [BoxScore]`, `awayBoxScore:
+  [BoxScore]`. The box scores are **split home/away server-side** — the mapper
+  resolves each `box_score` row's team via `player_team` (the row has no `team_id`,
+  #020). The **event log is not included** — it's the separate play-by-play endpoint,
+  so the payload stays bounded (~30 stat lines, not hundreds of events).
+- **`Game`** *(the header)*: `id`, `homeTeamId`, `awayTeamId`, `status`, `homeScore`,
+  `awayScore`, `periods`, **`seed`**. No per-period line scores — a period line is
+  derivable from the event log (#020), so it isn't stored. Only `FINAL` status is
+  produced by the engine.
+- **`GameEvent`** *(one per play-by-play row)*: `sequence`, `period`, `offenseTeamId`,
+  `defenseTeamId`, `playType`, `outcome`, `primaryPlayerId`, **`assistPlayerId`**
+  (the §3.4 column, #022 B — surfaced in the API here per #024 D). **No time field**
+  (#024 E — see below).
+- **`BoxScore`**: `playerId` + the per-player counters (see the `BoxScore` section
+  above). No `teamId` (#020).
+- **`SimulateGameRequest`**: `homeTeamId` (required), `awayTeamId` (required),
+  **`seed`** (optional `int64`). **No `possessionsPerPeriod`** — pace is not exposed
+  (#024 C); the endpoint always uses `SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD`, and
+  per-game tempo variety comes from the coach `pace` attribute (#022 A).
+
+### Seed — optional in, and PERSISTED *(#024 B, revises #021 A)*
+
+`POST /simulate` accepts an **optional** seed: omitted ⇒ a fresh random `long` (real
+games vary, per #021 A); provided ⇒ a reproducible run. The seed is now **persisted**
+(`game.seed BIGINT`, appended to the unreleased `release.1.0.4.game.sql`) and
+**echoed back** on the `Game` header — so a game is reproducible from its own record.
+This revises #021 A's original "seed not persisted" stance; the variation rule is
+unchanged (random default), we simply record what was rolled.
+
+### Play-by-play — a plain ordered list, no pagination *(#024 D)*
+
+`GET /{gameId}/play-by-play` returns the events as a **flat `[GameEvent]` in
+`sequence` order** (reusing `GameEventRepo.findByGameIdOrderBySequenceAsc`). Event
+volume is modest (~200–350 events/game), and a play-by-play UI wants the whole game;
+pagination is deferred (the orphaned `pageNumber`/`pageSize` params, #019, stay
+orphaned — a `period` filter is the likelier first future need). This supersedes the
+"bounded/paginated at the read endpoint" language in the earlier sections — at the
+current scale, unpaginated is correct.
+
+### Event time — no column, derived on read *(#024 E, closes #021 B)*
+
+§3.6 ships **no per-event time field and no time column**. `period` + `sequence`
+suffice to render an ordered, period-grouped play-by-play; any display clock is
+**computed on read** from `period` + `sequence` + pace. #021 B left the single-vs-range
+column shape "for §3.6 to decide" — §3.6 resolves it as *derived, not stored*. The
+revisit trigger is the **Phase 7 game view**: if that UI shows a per-event clock, it
+decides the shape and adds a column only if computed-on-read proves insufficient.
+Consequence: **`game.seed` is the only §3.6 schema change.**
+
+### Errors *(#024 F)*
+
+404 for an unknown `gameId` (both gets) or an unknown team on simulate (the engine
+already throws `ResourceNotFoundException`, #021 E). **422 Unprocessable Entity** for
+a same-team request (`homeTeamId == awayTeamId`) — a well-formed request that violates
+a business rule, distinct from 400 "malformed"; a **new `ResourceUnprocessableException`**
++ `ApiExceptionHandler` mapping, the first 422 in the API. Error bodies stay empty,
+matching the existing handler convention.
