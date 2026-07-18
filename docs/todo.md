@@ -16,13 +16,16 @@ sub-phase with its own design pass** (the §3.4/§3.5/§3.6 three-session workfl
 sequenced by calibration blast radius so scoring-affecting changes land one at a
 time against a known-good baseline.
 
-> **Design NOT yet done for §3.7.** No decisions.md entry yet. The roadmap bullet
-> is a *seam, not a plan* — and its original "block only on misses" shortcut is
-> already **rejected** (a block must prevent a would-be make; see the §3.7 bullet's
-> design fork). Next step is the **design pass**, not engine code: resolve the fork
-> (block-gate-before-make vs. three-way MAKE/MISS/BLOCK), the double-count split,
-> the shooter counter-factor, and the block-rate target into a numbered
-> decisions.md entry + an execute-ready plan here.
+> **§3.7 design pass IN PROGRESS — see [`wip-025-blocks.md`](wip-025-blocks.md).**
+> Working toward decisions.md #025 (not yet written, not built). **3 of 5 decisions
+> resolved (A, B, C); resume at Decision D.** Locked so far: **v3** (one three-way
+> MAKE/MISS/BLOCK draw), **A1** (block slice carved off first, existing §3.4 make
+> contest runs on the remainder), **B2** (block is a `finishing`-vs-`rimProtection`/
+> `shotContest` contest — great finishers blocked less), **C** (rate ordering
+> DRIVE≥POST>PERIMETER≫THREE, THREE very-low, ~5 blocks/team target).
+> **Open: D** (BlockResolver recovery outcomes — incl. the ⚠ OOB two-fork question
+> D3, currently only *defaulted* not decided) **and E** (offense-recovered loop
+> re-entry). Do NOT write #025 or touch engine code until D + E are resolved.
 
 ---
 

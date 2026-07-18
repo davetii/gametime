@@ -114,7 +114,9 @@ partition "ShotResolver" {
         stop
       case (out of bounds)
         :BLOCK — OUT_OF_BOUNDS
-        //v1: defense's ball (swat OOB off shooter)//;
+        //⚠ OPEN (#025 D3): who gets it depends on off-shooter//
+        //(defense ball) vs off-blocker (offense retains).//
+        //May dissolve into the offense/defense cases (OOB-3).//;
         stop
       endswitch
     }
