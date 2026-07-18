@@ -144,62 +144,148 @@ forcing a sub from the full roster; the floor never drops below 5. §3.5 is
 §3.4 aggregates held with fatigue on (112.4 pts / 47.2% FG / 35.4% 3P / 27.6 ast /
 13.4 TO) and the minutes curve lands on target (top starter ~37, none over ~42)._
 
-### 3.6 Simulation APIs
-- [ ] `POST /v1/game/simulate` — simulate a single game, return box score
-- [ ] `GET /v1/game/{gameId}` — retrieve game result
-- [ ] `GET /v1/game/{gameId}/play-by-play` — event log
-- [ ] Decide + migrate a stored per-event **time column** for play-by-play
-      display (single value vs. range — deferred from §3.2, decisions.md #021)
+### 3.6 Simulation APIs ✓
+- [x] `POST /v1/game/simulate` — simulate a single game, return box score
+- [x] `GET /v1/game/{gameId}` — retrieve game result
+- [x] `GET /v1/game/{gameId}/play-by-play` — event log
+- [x] Decide + migrate a stored per-event **time column** for play-by-play
+      display — **closed as _derived-on-read_ (no column), not built** (#024 E);
+      revisit trigger is the Phase 7 game view
 
-### 3.x Deferred sim-fidelity details
+_Shipped (decisions.md #024): the persisted engine is now exposed over OpenAPI —
+`POST /v1/game/simulate`, `GET /v1/game/{gameId}`, `GET .../play-by-play` — as
+**API + read-projection + entity→model mapping only** (no engine change). Both
+simulate and get return a shared **`GameResult`** (`game` + home/away box scores):
+the box scores are **split server-side** by resolving each `box_score` row's team
+via `player_team` (the row has no `team_id`, #020) — one `findByTeamId` roster
+lookup buckets the rows in a new `EntityMapper` mapping (the net-new work; the crux).
+Play-by-play is a **flat sequence-ordered `[GameEvent]`, no pagination** (#024 D),
+surfacing `assistPlayerId`. **Seed** is optional in / random default / **persisted**
+(`game.seed BIGINT` — the ONE schema change, appended to the unreleased
+`release.1.0.4.game.sql`, #024 B) and echoed on the `Game` header. Pace stays
+internal (#024 C). Errors: 404 unknown game/team (engine already throws), a **new
+422** (`ResourceUnprocessableException`) for the same-team guard (#024 F). No
+per-event time column — derived on read (#024 E), so `game.seed` is the only schema
+change. **Impl note:** to avoid a `GametimeServiceImp ↔ GameSimulator` constructor
+cycle (the simulator needed a team lookup that lived on the top-level service), the
+"load a team with its roster" logic was extracted into a focused `TeamQueryService`
+both sides depend on — an acyclic, one-way graph, no `@Lazy`. Touched packages land
+at 99–100% line coverage._
 
-Real-basketball events the §3.2/§3.3 engine deliberately does **not** model yet.
-Each is correct to defer until a consumer cares about the distinction — adding
-one now would fabricate event-log detail with no behavioral effect (the
-#014/#017/#020 discipline: don't shape data ahead of a consumer). Listed here,
-attached to the engine phase, so a future §3.4/§3.6/Phase 4 session finds them
-instead of re-deriving or prematurely building them. Each notes its seam.
+### Possession-fidelity completion (§3.7–§3.11) — before Phase 4
 
-- [ ] **Missed shot out of bounds (no rebound).** A missed shot that sails OOB
-      untouched, or a rebound tipped OOB, ends the possession the same as a
-      defensive rebound — so today it's folded into the `REBOUND — DEFENSIVE`
-      outcome. A distinct OOB outcome only matters once play-by-play *reads*
-      differently (§3.6) or a ball-movement model (§3.4) produces deflections.
-      Add then as a third branch off the rebound roll (retained vs lost inbound).
-- [ ] **Loose-ball / rebounding fouls.** A foul committed *during* the rebound
-      phase (box-out push, over-the-back). §3.3 only models shooting fouls on
-      drive/post attempts; the rebound contest is foul-free. When added, it's a
-      foul roll on the rebound contest → non-shooting foul (possession retained,
-      or bonus free throws once a team-foul/bonus model exists). Gated on a
-      team-foul-count model that doesn't exist yet.
-- [ ] **And-1 / shooting foul on a made basket.** Today a foul check happens
-      *instead of* a shot (drive/post → foul → 2 FTs), never *with* a made shot.
-      A real and-1 is: made FG + 1 foul shot. Needs the foul model to roll
-      alongside (not before) shot resolution. Belongs with §3.4's foul-model work.
-- [ ] **Turnover sub-categories (richer causes).** §3.2 models only two turnover
-      outcomes — `STOLEN` / `LOST_BALL` — and §3.4 kept it that way (assists were
-      the only ball-movement work it picked up). A fuller turnover *taxonomy* is
-      deferred: offensive fouls (charges), **shot-clock violations**, bad passes,
-      travels, out-of-bounds, 3-seconds, 8-second/backcourt, etc. **Modeling
-      approach (important — do NOT reverse decisions.md #021):** each sub-category is
-      a new **`outcome` value on a `TURNOVER` `GameEvent`** (the `outcome` field is
-      open-ended free text, #020 — so **no schema change**) produced by a
-      **probability roll**, exactly like the existing `BASE_TURNOVER` model — NOT by
-      simulating a sub-possession 24-second clock or ball-tracking. E.g. a
-      shot-clock violation is a small per-possession chance (scaled by weak
-      `teamOffense` / low `acumen` / a stalling `defensiveScheme`) that emits
-      `TURNOVER` / `SHOT_CLOCK_VIOLATION`; a charge is `TURNOVER` /
-      `OFFENSIVE_FOUL`. The seam is `TurnoverResolver` + `SimConfig`. Gated on a
-      consumer that cares about the distinction — play-by-play display (§3.6) or a
-      turnover-breakdown stat (Phase 4); until then two outcomes suffice.
-- [ ] **Blocked shots.** No `BLOCK` play type today; a blocked shot is
-      indistinguishable from a normal miss (it becomes a `MISSED` `SHOT` → rebound)
-      and `BoxScore.blocks` is hardcoded 0. When added, it's a defender
-      `rimProtection`/`shotContest` roll that converts a contested miss into a
-      recorded `BLOCK` (crediting the blocker, miss still attributed to the
-      shooter), then the rebound resolves as normal. The seam is the shot-resolution
-      branch in `PossessionEngine` / `ShotResolver`; gated on a consumer that reads
-      blocks (Phase 4 stats, or a §3.x defensive-fidelity pass).
+Real-basketball events the §3.2/§3.3 engine does **not** model yet. Originally
+parked as "§3.x deferred sim-fidelity details," now **promoted to numbered
+sub-phases and scheduled ahead of Phase 4** (decision 2026-07): the goal of Phase 3
+is a complete possession engine, and shipping Phase 4 stats on a knowingly-thin
+engine means the first leaderboards describe an incomplete game (a blocks leader of
+all zeros, slightly-low scoring, a two-value turnover taxonomy).
+
+**Each is its own sub-phase with its own design pass** — the §3.4/§3.5/§3.6
+three-session workflow (a numbered `decisions.md` entry + an execute-ready
+`todo.md` plan, then execution). These bullets are *seams, not plans*: the blocks
+discussion showed the one-line description under-specified the real design (the
+"block only on misses" shortcut was rejected in favor of a block-gates-the-make
+model). Do **not** execute a bullet without running its design pass first.
+
+**Sequenced by calibration blast radius, not roadmap order.** The `CalibrationHarness`
+guards ~112 pts / 47% FG / 36% 3P / 26 ast / 14 TO per team (§3.4). Some items are
+pure event-log *labeling* (no effect on those numbers); others move scoring and cost
+a recalibration pass. Ordering isolates the scoring-affecting changes so each lands
+against a known-good baseline instead of tuning against two moving point-sources at
+once. The harness **reports**, it does not gate the build — "recalibration" means
+re-running the loop and re-agreeing the numbers, not a red build.
+
+> **Shared dependency:** §3.10 and §3.11 both need a **team-foul / bonus model**
+> that does not exist yet (foul counts per team per period → bonus free throws).
+> They're adjacent so that substrate is designed and built once.
+
+- [ ] **§3.7 — Blocked shots** *(own recalibration; the pilot — already
+      half-designed)*. No `BLOCK` play type today; a blocked shot is
+      indistinguishable from a normal miss (becomes a `MISSED SHOT` → rebound) and
+      `BoxScore.blocks` is hardcoded 0 (`GameSimulator` sets `bs.setBlocks(0)`).
+      **Design-pass fork (from discussion):** the roadmap's original "roll a block
+      only on shots that already missed" is **rejected** — a real block *prevents a
+      would-be make*, so the block roll must **gate the make/miss roll**, not garnish
+      misses. Options: (2) a block gate *before* the existing `isMade` roll — if
+      blocked, emit `BLOCK`, no make roll, rebound as normal; or (3) fold into a
+      three-way `MAKE`/`MISS`/`BLOCK` outcome. **Defensive block skill is a
+      first-class factor** (`rimProtection` for rim attempts, `shotContest` for
+      jumpers, scaled by shot type; optional shooter counter-factor via `shotSkill`/
+      finishing). Watch the **double-count trap**: the defender's block contribution
+      must be removed from the make roll or elite rim protectors get penalized twice.
+      Because blocks now convert would-be makes, scoring drops slightly → one
+      recalibration (nudge rim make-rate up to compensate). Seam: `ShotResolver` +
+      `PossessionEngine` shot branch; add a blocks-per-team target (~5) to the harness.
+      The flow is drawn in `docs/possession-flow.puml` (the `BLOCKED?` fork inside
+      `ShotResolver`, before the make roll, falling through to `ReboundResolver`) —
+      marked PROPOSED / not built.
+      **Open questions to resolve in the design pass (#025 TBD):**
+      1. *Fork shape* — Option 2 (block gate before the existing `isMade` roll) vs.
+         Option 3 (one three-way `MAKE`/`MISS`/`BLOCK` draw). Option 3 avoids the
+         double-count by construction; Option 2 is the smaller diff.
+      2. *Double-count split* — how the defender's `rimProtection`/`shotContest` is
+         divided between "got a hand on it (block)" and "contested it into a miss
+         (make roll)" so elite rim protectors aren't taxed twice and interior
+         scoring doesn't crater. (The reason a real recalibration is needed.)
+      3. *Shooter counter-factor* — does a great finisher / high `shotSkill` get
+         blocked less, or is v1 defender-only?
+      4. *Block-recovery outcomes* — a blocked ball gets its **own `BlockResolver`**
+         (not a bias on the normal rebound draw — that hack is dropped) with a
+         three-way roll: recovered-by-offense (→ second-chance) / recovered-by-defense
+         (possession over) / out-of-bounds. Driven by block-specific factors (how
+         hard/controlled the swat was), NOT `offenseRebound` vs `defenseRebound`.
+         Sub-question: OOB off the shooter (defense's ball) vs off the blocker
+         (offense retains) — v1 simplest is "block-OOB = defense's ball." Set the
+         three probabilities (defense-lean: real blocks favor the blocking team).
+      5. *Offense-recovered-block loop re-entry* — when the offense recovers a
+         blocked ball it re-enters the second-chance path (counts against
+         `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`). Decide whether it **skips**
+         `ReboundResolver`'s draw (recovery already decided by `BlockResolver`) or
+         falls through it — must not double-decide who got the ball.
+      6. *Block rate by shot type* — rim attempts (`DRIVE`/`POST`) are blocked far
+         more than jumpers; `THREE` blocks are rare. Confirm the per-`ShotType` base
+         rates and the ~5/team/game target.
+- [ ] **§3.8 — Missed shot out of bounds (no rebound)** *(free — no recalibration)*.
+      A missed shot that sails OOB untouched, or a rebound tipped OOB, ends the
+      possession the same as a defensive rebound — today folded into the
+      `REBOUND — DEFENSIVE` outcome. Add as a third branch off the rebound roll
+      (retained inbound vs lost inbound). Pure event-log labeling: the possession
+      outcome is unchanged, so harness totals don't move.
+- [ ] **§3.9 — Turnover sub-categories (richer causes)** *(free — no recalibration)*.
+      §3.2 models only two turnover outcomes — `STOLEN` / `LOST_BALL` — and §3.4 kept
+      it that way. A fuller taxonomy: offensive fouls (charges), **shot-clock
+      violations**, bad passes, travels, out-of-bounds, 3-seconds, 8-second/backcourt.
+      **Modeling approach (important — do NOT reverse decisions.md #021):** each
+      sub-category is a new **`outcome` value on a `TURNOVER` `GameEvent`** (the
+      `outcome` field is open-ended free text, #020 — so **no schema change**)
+      produced by a **probability roll**, exactly like the existing `BASE_TURNOVER`
+      model — NOT by simulating a sub-possession 24-second clock or ball-tracking.
+      E.g. a shot-clock violation is a small per-possession chance (scaled by weak
+      `teamOffense` / low `acumen` / a stalling `defensiveScheme`) emitting `TURNOVER`
+      / `SHOT_CLOCK_VIOLATION`; a charge is `TURNOVER` / `OFFENSIVE_FOUL`. The
+      turnover *count* is unchanged (you're subdividing the ~14 the harness already
+      likes), so no recalibration. Seam: `TurnoverResolver` + `SimConfig`.
+- [ ] **§3.10 — Loose-ball / rebounding fouls** *(needs the team-foul/bonus
+      substrate; small recalibration)*. A foul committed *during* the rebound phase
+      (box-out push, over-the-back). §3.3 only models shooting fouls on drive/post
+      attempts; the rebound contest is foul-free. When added, it's a foul roll on the
+      rebound contest → non-shooting foul (possession retained, or **bonus free
+      throws** once the team-foul/bonus model exists). Adds FT volume only if bonus
+      FTs are in scope → re-check FT rate in the harness. **Build the team-foul/bonus
+      model here** (shared with §3.11).
+- [ ] **§3.11 — And-1 / shooting foul on a made basket** *(biggest recalibration)*.
+      Today a foul check happens *instead of* a shot (`PossessionEngine`: the foul
+      branch returns before the make/miss roll — drive/post → foul → 2 FTs, never
+      *with* a made shot). A real and-1 is: made FG **+** 1 bonus free throw. Needs
+      the foul model to roll **alongside** (not before) shot resolution — the more
+      invasive change, restructuring the possession branching. Adds points to the
+      system (bonus FTs that don't exist today) → pushes pts above ~112 → re-tune
+      `BASE_FOUL` / FT rate to re-center. Reuses the team-foul/bonus substrate from
+      §3.10.
+
+_(A future defensive-fidelity or Phase-4 stats pass may surface more; add new
+numbered sub-phases here rather than reopening a catch-all deferred bucket.)_
 
 ---
 

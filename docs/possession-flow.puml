@@ -68,18 +68,70 @@ partition "FoulResolver" {
 partition "ShotResolver" {
   :record FGA (+ 3PA if THREE);
 
-  if (shot made?\n//offense skill vs defense skill//\n//× acumen + teamOffense/teamDefense §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
-    :SHOT — MADE_*
-    +2 or +3 points;
-    partition "Assist (§3.4)" {
-      if (assisted?\n//supporting-cast passing draw//) then (yes)
-        :stamp assist_player_id
-        credit assister;
-      endif
+  if (BLOCKED? //§3.7 PROPOSED//\n//defender rimProtection (rim) / shotContest (jumper)//\n//vs shooter finishing/shotSkill; scaled by shot type//\n//× fatigueFactor per player §3.5//) then (yes)
+    :SHOT — BLOCKED
+    credit defender block
+    (shooter still charged the missed FGA);
+    note right
+      **§3.7 design fork (pilot — decisions.md #025 TBD).**
+      The block GATES the make roll — a real block prevents a
+      would-be make, so this fork sits BEFORE //shot made?//,
+      NOT as a relabel of misses.
+      **Double-count trap:** rimProtection/shotContest drive
+      both this diamond AND the //shot made?// defense term —
+      the design pass must split the defender's skill between
+      "got a hand on it (block)" and "contested it (miss)" so
+      elite rim protectors aren't penalized twice.
+      Alt (Option 3): fold BLOCKED into one 3-way
+      MAKE/MISS/BLOCK draw instead of a separate gate.
+    end note
+
+    partition "BlockResolver (§3.7 PROPOSED)" {
+      note right
+        A blocked ball has its own recovery physics — NOT the
+        normal offenseRebound-vs-defenseRebound draw. Its own
+        resolver, three outcomes (block-specific: how hard /
+        controlled the swat was, not box-out skill). This
+        **retires open-question #4** (bias-the-rebound-draw):
+        blocks get a dedicated roll, not a nudge on rebounding.
+      end note
+      switch (recovery? //block-specific roll//)
+      case (offense)
+        :BLOCK — RECOVERED_OFFENSE
+        offense retains;
+        note right
+          Re-enters the SAME second-chance loop an OFFENSIVE
+          rebound uses (counts against MAX_OFFENSIVE_REBOUNDS
+          _PER_POSSESSION). **Open Q (#025):** does it skip
+          ReboundResolver's draw (recovery already decided
+          here) or fall through it? — must not double-decide
+          who got the ball.
+        end note
+        stop
+      case (defense)
+        :BLOCK — RECOVERED_DEFENSE
+        credit def rebounder;
+        stop
+      case (out of bounds)
+        :BLOCK — OUT_OF_BOUNDS
+        //v1: defense's ball (swat OOB off shooter)//;
+        stop
+      endswitch
     }
-    stop
   else (no)
-    :SHOT — MISSED_*;
+    if (shot made?\n//offense skill vs defense skill//\n//× acumen + teamOffense/teamDefense §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
+      :SHOT — MADE_*
+      +2 or +3 points;
+      partition "Assist (§3.4)" {
+        if (assisted?\n//supporting-cast passing draw//) then (yes)
+          :stamp assist_player_id
+          credit assister;
+        endif
+      }
+      stop
+    else (no)
+      :SHOT — MISSED_*;
+    endif
   endif
 }
 
@@ -117,6 +169,13 @@ legend bottom left
   the floor; each contest skill is × fatigueFactor(energy),
   ×1.0 at a full tank. Minutes are a possession-share
   projection (no game clock). Foul-out = getFouls() >= 6.
+
+  **§3.7 blocked shots — PROPOSED, not built** (decisions.md #025 TBD)
+  New BLOCKED? fork inside ShotResolver, before the make roll.
+  A blocked shot is a missed FGA (charged to shooter) + a BLK
+  (credited to defender), then rebounds like any miss. Removes
+  would-be-make points → one recalibration pass. This diagram
+  shows the design under review; no engine code exists yet.
 endlegend
 
 @enduml
