@@ -7,7 +7,7 @@ import software.daveturner.gametime.exception.ResourceNotFoundException;
 import software.daveturner.gametime.model.RosterEntry;
 import software.daveturner.gametime.model.Team;
 import software.daveturner.gametime.repo.*;
-import software.daveturner.gametime.service.GametimeService;
+import software.daveturner.gametime.service.TeamQueryService;
 
 import java.util.*;
 import java.util.random.RandomGenerator;
@@ -17,17 +17,17 @@ import java.util.random.RandomGeneratorFactory;
 @Transactional
 public class GameSimulator {
 
-    private final GametimeService gametimeService;
+    private final TeamQueryService teamQueryService;
     private final PossessionEngine possessionEngine;
     private final GameRepo gameRepo;
     private final GameEventRepo gameEventRepo;
     private final BoxScoreRepo boxScoreRepo;
     private final SimConfig config;
 
-    public GameSimulator(GametimeService gametimeService, PossessionEngine possessionEngine,
+    public GameSimulator(TeamQueryService teamQueryService, PossessionEngine possessionEngine,
                          GameRepo gameRepo, GameEventRepo gameEventRepo,
                          BoxScoreRepo boxScoreRepo, SimConfig config) {
-        this.gametimeService = gametimeService;
+        this.teamQueryService = teamQueryService;
         this.possessionEngine = possessionEngine;
         this.gameRepo = gameRepo;
         this.gameEventRepo = gameEventRepo;
@@ -36,9 +36,9 @@ public class GameSimulator {
     }
 
     public SimResult simulate(String homeTeamId, String awayTeamId, long seed, int possessionsPerPeriod) {
-        Team homeTeam = gametimeService.getTeam(homeTeamId)
+        Team homeTeam = teamQueryService.getTeam(homeTeamId)
                 .orElseThrow(ResourceNotFoundException::new);
-        Team awayTeam = gametimeService.getTeam(awayTeamId)
+        Team awayTeam = teamQueryService.getTeam(awayTeamId)
                 .orElseThrow(ResourceNotFoundException::new);
 
         List<PlayerGameState> homeSquad = buildRotation(homeTeam);
@@ -69,6 +69,7 @@ public class GameSimulator {
         game.setHomeScore(data.getHomeScore());
         game.setAwayScore(data.getAwayScore());
         game.setPeriods(data.getPeriods());
+        game.setSeed(seed);
         gameRepo.save(game);
 
         for (GameData.EventRecord e : data.getEvents()) {

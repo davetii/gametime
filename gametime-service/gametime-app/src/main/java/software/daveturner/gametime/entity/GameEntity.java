@@ -35,4 +35,12 @@ public class GameEntity {
     @Column(name = "periods")
     private Integer periods;
 
+    /**
+     * §3.6 (#024 B): the RNG seed this game was simulated with, persisted so the
+     * game is reproducible from its own record. Set by {@link
+     * software.daveturner.gametime.sim.GameSimulator} at persist time.
+     */
+    @Column(name = "seed")
+    private Long seed;
+
 }

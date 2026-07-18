@@ -72,4 +72,22 @@ public class V1ApiDelegateimpl implements V1ApiDelegate {
         return ResponseEntity.ok().build();
     }
 
+    @Override
+    public ResponseEntity<GameResult> simulateGame(SimulateGameRequest simulateGameRequest) {
+        return ResponseEntity.ok(service.simulateGame(
+                simulateGameRequest.getHomeTeamId(),
+                simulateGameRequest.getAwayTeamId(),
+                simulateGameRequest.getSeed()));
+    }
+
+    @Override
+    public ResponseEntity<GameResult> fetchGame(String gameId) {
+        return ResponseEntity.ok(service.getGame(gameId));
+    }
+
+    @Override
+    public ResponseEntity<List<GameEvent>> fetchPlayByPlay(String gameId) {
+        return ResponseEntity.ok(service.getPlayByPlay(gameId));
+    }
+
 }

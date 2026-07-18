@@ -110,6 +110,15 @@ alter table gametime.box_score
     foreign key (player_id)
     REFERENCES gametime.player (id);
 
+-- changeset 1.04.2 failOnError:true splitStatements:true
+
+-- §3.6 (decisions.md #024 B): persist the RNG seed the engine rolled for this
+-- game so the record is reproducible. Optional on input (random default), always
+-- written by GameSimulator at persist time, echoed back on the Game header.
+-- Nullable — plain column add, no Postgres-specific syntax, so no dbms gate.
+alter table gametime.game
+    add column seed BIGINT;
+
 -- changeset 1.04.1-triggers failOnError:true splitStatements:true dbms:postgresql
 
 CREATE TRIGGER on_new_row_game BEFORE INSERT ON gametime.game FOR EACH ROW EXECUTE FUNCTION gametime.on_new_row();

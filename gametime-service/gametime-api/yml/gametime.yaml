@@ -193,6 +193,72 @@ paths:
         '404':
           description: Not Found
 
+  /v1/game/simulate:
+    post:
+      summary: Simulate a game between two teams
+      description: Run the game engine for a home/away matchup and persist the
+        result. An optional seed makes the run reproducible; omitted, a fresh
+        random seed is rolled and persisted on the returned game (#024 B).
+      operationId: simulateGame
+      tags:
+        - Game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateGameRequest"
+      responses:
+        '200':
+          description: Game simulated — the game header plus both teams' box scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameResult"
+        '404':
+          description: Unknown home or away team
+        '422':
+          description: Same-team matchup (homeTeamId equals awayTeamId)
+
+  /v1/game/{gameId}:
+    get:
+      summary: fetch a simulated game by id
+      tags:
+        - Game
+      operationId: fetchGame
+      parameters:
+        - $ref: "#/components/parameters/gameIdPathParam"
+      responses:
+        '200':
+          description: The game header plus both teams' box scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameResult"
+        '404':
+          description: Not Found
+
+  /v1/game/{gameId}/play-by-play:
+    get:
+      summary: fetch a game's play-by-play event log
+      description: the game's events as a flat list in sequence order (#024 D)
+      tags:
+        - Game
+      operationId: fetchPlayByPlay
+      parameters:
+        - $ref: "#/components/parameters/gameIdPathParam"
+      responses:
+        '200':
+          description: Ordered play-by-play events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameEvent"
+        '404':
+          description: Not Found
+
 components:
 
   parameters:
@@ -228,6 +294,14 @@ components:
       in: path
       description: Team ID
       name: teamId
+      required: true
+      schema:
+        type: string
+
+    gameIdPathParam:
+      in: path
+      description: Game ID
+      name: gameId
       required: true
       schema:
         type: string
@@ -515,3 +589,147 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LineupEntry"
+
+    SimulateGameRequest:
+      type: object
+      description: Request to simulate a game (#024). Pace is not exposed — the
+        engine always uses its default possessions-per-period (#024 C).
+      required:
+        - homeTeamId
+        - awayTeamId
+      properties:
+        homeTeamId:
+          type: string
+        awayTeamId:
+          type: string
+        seed:
+          type: integer
+          format: int64
+          description: Optional RNG seed for a reproducible run. Omitted, a fresh
+            random seed is rolled and persisted on the game (#024 B).
+
+    Game:
+      type: object
+      description: A simulated game's header — matchup, outcome, and the seed it
+        was run with. No per-period line scores (derivable from the event log,
+        #020). Only FINAL is produced by the engine.
+      properties:
+        id:
+          type: string
+        homeTeamId:
+          type: string
+        awayTeamId:
+          type: string
+        status:
+          type: string
+          enum: [SCHEDULED, IN_PROGRESS, FINAL]
+        homeScore:
+          type: integer
+          format: int32
+        awayScore:
+          type: integer
+          format: int32
+        periods:
+          type: integer
+          format: int32
+        seed:
+          type: integer
+          format: int64
+
+    BoxScore:
+      type: object
+      description: A single player's stat line for one game. No teamId — the
+        team is resolved server-side into the home/away split of GameResult
+        (#020, #024 A).
+      properties:
+        playerId:
+          type: string
+        points:
+          type: integer
+          format: int32
+        offensiveRebounds:
+          type: integer
+          format: int32
+        defensiveRebounds:
+          type: integer
+          format: int32
+        assists:
+          type: integer
+          format: int32
+        steals:
+          type: integer
+          format: int32
+        blocks:
+          type: integer
+          format: int32
+        turnovers:
+          type: integer
+          format: int32
+        fouls:
+          type: integer
+          format: int32
+        minutes:
+          type: integer
+          format: int32
+        fieldGoalsAttempted:
+          type: integer
+          format: int32
+        fieldGoalsMade:
+          type: integer
+          format: int32
+        threePointersAttempted:
+          type: integer
+          format: int32
+        threePointersMade:
+          type: integer
+          format: int32
+        freeThrowsAttempted:
+          type: integer
+          format: int32
+        freeThrowsMade:
+          type: integer
+          format: int32
+
+    GameEvent:
+      type: object
+      description: One event in a game's play-by-play log, in sequence order.
+        No time field — a display clock is derived on read (#024 E).
+      properties:
+        sequence:
+          type: integer
+          format: int32
+        period:
+          type: integer
+          format: int32
+        offenseTeamId:
+          type: string
+        defenseTeamId:
+          type: string
+        playType:
+          type: string
+          enum: [SHOT, TURNOVER, REBOUND, FOUL, FREE_THROW]
+        outcome:
+          type: string
+        primaryPlayerId:
+          type: string
+        assistPlayerId:
+          type: string
+          description: Optional assister on a made-FG SHOT event (§3.4). Null on
+            unassisted makes and every non-SHOT event (#022 B, surfaced #024 D).
+
+    GameResult:
+      type: object
+      description: The shared "here's your game" object — same shape for simulate
+        and get (#024 A). The event log is NOT included; play-by-play is its own
+        endpoint, so this payload stays bounded (~30 stat lines).
+      properties:
+        game:
+          $ref: "#/components/schemas/Game"
+        homeBoxScore:
+          type: array
+          items:
+            $ref: "#/components/schemas/BoxScore"
+        awayBoxScore:
+          type: array
+          items:
+            $ref: "#/components/schemas/BoxScore"

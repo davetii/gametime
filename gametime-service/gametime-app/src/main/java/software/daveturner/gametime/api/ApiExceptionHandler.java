@@ -22,4 +22,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleBadRequest(ResourceBadRequestException ex) {
         return ResponseEntity.badRequest().build();
     }
+
+    @ExceptionHandler(ResourceUnprocessableException.class)
+    protected ResponseEntity<Object> handleUnprocessable(ResourceUnprocessableException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
+    }
 }

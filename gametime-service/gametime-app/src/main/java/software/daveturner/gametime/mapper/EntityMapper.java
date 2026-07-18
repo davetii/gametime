@@ -157,6 +157,93 @@ public class EntityMapper {
         return entry;
     }
 
+    /**
+     * §3.6 (#024 A): map a game header. No per-period line scores — a period line
+     * is derivable from the event log (#020), so it isn't stored or exposed.
+     */
+    public Game entityToGame(GameEntity e) {
+        Game game = new Game();
+        game.setId(e.getId());
+        game.setHomeTeamId(e.getHomeTeamId());
+        game.setAwayTeamId(e.getAwayTeamId());
+        if (e.getStatus() != null) {
+            game.setStatus(Game.StatusEnum.fromValue(e.getStatus().name()));
+        }
+        game.setHomeScore(e.getHomeScore());
+        game.setAwayScore(e.getAwayScore());
+        game.setPeriods(e.getPeriods());
+        game.setSeed(e.getSeed());
+        return game;
+    }
+
+    /**
+     * §3.6 (#024 D): map a play-by-play event. Surfaces assistPlayerId (the §3.4
+     * column, #022 B) — null on unassisted makes and every non-SHOT event. No
+     * time field — a display clock is derived on read (#024 E).
+     */
+    public GameEvent entityToGameEvent(GameEventEntity e) {
+        GameEvent event = new GameEvent();
+        event.setSequence(e.getSequence());
+        event.setPeriod(e.getPeriod());
+        event.setOffenseTeamId(e.getOffenseTeamId());
+        event.setDefenseTeamId(e.getDefenseTeamId());
+        if (e.getPlayType() != null) {
+            event.setPlayType(GameEvent.PlayTypeEnum.fromValue(e.getPlayType().name()));
+        }
+        event.setOutcome(e.getOutcome());
+        event.setPrimaryPlayerId(e.getPrimaryPlayerId());
+        event.setAssistPlayerId(e.getAssistPlayerId());
+        return event;
+    }
+
+    /** §3.6: map a single per-player stat line. No teamId (#020, #024 A). */
+    public BoxScore entityToBoxScore(BoxScoreEntity e) {
+        BoxScore bs = new BoxScore();
+        bs.setPlayerId(e.getPlayerId());
+        bs.setPoints(e.getPoints());
+        bs.setOffensiveRebounds(e.getOffensiveRebounds());
+        bs.setDefensiveRebounds(e.getDefensiveRebounds());
+        bs.setAssists(e.getAssists());
+        bs.setSteals(e.getSteals());
+        bs.setBlocks(e.getBlocks());
+        bs.setTurnovers(e.getTurnovers());
+        bs.setFouls(e.getFouls());
+        bs.setMinutes(e.getMinutes());
+        bs.setFieldGoalsAttempted(e.getFieldGoalsAttempted());
+        bs.setFieldGoalsMade(e.getFieldGoalsMade());
+        bs.setThreePointersAttempted(e.getThreePointersAttempted());
+        bs.setThreePointersMade(e.getThreePointersMade());
+        bs.setFreeThrowsAttempted(e.getFreeThrowsAttempted());
+        bs.setFreeThrowsMade(e.getFreeThrowsMade());
+        return bs;
+    }
+
+    /**
+     * §3.6 (#024 A) — the crux: assemble a {@link GameResult}, splitting the box
+     * scores into home/away buckets. The box_score row has no team_id (#020), so
+     * the team is resolved from the game + player_team: a row belongs to the home
+     * team iff its playerId is in {@code homePlayerIds} (the home roster fetched
+     * once via {@code PlayerTeamRepo.findByTeamId}), else it's away. Every player
+     * with a box-score row took the floor for one of the two teams, so this two-way
+     * split is exhaustive.
+     */
+    public GameResult toGameResult(GameEntity game, List<BoxScoreEntity> boxScores,
+                                   Set<String> homePlayerIds) {
+        GameResult result = new GameResult();
+        result.setGame(entityToGame(game));
+        result.setHomeBoxScore(new ArrayList<>());
+        result.setAwayBoxScore(new ArrayList<>());
+        for (BoxScoreEntity e : boxScores) {
+            BoxScore bs = entityToBoxScore(e);
+            if (homePlayerIds.contains(e.getPlayerId())) {
+                result.getHomeBoxScore().add(bs);
+            } else {
+                result.getAwayBoxScore().add(bs);
+            }
+        }
+        return result;
+    }
+
     private Position positionFromId(String id) {
         for (Position pos : Position.values()) {
             if (pos.id.equals(id)) {
