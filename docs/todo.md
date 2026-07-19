@@ -98,9 +98,26 @@ execution rhythm.
   *confirm-green*, not new reconciliation.
 - [ ] New `sim` classes to ~90%+ line coverage (JaCoCo gate), matching §3.7/§3.8;
   full `mvn clean install` gate green.
-- [ ] Record the resolved open-at-execution items (below) as an implementation note
-  on #027 if any diverged from the plan, and flip roadmap.md's §3.9 bullet to `[x]`
-  with the landing summary (the §3.7/§3.8 close-out pattern).
+- [ ] **Doc close-out (the §3.7/§3.8 pattern — do all of these):**
+  - [ ] `game.md` — update the `play_type` / `outcome` **vocabulary table**
+    (currently the two rows `TURNOVER | STOLEN` and `TURNOVER | LOST_BALL` at
+    ~L215–216): replace `LOST_BALL` (retired) with the 9 §3.9 causes, each with a
+    one-line meaning and the "credited to the ball-handler; `STOLEN` also credits the
+    stealer" note. This is the living event-vocabulary reference — §3.7 added the
+    `BLOCKED_*` rows and §3.8 the `OUT_OF_BOUNDS_*` rows here, so §3.9's causes belong
+    here too. Also refresh the "Turnover check" line in the possession-flow narrative
+    if it names the outcomes.
+  - [ ] `roadmap.md` — flip the §3.9 bullet to `[x]` with an indented italic landing
+    summary (harness TO/team + the per-cause mix, coverage, "no recalibration —
+    aggregates byte-unchanged"), matching the §3.7/§3.8 shipped bullets.
+  - [ ] `decisions.md #027` — add the **implementation note** (`from execution,
+    YYYY-MM`): the resolved open-at-execution items (final enum spelling, the chosen
+    per-cause weights/sensitivities, whether `pickCause` returns enum vs. string), the
+    landing aggregates, and coverage. Note any divergence from A–E.
+  - [ ] `player.md` (optional) — the "Turnover / steal" row (~L225) still holds; add a
+    one-liner only if you want the cause-scaling skills (`acumen`/`teamOffense`/
+    `defensiveScheme`) noted. `roster.md` / `risks.md` need no §3.9 change (no roster
+    surface, no new risk — free by construction).
 
 **Reconciliation invariant (holds by construction, #027 E):** §3.9 emits exactly one
 `TURNOVER` event per declared turnover, same as today — only the `outcome` string
