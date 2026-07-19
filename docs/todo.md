@@ -4,17 +4,13 @@ Tactical task list for the **current phase only**. Check items off or remove
 them as completed. For the big-picture phased roadmap and what's already
 shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
 [backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
-**§3.x Deferred sim-fidelity details**.
+**Possession-fidelity completion** section (§3.7–§3.11).
 
-Current focus: **§3.7 — Blocked shots** (roadmap.md §3.7), the first of the
-**possession-fidelity completion** sub-phases (§3.7–§3.11) now scheduled **before
-Phase 4** (decision 2026-07). Phase 3's engine simulates + persists + exposes a
-full game (§3.1–§3.6 shipped), but deliberately omits five possession-level
-realism items; we decided each **should be in the game** and belongs to Phase 3
-(finish the engine before Phase 4 measures it). Each is its **own numbered
-sub-phase with its own design pass** (the §3.4/§3.5/§3.6 three-session workflow),
-sequenced by calibration blast radius so scoring-affecting changes land one at a
-time against a known-good baseline.
+Current focus: **§3.7 — Blocked shots**. The full §3.7–§3.11 sequence, the
+calibration-blast-radius ordering, and what follows (Phase 4) live in
+**roadmap.md's "Possession-fidelity completion" section** — not here (todo.md is
+current-phase-only). This file holds only the §3.7 execution plan below; when §3.7
+ships it gets rewritten to §3.8's plan.
 
 > **§3.7 design pass DONE — resolved as decisions.md #025 (A–F). Execute-ready.**
 > The design is settled; the plan below is the third (execution) session. Locked:
@@ -95,36 +91,9 @@ time against a known-good baseline.
    - [ ] Reset this file's focus to **§3.8 — Missed shot out of bounds** (the next
      free/no-recalibration item); strip the completed §3.7 plan.
 
----
-
-## §3.7–§3.11 sequence (roadmap.md — work in order, one design pass each)
-
-Full seams + design forks live in roadmap.md's "Possession-fidelity completion"
-section. Ordering is by calibration cost, NOT roadmap number order:
-
-| # | Item | Recalibration | Notes |
-|---|------|---------------|-------|
-| **§3.7** | Blocked shots | one pass | **Design DONE (#025); execute-ready plan above.** v3 three-way draw; block = a SHOT/BLOCKED_* outcome (mirrors steals); flat four-way recovery. |
-| **§3.8** | Missed shot OOB (no rebound) | none (free) | Event-log labeling only; possession outcome unchanged. |
-| **§3.9** | Richer turnover taxonomy | none (free) | New `outcome` values on `TURNOVER` events (no schema change, #021); turnover count unchanged. |
-| **§3.10** | Rebounding / loose-ball fouls | small | **Builds the team-foul/bonus model** (shared with §3.11). |
-| **§3.11** | And-1 (foul on a made basket) | biggest | Foul rolls *alongside* the shot; adds bonus-FT points → re-tune scoring. Reuses §3.10's substrate. |
-
-**Cross-cutting:** §3.10 + §3.11 both need a **team-foul / bonus model** (per-team
-per-period foul counts → bonus FTs) that doesn't exist yet — designed/built once in
-§3.10. The `CalibrationHarness` **reports** (doesn't gate the build); "recalibration"
-= re-run `-Dcalibration=true`, re-agree the numbers. Re-run it after every
-scoring-affecting item.
-
-### After §3.11 → Phase 4 — Statistics & Box Scores (roadmap.md §4)
-
-Deferred until the engine is complete. Mostly **aggregation** of the per-game
-`BoxScoreEntity` rows the engine already persists (#020) — season averages/totals,
-team rollups, league leaders — plus stats APIs (`fetchTeam`/§3.6 endpoints are the
-copy-me template). Open questions to resolve in *its* design pass: compute-on-read
-vs. a materialized season-stats table (#013/#015/#020 discipline); how "season" is
-scoped before a schedule/season table exists (Phase 5); leaders/rankings shape +
-whether the orphaned `pageNumber`/`pageSize` params (#019) finally get a consumer.
+> **What's next after §3.7** (§3.8–§3.11, then Phase 4) and the
+> calibration-blast-radius ordering live in **roadmap.md's "Possession-fidelity
+> completion" section** — not duplicated here, per current-phase-only.
 
 ---
 
