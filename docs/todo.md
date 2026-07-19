@@ -114,13 +114,24 @@ there (sum the OOB events per team-game), so the rate is visible for the Decisio
    - [ ] New result enum (mirror `BlockRecovery`): the four outcomes
      (`OFFENSIVE_REBOUND` / `DEFENSIVE_REBOUND` / `OOB_OFFENSE` / `OOB_DEFENSE`) with
      an `offenseRetains()` predicate the engine forks on.
-   - [ ] `MissedShotResolver` **wraps** `ReboundResolver`: run the existing two-way
-     skill contest for the rebound-vs-rebound balance, then apply the flat
-     defense-leaning OOB lean to carve the two OOB slices — returning one four-way
-     result. Skill-weighted (the #026 C difference from the flat `BlockResolver`).
-     `ReboundResolver` stays UNCHANGED. The resolver returns the outcome + the picked
-     rebounder (so the engine credits the rebounder ONLY on the two rebound outcomes,
-     never on OOB — Decision E).
+   - [ ] `MissedShotResolver` **wraps** `ReboundResolver`, returning one four-way
+     result + the picked rebounder. **Mechanism (resolve the ambiguity in "carve"):**
+     the two OOB slices carry a **fixed defensive lean INDEPENDENT of who won the
+     board** (#026 A: "a fixed defense-leaning lean, NOT a separate OOB
+     sub-decision"). Do **NOT** implement it as "run `isOffensiveRebound`, then flip
+     some results to OOB on the *same* side" — that would make OOB inherit the
+     skill-decided side (a dominant offensive rebounder's OOBs skewing offense),
+     which contradicts the design. Instead: **first split off OOB vs. clean-rebound
+     by the flat OOB-lean weights** (a small fixed share goes OOB, itself split
+     defense-leaning by the `SimConfig` weights from step 2, skill-independent);
+     **only on the clean-rebound branch** run `ReboundResolver`'s skill contest
+     (`isOffensiveRebound` + `pickOffensive/DefensiveRebounder`) to decide
+     OFFENSIVE vs DEFENSIVE. Net: the rebound-vs-rebound balance is skill-weighted
+     (the #026 C difference from flat `BlockResolver`), while the OOB slices are flat
+     + defense-leaning. `ReboundResolver` stays UNCHANGED. Return the picked rebounder
+     so the engine credits it ONLY on the two rebound outcomes, never on OOB (E).
+     *(If calibration later shows the OOB slices should scale with anything, that's a
+     future tweak — seed them flat per #026 A, like the §3.7 recovery weights.)*
 4. **Wire into `PossessionEngine` (#026 B, E).**
    - [ ] Inject `missedShotResolver` (constructor field; update the
      `PossessionEngineTest` ctor too).
