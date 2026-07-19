@@ -50,8 +50,8 @@ three-point lean → "modern offense") without the model being categorical.
 
 All five are concrete: columns on `CoachEntity`, seeded in `coach.csv` (40 rows),
 and mapped through `EntityMapper`. The "Consumed by" column shows which engine
-phase reads each — **§3.4 effects are live**; **§3.5 effects are pending** (the
-attributes exist and are read by nothing until §3.5 builds minutes/fatigue).
+phase reads each — **all five are now live**: §3.4 wired the scheme/pace trio and
+§3.5 wired the two rotation knobs (decisions.md #022 / #023).
 
 | Attribute | Drives | Consumed by | Status |
 |-----------|--------|-------------|--------|
@@ -119,8 +119,9 @@ contribution; `rotationDepth` / `substitutionAggressiveness` are how the coach
 
 ## Implementation status
 
-The attribute model and its §3.4 effects are built; §3.5 rotation effects are the
-remaining work.
+The attribute model and all five effects are built — §3.4 scheme/pace and §3.5
+rotation. Nothing in the coach model is unbuilt; the remaining items are the
+display/API open questions below, not engine work.
 
 | Step | Status |
 |------|--------|
@@ -129,7 +130,7 @@ remaining work.
 | 3. **Schema** — Liquibase columns on `coach` (H2-compatible + Postgres triggers) | ✅ `release.1.0.1.sql` |
 | 4. **Entity** — fields on `CoachEntity` (Lombok `@Data`) | ✅ |
 | 5. **Seed** — `coach.csv`, 40 rows sampled around 10 | ✅ |
-| 6. **Mapping** — wire through `EntityMapper` | ✅ `entityToCoach` (API exposure still open — see below) |
+| 6. **Mapping** — wire through `EntityMapper` | ✅ `entityToCoach` maps all five; exposed transitively wherever a `Team` is returned (`fetchTeam`, league, §3.6 game endpoints). A *dedicated* coach endpoint is still open — see below |
 | 7. **Tests** — entity + mapping coverage | ✅ `EntityMapperTest` |
 | 8. **§3.4 effects** — `pace`/`offensiveScheme`/`defensiveScheme` → engine | ✅ decisions.md #022 (`CoachModifiers` + `TeamContext`) |
 | 9. **§3.5 effects** — `rotationDepth`/`substitutionAggressiveness` → minutes/fatigue | ✅ decisions.md #023 (`CoachModifiers.rotationDepthFactor()`/`subAggressivenessFactor()` + `RotationState`) |
@@ -145,7 +146,9 @@ rotation effects drive the between-possession substitution check in
 ## Open questions
 
 - **Derived archetype for display** — compute on read, or store? (Lean: compute.)
-- **Does the API expose coach attributes**, or are they engine-internal until
-  there's a UI consumer? (Lean: internal until Phase 7 needs them.)
+- **A dedicated coach API** — coach attributes are already exposed transitively on
+  every `Team` payload (`entityToCoach` maps all five), so the open question is
+  narrower: does coach warrant its *own* endpoint (`GET`/`PUT /v1/coach/…`), or is
+  team-embedded enough until a UI consumer asks? (Lean: team-embedded until Phase 7.)
 - **GM attributes** — same name-only gap exists for GM, but its consumers
   (Phase 6.4 trades/draft) are further off; resolve GM separately, later.
