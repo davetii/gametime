@@ -114,6 +114,7 @@ class PlayerGameStateTest {
         p.recordFreeThrowMade();
         p.recordTurnover();
         p.recordSteal();
+        p.recordBlock();
         p.recordFoul();
 
         assertEquals(1, p.getFieldGoalsAttempted());
@@ -125,6 +126,7 @@ class PlayerGameStateTest {
         assertEquals(3, p.getPoints()); // 2 from FG + 1 from FT
         assertEquals(1, p.getTurnovers());
         assertEquals(1, p.getSteals());
+        assertEquals(1, p.getBlocks());
         assertEquals(1, p.getFouls());
     }
 

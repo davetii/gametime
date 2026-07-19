@@ -125,6 +125,7 @@ class CalibrationHarness {
             agg.turnovers += nz(bs.getTurnovers());
             agg.offReb += nz(bs.getOffensiveRebounds());
             agg.defReb += nz(bs.getDefensiveRebounds());
+            agg.blocks += nz(bs.getBlocks());
         }
 
         // §3.5: per-slot minutes distribution — for each team-game, sort that
@@ -152,6 +153,17 @@ class CalibrationHarness {
                 .count();
         int boxAssists = boxScores.stream().mapToInt(b -> nz(b.getAssists())).sum();
         if (assistedShots != boxAssists) {
+            agg.reconciliationMismatches++;
+        }
+
+        // §3.7 block reconciliation: SHOT events with a BLOCKED outcome == box-score
+        // blocks (#025 F — events are the source of truth, same shape as assists).
+        long blockedShots = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.SHOT
+                        && e.getOutcome() != null && e.getOutcome().startsWith("BLOCKED"))
+                .count();
+        int boxBlocks = boxScores.stream().mapToInt(b -> nz(b.getBlocks())).sum();
+        if (blockedShots != boxBlocks) {
             agg.reconciliationMismatches++;
         }
     }
@@ -193,7 +205,7 @@ class CalibrationHarness {
         int gameCount;
         int teamGames;
         long points;
-        long fga, fgm, tpa, tpm, assists, turnovers, offReb, defReb;
+        long fga, fgm, tpa, tpm, assists, turnovers, offReb, defReb, blocks;
         long periods;
         int reconciliationMismatches;
 
@@ -218,12 +230,13 @@ class CalibrationHarness {
             lines.add(String.format("Turnovers / team / game:%.1f   (target ~14)", turnovers / tg));
             lines.add(String.format("Off reb / team / game:  %.1f", offReb / tg));
             lines.add(String.format("Def reb / team / game:  %.1f", defReb / tg));
-            lines.add(String.format("Assist reconciliation:  %s",
-                    reconciliationMismatches == 0 ? "OK (all games match)"
-                            : reconciliationMismatches + " MISMATCH(es)"));
+            lines.add(String.format("Blocks / team / game:   %.1f   (target ~5)", blocks / tg));
+            lines.add(String.format("Reconciliation (ast+blk):%s",
+                    reconciliationMismatches == 0 ? " OK (all games match)"
+                            : " " + reconciliationMismatches + " MISMATCH(es)"));
 
             System.out.println();
-            System.out.println("=========== §3.4 + §3.5 CALIBRATION REPORT =============");
+            System.out.println("======== §3.4 + §3.5 + §3.7 CALIBRATION REPORT =========");
             lines.forEach(System.out::println);
 
             // §3.5 minutes distribution (per team-game, biggest-minutes slot first).

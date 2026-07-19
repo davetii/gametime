@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.5; §3.7 blocks DESIGNED not built)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -68,7 +68,7 @@ partition "FoulResolver" {
 partition "ShotResolver" {
   :record FGA (+ 3PA if THREE);
 
-  if (BLOCKED? //§3.7 — decisions.md #025, DESIGNED not built//\n//P(BLOCK) carved off the top (A1), then MAKE/MISS on remainder//\n//contest: defender rimProtection (rim) / shotContest (jumper)//\n//vs shooter finishing (B2); shot-type-scaled, THREE very-low (C)//\n//× fatigueFactor per player §3.5//) then (yes)
+  if (BLOCKED? //§3.7 — decisions.md #025//\n//P(BLOCK) carved off the top (A1), then MAKE/MISS on remainder//\n//contest: defender rimProtection (rim) / shotContest (jumper)//\n//vs shooter finishing (B2); own BLOCK_SENSITIVITY, THREE very-low (C)//\n//× fatigueFactor per player §3.5//) then (yes)
     :SHOT — BLOCKED_*
     event: PlayType.SHOT, outcome BLOCKED_* (F1)
     primaryPlayerId = shooter (the victim)
@@ -162,16 +162,15 @@ legend bottom left
   ×1.0 at a full tank. Minutes are a possession-share
   projection (no game clock). Foul-out = getFouls() >= 6.
 
-  **§3.7 blocked shots — DESIGNED, not yet built** (decisions.md #025)
+  **§3.7 blocked shots** (decisions.md #025)
   BLOCKED? is one leg of a three-way MAKE/MISS/BLOCK draw inside
   ShotResolver (v3): P(BLOCK) carved off the top, defender-vs-
-  finisher contest. A block is a SHOT/BLOCKED_* event (a field-
-  goal outcome, exactly as a steal is a TURNOVER outcome) —
-  missed FGA on the shooter + a BLK via recordBlock() on the
-  defender, no assist. BlockResolver then runs a flat four-way
-  loose-ball recovery (offense/defense × in-bounds/OOB).
-  Removes would-be-make points → one recalibration pass. Design
-  is settled (#025 A–F); no engine code exists yet.
+  finisher contest (own BLOCK_SENSITIVITY). A block is a SHOT/
+  BLOCKED_* event (a field-goal outcome, exactly as a steal is a
+  TURNOVER outcome) — missed FGA on the shooter + a BLK via
+  recordBlock() on the defender, no assist. BlockResolver runs a
+  flat four-way loose-ball recovery (offense/defense × in-bounds/
+  OOB). Recalibrated: ~5 blocks/team, §3.4/§3.5 aggregates held.
 endlegend
 
 @enduml

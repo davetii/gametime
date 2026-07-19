@@ -202,7 +202,10 @@ scaled by `teamOffense`), and shot-quality/efficiency (`acumen`,
 `teamOffense`/`teamDefense`). §3.5 adds in-game **fatigue**: the `endurance`/
 `energy` attributes seed and drain a per-game `currentEnergy` that applies a
 single modest multiplier over a player's skills at contest time (decisions.md
-#023). Rows below not in that list — transition, pick-and-roll
+#023). §3.7 adds **shot blocks**: a defender-vs-finisher contest
+(`rimProtection` at the rim / `shotContest` on jumpers, vs the shooter's
+`finishing`) carves a block off the top of the shot outcome (decisions.md #025).
+Rows below not in that list — transition, pick-and-roll
 (`screenSetting`/`offBallMovement`), off-ball movement, and the `clutch` late-game
 modifier — are **not modeled yet** (future §3.x); they stay here as the target so
 the attribute coverage is visible.
@@ -215,7 +218,7 @@ the attribute coverage is visible.
 | Drive to basket | drive, finishing |
 | Shot attempt (open) | longRange / perimeter / post |
 | Shot contest | shotContest, individualDefense |
-| Shot block attempt | rimProtection |
+| Shot block attempt | rimProtection (rim) / shotContest (jumper) vs finishing (shooter) |
 | Foul on attempt? | foulDrawing vs foulProne |
 | Free throws | freeThrows, clutch (late game) |
 | Rebound | offenseRebound / defenseRebound |

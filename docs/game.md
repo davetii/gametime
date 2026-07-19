@@ -8,12 +8,14 @@ one doc, the way [roster.md](roster.md) holds player↔team + lineups + transact
 together.
 
 The **model** shipped in §3.1; the **possession engine** that fills it is built
-through §3.4 and this doc now documents both:
+through §3.7 and this doc now documents both:
 - **§3.2** possession flow — shot selection / turnover / foul / shot outcome
 - **§3.3** rebounding — the second-chance loop after a missed shot
 - **§3.4** coaching + chemistry — coach modifiers on the flow, and real assists
 - **§3.5** minutes / fatigue / substitution — the on-floor five changes during a
   game; `BoxScore.minutes` is now real (derived from possession share)
+- **§3.7** blocked shots — a three-way MAKE/MISS/BLOCK draw; `BoxScore.blocks` is
+  now real (a `SHOT`/`BLOCKED_*` event + a BLK credit, mirroring steals)
 
 The "Possession flow" section below reflects what the engine actually does today.
 
@@ -94,8 +96,18 @@ Each possession produces **one or more** `GameEvent` rows in this order:
    - `FOUL` event (primary_player = fouling defender) → free throws follow.
    - Two `FREE_THROW` events (primary_player = shooter), each with its own
      make/miss outcome. Possession ends after free throws.
-3. **Shot** — if no turnover and no foul:
-   - `SHOT` event → made or missed. On a make, points are scored and the
+3. **Shot** — if no turnover and no foul. The shooter is charged an FGA (+3PA if a
+   THREE), then the outcome is a **three-way MAKE/MISS/BLOCK draw** (§3.7):
+   - **Block check first (§3.7)** — `P(BLOCK)` is carved off the top: a
+     defender-vs-finisher contest (`rimProtection` at the rim / `shotContest` on
+     jumpers, vs the shooter's `finishing`), shot-type-scaled (rim ≫ three). If
+     blocked: a `SHOT` / `BLOCKED_*` event (primary_player = shooter, the victim),
+     the blocker credited a BLK via `recordBlock()` (not on the event), a missed
+     FGA on the shooter, no assist. A flat four-way `BlockResolver` then resolves
+     the loose ball — a **defense recovery** (in-bounds or OOB) ends the
+     possession; an **offense recovery** re-enters the second-chance loop at the
+     shot selector (skipping the rebound step), capped like an offensive rebound.
+   - Otherwise `SHOT` event → made or missed. On a make, points are scored and the
      possession ends. On a made FG, an **assist** may be attributed (§3.4): a roll
      (scaled by the other on-floor offensive players' `passing` / team
      `teamOffense`) decides whether the make was assisted; if so, an assister is
@@ -119,6 +131,8 @@ always followed by a `REBOUND`):
 - `SHOT` (made) — possession ends
 - `SHOT` (missed) → `REBOUND` (`DEFENSIVE`) — possession ends
 - `SHOT` (missed) → `REBOUND` (`OFFENSIVE`) → … second-chance possession …
+- `SHOT` (`BLOCKED_*`) — defense recovers (in-bounds/OOB), possession ends
+- `SHOT` (`BLOCKED_*`) → … second-chance possession … — offense recovers the block
 
 All events in a possession share the same `offense_team_id` / `defense_team_id`
 and `period`. `sequence` increments globally (not per possession).
@@ -169,6 +183,10 @@ rebound contests — a modest thumb on the scale composed multiplicatively with 
 | `SHOT` | `MISSED_2PT_PERIMETER` | Missed 2-point field goal (mid-range / perimeter) |
 | `SHOT` | `MISSED_2PT_POST` | Missed 2-point field goal (post move) |
 | `SHOT` | `MISSED_3PT` | Missed 3-point field goal (long range) |
+| `SHOT` | `BLOCKED_2PT_DRIVE` | Blocked 2-point drive; `primary_player` = shooter (victim), blocker credited a BLK separately (§3.7) |
+| `SHOT` | `BLOCKED_2PT_PERIMETER` | Blocked 2-point perimeter shot; shooter on the event, blocker credited separately |
+| `SHOT` | `BLOCKED_2PT_POST` | Blocked 2-point post shot; shooter on the event, blocker credited separately |
+| `SHOT` | `BLOCKED_3PT` | Blocked 3-point attempt (rare — closeout swat); shooter on the event, blocker credited separately |
 | `TURNOVER` | `STOLEN` | Ball handler lost the ball; defender credited a steal |
 | `TURNOVER` | `LOST_BALL` | Unforced turnover (no steal credited) |
 | `FOUL` | `SHOOTING_FOUL` | Defensive foul on a drive/post attempt; free throws follow |
@@ -181,6 +199,29 @@ After a missed `SHOT`, §3.3 rolls a rebound: the `REBOUND` event's
 `primary_player_id` is the rebounder. An `OFFENSIVE` rebound keeps the ball with
 the shooting team (a second-chance possession runs through the full flow again);
 a `DEFENSIVE` rebound ends the possession. See the possession-flow section below.
+
+**Steal / block symmetry (§3.7, decisions.md #025).** A **block is a field-goal
+outcome exactly as a steal is a turnover outcome** — a defensive event modeled as
+an outcome-flavor on the offensive action it interrupts, plus a separate
+defender-credit accumulator. The two are deliberately parallel:
+
+| | Steal (§3.2) | Block (§3.7) |
+|---|---|---|
+| Event | `TURNOVER` / `STOLEN` | `SHOT` / `BLOCKED_*` |
+| `primary_player_id` | the ball-loser (victim) | the shooter (victim) |
+| Separate credit | `recordSteal()` → `BoxScore.steals` | `recordBlock()` → `BoxScore.blocks` |
+| New `PlayType`? | no (a kind of turnover) | no (a kind of missed shot) |
+| Reconciliation | `count(STOLEN) == Σ steals` | `count(outcome LIKE 'BLOCKED%') == Σ blocks` |
+
+A blocked shot is **carved off the top** of the shot outcome (a three-way
+MAKE/MISS/BLOCK draw): `P(BLOCK)` is a defender-vs-finisher contest
+(`rimProtection` at the rim / `shotContest` on jumpers, vs the shooter's
+`finishing`), then the make/miss contest runs on the remainder. It charges the
+shooter a **missed FGA** (no FGM; `+3PA` on a blocked THREE) and carries **no
+assist**. A separate flat four-way `BlockResolver` then decides the loose ball
+(offense/defense × in-bounds/OOB); an offense-recovered block re-enters the
+second-chance loop at `ShotSelector`, skipping `ReboundResolver`. See the
+possession-flow section below and `docs/possession-flow.puml`.
 
 ### Shot types → skill matchups (decisions.md #021, Decision C)
 
@@ -208,27 +249,32 @@ into season totals).
   With substitutions live, bench players who entered the game accumulate stats and
   minutes and so get their own box-score row. A player who never checked in gets no
   row (nothing to reconcile).
-- per-player counters: points, rebounds (off/def), assists, steals, turnovers,
-  fouls, FGA/FGM, 3PA/3PM, FTA/FTM (cf. roadmap §4.1).
+- per-player counters: points, rebounds (off/def), assists, steals, **blocks**,
+  turnovers, fouls, FGA/FGM, 3PA/3PM, FTA/FTM (cf. roadmap §4.1).
 - **accumulated during simulation**, then reconciled against the persisted
   `GameEvent` log (events are the source of truth — decisions.md #020).
-- **Two columns exist but are not modeled yet — always `0`:**
-  - **`blocks`** — there is no `BLOCK` play type; a blocked shot is currently
-    indistinguishable from a normal miss (it becomes a `MISSED` `SHOT` → rebound).
-    A real block model (a defender's `rimProtection`/`shotContest` converting a
-    contest into a recorded block, with the miss attributed) is future §3.x work —
-    the same honest "not modeled yet, stored as 0" state assists were in before
-    §3.4. *(See roadmap §3.x deferred sim-fidelity.)*
-  Every other counter is real and reconciles against the event log; `assists`
-  became real in §3.4 (Decision B1), and `minutes` became real in §3.5 (below).
+- **Every counter is now real** — the last placeholder, `blocks`, became real in
+  §3.7 (below); `assists` became real in §3.4 (Decision B1), `minutes` in §3.5.
+
+- **`blocks` is real as of §3.7 (decisions.md #025).** A block is a **field-goal
+  outcome the way a steal is a turnover outcome** — there is deliberately **no
+  `PlayType.BLOCK`**. A blocked shot is a `SHOT` event with a `BLOCKED_*` outcome
+  naming the **shooter** (the victim) as `primaryPlayerId`, exactly as a steal is a
+  `TURNOVER`/`STOLEN` event naming the ball-loser. The **blocker** is credited
+  separately via `recordBlock()` (mirroring `recordSteal()`) and is **not** on the
+  event; that accumulator maps to `BoxScore.blocks`. The shooter is charged a
+  **missed FGA** (`+1 FGA`, `+1 3PA` if a blocked THREE, `0 FGM` — a block counts
+  against FG%), and a blocked shot carries **no `assist_player_id`**. Reconciliation
+  invariant: count of `SHOT` events with `outcome LIKE 'BLOCKED%'` **==** sum of
+  `BoxScore.blocks` (same shape steals/assists/rebounds use). See the `play_type` /
+  `outcome` vocabulary below for the `BLOCKED_*` strings.
 
 - **`minutes` is real as of §3.5 (decisions.md #023, Decision A).** The engine has
   no game clock (#021), so minutes are a **derived possession-share projection**,
   not a clocked measurement: each on-floor player accumulates a possession counter,
   and at box-score-write time the game's total possessions map to
   `PERIODS × 12` (+5 per OT) minutes by ratio, attributing each player their share.
-  Team minutes sum to `5 × game-minutes` by construction. `blocks` remains an
-  unmodeled `0` (no `BLOCK` play type — future §3.x).
+  Team minutes sum to `5 × game-minutes` by construction.
 
 ---
 

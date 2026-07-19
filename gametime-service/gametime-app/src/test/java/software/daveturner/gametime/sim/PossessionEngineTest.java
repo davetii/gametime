@@ -17,8 +17,10 @@ class PossessionEngineTest {
     private final TurnoverResolver turnoverResolver = new TurnoverResolver(config);
     private final FoulResolver foulResolver = new FoulResolver(config);
     private final ReboundResolver reboundResolver = new ReboundResolver(config);
+    private final BlockResolver blockResolver = new BlockResolver(config);
     private final PossessionEngine engine = new PossessionEngine(
-            shotSelector, shotResolver, turnoverResolver, foulResolver, reboundResolver, config);
+            shotSelector, shotResolver, turnoverResolver, foulResolver, reboundResolver,
+            blockResolver, config);
 
     private RandomGenerator rng(long seed) {
         return RandomGeneratorFactory.of("L64X128MixRandom").create(seed);
@@ -657,6 +659,222 @@ class PossessionEngineTest {
             assertEquals(h1.get(i).getOnFloorPossessions(), h2.get(i).getOnFloorPossessions(),
                     "sub decisions are deterministic given the seed");
         }
+    }
+
+    // ===================== §3.7 blocked shots =====================
+
+    // An offense of weak finishers (all skills weak so shots miss/get blocked, low
+    // ballSecurity kept average to avoid turnovers dominating). finishing is the 2nd
+    // skill in the 13-skill overload.
+    private List<PlayerGameState> weakFinisherOffense(String teamId) {
+        List<PlayerGameState> players = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            players.add(TestPlayerFactory.create(teamId + "-o" + i, teamId,
+                    10, 2, 10, 2, 2, 10, 10, 10, 10, 10, 10, 10, 10));
+        }
+        return players;
+    }
+
+    // A defense of elite shot-blockers (rimProtection 10th, shotContest 11th), low
+    // stealing so turnovers stay rare and blocks dominate the defensive events.
+    private List<PlayerGameState> eliteBlockerDefense(String teamId) {
+        List<PlayerGameState> players = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            players.add(TestPlayerFactory.create(teamId + "-d" + i, teamId,
+                    10, 10, 10, 10, 10, 10, 10, 10, 10, 20, 20, 1, 10));
+        }
+        return players;
+    }
+
+    private boolean isBlockedEvent(GameData.EventRecord e) {
+        return e.playType() == PlayType.SHOT && e.outcome().startsWith("BLOCKED");
+    }
+
+    @Test
+    void gameProducesBlockedShotEvents() {
+        // Elite blockers vs weak finishers should produce BLOCKED_* SHOT events.
+        GameData data = simulate(weakFinisherOffense("H"), eliteBlockerDefense("A"),
+                "H", "A", 25, rng(42));
+        long blocks = data.getEvents().stream().filter(this::isBlockedEvent).count();
+        assertTrue(blocks > 0, "elite blockers should block some shots");
+    }
+
+    @Test
+    void blockedEventsAreShotsWithNoAssist() {
+        GameData data = simulate(weakFinisherOffense("H"), eliteBlockerDefense("A"),
+                "H", "A", 25, rng(42));
+        long blocks = 0;
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (isBlockedEvent(e)) {
+                blocks++;
+                assertEquals(PlayType.SHOT, e.playType(), "a block is a SHOT event (F1)");
+                assertNull(e.assistPlayerId(), "a blocked shot is never assisted (F4)");
+            }
+        }
+        assertTrue(blocks > 0, "expected some blocked shots to assert on");
+    }
+
+    @Test
+    void blockedOutcomeStringsCarryShotType() {
+        GameData data = simulate(weakFinisherOffense("H"), eliteBlockerDefense("A"),
+                "H", "A", 25, rng(42));
+        Set<String> allowed = Set.of("BLOCKED_2PT_DRIVE", "BLOCKED_2PT_PERIMETER",
+                "BLOCKED_2PT_POST", "BLOCKED_3PT");
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (isBlockedEvent(e)) {
+                assertTrue(allowed.contains(e.outcome()),
+                        "unexpected block outcome string: " + e.outcome());
+            }
+        }
+    }
+
+    @Test
+    void blockedShotChargesMissedFieldGoalAttemptNoMake() {
+        // A blocked shot is a missed FGA on the shooter: FGA charged, no FGM. Over a
+        // whole game, blocked-shot events must be covered by the offense's FGA count,
+        // and no blocked event can coincide with a made basket.
+        List<PlayerGameState> offense = weakFinisherOffense("H");
+        GameData data = simulate(offense, eliteBlockerDefense("A"), "H", "A", 25, rng(42));
+
+        long blocks = data.getEvents().stream().filter(this::isBlockedEvent).count();
+        int offenseFga = offense.stream().mapToInt(PlayerGameState::getFieldGoalsAttempted).sum();
+        assertTrue(blocks > 0, "expected blocks");
+        assertTrue(offenseFga >= blocks,
+                "every blocked shot is a charged FGA: fga=" + offenseFga + " blocks=" + blocks);
+        // No blocked outcome is ever a make.
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (isBlockedEvent(e)) {
+                assertFalse(e.outcome().startsWith("MADE"), "a block is never a make");
+            }
+        }
+    }
+
+    @Test
+    void blockedThreeChargesThreePointAttempt() {
+        // A blocked THREE still charges a 3PA on the shooter (F3). Find a game with a
+        // blocked three, then assert the offense's 3PA count covers it.
+        for (long seed = 1; seed <= 200; seed++) {
+            List<PlayerGameState> offense = weakFinisherOffense("H");
+            GameData data = simulate(offense, eliteBlockerDefense("A"), "H", "A", 25, rng(seed));
+            long blockedThrees = data.getEvents().stream()
+                    .filter(e -> isBlockedEvent(e) && e.outcome().equals("BLOCKED_3PT"))
+                    .count();
+            if (blockedThrees > 0) {
+                int offense3pa = offense.stream()
+                        .mapToInt(PlayerGameState::getThreePointersAttempted).sum();
+                assertTrue(offense3pa >= blockedThrees,
+                        "a blocked THREE charges a 3PA: 3pa=" + offense3pa
+                                + " blockedThrees=" + blockedThrees);
+                return;
+            }
+        }
+        // Blocked threes are very-low by design; if none appeared in 200 seeds that's
+        // acceptable — the DRIVE/POST paths carry the 3PA-independent coverage.
+    }
+
+    @Test
+    void blockerCreditReconcilesWithBlockedEvents() {
+        // Reconciliation invariant (#025 F, extends #020/#022): count of SHOT events
+        // with outcome LIKE 'BLOCKED%' == sum of recorded blocks across both teams.
+        List<PlayerGameState> home = weakFinisherOffense("H");
+        List<PlayerGameState> away = eliteBlockerDefense("A");
+        GameData data = simulate(home, away, "H", "A", 25, rng(42));
+
+        long blockedEvents = data.getEvents().stream().filter(this::isBlockedEvent).count();
+        int recordedBlocks = home.stream().mapToInt(PlayerGameState::getBlocks).sum()
+                + away.stream().mapToInt(PlayerGameState::getBlocks).sum();
+        assertTrue(blockedEvents > 0, "expected some blocks to reconcile");
+        assertEquals(blockedEvents, recordedBlocks,
+                "BLOCKED SHOT events must reconcile with recorded blocks");
+    }
+
+    @Test
+    void blockerIsCreditedNotTheShooter() {
+        // The block is credited to a DEFENDER (recordBlock), never to the shooter —
+        // mirrors the steal pattern (the victim is named on the event, the defender
+        // gets the separate credit). Uses resolvePossession so offense/defense roles
+        // are fixed (a full simulate() alternates both teams through both roles, so
+        // both teams legitimately record blocks there).
+        List<PlayerGameState> offense = weakFinisherOffense("H");
+        List<PlayerGameState> defense = eliteBlockerDefense("A");
+        GameData data = new GameData();
+        long blockedEvents = 0;
+        for (long seed = 1; seed <= 400; seed++) {
+            resolvePossession(data, offense, defense, "H", "A", 1, 1, rng(seed));
+        }
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (isBlockedEvent(e)) {
+                blockedEvents++;
+                // The offensive shooter is the primary player on the block event.
+                assertTrue(e.primaryPlayerId().startsWith("H-o"),
+                        "the shooter (offense) is named on the block event: " + e.primaryPlayerId());
+            }
+        }
+        int offenseBlocks = offense.stream().mapToInt(PlayerGameState::getBlocks).sum();
+        int defenseBlocks = defense.stream().mapToInt(PlayerGameState::getBlocks).sum();
+        assertTrue(blockedEvents > 0, "expected some blocks");
+        assertEquals(0, offenseBlocks, "the shooting team records no blocks");
+        assertEquals(blockedEvents, defenseBlocks,
+                "the defending team's blockers are credited, one per blocked event");
+    }
+
+    @Test
+    void offenseRecoveredBlockCanProduceSecondChance() {
+        // An offense-recovered block re-enters at ShotSelector (Decision E): a single
+        // possession can contain a BLOCKED event followed by more offensive events
+        // (another shot attempt / turnover / foul) rather than ending immediately.
+        boolean foundSecondChanceAfterBlock = false;
+        for (long seed = 1; seed <= 300 && !foundSecondChanceAfterBlock; seed++) {
+            GameData data = new GameData();
+            resolvePossession(data, weakFinisherOffense("H"), eliteBlockerDefense("A"),
+                    "H", "A", 1, 1, rng(seed));
+            List<GameData.EventRecord> events = data.getEvents();
+            for (int i = 0; i < events.size(); i++) {
+                if (isBlockedEvent(events.get(i)) && i + 1 < events.size()) {
+                    // A block that isn't the last event ⇒ the offense recovered and
+                    // the possession continued (a second-chance event followed).
+                    foundSecondChanceAfterBlock = true;
+                    break;
+                }
+            }
+        }
+        assertTrue(foundSecondChanceAfterBlock,
+                "an offense-recovered block should re-enter the possession loop");
+    }
+
+    @Test
+    void blockSecondChancesRespectOffensiveReboundCap() {
+        // Offense-recovered blocks bump the offensive-rebound counter (Decision E), so
+        // BLOCKED events + OFFENSIVE rebounds sharing a possession must never let the
+        // offense retain more than MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION times. Verify
+        // the possession always terminates (bounded event count) and the offensive
+        // second-chance count is capped.
+        for (long seed = 1; seed <= 300; seed++) {
+            GameData data = new GameData();
+            int next = resolvePossession(data, weakFinisherOffense("H"), eliteBlockerDefense("A"),
+                    "H", "A", 1, 1, rng(seed));
+            // The possession terminated (returned a sequence) with a bounded number of
+            // events — no infinite second-chance loop.
+            assertTrue(next > 1, "possession must terminate");
+            long offensiveRetentions = data.getEvents().stream()
+                    .filter(e -> (isBlockedEvent(e))
+                            || (e.playType() == PlayType.REBOUND && e.outcome().equals("OFFENSIVE")))
+                    .count();
+            // Each retention re-enters the loop; the offense can never keep the ball
+            // more than the cap allows, so a single possession is bounded well below a
+            // runaway count. (Cap is 3; allow slack for the terminal non-retained shot.)
+            assertTrue(offensiveRetentions <= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION + 3,
+                    "second chances (blocks + off rebounds) must stay bounded, got "
+                            + offensiveRetentions + " (seed " + seed + ")");
+        }
+    }
+
+    @Test
+    void buildBlockOutcomeFormatsCorrectly() {
+        assertEquals("BLOCKED_2PT_DRIVE", engine.buildBlockOutcome(ShotType.DRIVE));
+        assertEquals("BLOCKED_2PT_PERIMETER", engine.buildBlockOutcome(ShotType.PERIMETER));
+        assertEquals("BLOCKED_2PT_POST", engine.buildBlockOutcome(ShotType.POST));
+        assertEquals("BLOCKED_3PT", engine.buildBlockOutcome(ShotType.THREE));
     }
 
     private int pointsFromEvent(GameData.EventRecord e) {

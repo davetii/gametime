@@ -14,16 +14,19 @@ public class PossessionEngine {
     private final TurnoverResolver turnoverResolver;
     private final FoulResolver foulResolver;
     private final ReboundResolver reboundResolver;
+    private final BlockResolver blockResolver;
     private final SimConfig config;
 
     public PossessionEngine(ShotSelector shotSelector, ShotResolver shotResolver,
                             TurnoverResolver turnoverResolver, FoulResolver foulResolver,
-                            ReboundResolver reboundResolver, SimConfig config) {
+                            ReboundResolver reboundResolver, BlockResolver blockResolver,
+                            SimConfig config) {
         this.shotSelector = shotSelector;
         this.shotResolver = shotResolver;
         this.turnoverResolver = turnoverResolver;
         this.foulResolver = foulResolver;
         this.reboundResolver = reboundResolver;
+        this.blockResolver = blockResolver;
         this.config = config;
     }
 
@@ -147,6 +150,33 @@ public class PossessionEngine {
                 shooter.recordThreePointAttempt();
             }
 
+            // §3.7 (decisions.md #025 A1/B2/F): the block fork is carved off the top
+            // of the shot outcome — rolled BEFORE the make/miss contest. A block is a
+            // field-goal outcome exactly as a steal is a turnover outcome: a SHOT
+            // event with a BLOCKED_* outcome naming the shooter (the victim), the
+            // FGA already charged above (a missed FGA, no FGM — it counts against
+            // FG%), no assist (F4), and a separate blocker.recordBlock() credit (F2).
+            if (shotResolver.isBlocked(shotType, shooter, defender, rng)) {
+                defender.recordBlock();
+                data.addEvent(offTeamId, defTeamId, period, sequence,
+                        PlayType.SHOT, buildBlockOutcome(shotType), shooter.getPlayerId());
+                sequence++;
+
+                // Flat four-way loose-ball recovery (Decision D). Offense-recovered
+                // (RECOVERED_OFFENSE/OOB_OFFENSE) re-enters the second-chance loop at
+                // ShotSelector (Decision E), reusing the offensive-rebound machinery
+                // and respecting the same cap — it SKIPS ReboundResolver (recovery is
+                // already decided). Defense-recovered ends the possession.
+                BlockRecovery recovery = blockResolver.resolveRecovery(rng);
+                boolean capReached =
+                        offensiveRebounds >= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION;
+                if (recovery.offenseRetains() && !capReached) {
+                    offensiveRebounds++;
+                    continue;
+                }
+                return sequence;
+            }
+
             double chemistryMultiplier = config.chemistryMakeMultiplier(
                     shooter.getAcumen(), teamOffense, oppTeamDefense);
             boolean made = shotResolver.isMade(shotType, shooter, defender,
@@ -209,6 +239,20 @@ public class PossessionEngine {
             case PERIMETER -> prefix + "_2PT_PERIMETER";
             case POST -> prefix + "_2PT_POST";
             case THREE -> prefix + "_3PT";
+        };
+    }
+
+    /**
+     * §3.7 (decisions.md #025 F1): the BLOCKED_* outcome string, carrying the shot
+     * type in the same shape as {@link #buildShotOutcome}'s MADE / MISSED strings
+     * (so the play-by-play filter is {@code SHOT WHERE outcome LIKE 'BLOCKED%'}).
+     */
+    String buildBlockOutcome(ShotType shotType) {
+        return switch (shotType) {
+            case DRIVE -> "BLOCKED_2PT_DRIVE";
+            case PERIMETER -> "BLOCKED_2PT_PERIMETER";
+            case POST -> "BLOCKED_2PT_POST";
+            case THREE -> "BLOCKED_3PT";
         };
     }
 

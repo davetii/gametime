@@ -60,6 +60,7 @@ public class PlayerGameState {
     private int freeThrowsMade;
     private int turnovers;
     private int steals;
+    private int blocks;
     private int fouls;
     private int offensiveRebounds;
     private int defensiveRebounds;
@@ -226,6 +227,7 @@ public class PlayerGameState {
     public int getFreeThrowsMade() { return freeThrowsMade; }
     public int getTurnovers() { return turnovers; }
     public int getSteals() { return steals; }
+    public int getBlocks() { return blocks; }
     public int getFouls() { return fouls; }
     public int getOffensiveRebounds() { return offensiveRebounds; }
     public int getDefensiveRebounds() { return defensiveRebounds; }
@@ -239,6 +241,10 @@ public class PlayerGameState {
     public void recordFreeThrowMade() { freeThrowsMade++; points += 1; }
     public void recordTurnover() { turnovers++; }
     public void recordSteal() { steals++; }
+    // §3.7 (decisions.md #025 F2): the blocker's credit, mirroring recordSteal().
+    // The blocker is not on the SHOT/BLOCKED_* event — this separate accumulator
+    // maps to BoxScore.blocks (replacing the setBlocks(0) hardcode).
+    public void recordBlock() { blocks++; }
     public void recordFoul() { fouls++; }
     public void recordOffensiveRebound() { offensiveRebounds++; }
     public void recordDefensiveRebound() { defensiveRebounds++; }

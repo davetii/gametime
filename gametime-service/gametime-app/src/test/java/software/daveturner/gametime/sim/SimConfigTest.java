@@ -53,6 +53,37 @@ class SimConfigTest {
         assertTrue(low >= SimConfig.PROB_FLOOR);
     }
 
+    // --- §3.7 block probability (defender-driven contest) ---
+
+    @Test
+    void blockProbabilityEqualSkillsReturnsBase() {
+        // Average defender vs. average finisher lands exactly at base.
+        double result = config.blockProbability(SimConfig.BASE_BLOCK_DRIVE, 10.0, 10.0);
+        assertEquals(SimConfig.BASE_BLOCK_DRIVE, result, 0.001);
+    }
+
+    @Test
+    void blockProbabilityStrongDefenderIncreasesProb() {
+        // The DEFENDER drives the contest: a strong rim protector blocks more.
+        double result = config.blockProbability(SimConfig.BASE_BLOCK_DRIVE, 20.0, 10.0);
+        assertTrue(result > SimConfig.BASE_BLOCK_DRIVE);
+    }
+
+    @Test
+    void blockProbabilityStrongFinisherDecreasesProb() {
+        // A great finisher (the counter-factor) gets blocked less.
+        double result = config.blockProbability(SimConfig.BASE_BLOCK_DRIVE, 10.0, 20.0);
+        assertTrue(result < SimConfig.BASE_BLOCK_DRIVE);
+    }
+
+    @Test
+    void blockProbabilityClampedToValidRange() {
+        double high = config.blockProbability(0.90, 20.0, 1.0);
+        assertTrue(high <= SimConfig.PROB_CEILING);
+        double low = config.blockProbability(0.02, 1.0, 20.0);
+        assertTrue(low >= SimConfig.PROB_FLOOR);
+    }
+
     @Test
     void freeThrowProbabilityAverageSkill() {
         double result = config.freeThrowProbability(10.0);

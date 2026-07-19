@@ -33,6 +33,21 @@ import org.springframework.stereotype.Component;
  * bites harder. Fatigue shows up as <i>who is on the floor</i> (the minutes curve),
  * and it degrades players who <i>stay</i> on tired (thin benches, foul trouble,
  * exhausted deep-bench late games).
+ *
+ * <p><b>§3.7 calibration (decisions.md #025).</b> Blocks convert some would-be
+ * makes into blocks, so scoring dropped and one recalibration pass followed. The
+ * shot {@code BASE_*} rates were nudged up to refill the removed points and the
+ * {@code BASE_BLOCK_*} rates + {@link #BLOCK_SENSITIVITY} tuned toward ~5 blocks/
+ * team. The landing spot (harness, 102 games):
+ * <pre>
+ *   Points/team 112.9 | FG% 47.2% | 3P% 36.0% | Assists 27.1 | Turnovers 13.5
+ *   Blocks/team 4.8 (~5)
+ * </pre>
+ * The §3.4/§3.5 aggregates and the §3.5 minutes distribution still hold. Note the
+ * block contest needed its OWN sensitivity ({@link #BLOCK_SENSITIVITY}, far below
+ * the global {@link #SENSITIVITY}): blocks are rare enough that the global 0.5
+ * makes a good rim protector block ~23% of shots, so skilled defenders alone drove
+ * blocks 2–3× over target regardless of the thin base — see the constant's note.
  */
 @Component
 public class SimConfig {
@@ -49,10 +64,10 @@ public class SimConfig {
     public static final double SCALE_AVG = 10.0;
 
     // --- Shot base rates (calibrated §3.4 against ~47% FG / ~36% 3P) ---
-    public static final double BASE_DRIVE = 0.59;
-    public static final double BASE_PERIMETER = 0.43;
-    public static final double BASE_THREE = 0.31;
-    public static final double BASE_POST = 0.49;
+    public static final double BASE_DRIVE = 0.605;
+    public static final double BASE_PERIMETER = 0.445;
+    public static final double BASE_THREE = 0.345;
+    public static final double BASE_POST = 0.505;
 
     // --- Turnover base rate (per possession; calibrated §3.4 toward ~14 TO/team) ---
     public static final double BASE_TURNOVER = 0.038;
@@ -72,6 +87,45 @@ public class SimConfig {
     // Cap on offensive rebounds per possession to bound the second-chance loop;
     // after the cap, a missed shot is forced to a defensive rebound.
     public static final int MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION = 3;
+
+    // --- Blocked shots (§3.7, decisions.md #025) ---
+    // Per-shot-type block base rate at an average-vs-average contest (defender
+    // block skill vs. shooter finishing, both 10). A block is carved off the top
+    // of the shot outcome (Decision A1) before the make/miss contest runs on the
+    // remainder. Ordering DRIVE ≥ POST > PERIMETER ≫ THREE (Decision C): rim
+    // attempts are far more blockable than threes; THREE is very-low (a rare
+    // closeout swat) but not flat-zero (which would make threes unblockable, an
+    // artifact for no benefit). Placeholders — tuned empirically by the
+    // CalibrationHarness toward ~5 blocks/team/game (Decision C), same as the
+    // §3.4 BASE_* shot rates. Blocks reuse the global SENSITIVITY.
+    public static final double BASE_BLOCK_DRIVE = 0.056;
+    public static final double BASE_BLOCK_POST = 0.048;
+    public static final double BASE_BLOCK_PERIMETER = 0.023;
+    public static final double BASE_BLOCK_THREE = 0.005;
+    // Block-specific contest sensitivity (Decision B: "same logistic shape"). The
+    // global SENSITIVITY (0.5) is far too steep for blocks — a real event so rare
+    // that a good rim protector blocks only ~5–6% of opponent attempts, so a ±0.5
+    // swing per 10 skill points swamps the thin base and drives blocks 2–3× over
+    // target. Blocks therefore use their own, much gentler sensitivity: the defender
+    // still matters (elite rim protectors block more, elite finishers get blocked
+    // less — Decision B2) but the base rate stays the dominant term, keeping blocks
+    // a thin slice off the top (Decision A1). Tuned with BASE_BLOCK_* toward ~5/team.
+    public static final double BLOCK_SENSITIVITY = 0.12;
+
+    // Flat four-way loose-ball recovery weights (Decision D). After a block, a
+    // single roll picks where the swatted ball goes. This is FLAT — fixed weights
+    // identical for every block, no skill input — because a blocked ball is a
+    // chaotic loose ball dominated by physics/chance, not the offenseRebound-vs-
+    // defenseRebound box-out contest ReboundResolver models. The split is
+    // defense-leaning (RECOVERED_DEFENSE > RECOVERED_OFFENSE > the two OOB slices).
+    // Weights are raw (BlockResolver normalizes by their sum) and are unsourced
+    // placeholders — no citable NBA block-recovery distribution exists — settled
+    // by the harness against the ~5/team target. Defense keeps the ball on
+    // RECOVERED_DEFENSE + OOB_DEFENSE (OOB off the shooter/offense).
+    public static final double BLOCK_RECOVERED_DEFENSE = 0.45;
+    public static final double BLOCK_RECOVERED_OFFENSE = 0.30;
+    public static final double BLOCK_OOB_DEFENSE = 0.13;
+    public static final double BLOCK_OOB_OFFENSE = 0.12;
 
     // --- Coach / chemistry modifiers (§3.4, decisions.md #022) ---
     // Single avg-10 deviation sensitivity shared by all coach effects
@@ -241,6 +295,21 @@ public class SimConfig {
 
     public double contestProbability(double base, double offenseSkill, double defenseSkill) {
         double p = base + SENSITIVITY * (offenseSkill - defenseSkill) / SCALE_AVG;
+        return clampProbability(p);
+    }
+
+    /**
+     * §3.7 (decisions.md #025 B2): the probability a shot is blocked — the same
+     * avg-10 logistic contest as {@link #contestProbability}, but with the
+     * DEFENDER as the driving side: {@code base + SENSITIVITY × (defenderBlockSkill
+     * − shooterFinishing)/10}. A great finisher gets blocked less than a scrub
+     * against the same rim protector. {@code base} is the per-shot-type
+     * {@code BASE_BLOCK_*}; a great rim protector vs. an average finisher lands
+     * above base, an average-vs-average contest lands exactly at base.
+     */
+    public double blockProbability(double base, double defenderBlockSkill,
+                                   double shooterFinishing) {
+        double p = base + BLOCK_SENSITIVITY * (defenderBlockSkill - shooterFinishing) / SCALE_AVG;
         return clampProbability(p);
     }
 

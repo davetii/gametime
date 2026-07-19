@@ -201,22 +201,25 @@ re-running the loop and re-agreeing the numbers, not a red build.
 > that does not exist yet (foul counts per team per period → bonus free throws).
 > They're adjacent so that substrate is designed and built once.
 
-- [ ] **§3.7 — Blocked shots** *(own recalibration; the pilot)*. **Design DONE —
-      decisions.md #025 (A–F); execute-ready plan in todo.md; NOT yet built.** Today a
-      blocked shot is indistinguishable from a normal miss and `BoxScore.blocks` is
-      hardcoded 0. Resolved model: a **three-way MAKE/MISS/BLOCK draw** (v3) inside
-      `ShotResolver` — `P(BLOCK)` carved off the top (A1, preserving §3.4 calibration),
-      a **defender(`rimProtection`/`shotContest`)-vs-shooter(`finishing`) contest**
-      (B2), shot-type-scaled with `THREE` very-low (C). A block is recorded as a
-      **`SHOT`/`BLOCKED_*` outcome + a `recordBlock()` credit — exactly as a steal is a
-      `TURNOVER`/`STOLEN` outcome + `recordSteal()`** (F, no new `PlayType`); the shooter
-      is charged a missed FGA, no assist. A new **`BlockResolver`** runs a flat four-way
-      loose-ball recovery (offense/defense × in-bounds/OOB, D); offense-recovered blocks
-      skip `ReboundResolver` and re-enter the second-chance loop at `ShotSelector` (E).
-      Seam: `ShotResolver` + `PossessionEngine` + new `BlockResolver` + `SimConfig` +
-      `PlayerGameState.recordBlock()`. **No schema change** (`box_score.blocks` exists).
-      Blocks convert would-be makes → one recalibration pass; add a ~5-blocks/team target
-      to the harness. Flow: `docs/possession-flow.puml` (DESIGNED, not built).
+- [x] **§3.7 — Blocked shots ✓** *(own recalibration; the pilot)*.
+      _Shipped (decisions.md #025): a blocked shot is now a first-class event — a
+      **three-way MAKE/MISS/BLOCK draw** inside the shot resolution. `ShotResolver.isBlocked`
+      carves `P(BLOCK)` off the top (A1, preserving §3.4 calibration) via a
+      **defender(`rimProtection`/`shotContest`)-vs-shooter(`finishing`) contest** (B2)
+      with its own gentle `BLOCK_SENSITIVITY` (the global 0.5 made blocks 2–3× too
+      common — impl note on #025), shot-type-scaled with `THREE` very-low (C). A block is
+      a **`SHOT`/`BLOCKED_*` event + a `recordBlock()` credit — exactly as a steal is a
+      `TURNOVER`/`STOLEN` event + `recordSteal()`** (F, no new `PlayType`): the shooter is
+      the victim on the event, charged a missed FGA, no assist; the blocker is credited
+      separately. The new **`BlockResolver`** runs a flat four-way loose-ball recovery
+      (offense/defense × in-bounds/OOB, D); offense-recovered blocks skip `ReboundResolver`
+      and re-enter the second-chance loop at `ShotSelector` (E), capped like an offensive
+      rebound. **No schema change** (`box_score.blocks` existed; `setBlocks(0)` → real).
+      Recalibrated: **blocks 4.8/team (~5)**, and the §3.4/§3.5 aggregates recentered
+      (112.9 pts / 47.2% FG / 36.0% 3P / 27.1 ast / 13.5 TO) by nudging the shot base
+      rates up to refill the points blocks removed. Reconciliation `count(SHOT outcome
+      LIKE 'BLOCKED%') == Σ BoxScore.blocks` holds. New/changed `sim` classes at
+      99.4–100% line coverage. Flow: `docs/possession-flow.puml`._
 - [ ] **§3.8 — Missed shot out of bounds (no rebound)** *(free — no recalibration)*.
       A missed shot that sails OOB untouched, or a rebound tipped OOB, ends the
       possession the same as a defensive rebound — today folded into the

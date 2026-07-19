@@ -258,6 +258,50 @@ class GameSimulatorIntegrationTest {
         }
     }
 
+    // --- §3.7 blocked shots (decisions.md #025) ---
+
+    @Test
+    void simulateProducesNonZeroBlocks() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+        int totalBlocks = boxScores.stream().mapToInt(BoxScoreEntity::getBlocks).sum();
+
+        assertTrue(totalBlocks > 0,
+                "§3.7: box-score blocks must no longer be hardcoded 0");
+    }
+
+    @Test
+    void simulateBlocksReconcileWithBlockedShotEvents() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        // Reconciliation invariant (#025 F, extends #020/#022): count of SHOT events
+        // with outcome LIKE 'BLOCKED%' == sum of BoxScore.blocks (events are the
+        // source of truth). A block is a field-goal outcome mirroring how a steal is
+        // a turnover outcome.
+        long blockedShotEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.SHOT
+                        && e.getOutcome().startsWith("BLOCKED"))
+                .count();
+        int boxBlocks = boxScores.stream().mapToInt(BoxScoreEntity::getBlocks).sum();
+
+        assertEquals(blockedShotEvents, boxBlocks,
+                "Box-score blocks must reconcile with BLOCKED SHOT events");
+
+        // A blocked shot is a SHOT that is neither made nor assisted, and it counts
+        // as a field-goal attempt (F1/F3/F4).
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() == PlayType.SHOT && e.getOutcome().startsWith("BLOCKED")) {
+                assertNull(e.getAssistPlayerId(), "a blocked shot carries no assister");
+                assertFalse(e.getOutcome().startsWith("MADE"), "a block is never a make");
+            }
+        }
+    }
+
     private int pointsFromEntity(GameEventEntity e) {
         if (e.getPlayType() == PlayType.SHOT && e.getOutcome().startsWith("MADE")) {
             return e.getOutcome().contains("3PT") ? 3 : 2;

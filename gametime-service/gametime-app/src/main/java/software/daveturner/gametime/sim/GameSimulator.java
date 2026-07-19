@@ -109,7 +109,7 @@ public class GameSimulator {
             bs.setDefensiveRebounds(p.getDefensiveRebounds());
             bs.setAssists(p.getAssists());
             bs.setSteals(p.getSteals());
-            bs.setBlocks(0);
+            bs.setBlocks(p.getBlocks());
             bs.setTurnovers(p.getTurnovers());
             bs.setFouls(p.getFouls());
             // §3.5 (Decision A): minutes are a possession-share projection. The
