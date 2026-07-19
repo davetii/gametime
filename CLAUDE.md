@@ -43,6 +43,11 @@ Before starting work, review these for context:
 - **`docs/ideas.md`** — parking lot: untriaged future-improvement ideas (not planned work)
 - **`docs/risks.md`** — known risks and concerns
 
+When writing or editing any of these planning docs (a `#NNN` decision, a design
+pass, an execute-ready plan, moving deferred work, parking an idea), invoke the
+**`project-docs`** skill first — it captures the house format, the cross-file
+routing rules, and the design-pass→decision→plan rhythm the docs follow.
+
 ## Build requirements
 
 - **Java 21** (LTS) via SDKMAN: `~/.sdkman/candidates/java/21.0.9-tem`
