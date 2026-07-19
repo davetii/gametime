@@ -118,15 +118,26 @@ Size caps (`MAX_ACTIVE_ROSTER = 15`, `MAX_MINORS = 5` in `GametimeServiceImp`):
   maximums. A team may carry any positional mix; a lopsided roster is punished by
   the game engine, not an API rule. See decisions.md #017.
 
+## How gameplay consumes the roster (built)
+
+The roster domain feeds the game engine, and both consumers are now live:
+
+- **Minutes & fatigue** (§3.5, decisions.md #023) — the lineup this domain owns
+  (`STARTER` set + `rotationOrder` bench queue) drives the engine's dynamic
+  rotation: `rotationOrder` + a player's `endurance` govern minutes allocation and
+  the between-possession substitution check (`RotationState`). In-game subs stay
+  transient — they never write back to `player_team` (see Lineups above).
+- **Coach rotation influence** (§3.5, decisions.md #023) — the coach's
+  `rotationDepth` / `substitutionAggressiveness` (built and read; see
+  [coach.md](coach.md)) decide how far down the `rotationOrder` queue the bench
+  plays and how eagerly tired starters are pulled. `rotationOrder` is the roster's
+  contribution; the coach knobs are how that chart is *used* — the clean seam
+  between this domain and gameplay.
+
 ## Not yet built
 
-These touch the roster domain but are not implemented yet:
-
-- **Minutes & fatigue** (Phase 3.5) — `rotationOrder` + `endurance` drive minutes
-  allocation and in-game substitution.
-- **Coach rotation influence** (Phase 3.5) — the Coach model is built and its §3.4
-  effects (pace / shot / defensive scheme) ship; the rotation attributes
-  (`rotationDepth` / `substitutionAggressiveness`) are seeded but unread until §3.5
-  wires them to the substitution model. See [coach.md](coach.md).
 - **Trades / free agency / waivers** (Phase 6.4) — more `TransactionType` paths
-  through the same `player_team` / `player_team_hist` machinery.
+  (`TRADE` / `FREE_AGENCY` / `WAIVER` / `DRAFT`) through the same `player_team` /
+  `player_team_hist` machinery that `SIGN` / `RELEASE` already use. A normalized
+  multi-player-trade `transaction` table is a future option, not needed until
+  trades exist.
