@@ -108,18 +108,21 @@ public class PossessionEngine {
 
             // 1. Turnover check
             if (turnoverResolver.isTurnover(shooter, defense, defensivePressure, rng)) {
-                boolean stolen = turnoverResolver.isStolen(rng);
-                String outcome;
-                if (stolen) {
+                // §3.9 (decisions.md #027 A/B): the gate above is UNCHANGED — a
+                // turnover happens exactly as often as before. Only now does a
+                // weighted draw pick WHICH of the nine causes it was (a pure
+                // re-partition; the count never moves). STOLEN keeps the pickStealer
+                // + recordSteal() path; every cause credits the ball-handler
+                // (recordTurnover, primaryPlayerId = shooter) exactly as today.
+                TurnoverCause cause = turnoverResolver.pickCause(
+                        shooter, teamOffense, defensivePressure, rng);
+                if (cause == TurnoverCause.STOLEN) {
                     PlayerGameState stealer = turnoverResolver.pickStealer(defense, rng);
                     stealer.recordSteal();
-                    outcome = "STOLEN";
-                } else {
-                    outcome = "LOST_BALL";
                 }
                 shooter.recordTurnover();
                 data.addEvent(offTeamId, defTeamId, period, sequence,
-                        PlayType.TURNOVER, outcome, shooter.getPlayerId());
+                        PlayType.TURNOVER, cause.outcome(), shooter.getPlayerId());
                 return sequence + 1;
             }
 

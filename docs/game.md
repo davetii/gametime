@@ -95,6 +95,14 @@ section above; decisions.md #020).
 Each possession produces **one or more** `GameEvent` rows in this order:
 
 1. **Turnover check** — rolled before the shot. If triggered:
+   - A single weighted **cause draw** (§3.9, `TurnoverResolver.pickCause`) labels
+     the turnover as one of **nine** causes — `STOLEN` (kept dominant),
+     `SHOT_CLOCK_VIOLATION`, `OFFENSIVE_FOUL`, `BAD_PASS`, `TRAVELLING`,
+     `LOST_BALL_OUT_OF_BOUNDS`, `3_SECONDS_VIOLATION`,
+     `8_SECONDS_BACKCOURT_VIOLATION`, `OVER_AND_BACK`. The **gate is unchanged** —
+     the draw runs only *after* a turnover is declared, so it re-partitions the
+     label without moving the count (#027 A). Every cause charges the ball-handler;
+     `STOLEN` also credits a stealer.
    - `TURNOVER` event → possession ends, ball goes to the other team.
 2. **Foul check** — rolled on `DRIVE` and `POST` shot types only. If triggered:
    - `FOUL` event (primary_player = fouling defender) → free throws follow.
@@ -212,8 +220,15 @@ rebound contests — a modest thumb on the scale composed multiplicatively with 
 | `SHOT` | `BLOCKED_2PT_PERIMETER` | Blocked 2-point perimeter shot; shooter on the event, blocker credited separately |
 | `SHOT` | `BLOCKED_2PT_POST` | Blocked 2-point post shot; shooter on the event, blocker credited separately |
 | `SHOT` | `BLOCKED_3PT` | Blocked 3-point attempt (rare — closeout swat); shooter on the event, blocker credited separately |
-| `TURNOVER` | `STOLEN` | Ball handler lost the ball; defender credited a steal |
-| `TURNOVER` | `LOST_BALL` | Unforced turnover (no steal credited) |
+| `TURNOVER` | `STOLEN` | Live-ball steal; ball-handler on the event, defender credited a steal separately (§3.9 — kept dominant, ~56% of turnovers) |
+| `TURNOVER` | `SHOT_CLOCK_VIOLATION` | Failed to get a shot off in time; charged to the ball-handler (§3.9) |
+| `TURNOVER` | `OFFENSIVE_FOUL` | Charge / illegal screen charged as a turnover (§3.9) |
+| `TURNOVER` | `BAD_PASS` | Pass thrown away (unforced handling error) (§3.9) |
+| `TURNOVER` | `TRAVELLING` | Travelling violation (§3.9) |
+| `TURNOVER` | `LOST_BALL_OUT_OF_BOUNDS` | Lost the handle / stripped, ball out of bounds off the offense (live ball) — **distinct** from §3.8's `OUT_OF_BOUNDS_*` on `REBOUND` (§3.9) |
+| `TURNOVER` | `3_SECONDS_VIOLATION` | Offensive three-seconds-in-the-lane violation (§3.9) |
+| `TURNOVER` | `8_SECONDS_BACKCOURT_VIOLATION` | Failed to advance the ball past half-court in time (§3.9) |
+| `TURNOVER` | `OVER_AND_BACK` | Ball returned to the backcourt after crossing half (§3.9 — a sliver, ~2%) |
 | `FOUL` | `SHOOTING_FOUL` | Defensive foul on a drive/post attempt; free throws follow |
 | `FREE_THROW` | `MADE` | Free throw converted |
 | `FREE_THROW` | `MISSED` | Free throw missed |

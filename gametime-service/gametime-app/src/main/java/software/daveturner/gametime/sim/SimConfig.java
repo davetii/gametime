@@ -145,6 +145,43 @@ public class SimConfig {
     public static final double BLOCK_OOB_DEFENSE = 0.13;
     public static final double BLOCK_OOB_OFFENSE = 0.12;
 
+    // --- Turnover sub-cause weights (§3.9, decisions.md #027) ---
+    // Once the (unchanged) turnover gate fires, TurnoverResolver.pickCause runs a
+    // single weighted categorical draw over the nine TurnoverCause values — a pure
+    // RE-PARTITION of a turnover that already occurred, so it can shift the mix but
+    // NEVER the count (Decision A: the count is fixed by the untouched gate). These
+    // are RAW base weights (pickCause normalizes them to sum to 1.0 on EACH declared
+    // turnover), tiered by relative magnitude (Decision B): STOLEN dominant, then
+    // high / mid / low / super-low. STOLEN is kept ~56% of the mix so BoxScore.steals
+    // (the one calibrated number a turnover taxonomy could disturb) does not drift —
+    // its share is the tier weight here; WHO steals is still shaped by pickStealer's
+    // stealing-weighted draw. The other eight causes carve out of the old ~40%
+    // LOST_BALL bucket, which is RETIRED as the catch-all. Placeholders — settled by
+    // the CalibrationHarness per-cause line (Decision E) so the mix looks plausible;
+    // there is NO hard per-cause target and these do NOT touch the aggregates (the
+    // turnover count is free by construction). Same static-base-plus-modest-lean
+    // pattern as the block-recovery / OOB weights above.
+    public static final double TO_WEIGHT_STOLEN = 56.0;
+    public static final double TO_WEIGHT_SHOT_CLOCK = 10.0;
+    public static final double TO_WEIGHT_OFFENSIVE_FOUL = 9.0;
+    public static final double TO_WEIGHT_BAD_PASS = 8.0;
+    public static final double TO_WEIGHT_TRAVELLING = 6.0;
+    public static final double TO_WEIGHT_LOST_BALL_OOB = 4.0;
+    public static final double TO_WEIGHT_THREE_SECONDS = 3.0;
+    public static final double TO_WEIGHT_EIGHT_SECONDS_BACKCOURT = 2.0;
+    public static final double TO_WEIGHT_OVER_AND_BACK = 2.0;
+
+    // Modest avg-10 deviation sensitivity for the four LEANED causes (Decision C).
+    // Only four causes scale (the rest are flat tier weights): SHOT_CLOCK_VIOLATION
+    // (ball-handler acumen ↓ + defending coach defensiveScheme/defensivePressure ↑),
+    // OFFENSIVE_FOUL and BAD_PASS (offense teamOffense ↓ — a poorly-coordinated
+    // offense charges/throws it away more). The lean multiplies that cause's base
+    // weight by (1 + TO_CAUSE_SENSITIVITY × deviation/10) before the per-turnover
+    // normalization, so the leans shift the RELATIVE shares only — no lean can change
+    // the turnover count (Decision C). Kept modest and single-form (the #022 shape).
+    // Placeholder, settled by the harness line alongside the weights above.
+    public static final double TO_CAUSE_SENSITIVITY = 0.20;
+
     // --- Coach / chemistry modifiers (§3.4, decisions.md #022) ---
     // Single avg-10 deviation sensitivity shared by all coach effects
     // (pace / offensiveScheme / defensiveScheme, plus the §3.5 rotationDepth /
@@ -305,6 +342,22 @@ public class SimConfig {
             threshold -= STARTER_SUB_THRESHOLD_BONUS;
         }
         return threshold;
+    }
+
+    /**
+     * §3.9 (decisions.md #027 C): the modest avg-10 lean multiplier on a leaned
+     * turnover cause's base weight. {@code deviation} is the amount the driving
+     * attribute sits BELOW average in the weaker-forces-more direction (e.g.
+     * {@code 10 − acumen} or {@code 10 − teamOffense}), so a below-average input
+     * yields a factor &gt; 1.0 (that cause gets a larger share) and an above-average
+     * input yields &lt; 1.0. Floored at a small positive value so a lean can shrink
+     * but never zero-out (or negate) a cause's weight — normalization then divides
+     * by the per-turnover total. This shifts the RELATIVE mix only; it cannot change
+     * the turnover count (that is fixed by the untouched gate, Decision A).
+     */
+    public double turnoverCauseLean(double deviation) {
+        double factor = 1.0 + TO_CAUSE_SENSITIVITY * deviation / SCALE_AVG;
+        return Math.max(0.05, factor);
     }
 
     public double clampProbability(double p) {

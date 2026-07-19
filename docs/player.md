@@ -222,6 +222,6 @@ the attribute coverage is visible.
 | Foul on attempt? | foulDrawing vs foulProne |
 | Free throws | freeThrows, clutch (late game) |
 | Rebound | offenseRebound / defenseRebound |
-| Turnover / steal | ballSecurity vs stealing |
+| Turnover / steal | ballSecurity vs stealing (gate); §3.9 cause draw leans `SHOT_CLOCK_VIOLATION` on `acumen`↓ + defending `defensiveScheme`↑ and `OFFENSIVE_FOUL`/`BAD_PASS` on `teamOffense`↓ |
 | Late-game pressure | clutch modifier on all actions |
 | Off-ball movement | offBallMovement, awareness |

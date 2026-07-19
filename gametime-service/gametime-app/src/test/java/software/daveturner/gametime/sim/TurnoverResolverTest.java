@@ -65,17 +65,108 @@ class TurnoverResolverTest {
         assertTrue(rate < 0.10, "Elite handler vs weak D should turn over < 10%, got " + rate);
     }
 
+    // --- §3.9 turnover sub-cause draw (decisions.md #027) ---
+
+    private static final double NEUTRAL_PRESSURE = 1.0;
+
     @Test
-    void isStolenReturnsBothOutcomes() {
-        boolean foundStolen = false;
-        boolean foundNotStolen = false;
+    void pickCauseFixedSeedIsDeterministic() {
+        PlayerGameState handler = TestPlayerFactory.create("h1", "A", 10.0);
+        TurnoverCause first = resolver.pickCause(handler, 10.0, NEUTRAL_PRESSURE, rng(7));
+        TurnoverCause second = resolver.pickCause(handler, 10.0, NEUTRAL_PRESSURE, rng(7));
+        assertEquals(first, second, "Same seed + inputs must draw the same cause");
+    }
+
+    @Test
+    void pickCauseAlwaysReturnsAValidCause() {
+        PlayerGameState handler = TestPlayerFactory.create("h1", "A", 10.0);
         RandomGenerator r = rng(42);
-        for (int i = 0; i < 100; i++) {
-            if (resolver.isStolen(r)) foundStolen = true;
-            else foundNotStolen = true;
-            if (foundStolen && foundNotStolen) break;
+        for (int i = 0; i < 1_000; i++) {
+            TurnoverCause cause = resolver.pickCause(handler, 10.0, NEUTRAL_PRESSURE, r);
+            assertNotNull(cause);
         }
-        assertTrue(foundStolen && foundNotStolen);
+    }
+
+    @Test
+    void pickCauseKeepsStolenDominantAtAverageInputs() {
+        PlayerGameState handler = TestPlayerFactory.create("h1", "A", 10.0);
+        int trials = 50_000;
+        int stolen = 0;
+        RandomGenerator r = rng(99);
+        for (int i = 0; i < trials; i++) {
+            if (resolver.pickCause(handler, 10.0, NEUTRAL_PRESSURE, r) == TurnoverCause.STOLEN) {
+                stolen++;
+            }
+        }
+        double share = (double) stolen / trials;
+        // At average inputs all leans are ×1.0, so STOLEN's share is its tier weight
+        // over the raw total (56 / 100 = 0.56) — kept dominant (#027 B, ~55–60%).
+        assertEquals(0.56, share, 0.02,
+                "STOLEN should stay dominant (~56%) at average inputs, got " + share);
+    }
+
+    @Test
+    void pickCauseCoversAllNineCauses() {
+        PlayerGameState handler = TestPlayerFactory.create("h1", "A", 10.0);
+        java.util.EnumSet<TurnoverCause> seen = java.util.EnumSet.noneOf(TurnoverCause.class);
+        RandomGenerator r = rng(123);
+        for (int i = 0; i < 100_000 && seen.size() < TurnoverCause.values().length; i++) {
+            seen.add(resolver.pickCause(handler, 10.0, NEUTRAL_PRESSURE, r));
+        }
+        assertEquals(TurnoverCause.values().length, seen.size(),
+                "Every cause should be reachable over enough draws; missing "
+                        + java.util.EnumSet.complementOf(seen));
+    }
+
+    @Test
+    void weakOffenseShiftsMixTowardOffensiveFoulAndBadPass() {
+        PlayerGameState handler = TestPlayerFactory.create("h1", "A", 10.0);
+        int trials = 50_000;
+        int strongOffenseUnforced = 0;
+        int weakOffenseUnforced = 0;
+        RandomGenerator rStrong = rng(2024);
+        RandomGenerator rWeak = rng(2024);
+        for (int i = 0; i < trials; i++) {
+            if (isUnforcedOffenseError(
+                    resolver.pickCause(handler, 16.0, NEUTRAL_PRESSURE, rStrong))) {
+                strongOffenseUnforced++;
+            }
+            if (isUnforcedOffenseError(
+                    resolver.pickCause(handler, 4.0, NEUTRAL_PRESSURE, rWeak))) {
+                weakOffenseUnforced++;
+            }
+        }
+        assertTrue(weakOffenseUnforced > strongOffenseUnforced,
+                "A weaker offense should commit more OFFENSIVE_FOUL/BAD_PASS turnovers: weak="
+                        + weakOffenseUnforced + " strong=" + strongOffenseUnforced);
+    }
+
+    private boolean isUnforcedOffenseError(TurnoverCause cause) {
+        return cause == TurnoverCause.OFFENSIVE_FOUL || cause == TurnoverCause.BAD_PASS;
+    }
+
+    @Test
+    void poorHandlerAndPressureShiftMixTowardShotClockViolation() {
+        PlayerGameState smartHandler = TestPlayerFactory.create("h1", "A", 18.0);
+        PlayerGameState poorHandler = TestPlayerFactory.create("h2", "A", 3.0);
+        int trials = 50_000;
+        int calmSmart = 0;
+        int pressuredPoor = 0;
+        RandomGenerator rCalm = rng(555);
+        RandomGenerator rPressured = rng(555);
+        for (int i = 0; i < trials; i++) {
+            if (resolver.pickCause(smartHandler, 10.0, 1.0, rCalm)
+                    == TurnoverCause.SHOT_CLOCK_VIOLATION) {
+                calmSmart++;
+            }
+            if (resolver.pickCause(poorHandler, 10.0, 1.4, rPressured)
+                    == TurnoverCause.SHOT_CLOCK_VIOLATION) {
+                pressuredPoor++;
+            }
+        }
+        assertTrue(pressuredPoor > calmSmart,
+                "A low-acumen handler vs a pressuring scheme should draw more shot-clock "
+                        + "violations: pressured=" + pressuredPoor + " calm=" + calmSmart);
     }
 
     @Test

@@ -243,20 +243,33 @@ re-running the loop and re-agreeing the numbers, not a red build.
       (113.0 pts / 47.0% FG / 27.6 ast / 13.6 TO / 5.1 blk, minutes + FG%-by-period
       intact) — no recalibration pass needed. New `sim` classes at 99.4–100% line
       coverage. Flow: `docs/possession-flow.puml`._
-- [ ] **§3.9 — Turnover sub-categories (richer causes)** *(free — no recalibration)*.
-      §3.2 models only two turnover outcomes — `STOLEN` / `LOST_BALL` — and §3.4 kept
-      it that way. A fuller taxonomy: offensive fouls (charges), **shot-clock
-      violations**, bad passes, travels, out-of-bounds, 3-seconds, 8-second/backcourt.
-      **Modeling approach (important — do NOT reverse decisions.md #021):** each
-      sub-category is a new **`outcome` value on a `TURNOVER` `GameEvent`** (the
-      `outcome` field is open-ended free text, #020 — so **no schema change**)
-      produced by a **probability roll**, exactly like the existing `BASE_TURNOVER`
-      model — NOT by simulating a sub-possession 24-second clock or ball-tracking.
-      E.g. a shot-clock violation is a small per-possession chance (scaled by weak
-      `teamOffense` / low `acumen` / a stalling `defensiveScheme`) emitting `TURNOVER`
-      / `SHOT_CLOCK_VIOLATION`; a charge is `TURNOVER` / `OFFENSIVE_FOUL`. The
-      turnover *count* is unchanged (you're subdividing the ~14 the harness already
-      likes), so no recalibration. Seam: `TurnoverResolver` + `SimConfig`.
+- [x] **§3.9 — Turnover sub-categories (richer causes) ✓** *(landed **free by
+      construction** — the turnover count never moved, no recalibration)*.
+      _Shipped (decisions.md #027): the pre-§3.9 binary `STOLEN` / `LOST_BALL`
+      turnover outcome is replaced by a **weighted draw over nine causes** — a new
+      **`TurnoverCause`** enum + **`TurnoverResolver.pickCause`** — run **inside** the
+      `if (isTurnover)` block. The **gate (`isTurnover` / `BASE_TURNOVER`) is
+      untouched** (A): the draw only re-partitions a turnover that already fired, so
+      it can shift the *mix* but never the *count* — freeness is **structural, not
+      verified** (contrast §3.8). `STOLEN` kept **dominant (~56%)** so
+      `BoxScore.steals` doesn't drift (B); `LOST_BALL` **retired** as the catch-all,
+      its old share split across the eight non-`STOLEN` causes. Every cause charges
+      the ball-handler (`recordTurnover`, `primary_player` = shooter); `STOLEN` keeps
+      the `pickStealer` + `recordSteal()` path. Four causes carry a **modest avg-10
+      lean** (C): `SHOT_CLOCK_VIOLATION` (ball-handler `acumen` ↓ + defending
+      `defensiveScheme` ↑), `OFFENSIVE_FOUL` / `BAD_PASS` (offense `teamOffense` ↓);
+      the rest are flat tier weights, all normalized per-turnover so no lean touches
+      the count. `LOST_BALL_OUT_OF_BOUNDS` is deliberately **distinct** from §3.8's
+      `OUT_OF_BOUNDS_*` (a `TURNOVER` event vs. a `REBOUND` event, D). §3.7-E
+      (second-chance shot-clock pressure) stayed **parked** (D). **No schema change,
+      no OpenAPI change, no new `PlayType`** (`outcome` free text, #020). **Landed
+      free (aggregates byte-unchanged):** the `CalibrationHarness` per-cause line (E)
+      reads **STOLEN 56% / SHOT_CLOCK 9% / OFF_FOUL 9% / BAD_PASS 8% / TRAVELLING 6% /
+      the rest ≤4% (OVER_AND_BACK ~2%)**, and the §3.4/§3.5/§3.7/§3.8 aggregates held
+      (112.9 pts / 47.0% FG / 37.5% 3P / 27.7 ast / **13.5 TO** / 5.0 blk / 3.0 OOB,
+      minutes + FG%-by-period intact) — no recalibration. New `sim` classes at
+      95.8–100% line coverage, `PossessionEngine` 99.4%; full `mvn clean install`
+      gate green. Seam: `TurnoverResolver` + `SimConfig` + `PossessionEngine`._
 - [ ] **§3.10 — Loose-ball / rebounding fouls** *(needs the team-foul/bonus
       substrate; small recalibration)*. A foul committed *during* the rebound phase
       (box-out push, over-the-back). §3.3 only models shooting fouls on drive/post

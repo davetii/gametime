@@ -6,12 +6,21 @@ shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
 [backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
 **Possession-fidelity completion** section (§3.7–§3.11).
 
-Current focus: **§3.9 — Turnover sub-categories (richer causes)**. The full
-§3.7–§3.11 sequence, the calibration-blast-radius ordering, and what follows
-(Phase 4) live in **roadmap.md's "Possession-fidelity completion" section** — not
-here (todo.md is current-phase-only). §3.7 and §3.8 shipped; §3.9 is next.
+Current focus: **§3.9 SHIPPED — next up is §3.9's successor's design pass (§3.10 —
+Loose-ball / rebounding fouls).** The full §3.7–§3.11 sequence, the
+calibration-blast-radius ordering, and what follows (Phase 4) live in **roadmap.md's
+"Possession-fidelity completion" section** — not here (todo.md is
+current-phase-only). §3.7, §3.8, and §3.9 shipped; §3.10 is next and **needs its own
+design pass** (a decisions.md #NNN) before an execute-ready plan lands here — this
+§3.9 plan below is kept as the record of what shipped until then.
 
-> **§3.9 is now execute-ready — design resolved as decisions.md #027 (A–E).** The
+> **§3.9 SHIPPED (2026-07) — see decisions.md #027's implementation note + the
+> roadmap §3.9 `[x]` landing.** Landed **free by construction** (the turnover count
+> never moved): `TurnoverCause` (9) + `TurnoverResolver.pickCause` replaced the
+> `STOLEN`/`LOST_BALL` binary inside the unchanged `if (isTurnover)` block. The plan
+> below is retained for the record; the checkboxes are all ticked.
+>
+> **§3.9 was execute-ready — design resolved as decisions.md #027 (A–E).** The
 > shape: the turnover **gate is untouched** (`isTurnover` fires exactly as today, same
 > `BASE_TURNOVER`, so the turnover *count* never moves); **only once a turnover is
 > declared** does a new weighted draw pick *which of 9 causes* it was. This is a pure
@@ -36,70 +45,70 @@ execution rhythm.
 > (`-Dcalibration=true`).
 
 **Step 1 — `TurnoverCause` enum (9 values) + outcome strings (#027 B).**
-- [ ] New `sim` enum, one value per cause, each carrying its `TURNOVER` `outcome`
+- [x] New `sim` enum, one value per cause, each carrying its `TURNOVER` `outcome`
   string: `STOLEN`, `SHOT_CLOCK_VIOLATION`, `OFFENSIVE_FOUL`, `BAD_PASS`,
   `TRAVELLING`, `LOST_BALL_OUT_OF_BOUNDS`, `3_SECONDS_VIOLATION`,
   `8_SECONDS_BACKCOURT_VIOLATION`, `OVER_AND_BACK`.
-- [ ] Enum constants can't start with a digit — name them e.g.
+- [x] Enum constants can't start with a digit — name them e.g.
   `THREE_SECONDS_VIOLATION` / `EIGHT_SECONDS_BACKCOURT_VIOLATION` and let the
   *outcome string* carry the leading-digit form if desired, or use the letter form
   as the string too (small execution call).
-- [ ] `LOST_BALL` is **retired** as the catch-all — its old ~40% share is split
+- [x] `LOST_BALL` is **retired** as the catch-all — its old ~40% share is split
   across the eight non-STOLEN causes (no generic unforced bucket survives).
 
 **Step 2 — `SimConfig` per-cause base weights + four lean sensitivities (#027 B/C).**
-- [ ] Static tier base weights (relative magnitudes): **STOLEN dominant (~55–60% of
+- [x] Static tier base weights (relative magnitudes): **STOLEN dominant (~55–60% of
   the turnover mix — #027 B, keeps `BoxScore.steals` from drifting)**; SHOT_CLOCK /
   OFF_FOUL high; BAD_PASS / TRAVELLING mid; LOST_BALL_OUT_OF_BOUNDS / 3_SECONDS low;
   8_SECONDS_BACKCOURT / OVER_AND_BACK super-low.
-- [ ] Modest avg-10 lean sensitivities for the four scaled causes:
+- [x] Modest avg-10 lean sensitivities for the four scaled causes:
   `SHOT_CLOCK_VIOLATION` (ball-handler `acumen` ↓ + defending coach `defensiveScheme`
   ↑), `OFFENSIVE_FOUL` and `BAD_PASS` (offense `teamOffense` ↓).
-- [ ] All placeholders — settled by the Step-5 harness line (no hard per-cause
+- [x] All placeholders — settled by the Step-5 harness line (no hard per-cause
   target). Document them the way the OOB/block weights are documented in `SimConfig`.
 
 **Step 3 — `TurnoverResolver.pickCause(...)` (weighted draw, replaces `isStolen`) (#027 A/C).**
-- [ ] New method taking the ball-handler, the defense (for the coach
+- [x] New method taking the ball-handler, the defense (for the coach
   `defensiveScheme` / `pickStealer`), and `rng`. Compute each cause's weight (base ×
   its avg-10 lean where applicable), **normalize to 1.0**, and draw one cause from
   the seeded RNG via the cumulative-sum walk the codebase already uses (`pickStealer`
   / `pickShooter`).
-- [ ] Remove `isStolen`. The leans shift the *relative* shares only; normalization
+- [x] Remove `isStolen`. The leans shift the *relative* shares only; normalization
   runs per-turnover so **no lean can change the turnover count** (#027 C).
 
 **Step 4 — wire into `PossessionEngine`'s `// 1. Turnover check` (#027 A/B).**
-- [ ] Leave the gate call (`turnoverResolver.isTurnover(...)`) **unchanged**.
-- [ ] Inside the `if (isTurnover)` block, replace the `isStolen`→`STOLEN`/`LOST_BALL`
+- [x] Leave the gate call (`turnoverResolver.isTurnover(...)`) **unchanged**.
+- [x] Inside the `if (isTurnover)` block, replace the `isStolen`→`STOLEN`/`LOST_BALL`
   binary with `TurnoverCause cause = turnoverResolver.pickCause(shooter, defense,
   rng);` — if `STOLEN`, keep today's `pickStealer` + `stealer.recordSteal()` path.
-- [ ] For **all 9**, `shooter.recordTurnover()` and emit ONE `TURNOVER` event with
+- [x] For **all 9**, `shooter.recordTurnover()` and emit ONE `TURNOVER` event with
   `outcome = cause.outcome()` and `primaryPlayerId = shooter` (unchanged attribution
   — every cause credits the ball-handler, #027 B). Still `return sequence + 1`.
-- [ ] Fixed RNG order: `isTurnover` → `pickCause` → (`pickStealer` iff `STOLEN`).
+- [x] Fixed RNG order: `isTurnover` → `pickCause` → (`pickStealer` iff `STOLEN`).
 
 **Step 5 — `CalibrationHarness` per-cause breakdown line (#027 E).**
-- [ ] Add a line printing the 9 causes as a share of turnovers (next to the existing
+- [x] Add a line printing the 9 causes as a share of turnovers (next to the existing
   TO/team aggregate), the §3.8-OOB-line precedent.
-- [ ] Run the harness (`-Dcalibration=true`) and **confirm the §3.4/§3.5 aggregates
+- [x] Run the harness (`-Dcalibration=true`) and **confirm the §3.4/§3.5 aggregates
   (112/47/36/26/14) are byte-unchanged** — they must be (the count is fixed by
   construction); if they move, a wiring bug changed the gate or the event count.
-- [ ] Eyeball the mix so no share is absurd (e.g. `OVER_AND_BACK` should be a
+- [x] Eyeball the mix so no share is absurd (e.g. `OVER_AND_BACK` should be a
   sliver). Tune the Step-2 placeholders only to make the *mix* plausible — **not** to
   hit the aggregates (those are free).
 
 **Step 6 — tests + close-out.**
-- [ ] Unit-test `pickCause`: a fixed seed drives a specific cause; weights normalize;
+- [x] Unit-test `pickCause`: a fixed seed drives a specific cause; weights normalize;
   a strong-`teamOffense`/`acumen`/`defensiveScheme` input shifts the *mix* in the
   expected direction — plus a determinism/count test confirming the **turnover count
   is unchanged** vs. the pre-§3.9 baseline.
-- [ ] Confirm `GameSimulatorIntegrationTest`'s reconciliation still passes untouched
+- [x] Confirm `GameSimulatorIntegrationTest`'s reconciliation still passes untouched
   — `Σ BoxScore.turnovers == count(TURNOVER events)` and `Σ BoxScore.steals ==
   count(TURNOVER outcome == 'STOLEN')` hold by construction (#027 E): a
   *confirm-green*, not new reconciliation.
-- [ ] New `sim` classes to ~90%+ line coverage (JaCoCo gate), matching §3.7/§3.8;
+- [x] New `sim` classes to ~90%+ line coverage (JaCoCo gate), matching §3.7/§3.8;
   full `mvn clean install` gate green.
-- [ ] **Doc close-out (the §3.7/§3.8 pattern — do all of these):**
-  - [ ] `game.md` — update the `play_type` / `outcome` **vocabulary table**
+- [x] **Doc close-out (the §3.7/§3.8 pattern — do all of these):**
+  - [x] `game.md` — update the `play_type` / `outcome` **vocabulary table**
     (currently the two rows `TURNOVER | STOLEN` and `TURNOVER | LOST_BALL` at
     ~L215–216): replace `LOST_BALL` (retired) with the 9 §3.9 causes, each with a
     one-line meaning and the "credited to the ball-handler; `STOLEN` also credits the
@@ -107,14 +116,14 @@ execution rhythm.
     `BLOCKED_*` rows and §3.8 the `OUT_OF_BOUNDS_*` rows here, so §3.9's causes belong
     here too. Also refresh the "Turnover check" line in the possession-flow narrative
     if it names the outcomes.
-  - [ ] `roadmap.md` — flip the §3.9 bullet to `[x]` with an indented italic landing
+  - [x] `roadmap.md` — flip the §3.9 bullet to `[x]` with an indented italic landing
     summary (harness TO/team + the per-cause mix, coverage, "no recalibration —
     aggregates byte-unchanged"), matching the §3.7/§3.8 shipped bullets.
-  - [ ] `decisions.md #027` — add the **implementation note** (`from execution,
+  - [x] `decisions.md #027` — add the **implementation note** (`from execution,
     YYYY-MM`): the resolved open-at-execution items (final enum spelling, the chosen
     per-cause weights/sensitivities, whether `pickCause` returns enum vs. string), the
     landing aggregates, and coverage. Note any divergence from A–E.
-  - [ ] `player.md` (optional) — the "Turnover / steal" row (~L225) still holds; add a
+  - [x] `player.md` (optional) — the "Turnover / steal" row (~L225) still holds; add a
     one-liner only if you want the cause-scaling skills (`acumen`/`teamOffense`/
     `defensiveScheme`) noted. `roster.md` / `risks.md` need no §3.9 change (no roster
     surface, no new risk — free by construction).

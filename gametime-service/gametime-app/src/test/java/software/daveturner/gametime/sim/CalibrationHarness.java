@@ -176,6 +176,17 @@ class CalibrationHarness {
                 .filter(e -> e.getPlayType() == PlayType.REBOUND
                         && e.getOutcome() != null && e.getOutcome().startsWith("OUT_OF_BOUNDS"))
                 .count();
+
+        // §3.9 (decisions.md #027 E): tally each TURNOVER event by its outcome
+        // string so the per-cause MIX is VISIBLE. The turnover COUNT is free by
+        // construction (the gate is unchanged, Decision A) — this line does NOT
+        // gate anything; it exists so a wildly-off share (e.g. OVER_AND_BACK at
+        // 10%) is caught, and to sanity-check that STOLEN stays dominant.
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() == PlayType.TURNOVER && e.getOutcome() != null) {
+                agg.turnoverCauses.merge(e.getOutcome(), 1L, Long::sum);
+            }
+        }
     }
 
     /** Sort one team's box scores by minutes desc and add to the per-slot totals. */
@@ -225,6 +236,8 @@ class CalibrationHarness {
         // §3.5 period-by-period FG (regulation only).
         final long[] periodFga = new long[MAX_TRACKED_PERIODS];
         final long[] periodFgm = new long[MAX_TRACKED_PERIODS];
+        // §3.9 per-cause turnover tally (outcome string → count), for the mix line.
+        final java.util.Map<String, Long> turnoverCauses = new java.util.HashMap<>();
 
         void print(int games) {
             double tg = teamGames;
@@ -264,6 +277,17 @@ class CalibrationHarness {
             for (int p = 0; p < MAX_TRACKED_PERIODS; p++) {
                 System.out.printf("  period %d: %.1f%%  (%d FGA)%n",
                         p + 1, pct(periodFgm[p], periodFga[p]), periodFga[p]);
+            }
+
+            // §3.9 (decisions.md #027 E) per-cause turnover mix. The COUNT is free by
+            // construction; this shows the new DISTRIBUTION so no share is absurd and
+            // STOLEN stays dominant (~55–60%). No per-cause target.
+            long totalTO = turnoverCauses.values().stream().mapToLong(Long::longValue).sum();
+            System.out.println("--- Turnover cause mix (§3.9, share of turnovers, no target) ---");
+            for (TurnoverCause cause : TurnoverCause.values()) {
+                long n = turnoverCauses.getOrDefault(cause.outcome(), 0L);
+                System.out.printf("  %-30s %5.1f%%  (%d)%n",
+                        cause.outcome(), totalTO == 0 ? 0.0 : 100.0 * n / totalTO, n);
             }
 
             System.out.println("========================================================");
