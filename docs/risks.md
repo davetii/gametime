@@ -1,10 +1,10 @@
 # Risks & Concerns
 
-Active risks and concerns. Remove items as they're resolved (move to the Resolved section at the bottom).
+Active risks and concerns only. Delete an item when it's resolved — git history
+records when/why, and the substantive resolution lives in the relevant
+decisions.md entry. Keep every line here a *live* concern.
 
 ---
-
-## Active
 
 ### Simulation performance at scale
 **Severity**: Medium  
@@ -30,23 +30,3 @@ Active risks and concerns. Remove items as they're resolved (move to the Resolve
 **Severity**: Low  
 **Description**: The ~420 pre-loaded players have manually-assigned attributes. Partially validated: §3.4's calibration (~100 games) shows the seed roster produces **realistic team-level outcomes** in aggregate (see Skill formula balance). Still open: whether the *attribute distributions themselves* (vs. the formulas on top of them) are realistic at the individual level — same tails concern as above, hard to separate from formula balance until Phase 4 surfaces per-player season lines.  
 **Mitigation**: Compare per-player stat distributions to real-basketball benchmarks once Phase 4 stats exist; adjust seed data or formulas then. Related backlog.md chore: hand-tuning marquee/star players to 18–20 (backlog.md).
-
----
-
-## Resolved
-
-### Health attribute unused
-**Resolved**: 2026-06 — `health` is now consumed by the `individualDefense` and `defenseRebound` skill calculators (wired in during the 1–20 skills pass). No longer an orphaned attribute.
-
-### No roster/trade history (player→team was current-state only)
-**Resolved**: 2026-06 — Built the `player_team` (current) + `player_team_hist` (append-only) model; `player.team_id` removed. See decisions.md #012. History is now first-class: `addPlayerToTeam` appends a transaction row and `GET /v1/player/{id}/history` exposes it. (A normalized multi-player-trade `transaction` table is still a future option but not needed until trades exist.)
-
-### Coach attribute design was undefined (Phase 3 dependency)
-**Resolved**: 2026-06-28 — Coach is no longer name-only. Design Decision #3 resolved as decisions.md **#018** (continuous 1–20/avg-10, not enums); 5 decision attributes (`pace`, `offensiveScheme`, `defensiveScheme`, `rotationDepth`, `substitutionAggressiveness`) modeled end-to-end and seeded. The Phase 3 engine now has a defined interface to read. **GM attributes** remain name-only but are *not* a Phase 3 blocker — their consumers are Phase 6.3/6.4, to be modeled with the same continuous approach (roadmap.md Deferred + §6.4; coach.md open-Q #3).
-
-*Move resolved items here with a note on the resolution.*
-
-<!-- Example:
-### Item title
-**Resolved**: 2026-05 — Description of resolution.
--->
