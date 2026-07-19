@@ -55,7 +55,9 @@ public class EntityMapper {
         player.setFirstName(e.getFirstName());
         player.setId(e.getId());
         player.setHeight(e.getHeight());
-        player.setWeight(e.getWeight());
+        // weight is stored as VARCHAR (see PlayerEntity) but exposed as an integer
+        // in the API; the data is always numeric.
+        player.setWeight(weightToInteger(e.getWeight()));
         player.setOrigin(e.getOrigin());
         player.setDraftSlot(e.getDraftSlot());
         player.setAgility(e.getAgility());
@@ -97,7 +99,7 @@ public class EntityMapper {
             e.setPosition(positionFromId(p.getPosition().getValue()));
         }
         e.setHeight(p.getHeight());
-        e.setWeight(p.getWeight());
+        e.setWeight(p.getWeight() == null ? null : p.getWeight().toString());
         e.setOrigin(p.getOrigin());
         e.setDraftSlot(p.getDraftSlot());
         e.setYearsPro(p.getYearsPro());
@@ -251,6 +253,22 @@ public class EntityMapper {
             }
         }
         throw new IllegalArgumentException("Unknown position id: " + id);
+    }
+
+    /**
+     * Convert the VARCHAR-stored {@code weight} to the integer the API exposes.
+     * Seed data is always numeric; a blank/malformed value maps to null rather
+     * than throwing, so a stray row can't break a whole roster read.
+     */
+    private Integer weightToInteger(String weight) {
+        if (weight == null || weight.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(weight.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     protected GM entityToGm(GMEntity gmEntity) {
