@@ -27,6 +27,27 @@ into a graveyard.
 
 ## Gameplay / simulation
 
+- **Raise `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` from 3 → 5 (realism of long
+  second-chance scrambles).** The cap bounds the second-chance `while(true)` loop in
+  `PossessionEngine` — after N offense retentions (offensive rebound + §3.7
+  offense-recovered block + §3.8 OOB-offense, all sharing the one cap) the next miss
+  is *forced* to a possession-ending outcome so the loop terminates. It sits at a
+  **§3.3-era calibrated 3**. The realism argument for a higher value is real: a
+  genuine scramble *can* produce a long chain of tip/put-back attempts — rare, but
+  possible — and a hard wall at 3 makes it impossible rather than merely unlikely.
+  **Why it's parked, not done:** the cap is not just a rare-tail guard — it fires on
+  the common path, so raising it lets more second-chance possessions run to
+  completion, adding **offensive rebounds, shot attempts, and points** across *every*
+  game (not only the rare 8-tip possession). That moves the harness aggregates
+  (currently on-target 112 pts / 47% FG / ~11 off reb), so 3→5 needs its **own
+  recalibration pass** (re-center shot base rates for the added points). Deliberately
+  **not folded into §3.8** so the OOB change is verified against a known-good
+  baseline (one moving knob at a time — the §3.7 lesson). Also note the loop-
+  termination *guarantee* is independent of the value (it holds at 3, 5, or 50); only
+  the realism/aggregate trade-off is at stake. **Natural home if promoted:** a
+  dedicated calibration/tuning pass (its own harness loop + re-agreed aggregates),
+  slots cleanly after any of §3.8–§3.11 rather than inside one.
+
 - **Coach competence in rotation decisions.** The §3.5 fatigue rotation reads only
   the coach's `rotationDepth` / `substitutionAggressiveness` (both *style* axes) —
   there is **no coach *quality* / wisdom axis**. This is faithful to decisions.md

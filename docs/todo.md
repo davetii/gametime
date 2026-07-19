@@ -133,6 +133,27 @@ there (sum the OOB events per team-game), so the rate is visible for the Decisio
      (`recordOffensiveRebound`/`recordDefensiveRebound`) ONLY on the two rebound
      outcomes; emit the `REBOUND`/`OFFENSIVE`|`DEFENSIVE` event as today, and the new
      OOB event (from step 1) with NO rebounder credit on the OOB outcomes.
+   - [ ] **`MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` — now THREE retention paths, ONE
+     cap.** The cap bounds the second-chance `while(true)` loop (a possession can't
+     loop forever on offense retentions). §3.8 does NOT remove the cap — it **adds a
+     third offense-retention path** (`OOB_OFFENSE`) alongside the existing offensive
+     rebound (`SimConfig` line ~215 today) and the §3.7 offense-recovered block
+     (~172). All three `offensiveRebounds++` + `continue`, so **all three must count
+     against the same cap** or the loop's bound leaks. The cap lives in the
+     **`PossessionEngine` loop, not in any resolver** (one place owns loop
+     termination). **Recommended structuring** (execution-time, not a #026 change):
+     pass the `capReached` flag INTO `missedShotResolver` so it simply never returns a
+     retained outcome when capped (forcing `DEFENSIVE_REBOUND`/`OOB_DEFENSE`) — this
+     keeps the engine's four-way fork uniform and tidies the now-scattered "force an
+     ending outcome when capped" logic (today duplicated at the block fork + the
+     rebound branch) into the resolver, with the loop still owning the `continue`
+     vs `return`. Assert the cap holds across ALL retention paths in step 5.
+     **Keep the cap VALUE at 3** — do NOT change it in §3.8. Raising it (3→5, a
+     realism idea for long put-back scrambles) moves the aggregates and needs its own
+     recalibration pass; it is deliberately parked in `ideas.md` so §3.8's sail-out
+     harness check (step 6) is verified against a known-good baseline, one moving knob
+     at a time. §3.8 only makes OOB-offense *count against* the existing cap, it does
+     not retune it.
 5. **Tests (target ~90% per package).**
    - [ ] `MissedShotResolver` unit tests: all four outcomes reachable; the rebound
      balance still tracks skill (elite off rebounders → more `OFFENSIVE_REBOUND`);
@@ -140,7 +161,11 @@ there (sum the OOB events per team-game), so the rate is visible for the Decisio
      no rebounder credited on OOB outcomes.
    - [ ] `PossessionEngine` / integration: an OOB event ends or continues the
      possession correctly; OOB-offense runs a second chance (counter bumps, cap
-     respected); OOB credits no rebounder.
+     respected); OOB credits no rebounder. **Cap test covers all THREE retention
+     paths** — a single possession never exceeds `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`
+     retentions summed over offensive rebounds + offense-recovered blocks +
+     OOB-offense (extend the existing `offensiveReboundsCappedPerPossession`-style
+     test to count all three, not just rebounds).
    - [ ] **Reconciliation** (extend #020/#022): OOB events exist AND
      `count(REBOUND OFFENSIVE/DEFENSIVE) == Σ box (off+def) rebounds` STILL holds
      (OOB excluded from both sides — Decision E).
