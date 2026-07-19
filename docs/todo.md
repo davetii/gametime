@@ -25,6 +25,79 @@ ships it gets rewritten to §3.8's plan.
 
 ---
 
+## Verified facts (confirmed against the code 2026-07 — paths under `gametime-service/gametime-app/src/main/java/software/daveturner/gametime/`)
+
+Trust these; re-check only if the code moved. All engine code is in the `sim/` package.
+
+**The possession loop — `sim/PossessionEngine.java`:**
+- `resolvePossession(...)` (~line 80) is the per-possession method. Its body is a
+  `while (true)` loop (~line 101) run for second-chance possessions; **every terminal
+  path `return sequence(+1)`** ends the possession, and a second-chance **loops by NOT
+  returning** — an offensive rebound does `offensiveRebounds++` (~line 194) and falls
+  to the bottom of the loop, which re-runs from the top (turnover → foul → shot). This
+  is the "re-enter at ShotSelector" mechanism for Decision E — the offense-recovered
+  block does the same `offensiveRebounds++` + continue, **not** a return.
+- The branch order inside the loop is **`// 1.` turnover** (~107), **`// 2.` foul**
+  (~123), **`// 3.` Shot** (~144), **`// 4.` Rebound** (~182). The `BLOCKED?` fork goes
+  at the **top of `// 3. Shot`**, after `shooter.recordFieldGoalAttempt()` (~145) and
+  before `shotResolver.isMade(...)` (~152).
+- **Event emission:** `data.addEvent(offTeamId, defTeamId, period, sequence, PlayType,
+  outcome, primaryPlayerId)` (7-arg) and an 8-arg overload adding `assistPlayerId`
+  (~line 173, used only by made assisted shots). A `BLOCKED` event uses the **7-arg**
+  form (no assist, F4).
+- **Injected resolvers** are constructor fields (`shotResolver`, `reboundResolver`,
+  ~lines 13–26). Add `blockResolver` the same way.
+
+**The steal pattern to mirror (Decision F) — `sim/PossessionEngine.java` ~lines 107–119:**
+`if (turnover) { … stealer.recordSteal(); outcome = "STOLEN"; … shooter.recordTurnover();
+data.addEvent(…, PlayType.TURNOVER, outcome, shooter.getPlayerId()); }`. The event names
+the **victim** (`shooter`), the defender is credited by a **separate `recordSteal()`**,
+not on the event. A block mirrors this exactly with `PlayType.SHOT` / `"BLOCKED_*"` /
+`blocker.recordBlock()`.
+
+**`sim/PlayerGameState.java`:**
+- Stat accumulators + record methods exist: `recordSteal()` (line 241),
+  `recordTurnover()` (240), `recordFieldGoalAttempt()`, `recordThreePointAttempt()`,
+  `recordFieldGoalMade(pts)`. **Add `blocks` field + `recordBlock()` + `getBlocks()`
+  mirroring `steals`/`recordSteal()`/`getSteals()` (lines 62, 241, 228).**
+- Skills the block contest needs are already exposed: `getFinishing()` (200),
+  `getRimProtection()` (208), `getShotContest()` (209), and `fatigueFactor()` (148).
+- F3 (shooter charged the attempt) is **automatic** — the block branch still calls
+  `recordFieldGoalAttempt()` (+`recordThreePointAttempt()` for a blocked THREE) but
+  **not** `recordFieldGoalMade`, so it's a missed FGA with no special handling.
+
+**`sim/ShotResolver.java`:** `isMade(shotType, shooter, defender, chemistryMultiplier,
+rng)` (~line 28) is the contest template; `baseProbability(shotType)` (~line 43) switches
+on `ShotType`; math is `config.contestProbability(base, offense, defense)` clamped. Add
+`isBlocked(...)` in the same shape.
+
+**`sim/ShotType.java`:** enum `DRIVE(2) / PERIMETER(2) / POST(2) / THREE(3)`;
+`isContactType()` returns true for DRIVE/POST (~line 18) — handy for the per-type block
+base-rate switch.
+
+**`sim/ReboundResolver.java`:** an `@Component` (line 15) with a weighted-pick +
+logistic-contest shape — the **template to copy for the new `BlockResolver`** (also an
+`@Component`).
+
+**`GameSimulator.java` box-score mapping** (~lines 104–131): one `bs.setX(p.getX())` per
+counter. **`bs.setBlocks(0)` is the hardcode to replace (line 112)** → `p.getBlocks()`
+(sits right after `setSteals(p.getSteals())`, line 111 — same mirror).
+
+**`SimConfig.java`:** all base rates live here (e.g. `BASE_DRIVE = 0.59`, `SENSITIVITY`,
+`PROB_FLOOR`/`PROB_CEILING`, `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`). Add `BASE_BLOCK_*`
++ the four recovery weights here.
+
+**`test/.../sim/CalibrationHarness.java`:** disabled-by-default (`-Dcalibration=true`).
+The aggregate-print block is ~lines 210–220 (`Points/FG%/3P%/Assists/Turnovers/Off reb/
+Def reb per team`). **Add a `Blocks / team / game … (target ~5)` line there**, alongside
+an accumulator over `BoxScoreEntity.getBlocks()` (mirror how `steals`/`offReb` are summed).
+
+**Reconciliation precedent:** `GameSimulatorIntegrationTest` already reconciles box-score
+stats against the event log (assists vs. assisted-SHOT events, rebounds vs. REBOUND
+events — #020/#022). The blocks reconciliation (step 6) extends that exact pattern.
+
+---
+
 ## §3.7 execution plan (work in order) — decisions.md #025
 
 > All Maven commands set `JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem`
@@ -40,8 +113,8 @@ ships it gets rewritten to §3.8's plan.
    - [ ] Flat four-way recovery weights (defense-leaning placeholders):
      `RECOVERED_DEFENSE` > `RECOVERED_OFFENSE` > `OOB_DEFENSE` ≈ `OOB_OFFENSE`.
 2. **`PlayerGameState` (#025 F2).**
-   - [ ] Add a `blocks` counter + `recordBlock()` (mirror `recordSteal()`), exposed
-     via a getter for the box-score mapping.
+   - [ ] Add a `blocks` counter + `recordBlock()` + `getBlocks()`, mirroring
+     `steals`/`recordSteal()`/`getSteals()` (`PlayerGameState.java` lines 62, 241, 228).
 3. **Block contest — `ShotResolver` (#025 A1, B2).**
    - [ ] Add `isBlocked(shotType, shooter, defender, rng)` — the logistic contest
      `base(shotType) + SENSITIVITY × (defenderBlockSkill − shooter finishing)/10`,
@@ -50,16 +123,20 @@ ships it gets rewritten to §3.8's plan.
 4. **`BlockResolver` (new `sim` @Component) (#025 D).**
    - [ ] Flat four-way roll → `RECOVERED_OFFENSE` / `RECOVERED_DEFENSE` /
      `OOB_OFFENSE` / `OOB_DEFENSE` (fixed weights from step 1, no skill input).
-5. **Wire into `PossessionEngine` (#025 A1, E, F).**
-   - [ ] In the shot branch: `record FGA` → if `isBlocked` → emit a `SHOT` event with
-     `outcome = BLOCKED_*` (shot type, e.g. `BLOCKED_DRIVE`; `+1 3PA` if THREE),
-     `primaryPlayerId = shooter`, **no** `assistPlayerId` (F4); `blocker.recordBlock()`
-     (F2); shooter charged the FGA/miss (F3 — automatic via the SHOT event).
-   - [ ] Run `BlockResolver`; on `RECOVERED_OFFENSE`/`OOB_OFFENSE` re-enter the
-     second-chance loop at `ShotSelector`, bumping the offensive-rebound counter,
-     **skipping** `ReboundResolver` (E). Defense/OOB-defense → possession over.
-   - [ ] Replace `GameSimulator`'s `setBlocks(0)` with the real
-     `PlayerGameState.getBlocks()`.
+5. **Wire into `PossessionEngine` (#025 A1, E, F).** (Shot branch is `// 3. Shot`,
+   ~line 144; the block fork goes after `recordFieldGoalAttempt()` ~145, before
+   `isMade(...)` ~152. Mirror the steal block at ~107–119 for the event shape.)
+   - [ ] If `isBlocked` → `shooter.recordFieldGoalAttempt()` (+`recordThreePointAttempt()`
+     if THREE) then emit a **7-arg** `data.addEvent(…, PlayType.SHOT, "BLOCKED_*",
+     shooter.getPlayerId())` (shot type in the outcome, e.g. `BLOCKED_DRIVE`) — **no**
+     `assistPlayerId` (F4); `blocker.recordBlock()` (F2). Do **not** call
+     `recordFieldGoalMade` — it's a missed FGA (F3, automatic).
+   - [ ] Run `blockResolver`; on `RECOVERED_OFFENSE`/`OOB_OFFENSE` do `offensiveRebounds++`
+     and **continue the loop** (re-runs from the top = ShotSelector), respecting the
+     `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` cap — the same mechanism as an offensive
+     rebound (~line 194), **skipping** `ReboundResolver` (E). `RECOVERED_DEFENSE`/
+     `OOB_DEFENSE` → `return sequence + 1` (possession over).
+   - [ ] Replace `GameSimulator.setBlocks(0)` (line 112) with `p.getBlocks()`.
 6. **Tests (target ~90% per package).**
    - [ ] `ShotResolver.isBlocked` unit tests (elite rim protector vs. weak finisher →
      higher block; THREE near-zero; fatigue effect).
@@ -70,10 +147,15 @@ ships it gets rewritten to §3.8's plan.
      second-chance possession (counter bumps, cap respected).
    - [ ] **Reconciliation** (extend the #020/#022 pattern): count of `SHOT` events
      with `outcome LIKE 'BLOCKED%'` == sum of `BoxScore.blocks`.
-7. **Calibrate.**
-   - [ ] Add a blocks/team line to `CalibrationHarness`; run `-Dcalibration=true`,
-     tune `BASE_BLOCK_*` toward ~5/team and re-center scoring (nudge shot base rates
-     up to refill the points blocks removed). Re-agree the §3.4/§3.5 aggregates.
+7. **Calibrate.** *(Interactive loop with the user — not one-shot: run, read the
+   harness numbers, adjust, repeat, and re-agree the targets. The harness reports,
+   it does not gate the build.)*
+   - [ ] Add a `Blocks / team / game … (target ~5)` line to `CalibrationHarness`
+     (~lines 210–220, next to the reb lines; sum `BoxScoreEntity.getBlocks()`).
+   - [ ] Run `-Dcalibration=true`; tune `BASE_BLOCK_*` toward ~5/team and re-center
+     scoring (nudge `BASE_DRIVE`/etc. up to refill the points blocks removed).
+     Re-agree the §3.4/§3.5 aggregates (~112 pts / 47% FG / 36% 3P / 26 ast / 14 TO)
+     with the user before proceeding.
 8. **Gate.**
    - [ ] `JAVA_HOME=…/21.0.9-tem mvn -f gametime-service/pom.xml clean install` green.
 9. **Docs + close-out.**
