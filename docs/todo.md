@@ -167,6 +167,13 @@ events — #020/#022). The blocks reconciliation (step 6) extends that exact pat
      `recordBlock`, missed FGA on the shooter, no assist), and document the
      **steal/block symmetry** (a block is a field-goal outcome as a steal is a turnover
      outcome). Do this ONLY at close-out — game.md documents shipped reality.
+   - [ ] **Update `player.md`** — the engine-wiring status paragraph under "How
+     Attributes Map to Game Engine Needs" (~lines 195–208) lists what the engine
+     wires today; add **shot blocks (`rimProtection`/`shotContest` vs `finishing`)**
+     to that list. The table's "Shot block attempt | rimProtection" row (~line 218) is
+     design intent and already present — just make the status prose match reality
+     (and note `finishing` as the shooter counter-factor). Close-out only — it
+     documents shipped reality.
    - [ ] roadmap.md §3.7: check the box + add a "Shipped" note (mirror §3.6's).
    - [ ] Verify #025 matches the shipped code; add an implementation note if execution
      diverged (as #023/#024 did).
