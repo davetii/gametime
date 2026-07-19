@@ -8,7 +8,7 @@ one doc, the way [roster.md](roster.md) holds player↔team + lineups + transact
 together.
 
 The **model** shipped in §3.1; the **possession engine** that fills it is built
-through §3.7 and this doc now documents both:
+through §3.8 and this doc now documents both:
 - **§3.2** possession flow — shot selection / turnover / foul / shot outcome
 - **§3.3** rebounding — the second-chance loop after a missed shot
 - **§3.4** coaching + chemistry — coach modifiers on the flow, and real assists
@@ -16,6 +16,10 @@ through §3.7 and this doc now documents both:
   game; `BoxScore.minutes` is now real (derived from possession share)
 - **§3.7** blocked shots — a three-way MAKE/MISS/BLOCK draw; `BoxScore.blocks` is
   now real (a `SHOT`/`BLOCKED_*` event + a BLK credit, mirroring steals)
+- **§3.8** missed-shot out of bounds — a missed shot resolves to one of four
+  outcomes (off/def rebound, or OOB offense/defense) in a single skill-weighted
+  draw (`MissedShotResolver` wraps `ReboundResolver`); OOB reuses the `REBOUND`
+  play type with an `OUT_OF_BOUNDS_*` outcome and credits no rebounder
 
 The "Possession flow" section below reflects what the engine actually does today.
 
@@ -114,23 +118,44 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      picked by a weighted `passing` draw over the other four offensive players
      (the shooter excluded) and stamped on the SHOT event's `assist_player_id`.
      Not every make is assisted. On a **miss**, a rebound is resolved (§3.3):
-4. **Rebound** (§3.3) — rolled only after a missed `SHOT`:
-   - `REBOUND` event with outcome `DEFENSIVE` (primary_player = defensive
-     rebounder) → possession ends, ball goes to the other team; **or**
-   - `REBOUND` event with outcome `OFFENSIVE` (primary_player = offensive
-     rebounder) → the shooting team retains the ball and runs a **second-chance
-     possession** through the full flow above (turnover → foul → shot → rebound).
-     Offensive rebounds are capped per possession
-     (`MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`); after the cap a miss is forced to
-     a defensive rebound so the possession terminates.
+4. **Missed-shot outcome** (§3.3 + §3.8) — rolled only after a missed `SHOT`.
+   `MissedShotResolver` (which wraps `ReboundResolver`) resolves the miss to
+   **one of four outcomes in a single draw** (decisions.md #026), all carried on
+   the `REBOUND` play type:
+   - `REBOUND` / `DEFENSIVE` (primary_player = defensive rebounder) → possession
+     ends, ball goes to the other team; **or**
+   - `REBOUND` / `OFFENSIVE` (primary_player = offensive rebounder) → the shooting
+     team retains the ball and runs a **second-chance possession** through the
+     full flow above (turnover → foul → shot → miss-outcome); **or**
+   - `REBOUND` / `OUT_OF_BOUNDS_DEFENSE` — the ball left the court, defense's ball
+     → possession ends. **No rebounder credited** (#026 E); **or**
+   - `REBOUND` / `OUT_OF_BOUNDS_OFFENSE` — the ball left the court, offense retains
+     → second-chance possession. **No rebounder credited** (#026 E).
+
+   The rebound-vs-rebound balance is a **skill-weighted** board contest
+   (`offenseRebound` vs `defenseRebound`); the two OOB slices are carved off the
+   top FIRST by a **flat, defense-leaning lean** that is skill-independent (not a
+   second contest, not inheriting the board winner). Both **sail-out** (the shot
+   flies OOB untouched) and **tipped-OOB** (a board contest whose ball deflects
+   out, last-touch decides) resolve here and **share one OOB outcome each**
+   (offense/defense) — the distinction is not recorded on the event (nothing
+   consumes it; the last-touch team is implied by the offense/defense suffix).
+   **OOB-offense is a third offense-retention path** alongside the offensive
+   rebound and the §3.7 offense-recovered block: all three bump the offensive-
+   rebound counter and count against the same `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`
+   cap; after the cap a retained outcome is forced to its possession-ending
+   sibling (`OFFENSIVE`→`DEFENSIVE`, `OUT_OF_BOUNDS_OFFENSE`→`OUT_OF_BOUNDS_DEFENSE`)
+   so the possession terminates.
 
 A single possession therefore emits one of these patterns (a missed shot is
-always followed by a `REBOUND`):
+always followed by a `REBOUND` event — an actual rebound or an OOB):
 - `TURNOVER`
 - `FOUL` → `FREE_THROW` → `FREE_THROW`
 - `SHOT` (made) — possession ends
 - `SHOT` (missed) → `REBOUND` (`DEFENSIVE`) — possession ends
 - `SHOT` (missed) → `REBOUND` (`OFFENSIVE`) → … second-chance possession …
+- `SHOT` (missed) → `REBOUND` (`OUT_OF_BOUNDS_DEFENSE`) — possession ends (§3.8)
+- `SHOT` (missed) → `REBOUND` (`OUT_OF_BOUNDS_OFFENSE`) → … second-chance … (§3.8)
 - `SHOT` (`BLOCKED_*`) — defense recovers (in-bounds/OOB), possession ends
 - `SHOT` (`BLOCKED_*`) → … second-chance possession … — offense recovers the block
 
@@ -194,11 +219,20 @@ rebound contests — a modest thumb on the scale composed multiplicatively with 
 | `FREE_THROW` | `MISSED` | Free throw missed |
 | `REBOUND` | `OFFENSIVE` | Offensive rebound; ball stays with the shooting team for a second-chance possession |
 | `REBOUND` | `DEFENSIVE` | Defensive rebound; possession ends, ball goes to the other team |
+| `REBOUND` | `OUT_OF_BOUNDS_OFFENSE` | Missed shot left the court, offense retains → second chance; **no rebounder** (`primary_player` null) (§3.8) |
+| `REBOUND` | `OUT_OF_BOUNDS_DEFENSE` | Missed shot left the court, defense's ball → possession ends; **no rebounder** (`primary_player` null) (§3.8) |
 
-After a missed `SHOT`, §3.3 rolls a rebound: the `REBOUND` event's
-`primary_player_id` is the rebounder. An `OFFENSIVE` rebound keeps the ball with
-the shooting team (a second-chance possession runs through the full flow again);
-a `DEFENSIVE` rebound ends the possession. See the possession-flow section below.
+After a missed `SHOT`, §3.3 + §3.8 roll a **single four-way missed-shot outcome**
+(`MissedShotResolver`, decisions.md #026): a real rebound or an out-of-bounds ball.
+On a rebound the `REBOUND` event's `primary_player_id` is the rebounder — an
+`OFFENSIVE` rebound keeps the ball with the shooting team (a second-chance
+possession runs through the full flow again); a `DEFENSIVE` rebound ends the
+possession. On an OOB outcome the ball left the court and **no rebounder is
+credited** (`primary_player_id` is null) — `OUT_OF_BOUNDS_OFFENSE` retains for a
+second chance, `OUT_OF_BOUNDS_DEFENSE` ends the possession. OOB events reuse the
+`REBOUND` play type but are **excluded from the rebound reconciliation** (which
+exact-matches `OFFENSIVE`/`DEFENSIVE`), so they never count as a box-score
+rebound (#026 E). See the possession-flow section below.
 
 **Steal / block symmetry (§3.7, decisions.md #025).** A **block is a field-goal
 outcome exactly as a steal is a turnover outcome** — a defensive event modeled as

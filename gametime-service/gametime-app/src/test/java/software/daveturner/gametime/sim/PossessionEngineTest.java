@@ -18,9 +18,10 @@ class PossessionEngineTest {
     private final FoulResolver foulResolver = new FoulResolver(config);
     private final ReboundResolver reboundResolver = new ReboundResolver(config);
     private final BlockResolver blockResolver = new BlockResolver(config);
+    private final MissedShotResolver missedShotResolver = new MissedShotResolver(reboundResolver);
     private final PossessionEngine engine = new PossessionEngine(
-            shotSelector, shotResolver, turnoverResolver, foulResolver, reboundResolver,
-            blockResolver, config);
+            shotSelector, shotResolver, turnoverResolver, foulResolver,
+            blockResolver, missedShotResolver, config);
 
     private RandomGenerator rng(long seed) {
         return RandomGeneratorFactory.of("L64X128MixRandom").create(seed);
@@ -263,13 +264,18 @@ class PossessionEngineTest {
     }
 
     @Test
-    void reboundOutcomesAreOnlyOffensiveOrDefensive() {
+    void reboundOutcomesAreOneOfTheFourMissedShotOutcomes() {
+        // §3.8 (#026): a missed shot resolves to one of FOUR outcomes, all carried
+        // on the REBOUND PlayType — the two rebound outcomes (OFFENSIVE/DEFENSIVE)
+        // plus the two OOB outcomes (OUT_OF_BOUNDS_OFFENSE/_DEFENSE, no rebounder).
         GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
+        Set<String> allowed = Set.of("OFFENSIVE", "DEFENSIVE",
+                "OUT_OF_BOUNDS_OFFENSE", "OUT_OF_BOUNDS_DEFENSE");
         for (GameData.EventRecord e : data.getEvents()) {
             if (e.playType() == PlayType.REBOUND) {
-                assertTrue(e.outcome().equals("OFFENSIVE") || e.outcome().equals("DEFENSIVE"),
+                assertTrue(allowed.contains(e.outcome()),
                         "Unexpected rebound outcome: " + e.outcome());
             }
         }
@@ -875,6 +881,156 @@ class PossessionEngineTest {
         assertEquals("BLOCKED_2PT_PERIMETER", engine.buildBlockOutcome(ShotType.PERIMETER));
         assertEquals("BLOCKED_2PT_POST", engine.buildBlockOutcome(ShotType.POST));
         assertEquals("BLOCKED_3PT", engine.buildBlockOutcome(ShotType.THREE));
+    }
+
+    // ===================== §3.8 missed-shot out of bounds =====================
+
+    private boolean isOobEvent(GameData.EventRecord e) {
+        return e.playType() == PlayType.REBOUND && e.outcome().startsWith("OUT_OF_BOUNDS");
+    }
+
+    @Test
+    void gameProducesOutOfBoundsEvents() {
+        // OOB is a flat ~7% carve off every miss (skill-independent), so a full game
+        // between average teams produces some OUT_OF_BOUNDS_* REBOUND events.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 25, rng(42));
+        long oob = data.getEvents().stream().filter(this::isOobEvent).count();
+        assertTrue(oob > 0, "a full game should emit OUT_OF_BOUNDS rebound events (§3.8)");
+    }
+
+    @Test
+    void outOfBoundsOutcomeStringsAreOffenseOrDefense() {
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 25, rng(42));
+        Set<String> allowed = Set.of("OUT_OF_BOUNDS_OFFENSE", "OUT_OF_BOUNDS_DEFENSE");
+        long oob = 0;
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (isOobEvent(e)) {
+                oob++;
+                assertTrue(allowed.contains(e.outcome()), "unexpected OOB outcome: " + e.outcome());
+            }
+        }
+        assertTrue(oob > 0, "expected some OOB events to assert on");
+    }
+
+    @Test
+    void outOfBoundsEventsFollowAMissedShot() {
+        // An OOB event is a missed-shot resolution: it must immediately follow a
+        // MISSED SHOT (same slot the rebound occupies today).
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 25, rng(42));
+        List<GameData.EventRecord> events = data.getEvents();
+        long oob = 0;
+        for (int i = 0; i < events.size(); i++) {
+            if (isOobEvent(events.get(i))) {
+                oob++;
+                assertTrue(i > 0, "OOB cannot be the first event");
+                GameData.EventRecord prev = events.get(i - 1);
+                assertEquals(PlayType.SHOT, prev.playType(), "OOB must follow a SHOT");
+                assertTrue(prev.outcome().startsWith("MISSED"), "OOB must follow a MISSED shot");
+            }
+        }
+        assertTrue(oob > 0, "expected some OOB events");
+    }
+
+    @Test
+    void outOfBoundsEventsCreditNoRebounder() {
+        // Decision E: an OOB event names no player (no rebounder credited).
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 25, rng(42));
+        long oob = 0;
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (isOobEvent(e)) {
+                oob++;
+                assertNull(e.primaryPlayerId(), "OOB credits no rebounder (E): " + e.outcome());
+                assertNull(e.assistPlayerId(), "OOB carries no assister");
+            }
+        }
+        assertTrue(oob > 0, "expected some OOB events");
+    }
+
+    @Test
+    void outOfBoundsExcludedFromReboundReconciliation() {
+        // Decision E: OOB events (REBOUND PlayType, OUT_OF_BOUNDS_* outcome) must NOT
+        // be counted as rebounds — the box-score rebound totals reconcile against ONLY
+        // the exact OFFENSIVE/DEFENSIVE rebound events, with OOB present but excluded.
+        List<PlayerGameState> home = teamOf5("H", 10);
+        List<PlayerGameState> away = teamOf5("A", 10);
+        GameData data = simulate(home, away, "H", "A", 25, rng(42));
+
+        long oob = data.getEvents().stream().filter(this::isOobEvent).count();
+        assertTrue(oob > 0, "expected OOB events present for this to be a real test");
+
+        long offReboundEvents = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.REBOUND && e.outcome().equals("OFFENSIVE"))
+                .count();
+        long defReboundEvents = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.REBOUND && e.outcome().equals("DEFENSIVE"))
+                .count();
+        int boxOff = home.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum()
+                + away.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum();
+        int boxDef = home.stream().mapToInt(PlayerGameState::getDefensiveRebounds).sum()
+                + away.stream().mapToInt(PlayerGameState::getDefensiveRebounds).sum();
+
+        assertEquals(offReboundEvents, boxOff, "OOB must not inflate offensive rebounds");
+        assertEquals(defReboundEvents, boxDef, "OOB must not inflate defensive rebounds");
+    }
+
+    @Test
+    void outOfBoundsOffenseProducesSecondChance() {
+        // OOB-offense retains the ball → a second-chance attempt follows in the same
+        // possession (more offensive events after the OOB event), like an offensive
+        // rebound. Search seeds for a possession containing an OUT_OF_BOUNDS_OFFENSE
+        // that isn't the last event.
+        boolean foundSecondChance = false;
+        for (long seed = 1; seed <= 400 && !foundSecondChance; seed++) {
+            GameData data = new GameData();
+            resolvePossession(data, teamOf5("H", 10), teamOf5("A", 10), "H", "A", 1, 1, rng(seed));
+            List<GameData.EventRecord> events = data.getEvents();
+            for (int i = 0; i < events.size(); i++) {
+                if (events.get(i).outcome().equals("OUT_OF_BOUNDS_OFFENSE")
+                        && isOobEvent(events.get(i)) && i + 1 < events.size()) {
+                    foundSecondChance = true;
+                    break;
+                }
+            }
+        }
+        assertTrue(foundSecondChance,
+                "an OOB-offense should re-enter the possession loop for a second chance");
+    }
+
+    @Test
+    void allThreeRetentionPathsShareTheOneCap() {
+        // §3.8: OOB-offense joins the offensive rebound and the §3.7 offense-recovered
+        // block as a THIRD offense-retention path, all bounded by the SAME cap. A
+        // single possession's total retentions (OFFENSIVE rebounds + BLOCKED events +
+        // OUT_OF_BOUNDS_OFFENSE) must never let the offense keep the ball unbounded.
+        // Weak finishers vs elite blockers exercises blocks + rebounds + OOB together.
+        for (long seed = 1; seed <= 500; seed++) {
+            GameData data = new GameData();
+            int next = resolvePossession(data, weakFinisherOffense("H"), eliteBlockerDefense("A"),
+                    "H", "A", 1, 1, rng(seed));
+            assertTrue(next > 1, "possession must terminate");
+            long retentions = data.getEvents().stream()
+                    .filter(e -> isBlockedEvent(e)
+                            || (e.playType() == PlayType.REBOUND && e.outcome().equals("OFFENSIVE"))
+                            || e.outcome().equals("OUT_OF_BOUNDS_OFFENSE"))
+                    .count();
+            // Each retention re-enters the loop; all three paths count against the one
+            // cap, so a possession stays bounded well below a runaway count.
+            assertTrue(retentions <= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION + 3,
+                    "all retentions (blocks + off rebounds + OOB-offense) must stay bounded, got "
+                            + retentions + " (seed " + seed + ")");
+        }
+    }
+
+    @Test
+    void missedShotOutcomeStringFormatsCorrectly() {
+        assertEquals("OFFENSIVE", engine.missedShotOutcomeString(MissedShotOutcome.OFFENSIVE_REBOUND));
+        assertEquals("DEFENSIVE", engine.missedShotOutcomeString(MissedShotOutcome.DEFENSIVE_REBOUND));
+        assertEquals("OUT_OF_BOUNDS_OFFENSE", engine.missedShotOutcomeString(MissedShotOutcome.OOB_OFFENSE));
+        assertEquals("OUT_OF_BOUNDS_DEFENSE", engine.missedShotOutcomeString(MissedShotOutcome.OOB_DEFENSE));
     }
 
     private int pointsFromEvent(GameData.EventRecord e) {

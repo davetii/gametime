@@ -166,6 +166,16 @@ class CalibrationHarness {
         if (blockedShots != boxBlocks) {
             agg.reconciliationMismatches++;
         }
+
+        // §3.8 (decisions.md #026 D): count OUT_OF_BOUNDS_* REBOUND events so the OOB
+        // rate is VISIBLE (no hard target) — sail-out is a genuinely new outcome that
+        // removes a rebound chance, so its rate must be watchable to confirm the
+        // §3.4/§3.5 aggregates still hold with OOB on. Split over the two team-games
+        // of this game, so the printed "/ team / game" divides by teamGames uniformly.
+        agg.oob += events.stream()
+                .filter(e -> e.getPlayType() == PlayType.REBOUND
+                        && e.getOutcome() != null && e.getOutcome().startsWith("OUT_OF_BOUNDS"))
+                .count();
     }
 
     /** Sort one team's box scores by minutes desc and add to the per-slot totals. */
@@ -205,7 +215,7 @@ class CalibrationHarness {
         int gameCount;
         int teamGames;
         long points;
-        long fga, fgm, tpa, tpm, assists, turnovers, offReb, defReb, blocks;
+        long fga, fgm, tpa, tpm, assists, turnovers, offReb, defReb, blocks, oob;
         long periods;
         int reconciliationMismatches;
 
@@ -231,6 +241,7 @@ class CalibrationHarness {
             lines.add(String.format("Off reb / team / game:  %.1f", offReb / tg));
             lines.add(String.format("Def reb / team / game:  %.1f", defReb / tg));
             lines.add(String.format("Blocks / team / game:   %.1f   (target ~5)", blocks / tg));
+            lines.add(String.format("OOB / team / game:      %.1f   (§3.8, no target)", oob / tg));
             lines.add(String.format("Reconciliation (ast+blk):%s",
                     reconciliationMismatches == 0 ? " OK (all games match)"
                             : " " + reconciliationMismatches + " MISMATCH(es)"));

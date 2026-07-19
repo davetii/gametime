@@ -13,20 +13,20 @@ public class PossessionEngine {
     private final ShotResolver shotResolver;
     private final TurnoverResolver turnoverResolver;
     private final FoulResolver foulResolver;
-    private final ReboundResolver reboundResolver;
     private final BlockResolver blockResolver;
+    private final MissedShotResolver missedShotResolver;
     private final SimConfig config;
 
     public PossessionEngine(ShotSelector shotSelector, ShotResolver shotResolver,
                             TurnoverResolver turnoverResolver, FoulResolver foulResolver,
-                            ReboundResolver reboundResolver, BlockResolver blockResolver,
+                            BlockResolver blockResolver, MissedShotResolver missedShotResolver,
                             SimConfig config) {
         this.shotSelector = shotSelector;
         this.shotResolver = shotResolver;
         this.turnoverResolver = turnoverResolver;
         this.foulResolver = foulResolver;
-        this.reboundResolver = reboundResolver;
         this.blockResolver = blockResolver;
+        this.missedShotResolver = missedShotResolver;
         this.config = config;
     }
 
@@ -204,32 +204,72 @@ public class PossessionEngine {
                 return sequence + 1;
             }
 
-            // Missed shot — emit the SHOT event, then resolve the rebound (§3.3).
+            // Missed shot — emit the SHOT event, then resolve the miss (§3.3 + §3.8).
             data.addEvent(offTeamId, defTeamId, period, sequence,
                     PlayType.SHOT, outcome, shooter.getPlayerId());
             sequence++;
 
-            // 4. Rebound
-            PlayerGameState offRebounder = reboundResolver.pickOffensiveRebounder(offense, rng);
-            PlayerGameState defRebounder = reboundResolver.pickDefensiveRebounder(defense, rng);
-            boolean capReached = offensiveRebounds >= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION;
-            boolean offensiveRebound = !capReached
-                    && reboundResolver.isOffensiveRebound(offRebounder, defRebounder, rng);
+            // 4. Missed-shot outcome (§3.8, decisions.md #026): a single four-way
+            // draw owned by MissedShotResolver (which wraps ReboundResolver) — an
+            // offensive/defensive rebound OR the ball out of bounds (offense/defense).
+            // The cap is passed IN so the resolver never returns an offense-retained
+            // outcome once the second-chance loop is full; the loop still owns the
+            // continue vs. return fork below (same shape as the §3.7 block recovery).
+            boolean capReached =
+                    offensiveRebounds >= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION;
+            MissedShotResolver.Result miss =
+                    missedShotResolver.resolve(offense, defense, capReached, rng);
+            emitMissedShotEvent(data, miss, offTeamId, defTeamId, period, sequence);
+            sequence++;
 
-            if (offensiveRebound) {
-                offRebounder.recordOffensiveRebound();
-                data.addEvent(offTeamId, defTeamId, period, sequence,
-                        PlayType.REBOUND, "OFFENSIVE", offRebounder.getPlayerId());
-                sequence++;
+            if (miss.outcome().offenseRetains()) {
                 offensiveRebounds++;
-                // Offense retains the ball — loop for a second-chance possession.
-            } else {
-                defRebounder.recordDefensiveRebound();
-                data.addEvent(offTeamId, defTeamId, period, sequence,
-                        PlayType.REBOUND, "DEFENSIVE", defRebounder.getPlayerId());
-                return sequence + 1;
+                continue; // second-chance possession (offensive rebound OR OOB-offense)
             }
+            return sequence; // possession over (defensive rebound OR OOB-defense)
         }
+    }
+
+    /**
+     * §3.8 (decisions.md #026 E): emit the missed-shot outcome event and credit the
+     * rebounder ONLY on the two rebound outcomes. The two OOB outcomes reuse the
+     * {@link PlayType#REBOUND} play type with OUT_OF_BOUNDS_* outcomes but credit NO
+     * rebounder — so they are excluded from the rebound reconciliation invariant
+     * (which exact-matches OFFENSIVE / DEFENSIVE), and record no box-score rebound.
+     */
+    void emitMissedShotEvent(GameData data, MissedShotResolver.Result miss,
+                             String offTeamId, String defTeamId, int period, int sequence) {
+        MissedShotOutcome outcome = miss.outcome();
+        String rebounderId = null;
+        if (outcome.creditsRebounder()) {
+            PlayerGameState rebounder = miss.rebounder();
+            if (outcome == MissedShotOutcome.OFFENSIVE_REBOUND) {
+                rebounder.recordOffensiveRebound();
+            } else {
+                rebounder.recordDefensiveRebound();
+            }
+            rebounderId = rebounder.getPlayerId();
+        }
+        data.addEvent(offTeamId, defTeamId, period, sequence,
+                PlayType.REBOUND, missedShotOutcomeString(outcome), rebounderId);
+    }
+
+    /**
+     * §3.8 (step 1): the {@code outcome} string for each missed-shot outcome. The
+     * two rebound outcomes keep the established OFFENSIVE / DEFENSIVE strings; the
+     * two OOB outcomes use OUT_OF_BOUNDS_OFFENSE / OUT_OF_BOUNDS_DEFENSE (a distinct
+     * outcome on the existing REBOUND PlayType — no schema change, no new PlayType,
+     * mirroring #025 F's reuse discipline). Sail-out and tipped-OOB share one
+     * outcome each (offense/defense): nothing consumes the distinction and the
+     * last-touch team is already implied by the suffix (#026 E — no fabricated detail).
+     */
+    String missedShotOutcomeString(MissedShotOutcome outcome) {
+        return switch (outcome) {
+            case OFFENSIVE_REBOUND -> "OFFENSIVE";
+            case DEFENSIVE_REBOUND -> "DEFENSIVE";
+            case OOB_OFFENSE -> "OUT_OF_BOUNDS_OFFENSE";
+            case OOB_DEFENSE -> "OUT_OF_BOUNDS_DEFENSE";
+        };
     }
 
     String buildShotOutcome(boolean made, ShotType shotType) {

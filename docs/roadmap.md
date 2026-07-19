@@ -220,31 +220,29 @@ re-running the loop and re-agreeing the numbers, not a red build.
       rates up to refill the points blocks removed. Reconciliation `count(SHOT outcome
       LIKE 'BLOCKED%') == Σ BoxScore.blocks` holds. New/changed `sim` classes at
       99.4–100% line coverage. Flow: `docs/possession-flow.puml`._
-- [ ] **§3.8 — Missed shot out of bounds (no rebound)** *(free **pending harness
-      confirmation** — see Decision D below)*. **Design DONE — decisions.md #026
-      (A–E); execute-ready plan in todo.md; NOT yet built.** Today *every* missed
-      shot resolves to a rebound (`REBOUND` / `OFFENSIVE`|`DEFENSIVE`), so a ball
-      that sails OOB untouched or is tipped OOB in a scramble is silently folded into
-      that roll and mis-credited to a rebounder. Resolved model: **both** sail-out
-      (shot flies OOB untouched, no rebounder) **and** tipped-OOB (a board contest
-      happened, last-touch decides) modeled as **one skill-weighted four-way
-      missed-shot outcome** (A) — off reb / def reb / OOB-offense / OOB-defense in a
-      single weighted draw (skill already decides the rebound-vs-rebound balance; the
-      OOB slices are a fixed **defense-leaning** lean, NOT a separate OOB
-      sub-decision). Owned by a new **`MissedShotResolver`** that **wraps**
-      `ReboundResolver` (unchanged, still credits a rebounder on its two outcomes)
-      (B). Skill-weighted — the deliberate difference from §3.7's flat `BlockResolver`
-      (C). OOB **credits no rebounder** and must not break the rebound reconciliation
-      invariant (E). Seam: new `MissedShotResolver` (wraps `ReboundResolver`) +
-      `PossessionEngine` `// 4. Rebound` branch + `SimConfig` OOB lean weights +
-      a `CalibrationHarness` OOB line. **No schema change** (`outcome` free text,
-      #020). **Why "pending confirmation" not "free":** tipped-OOB is pure relabeling
-      (harness-neutral), but **sail-out is a genuinely new outcome** — today every
-      miss produces a rebound, so a sail-out with no offensive-rebound chance
-      slightly reduces second chances → possibly nudges reb/points. Decision D adds
-      an OOB harness line and **verifies** the aggregates held rather than assuming
-      it (the original "free — no recalibration" label predated this scope). Flow:
-      `docs/possession-flow.puml` (to update at close-out).
+- [x] **§3.8 — Missed shot out of bounds (no rebound) ✓** *(landed **free** —
+      harness-neutral, no recalibration)*.
+      _Shipped (decisions.md #026): a missed shot now resolves to **one of four
+      outcomes in a single draw** — offensive rebound / defensive rebound /
+      OOB-offense / OOB-defense — owned by a new **`MissedShotResolver`** that
+      **wraps** `ReboundResolver` (unchanged, A/B). The OOB share is carved off the
+      top FIRST by a **flat, defense-leaning, skill-independent** lean; the skill
+      board contest (`offenseRebound` vs `defenseRebound`) runs only on the clean-
+      rebound remainder (A) — so OOB never inherits the board winner. **Skill-
+      weighted** — the deliberate difference from §3.7's flat `BlockResolver` (C).
+      Both **sail-out** and **tipped-OOB** land here, sharing one OOB outcome each
+      (offense/defense). OOB is a `REBOUND`/`OUT_OF_BOUNDS_*` event that **credits
+      no rebounder** (E, `primary_player` null) and is **excluded** from the rebound
+      reconciliation (which exact-matches `OFFENSIVE`/`DEFENSIVE`). **OOB-offense is a
+      third offense-retention path** (with the offensive rebound + §3.7 block
+      recovery) against the one `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` cap (value
+      unchanged at 3); the resolver takes `capReached` and never returns a retained
+      outcome when capped. **No schema change** (`outcome` free text, #020).
+      **Landed free (Decision D verified, not assumed):** the `CalibrationHarness`
+      OOB line reads **~3.0 OOB/team/game** and the §3.4/§3.5 aggregates held
+      (113.0 pts / 47.0% FG / 27.6 ast / 13.6 TO / 5.1 blk, minutes + FG%-by-period
+      intact) — no recalibration pass needed. New `sim` classes at 99.4–100% line
+      coverage. Flow: `docs/possession-flow.puml`._
 - [ ] **§3.9 — Turnover sub-categories (richer causes)** *(free — no recalibration)*.
       §3.2 models only two turnover outcomes — `STOLEN` / `LOST_BALL` — and §3.4 kept
       it that way. A fuller taxonomy: offensive fouls (charges), **shot-clock

@@ -156,6 +156,47 @@ class GameSimulatorIntegrationTest {
     }
 
     @Test
+    void simulateOutOfBoundsEventsExistAndAreExcludedFromReboundReconciliation() {
+        // §3.8 (decisions.md #026 E): a missed shot can leave the court OOB — a
+        // REBOUND-PlayType event with an OUT_OF_BOUNDS_* outcome that credits NO
+        // rebounder. Such events must exist AND must be excluded from the shipped
+        // rebound reconciliation invariant (which exact-matches OFFENSIVE/DEFENSIVE),
+        // so the box-score rebound totals still reconcile with only the true rebounds.
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        List<GameEventEntity> oobEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.REBOUND
+                        && e.getOutcome() != null
+                        && e.getOutcome().startsWith("OUT_OF_BOUNDS"))
+                .toList();
+        assertFalse(oobEvents.isEmpty(),
+                "§3.8: a full game should emit OUT_OF_BOUNDS rebound events");
+        for (GameEventEntity e : oobEvents) {
+            assertNull(e.getPrimaryPlayerId(), "OOB credits no rebounder: " + e.getOutcome());
+        }
+
+        long offReboundEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.REBOUND
+                        && "OFFENSIVE".equals(e.getOutcome()))
+                .count();
+        long defReboundEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.REBOUND
+                        && "DEFENSIVE".equals(e.getOutcome()))
+                .count();
+        int boxOff = boxScores.stream().mapToInt(BoxScoreEntity::getOffensiveRebounds).sum();
+        int boxDef = boxScores.stream().mapToInt(BoxScoreEntity::getDefensiveRebounds).sum();
+
+        assertEquals(offReboundEvents, boxOff,
+                "OOB present, offensive rebound totals still reconcile (OOB excluded)");
+        assertEquals(defReboundEvents, boxDef,
+                "OOB present, defensive rebound totals still reconcile (OOB excluded)");
+    }
+
+    @Test
     void simulateProducesNonZeroAssists() {
         SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
 

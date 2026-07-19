@@ -88,6 +88,24 @@ public class SimConfig {
     // after the cap, a missed shot is forced to a defensive rebound.
     public static final int MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION = 3;
 
+    // --- Missed-shot out of bounds (§3.8, decisions.md #026) ---
+    // A missed shot resolves to one of FOUR outcomes in a single draw (Decision A):
+    // offensive rebound / defensive rebound / OOB-offense / OOB-defense. The OOB
+    // share is carved off FIRST by these flat, skill-INDEPENDENT weights (a fixed
+    // defensive lean, NOT a second skilled contest — Decision A); only the clean-
+    // rebound remainder runs ReboundResolver's skill contest. OOB_TOTAL_WEIGHT is
+    // the fraction of missed shots that leave the court (sail-out untouched or
+    // tipped out in a scramble); the two slices below split THAT share, leaning
+    // defensive (a loose ball in a scrum favors the defense). MissedShotResolver
+    // normalizes the two slices by their sum, so they need not add to anything in
+    // particular — only their ratio and OOB_TOTAL_WEIGHT matter. Placeholders,
+    // settled by the CalibrationHarness OOB line (Decision D): OOB removes some
+    // second-chance possessions, so its rate must be visible and the §3.4/§3.5
+    // aggregates re-confirmed. Kept smaller than the two rebound outcomes.
+    public static final double OOB_TOTAL_WEIGHT = 0.07;
+    public static final double OOB_DEFENSE_WEIGHT = 0.60;
+    public static final double OOB_OFFENSE_WEIGHT = 0.40;
+
     // --- Blocked shots (§3.7, decisions.md #025) ---
     // Per-shot-type block base rate at an average-vs-average contest (defender
     // block skill vs. shooter finishing, both 10). A block is carved off the top

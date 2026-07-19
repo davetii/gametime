@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.5, §3.7 blocks; §3.8 OOB DESIGNED not built)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -127,7 +127,7 @@ partition "ShotResolver" {
   endif
 }
 
-partition "MissedShotResolver (§3.8 — #026, DESIGNED not built) — wraps ReboundResolver (§3.3)" {
+partition "MissedShotResolver (§3.8 — #026) — wraps ReboundResolver (§3.3)" {
   note right
     **§3.8 (#026 A/B):** a missed shot resolves to ONE of FOUR
     outcomes in a single SKILL-WEIGHTED draw. MissedShotResolver
@@ -193,19 +193,24 @@ legend bottom left
   flat four-way loose-ball recovery (offense/defense × in-bounds/
   OOB). Recalibrated: ~5 blocks/team, §3.4/§3.5 aggregates held.
 
-  **§3.8 missed-shot OOB — DESIGNED, not yet built** (decisions.md #026)
+  **§3.8 missed-shot OOB** (decisions.md #026)
   A missed shot resolves to ONE of FOUR outcomes in a single
   skill-weighted draw: OFFENSIVE / DEFENSIVE rebound, or OOB
   offense / OOB defense. MissedShotResolver WRAPS ReboundResolver
-  (the two-way skill contest, unchanged) and applies a fixed
-  defense-leaning lean to carve the two OOB slices — NOT a
-  separate OOB sub-decision. Both sail-out (shot flies OOB
+  (the two-way skill contest, unchanged): it carves the OOB share
+  off the top by a flat defense-leaning lean FIRST (skill-
+  independent), then runs the board contest only on the clean-
+  rebound remainder — NOT a separate OOB sub-decision, so OOB never
+  inherits the board winner. Both sail-out (shot flies OOB
   untouched) and tipped-OOB (a board contest, last-touch decides)
-  land here. OOB credits NO rebounder and stays out of the rebound
-  reconciliation (#026 E). Skill-weighted — the deliberate
-  difference from §3.7's flat BlockResolver (#026 C). Sail-out is
-  a new outcome (fewer second chances) → VERIFIED harness-neutral,
-  not assumed (#026 D). Design settled (#026 A–E); no code yet.
+  land here, sharing one OOB outcome each (offense/defense). OOB is
+  a REBOUND event with an OUT_OF_BOUNDS_* outcome that credits NO
+  rebounder and stays out of the rebound reconciliation (#026 E).
+  Skill-weighted — the deliberate difference from §3.7's flat
+  BlockResolver (#026 C). OOB-offense is a third offense-retention
+  path against the one MAX_OFFENSIVE_REBOUNDS cap. Sail-out is a
+  new outcome (fewer second chances) → VERIFIED harness-neutral
+  (#026 D): OOB ~3/team/game, §3.4/§3.5 aggregates held.
 endlegend
 
 @enduml
