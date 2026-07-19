@@ -183,10 +183,11 @@ all zeros, slightly-low scoring, a two-value turnover taxonomy).
 
 **Each is its own sub-phase with its own design pass** — the §3.4/§3.5/§3.6
 three-session workflow (a numbered `decisions.md` entry + an execute-ready
-`todo.md` plan, then execution). These bullets are *seams, not plans*: the blocks
-discussion showed the one-line description under-specified the real design (the
-"block only on misses" shortcut was rejected in favor of a block-gates-the-make
-model). Do **not** execute a bullet without running its design pass first.
+`todo.md` plan, then execution). These bullets are *seams, not plans*: the §3.7
+blocks pass proved the one-line description under-specified the real design (its
+"block only on misses" shortcut was rejected, and the modeled result — a three-way
+MAKE/MISS/BLOCK draw with its own recovery resolver — bears little resemblance to
+the original bullet). Do **not** execute a bullet without running its design pass first.
 
 **Sequenced by calibration blast radius, not roadmap order.** The `CalibrationHarness`
 guards ~112 pts / 47% FG / 36% 3P / 26 ast / 14 TO per team (§3.4). Some items are
@@ -200,52 +201,22 @@ re-running the loop and re-agreeing the numbers, not a red build.
 > that does not exist yet (foul counts per team per period → bonus free throws).
 > They're adjacent so that substrate is designed and built once.
 
-- [ ] **§3.7 — Blocked shots** *(own recalibration; the pilot — already
-      half-designed)*. No `BLOCK` play type today; a blocked shot is
-      indistinguishable from a normal miss (becomes a `MISSED SHOT` → rebound) and
-      `BoxScore.blocks` is hardcoded 0 (`GameSimulator` sets `bs.setBlocks(0)`).
-      **Design-pass fork (from discussion):** the roadmap's original "roll a block
-      only on shots that already missed" is **rejected** — a real block *prevents a
-      would-be make*, so the block roll must **gate the make/miss roll**, not garnish
-      misses. Options: (2) a block gate *before* the existing `isMade` roll — if
-      blocked, emit `BLOCK`, no make roll, rebound as normal; or (3) fold into a
-      three-way `MAKE`/`MISS`/`BLOCK` outcome. **Defensive block skill is a
-      first-class factor** (`rimProtection` for rim attempts, `shotContest` for
-      jumpers, scaled by shot type; optional shooter counter-factor via `shotSkill`/
-      finishing). Watch the **double-count trap**: the defender's block contribution
-      must be removed from the make roll or elite rim protectors get penalized twice.
-      Because blocks now convert would-be makes, scoring drops slightly → one
-      recalibration (nudge rim make-rate up to compensate). Seam: `ShotResolver` +
-      `PossessionEngine` shot branch; add a blocks-per-team target (~5) to the harness.
-      The flow is drawn in `docs/possession-flow.puml` (the `BLOCKED?` fork inside
-      `ShotResolver`, before the make roll, falling through to `ReboundResolver`) —
-      marked PROPOSED / not built.
-      **Open questions to resolve in the design pass (#025 TBD):**
-      1. *Fork shape* — Option 2 (block gate before the existing `isMade` roll) vs.
-         Option 3 (one three-way `MAKE`/`MISS`/`BLOCK` draw). Option 3 avoids the
-         double-count by construction; Option 2 is the smaller diff.
-      2. *Double-count split* — how the defender's `rimProtection`/`shotContest` is
-         divided between "got a hand on it (block)" and "contested it into a miss
-         (make roll)" so elite rim protectors aren't taxed twice and interior
-         scoring doesn't crater. (The reason a real recalibration is needed.)
-      3. *Shooter counter-factor* — does a great finisher / high `shotSkill` get
-         blocked less, or is v1 defender-only?
-      4. *Block-recovery outcomes* — a blocked ball gets its **own `BlockResolver`**
-         (not a bias on the normal rebound draw — that hack is dropped) with a
-         three-way roll: recovered-by-offense (→ second-chance) / recovered-by-defense
-         (possession over) / out-of-bounds. Driven by block-specific factors (how
-         hard/controlled the swat was), NOT `offenseRebound` vs `defenseRebound`.
-         Sub-question: OOB off the shooter (defense's ball) vs off the blocker
-         (offense retains) — v1 simplest is "block-OOB = defense's ball." Set the
-         three probabilities (defense-lean: real blocks favor the blocking team).
-      5. *Offense-recovered-block loop re-entry* — when the offense recovers a
-         blocked ball it re-enters the second-chance path (counts against
-         `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`). Decide whether it **skips**
-         `ReboundResolver`'s draw (recovery already decided by `BlockResolver`) or
-         falls through it — must not double-decide who got the ball.
-      6. *Block rate by shot type* — rim attempts (`DRIVE`/`POST`) are blocked far
-         more than jumpers; `THREE` blocks are rare. Confirm the per-`ShotType` base
-         rates and the ~5/team/game target.
+- [ ] **§3.7 — Blocked shots** *(own recalibration; the pilot)*. **Design DONE —
+      decisions.md #025 (A–F); execute-ready plan in todo.md; NOT yet built.** Today a
+      blocked shot is indistinguishable from a normal miss and `BoxScore.blocks` is
+      hardcoded 0. Resolved model: a **three-way MAKE/MISS/BLOCK draw** (v3) inside
+      `ShotResolver` — `P(BLOCK)` carved off the top (A1, preserving §3.4 calibration),
+      a **defender(`rimProtection`/`shotContest`)-vs-shooter(`finishing`) contest**
+      (B2), shot-type-scaled with `THREE` very-low (C). A block is recorded as a
+      **`SHOT`/`BLOCKED_*` outcome + a `recordBlock()` credit — exactly as a steal is a
+      `TURNOVER`/`STOLEN` outcome + `recordSteal()`** (F, no new `PlayType`); the shooter
+      is charged a missed FGA, no assist. A new **`BlockResolver`** runs a flat four-way
+      loose-ball recovery (offense/defense × in-bounds/OOB, D); offense-recovered blocks
+      skip `ReboundResolver` and re-enter the second-chance loop at `ShotSelector` (E).
+      Seam: `ShotResolver` + `PossessionEngine` + new `BlockResolver` + `SimConfig` +
+      `PlayerGameState.recordBlock()`. **No schema change** (`box_score.blocks` exists).
+      Blocks convert would-be makes → one recalibration pass; add a ~5-blocks/team target
+      to the harness. Flow: `docs/possession-flow.puml` (DESIGNED, not built).
 - [ ] **§3.8 — Missed shot out of bounds (no rebound)** *(free — no recalibration)*.
       A missed shot that sails OOB untouched, or a rebound tipped OOB, ends the
       possession the same as a defensive rebound — today folded into the
