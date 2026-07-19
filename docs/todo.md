@@ -16,16 +16,84 @@ sub-phase with its own design pass** (the §3.4/§3.5/§3.6 three-session workfl
 sequenced by calibration blast radius so scoring-affecting changes land one at a
 time against a known-good baseline.
 
-> **§3.7 design pass IN PROGRESS — see [`wip-025-blocks.md`](wip-025-blocks.md).**
-> Working toward decisions.md #025 (not yet written, not built). **3 of 5 decisions
-> resolved (A, B, C); resume at Decision D.** Locked so far: **v3** (one three-way
-> MAKE/MISS/BLOCK draw), **A1** (block slice carved off first, existing §3.4 make
-> contest runs on the remainder), **B2** (block is a `finishing`-vs-`rimProtection`/
-> `shotContest` contest — great finishers blocked less), **C** (rate ordering
-> DRIVE≥POST>PERIMETER≫THREE, THREE very-low, ~5 blocks/team target).
-> **Open: D** (BlockResolver recovery outcomes — incl. the ⚠ OOB two-fork question
-> D3, currently only *defaulted* not decided) **and E** (offense-recovered loop
-> re-entry). Do NOT write #025 or touch engine code until D + E are resolved.
+> **§3.7 design pass DONE — resolved as decisions.md #025 (A–F). Execute-ready.**
+> The design is settled; the plan below is the third (execution) session. Locked:
+> **v3** three-way MAKE/MISS/BLOCK draw; **A1** block slice carved off the top, §3.4
+> make contest on the remainder; **B2** block = `finishing`-vs-`rimProtection`/
+> `shotContest` contest; **C** rate ordering DRIVE≥POST>PERIMETER≫THREE, THREE
+> very-low, ~5/team; **D** flat four-way `BlockResolver` recovery
+> (RECOVERED_OFFENSE/DEFENSE + OOB_OFFENSE/DEFENSE); **E** offense-recovered → skip
+> ReboundResolver, re-enter at ShotSelector; **F** block recorded as a `SHOT`/
+> `BLOCKED_*` outcome + `recordBlock()` credit (mirrors steals). Flow:
+> `possession-flow.puml`. **No schema change** (`box_score.blocks` exists).
+
+---
+
+## §3.7 execution plan (work in order) — decisions.md #025
+
+> All Maven commands set `JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem`
+> (JDK 21). Per-package coverage gate (80% line, target ~90%) only at
+> `mvn -f gametime-service/pom.xml clean install`. This is engine work in the `sim`
+> package — no OpenAPI/schema change. Re-run the harness (`-Dcalibration=true`) at
+> the end; blocks remove would-be-make points → one recalibration pass.
+
+1. **`SimConfig` constants (#025 C, D).**
+   - [ ] Block base rates per shot type — `BASE_BLOCK_DRIVE` ≥ `BASE_BLOCK_POST` >
+     `BASE_BLOCK_PERIMETER` ≫ `BASE_BLOCK_THREE` (very-low, not 0). Placeholders;
+     tuned by the harness toward ~5 blocks/team/game.
+   - [ ] Flat four-way recovery weights (defense-leaning placeholders):
+     `RECOVERED_DEFENSE` > `RECOVERED_OFFENSE` > `OOB_DEFENSE` ≈ `OOB_OFFENSE`.
+2. **`PlayerGameState` (#025 F2).**
+   - [ ] Add a `blocks` counter + `recordBlock()` (mirror `recordSteal()`), exposed
+     via a getter for the box-score mapping.
+3. **Block contest — `ShotResolver` (#025 A1, B2).**
+   - [ ] Add `isBlocked(shotType, shooter, defender, rng)` — the logistic contest
+     `base(shotType) + SENSITIVITY × (defenderBlockSkill − shooter finishing)/10`,
+     `defenderBlockSkill` = `rimProtection` (DRIVE/POST) / `shotContest` (PERIMETER),
+     × `fatigueFactor`. Rolls BEFORE the make/miss roll (block-first, A1).
+4. **`BlockResolver` (new `sim` @Component) (#025 D).**
+   - [ ] Flat four-way roll → `RECOVERED_OFFENSE` / `RECOVERED_DEFENSE` /
+     `OOB_OFFENSE` / `OOB_DEFENSE` (fixed weights from step 1, no skill input).
+5. **Wire into `PossessionEngine` (#025 A1, E, F).**
+   - [ ] In the shot branch: `record FGA` → if `isBlocked` → emit a `SHOT` event with
+     `outcome = BLOCKED_*` (shot type, e.g. `BLOCKED_DRIVE`; `+1 3PA` if THREE),
+     `primaryPlayerId = shooter`, **no** `assistPlayerId` (F4); `blocker.recordBlock()`
+     (F2); shooter charged the FGA/miss (F3 — automatic via the SHOT event).
+   - [ ] Run `BlockResolver`; on `RECOVERED_OFFENSE`/`OOB_OFFENSE` re-enter the
+     second-chance loop at `ShotSelector`, bumping the offensive-rebound counter,
+     **skipping** `ReboundResolver` (E). Defense/OOB-defense → possession over.
+   - [ ] Replace `GameSimulator`'s `setBlocks(0)` with the real
+     `PlayerGameState.getBlocks()`.
+6. **Tests (target ~90% per package).**
+   - [ ] `ShotResolver.isBlocked` unit tests (elite rim protector vs. weak finisher →
+     higher block; THREE near-zero; fatigue effect).
+   - [ ] `BlockResolver` unit tests (four outcomes reachable, defense-leaning split,
+     flat/skill-independent).
+   - [ ] `PossessionEngine` / integration: a `BLOCKED_*` event is a `SHOT` with a
+     missed FGA and no assist; blocker credited; offense-recovered block runs a
+     second-chance possession (counter bumps, cap respected).
+   - [ ] **Reconciliation** (extend the #020/#022 pattern): count of `SHOT` events
+     with `outcome LIKE 'BLOCKED%'` == sum of `BoxScore.blocks`.
+7. **Calibrate.**
+   - [ ] Add a blocks/team line to `CalibrationHarness`; run `-Dcalibration=true`,
+     tune `BASE_BLOCK_*` toward ~5/team and re-center scoring (nudge shot base rates
+     up to refill the points blocks removed). Re-agree the §3.4/§3.5 aggregates.
+8. **Gate.**
+   - [ ] `JAVA_HOME=…/21.0.9-tem mvn -f gametime-service/pom.xml clean install` green.
+9. **Docs + close-out.**
+   - [ ] **Update `game.md`** — it currently says blocks are unmodeled (lines ~216/230:
+     "no `BLOCK` play type… `blocks` remains an unmodeled 0… future §3.x") and that is
+     now stale. Add `SHOT` / `BLOCKED_2PT_DRIVE` etc. rows to the `play_type`/`outcome`
+     vocabulary table (mirroring the `MADE_*`/`MISSED_*` rows and the `STOLEN` row),
+     flip the block box-score note to the real model (SHOT/BLOCKED_* event + a BLK via
+     `recordBlock`, missed FGA on the shooter, no assist), and document the
+     **steal/block symmetry** (a block is a field-goal outcome as a steal is a turnover
+     outcome). Do this ONLY at close-out — game.md documents shipped reality.
+   - [ ] roadmap.md §3.7: check the box + add a "Shipped" note (mirror §3.6's).
+   - [ ] Verify #025 matches the shipped code; add an implementation note if execution
+     diverged (as #023/#024 did).
+   - [ ] Reset this file's focus to **§3.8 — Missed shot out of bounds** (the next
+     free/no-recalibration item); strip the completed §3.7 plan.
 
 ---
 
@@ -36,7 +104,7 @@ section. Ordering is by calibration cost, NOT roadmap number order:
 
 | # | Item | Recalibration | Notes |
 |---|------|---------------|-------|
-| **§3.7** | Blocked shots | one pass | The pilot — half-designed already. Block gates the make roll; defensive block skill first-class; watch the double-count trap. |
+| **§3.7** | Blocked shots | one pass | **Design DONE (#025); execute-ready plan above.** v3 three-way draw; block = a SHOT/BLOCKED_* outcome (mirrors steals); flat four-way recovery. |
 | **§3.8** | Missed shot OOB (no rebound) | none (free) | Event-log labeling only; possession outcome unchanged. |
 | **§3.9** | Richer turnover taxonomy | none (free) | New `outcome` values on `TURNOVER` events (no schema change, #021); turnover count unchanged. |
 | **§3.10** | Rebounding / loose-ball fouls | small | **Builds the team-foul/bonus model** (shared with §3.11). |
