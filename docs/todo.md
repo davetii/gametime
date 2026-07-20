@@ -44,6 +44,46 @@ the §3.7/§3.8/§3.9 execution rhythm.
 > `mvn -f gametime-service/pom.xml clean install`. Engine work in the `sim` package.
 > `CalibrationHarness` is disabled by default (`-Dcalibration=true`).
 
+### Worked examples (trace these — the target behavior in three concrete possessions)
+
+Team **DEF** is on defense, **OFF** is on offense; period `P`. `BONUS = 5`
+(`BONUS_FOULS_PER_PERIOD`). "DEF's period foul count" = `count(FOUL events where
+committing_team_id == "DEF" and period == P)` — read from `data.getEvents()`, which
+accumulates live (#020). Remember **emit-then-count** (#028 A1): the current foul is
+`addEvent`'d, *then* the predicate reads it.
+
+**Example 1 — defensive box-out foul, NOT yet in the bonus (offense retains).**
+DEF has 3 fouls this period. A shot misses → the miss flow rolls a rebound foul (Step 3)
+→ the side draw picks **DEF** (defense-leaning). Emit `FOUL` /
+`REBOUNDING_FOUL_DEFENSE`, `primary_player_id` = the DEF box-out player,
+`committing_team_id = "DEF"`, and `defPlayer.recordFoul()`. DEF's count is now **4**
+(< 5) → **not in the bonus** → **no FTs**; the **offense retains** for a second chance:
+`offensiveRebounds++; continue;` (respecting `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` —
+if capped, the possession ends instead). Board contest **never runs** (whistle stopped
+play).
+
+**Example 2 — defensive box-out foul, the 5th (this foul itself sends OFF to the line).**
+Same as Example 1 but DEF already had **4** fouls. Emit the `REBOUNDING_FOUL_DEFENSE`
+event (DEF's count → **5**). Predicate for DEF: `5 >= 5` → **in the bonus**. Because it
+was a *defensive* foul, **OFF** is the fouled team → an OFF player shoots
+`FREE_THROWS_PER_FOUL` bonus FTs via the existing block (`recordFreeThrowAttempt()` /
+`recordFreeThrowMade()` / `addScore("OFF", …)` / `MADE`/`MISSED` `FREE_THROW` events).
+The **Nth (5th) foul itself awards** — that is emit-then-count. Possession ends after the
+FTs (`return sequence`).
+
+**Example 3 — offensive over-the-back foul (possession ends, defense's ball).**
+A shot misses → rebound-foul roll fires → the side draw picks **OFF** (the minority
+case). Emit `FOUL` / `REBOUNDING_FOUL_OFFENSE`, `primary_player_id` = the OFF player,
+`committing_team_id = "OFF"`, `offPlayer.recordFoul()`. Now count **OFF's** period fouls
+(not DEF's) against BONUS: **under** → DEF simply gets the ball, **no FTs**; **in the
+bonus** → **DEF** (the fouled team) shoots bonus FTs. Either way the **possession ends
+for OFF** (`return sequence`) — an offensive foul is a turnover-like loss of the ball, so
+it never `continue`s the second-chance loop.
+
+Determinism: the rebound-foul roll **and** its side draw consume the seed **before** the
+board draw, at a fixed point — so seed-pinned rebound tests re-baseline once (a controlled
+structural shift, as §3.7/§3.9 did), not churn.
+
 **Step 1 — the `committing_team_id` column + plumbing (#028 D — the one schema change).**
 - [ ] Add a nullable `committing_team_id VARCHAR` to `gametime.game_event`, appended to
   **`release.1.0.4.game.sql`** (the unreleased game DDL — do NOT make a new release
