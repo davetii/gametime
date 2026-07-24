@@ -220,6 +220,7 @@ the attribute coverage is visible.
 | Shot contest | shotContest, individualDefense |
 | Shot block attempt | rimProtection (rim) / shotContest (jumper) vs finishing (shooter) |
 | Foul on attempt? | foulDrawing vs foulProne |
+| Rebounding foul? | foulDrawing vs foulProne (§3.10, two-sided — either team can commit; `foulProne` also weights *who* commits it) |
 | Free throws | freeThrows, clutch (late game) |
 | Rebound | offenseRebound / defenseRebound |
 | Turnover / steal | ballSecurity vs stealing (gate); §3.9 cause draw leans `SHOT_CLOCK_VIOLATION` on `acumen`↓ + defending `defensiveScheme`↑ and `OFFENSIVE_FOUL`/`BAD_PASS` on `teamOffense`↓ |

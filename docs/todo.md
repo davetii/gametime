@@ -6,285 +6,127 @@ shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
 [backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
 **Possession-fidelity completion** section (§3.7–§3.11).
 
-Current focus: **§3.10 — Loose-ball / rebounding fouls + the shared team-foul/bonus
-substrate**. The full §3.7–§3.11 sequence, the calibration-blast-radius ordering, and
-what follows (Phase 4) live in **roadmap.md's "Possession-fidelity completion"
-section** — not here (todo.md is current-phase-only). §3.7, §3.8, and §3.9 shipped;
-§3.10 is next.
+Current focus: **§3.11 — And-1 / shooting foul on a made basket**. The full
+§3.7–§3.11 sequence, the calibration-blast-radius ordering, and what follows (Phase 4)
+live in **roadmap.md's "Possession-fidelity completion" section** — not here
+(todo.md is current-phase-only). §3.7, §3.8, §3.9, and §3.10 shipped; §3.11 is
+**last** in the sequence and closes it out.
 
-> **§3.10 is now execute-ready — design resolved as decisions.md #028 (A1/A2/B/C/D/E).**
-> The shape: a **two-sided non-shooting foul during the rebound phase** (defensive
-> box-out push OR offensive over-the-back) becomes a real `FOUL` event, and §3.10 builds
-> the **team-foul / bonus (penalty) substrate shared with §3.11**. The crux (A1, user
-> call): **penalty status is DERIVED from the FOUL event log** —
-> `count(FOUL committed-by team T in period P) >= BONUS_FOULS_PER_PERIOD` — **no stored
-> counter** (#023-F derive-don't-store; #020 events-as-truth), **emit-then-count** so the
-> Nth foul itself awards the bonus. Because fouls are **two-sided** (A2, user call — the
-> committer isn't implied by off/def orientation), §3.10 adds **ONE nullable column,
-> `game_event.committing_team_id`** (D, user call — a deliberate reversal of the
-> schema-free stance, mirroring `assist_player_id`, with a real day-one consumer). A
-> rebounding foul retains/forks possession by who-fouled and goes **straight to bonus
-> free throws once the committing team is IN the penalty** (B, user requirement),
-> reusing the existing FT block. **NOT free** — bonus FTs add points → a small
-> **recalibration pass** (E), unlike §3.8/§3.9. Read #028 before executing.
+> **§3.11 needs a DESIGN PASS first — there is no `#029` yet.** Do not execute from
+> this file until the open questions below are resolved into a `decisions.md #029`
+> entry plus an execute-ready plan (the #025/#026/#027/#028 rhythm). §3.11 is the
+> **biggest recalibration** of the five sub-phases: it restructures the possession
+> branching so a foul can fire *alongside* a made shot rather than instead of a
+> shot, and it adds free-throw volume on top of makes that already scored.
+> **The substrate it needs already exists** — §3.10 (#028) built the team-foul/bonus
+> derivation and the reusable FT-award block; §3.11 consumes them, it does not
+> rebuild them.
 
 ---
 
-## §3.10 execution plan (decisions.md #028 A1/A2/B/C/D/E — resolved, ready to build)
+## §3.11 design pass — open questions to resolve into `decisions.md #029`
 
-Build order. Seam: the rebound-phase foul roll (in/around `MissedShotResolver` +
-`FoulResolver`) + a **derived penalty predicate** over the `FOUL` event log + the new
-`committing_team_id` column + `SimConfig` + `PossessionEngine`'s `// 4. Rebound` block +
-`CalibrationHarness`. **No OpenAPI, no new `PlayType`** (rebound foul is a `PlayType.FOUL`
-`outcome`) — but **ONE additive schema column** (`committing_team_id`, #028 D). Mirror
-the §3.7/§3.8/§3.9 execution rhythm.
+Each of these becomes a Decision in #029. Where a call is genuinely the user's
+(realism/feel, not mechanics), **surface it — don't guess** (the #027 taxonomy and
+#028 A1/A2/D precedent).
 
-> All Maven commands set `JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem`
-> (JDK 21). Per-package coverage gate (80% line, target ~90%) only at
-> `mvn -f gametime-service/pom.xml clean install`. Engine work in the `sim` package.
-> `CalibrationHarness` is disabled by default (`-Dcalibration=true`).
+**1. Branch restructuring — where does the and-1 roll live?**
+Today `PossessionEngine`'s `// 2. Foul check` **returns before the shot** — a foul
+and a shot are mutually exclusive. An and-1 requires the foul to be resolvable
+*with* a made FG. The fork: (a) keep the existing pre-shot foul branch for the
+"foul, no basket" case and add a **second, post-make roll** for the and-1; or
+(b) restructure into one foul roll whose outcome depends on whether the shot went
+in. Which shape keeps `BASE_FOUL`'s §3.4 calibration legible?
 
-### Worked examples (trace these — the target behavior in three concrete possessions)
+**2. Does an and-1 award ONE free throw, and is `FREE_THROWS_PER_FOUL` still right?**
+A real and-1 is made FG + **one** FT, but `SimConfig.FREE_THROWS_PER_FOUL = 2` is a
+flat constant the shooting foul and §3.10's bonus both use. Does §3.11 introduce a
+per-situation FT count, or a separate `AND_ONE_FREE_THROWS = 1`?
 
-Team **DEF** is on defense, **OFF** is on offense; period `P`. `BONUS = 5`
-(`BONUS_FOULS_PER_PERIOD`). "DEF's period foul count" = `count(FOUL events where
-committing_team_id == "DEF" and period == P)` — read from `data.getEvents()`, which
-accumulates live (#020). Remember **emit-then-count** (#028 A1): the current foul is
-`addEvent`'d, *then* the predicate reads it.
+**3. Event vocabulary — how is the and-1 represented?**
+Candidates: a `FOUL` / `AND_ONE` outcome following the made `SHOT` (reusing
+`PlayType.FOUL` + the §3.10 `committing_team_id`, the #025 F/#026 E reuse
+discipline), vs. a new outcome on the `SHOT` itself. Must not collide with
+`SHOOTING_FOUL` or §3.10's `REBOUNDING_FOUL_*`. **Does the and-1 FT reconcile
+distinguishably from a bonus FT?** (§3.10 accepted that bonus and shooting-foul FTs
+are indistinguishable except by the preceding `FOUL` — is that still acceptable at
+three FT sources?)
 
-**Example 1 — defensive box-out foul, NOT yet in the bonus (offense retains).**
-DEF has 3 fouls this period. A shot misses → the miss flow rolls a rebound foul (Step 3)
-→ the side draw picks **DEF** (defense-leaning). Emit `FOUL` /
-`REBOUNDING_FOUL_DEFENSE`, `primary_player_id` = the DEF box-out player,
-`committing_team_id = "DEF"`, and `defPlayer.recordFoul()`. DEF's count is now **4**
-(< 5) → **not in the bonus** → **no FTs**; the **offense retains** for a second chance:
-`offensiveRebounds++; continue;` (respecting `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` —
-if capped, the possession ends instead). Board contest **never runs** (whistle stopped
-play).
+**4. Assist interaction.** A made FG may carry an `assist_player_id` (#022 B). Does
+an and-1 make still roll for an assist? (Real basketball: yes.) Confirm nothing in
+the assist reconciliation breaks when a `FOUL` event lands between the `SHOT` and
+the next possession.
 
-**Example 2 — defensive box-out foul, the 5th (this foul itself sends OFF to the line).**
-Same as Example 1 but DEF already had **4** fouls. Emit the `REBOUNDING_FOUL_DEFENSE`
-event (DEF's count → **5**). Predicate for DEF: `5 >= 5` → **in the bonus**. Because it
-was a *defensive* foul, **OFF** is the fouled team → an OFF player shoots
-`FREE_THROWS_PER_FOUL` bonus FTs via the existing block (`recordFreeThrowAttempt()` /
-`recordFreeThrowMade()` / `addScore("OFF", …)` / `MADE`/`MISSED` `FREE_THROW` events).
-The **Nth (5th) foul itself awards** — that is emit-then-count. Possession ends after the
-FTs (`return sequence`).
+**5. Recalibration scope — the honest one.** §3.11 adds FTs **on top of shots that
+already scored**, so it is a **pure additive scoring source** with no offsetting
+removal — unlike §3.10, where most of the lift turned out to be retained
+possessions. Expect a larger, cleaner lift. **Read #028's implementation note first:**
+`BASE_FOUL` is a **counter-intuitive lever that moves points the WRONG way**
+(trimming it converts a possession-ending 2-FT trip back into a live shot worth
+more), so the §3.7/§3.10 shot-`BASE_*` lever is likely the real knob again. Decide
+the instrument (an and-1 rate + FT-source-split harness line) **before** tuning, per
+the #026 D "build the instrument" discipline.
 
-**Example 3 — offensive over-the-back foul (possession ends, defense's ball).**
-A shot misses → rebound-foul roll fires → the side draw picks **OFF** (the minority
-case). Emit `FOUL` / `REBOUNDING_FOUL_OFFENSE`, `primary_player_id` = the OFF player,
-`committing_team_id = "OFF"`, `offPlayer.recordFoul()`. Now count **OFF's** period fouls
-(not DEF's) against BONUS: **under** → DEF simply gets the ball, **no FTs**; **in the
-bonus** → **DEF** (the fouled team) shoots bonus FTs. Either way the **possession ends
-for OFF** (`return sequence`) — an offensive foul is a turnover-like loss of the ball, so
-it never `continue`s the second-chance loop.
-
-Determinism: the rebound-foul roll **and** its side draw consume the seed **before** the
-board draw, at a fixed point — so seed-pinned rebound tests re-baseline once (a controlled
-structural shift, as §3.7/§3.9 did), not churn.
-
-**Step 1 — the `committing_team_id` column + plumbing (#028 D — the one schema change).**
-- [ ] Add a nullable `committing_team_id VARCHAR` to `gametime.game_event`, appended to
-  **`release.1.0.4.game.sql`** (the unreleased game DDL — do NOT make a new release
-  version), mirroring `assist_player_id` (plain column add, no `dbms` gate; H2 +
-  Postgres both fine; an FK to team is optional, like `fk_game_event_assist_player`).
-- [ ] Thread it through: a `committingTeamId` field + `@Column` on `GameEventEntity`; a
-  field on `GameData.EventRecord`; an `addEvent(...)` overload carrying it (as
-  `assistPlayerId` already has a 7-arg/8-arg overload pair); `setCommittingTeamId(...)`
-  in `GameSimulator` (the `EventRecord`→`GameEventEntity` build, ~L86) and `EntityMapper`
-  (~L197). Populate it for **`SHOOTING_FOUL` too** (= the defender's team) so the penalty
-  derivation reads one uniform field across all `FOUL` events.
-
-**Step 2 — the derived penalty predicate over the FOUL event log (#028 A1).**
-- [ ] A helper (leading candidate: on `GameData`, next to `getEvents()`, or a small
-  `sim` utility) answering **"is team T in the bonus in period P?"** as
-  `count(FOUL events where committing_team_id == T and period == P) >=
-  SimConfig.BONUS_FOULS_PER_PERIOD`. **No stored `teamFouls` field, no reset logic** — it
-  reads the events (#020) exactly as #023-F's foul-out predicate reads the `fouls`
-  counter. Grouping is by the Step-1 `committing_team_id` (uniform for both foul types).
-- [ ] Both `SHOOTING_FOUL` and the new rebounding fouls count toward the tally (all
-  fouls, #028 A1). **Emit-then-count** (#028 A1): the current FOUL event is emitted, then
-  the predicate includes it — so the *Nth* foul (reaching the threshold) itself awards
-  bonus FTs.
-- [ ] `SimConfig.BONUS_FOULS_PER_PERIOD = 5` (modern-NBA placeholder, harness-tunable).
-
-**Step 3 — the two-sided rebound-phase foul roll, carved off the top (#028 A2/C).**
-- [ ] In the miss-resolution flow (`MissedShotResolver`, #026), roll a **rebound-foul
-  chance FIRST** — before the four-way board draw. On a foul, **short-circuit** the board
-  contest (the whistle stopped play). Same "carve off the top, run the existing contest
-  on the remainder" shape as §3.7's `P(BLOCK)`.
-- [ ] On a foul, a **side draw** picks the committer — **defense-leaning** (box-out
-  dominates; over-the-back is the minority — a `SimConfig` split placeholder, e.g.
-  defense ~70–80%, harness-tunable). Defense-commits → the offense is fouled;
-  offense-commits → the defense is fouled.
-- [ ] The foul probability is a small base scaled by the discipline/pressure skills the
-  shooting foul uses (`foulProne` / `defensivePressure`, coach.md pressure/breakdown), in
-  the avg-10 form (#021 C / #022). Keep it **independent of the rebound weights** (why
-  it's carved off the top, not a fifth draw outcome — #028 C).
-- [ ] Whether this lives in an extended `FoulResolver` method or a small sibling resolver
-  is an execution call (#028 status). New base rate + off/def split → `SimConfig`.
-
-**Step 4 — reward + possession fork by who-fouled + emit the FOUL event (#028 A2/B/D).**
-- [ ] Evaluate the Step-2 predicate for the **committing team** (from the side draw):
-  - **Defense committed** → offense is fouled → **not in bonus:** offense retains for a
-    second chance (an offense-retention path like the offensive rebound / §3.7 recovery /
-    §3.8 OOB-offense, respecting `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`); **in bonus:**
-    offense shoots bonus FTs.
-  - **Offense committed** → defense is fouled → **possession ends for the offense** (`return`);
-    **in bonus:** the defense shoots bonus FTs (possession still ends).
-  - Bonus FTs reuse the existing FT-award block verbatim (`PossessionEngine` ~L136–144:
-    the `for` over `FREE_THROWS_PER_FOUL`, `recordFreeThrowAttempt()`/
-    `recordFreeThrowMade()`, `MADE`/`MISSED` `FREE_THROW` events, `addScore`). The FT
-    shooter is a player on the **fouled** team.
-- [ ] Emit a `PlayType.FOUL` event with `outcome = "REBOUNDING_FOUL_DEFENSE"` /
-  `"REBOUNDING_FOUL_OFFENSE"` (final spelling an execution call — the §3.8 `_OFFENSE`/
-  `_DEFENSE` suffix precedent), `primary_player_id` = the committing player,
-  **`committing_team_id`** = the committing team (Step 1); **increment that player's
-  `fouls`** (feeds foul-outs, #023-F). Emit the FOUL **before** evaluating the predicate
-  for THIS foul's award is not required (emit-then-count, #028 A1) but the event must be
-  in the log for the *next* possession's check.
-- [ ] Fixed RNG order in the miss flow: the rebound-foul roll (+ its side draw) consumes
-  the seed **before** the board draw — existing seed-pinned rebound assertions
-  re-baseline (a controlled structural shift, as §3.7/§3.9 did).
-
-**Step 5 — `CalibrationHarness` team-fouls / bonus-FT line + recalibration (#028 E).**
-- [ ] Add a line printing **team fouls / period** and the **bonus-FT rate** next to the
-  existing aggregates (the §3.8-OOB / §3.9-cause-mix precedent) so the new FT source is
-  visible.
-- [ ] Run the harness (`-Dcalibration=true`). **§3.10 is NOT free** — bonus FTs add
-  points, so expect points to lift. **Recalibrate** (nudge `BASE_FOUL` / the rebound-foul
-  base down, or accept the lift) and **re-agree the numbers with the user** against the
-  ~112/47/36/26/14 (+5 blk, +3 OOB) baseline — like §3.7's pass, not §3.8/§3.9's
-  confirm-green.
-- [ ] Eyeball the team-fouls/period so it's plausible (roughly a handful per period, not
-  0 and not 20).
-
-**Step 6 — tests + close-out.**
-- [ ] Unit-test the penalty predicate (below/at/above threshold; **emit-then-count so the
-  Nth foul awards** — a foul at count 4→5 puts them in; only in-period fouls count; both
-  foul types count; grouped by `committing_team_id`), the two-sided rebound-foul roll (a
-  fixed seed drives a foul; the side draw leans defense; a high-`foulProne`/pressure input
-  raises the rate), and the reward fork (**defense-commits → offense retain/FTs;
-  offense-commits → possession ends/defense FTs**). Plus a determinism/count test.
-- [ ] Confirm `GameSimulatorIntegrationTest` still reconciles — the new `FOUL`/
-  `FREE_THROW` events must not break points. Bonus FTs `addScore`; confirm points still
-  reconcile with the event log (#020). Confirm `committing_team_id` persists + round-trips
-  (H2 test + the mapper).
-- [ ] New/changed `sim` classes to ~90%+ line coverage (JaCoCo gate), matching
-  §3.7/§3.8/§3.9; full `mvn clean install` gate green.
-- [ ] **Doc close-out (the §3.7/§3.8/§3.9 pattern — do all of these):**
-  - [ ] `game.md` — add the two `FOUL` / `REBOUNDING_FOUL_DEFENSE` / `_OFFENSE` rows to
-    the vocabulary table; **document the new `committing_team_id` column** in the
-    `GameEvent` shape section; add a **penalty/bonus** note to the possession-flow
-    narrative (fouls counted from the event log per period by committing team; the bonus
-    sends non-shooting fouls to FTs; two-sided fork). Living event-vocabulary reference.
-  - [ ] `roadmap.md` — flip the §3.10 bullet to `[x]` with an indented italic landing
-    summary (the recalibration result — final aggregates incl. the FT lift, team-fouls/
-    period, the off/def foul split, coverage), matching the §3.7/§3.8/§3.9 shipped bullets.
-  - [ ] `decisions.md #028` — add the **implementation note** (`from execution,
-    YYYY-MM`): the resolved open-at-execution items (final `outcome` spellings, the
-    rebound-foul base + off/def split + `BONUS_FOULS_PER_PERIOD`, resolver placement, the
-    recalibration size/direction), the landing aggregates, and coverage. Note any
-    divergence from A1/A2/B/C/D/E.
-  - [ ] `game.md`/`decisions.md #020` — note the `committing_team_id` column addition
-    against the #020 `GameEvent` shape (the shape is "additive when a consumer defines
-    it", #020 — §3.10 is that consumer).
-  - [ ] `coach.md` (optional) — the `defensiveScheme` pressure/foul row could note that
-    scheme now also drives rebounding fouls + bonus exposure. `player.md` — the
-    `foulProne`/`foulDrawing` foul row could note rebounding fouls.
-
-**Reconciliation invariant:** §3.10 adds `FOUL` (`REBOUNDING_FOUL_*`) and, in the bonus,
-`FREE_THROW` events. Points must still reconcile with the event log (#020) — bonus FTs
-`addScore` exactly as shooting-foul FTs do. The rebounding foul feeds the per-player
-`fouls` counter (foul-outs, #023-F) like any foul. No new box-score counter. The
-`committing_team_id` column is a raw event fact (not derived state), so it introduces no
-reconciliation obligation of its own.
-
-**Do NOT (guardrails from #028 / #023-F / #020):**
-- Do **not** add a stored `teamFouls` *count* field — the penalty is **derived from the
-  FOUL event log** (#028 A1). A stored running total is the #013/#015 duplicate-state trap
-  #023-F rejected. (The `committing_team_id` column is DIFFERENT — it stores a raw fact
-  about the event, WHO committed it, not a total; it is the one approved schema change.)
-- Do **not** introduce a new `PlayType` — a rebounding foul is a **kind of `FOUL`**
-  (#025 F / #026 E); it reuses `PlayType.FOUL` with a new `outcome`.
-- Do **not** make the committing team `defense_team_id` blindly — fouls are **two-sided**
-  (#028 A2); an offense-committed foul's committing team is `offense_team_id`. Read it from
-  the side draw and store it in `committing_team_id`.
-- Do **not** make a NEW release SQL file — append the column to `release.1.0.4.game.sql`
-  (the unreleased game DDL).
-- Do **not** pick up §3.11 (and-1) — it restructures the possession branching (foul
-  *alongside* the shot) and is the bigger recalibration; it gets its own design pass on
-  **this** substrate (#028 scope call).
-- Do **not** couple the rebound-foul rate to the rebound weights — carve it off the top
-  so it stays independently tunable (#028 C).
-
-**Open-at-execution (small, constrained — #028 status):** the exact `REBOUNDING_FOUL_*`
-outcome spellings; the rebound-foul base rate + the off/def split + `BONUS_FOULS_PER_PERIOD`
-numbers (placeholders, settled by the harness line); whether the foul roll lives in an
-extended `FoulResolver` method or a small sibling resolver; and the size/direction of the
-recalibration (E), re-agreed with the user against the harness.
+**6. Does the and-1 rate need its own `SimConfig` sensitivity?** Both §3.7 (blocks)
+and §3.10 (rebounding fouls) discovered that the **global `SENSITIVITY = 0.5` swamps
+a thin base rate**, and §3.10 additionally hit the **`PROB_FLOOR = 0.02` trap** (a
+rare-event knob that could only be tuned upward — fixed with
+`SimConfig.rareEventProbability`). If the and-1 rate is thin, it likely wants
+`rareEventProbability` + its own sensitivity from the start rather than discovering
+this a third time.
 
 ---
 
-## Verified facts (the `sim` package map — confirmed against the code 2026-07, post-§3.9)
+## Verified facts (the `sim` package map — confirmed against the code 2026-07, post-§3.10)
 
 Paths under `gametime-service/gametime-app/src/main/java/software/daveturner/gametime/`.
 Trust these; re-check only if the code moved. All engine code is in the `sim/` package.
 
-**The foul model to extend — `sim/FoulResolver.java` + `sim/PossessionEngine.java`:**
-- `FoulResolver.isFoul(shotType, shooter, defender, defensivePressure, rng)` fires
-  **only** on contact shot types (`shotType.isContactType()`), returns before the shot,
-  and `PossessionEngine`'s `// 2. Foul check` emits a `FOUL` / `SHOOTING_FOUL` event
-  (`primary_player_id` = the fouling **defender**), then the FT-award loop (~L136–144).
-  §3.10 adds a **two-sided rebound-phase** foul with the same event shape + committer
-  logging (but the committer can be offense OR defense — #028 A2).
-- The rebound contest (`MissedShotResolver.resolve(offense, defense, capReached, rng)`,
-  line ~224, `// 4. Rebound`) is **foul-free today**. §3.10 carves a foul roll off the
-  top of it (#028 C). The fork below (`if (miss.outcome().offenseRetains()) { ...
-  continue; } return sequence;`, ~L228–232) is the retain-vs-end shape §3.10's fork
-  reuses.
-- `period` is threaded through `resolvePossession` (param) to every `addEvent` — the
-  penalty derivation (committing team + period) has it in scope.
+**The foul branch §3.11 must restructure — `sim/PossessionEngine.java`:**
+- `// 2. Foul check` (~L129) calls `foulResolver.isFoul(shotType, shooter, defender,
+  defensivePressure, rng)`, which fires **only** on contact shot types
+  (`shotType.isContactType()`) and **returns before the shot** — this early return is
+  exactly what §3.11 has to open up. It emits `FOUL` / `SHOOTING_FOUL` with
+  `committingTeamId = defTeamId`, then calls `awardFreeThrows(...)`.
+- `// 3. Shot` (~L150) runs the block carve (§3.7) then the make/miss contest; the
+  made-FG branch records points, rolls the assist, and returns. **The and-1 seam is
+  between the make being decided and that return.**
+- `awardFreeThrows(data, shooter, shootingTeamId, offTeamId, defTeamId, period,
+  sequence, rng)` (§3.10) is **already extracted and reusable** — it loops
+  `FREE_THROWS_PER_FOUL`, records attempt/make, emits `MADE`/`MISSED` `FREE_THROW`
+  events, and `addScore`s to `shootingTeamId`. §3.11 reuses it (possibly with a
+  per-situation FT count — open question 2).
 
-**The `game_event` event record — where the new column threads (#028 D):**
-- `GameData.EventRecord(offTeamId, defTeamId, period, sequence, playType, outcome,
-  primaryPlayerId, assistPlayerId)` (record, ~L48) + `addEvent(...)` (7-arg + 8-arg
-  overloads, ~L16/L23). `assistPlayerId` is the template for adding `committingTeamId`:
-  a nullable field threaded record → `addEvent` overload.
-- Persistence path: `GameSimulator` (~L76–86) builds `GameEventEntity` from each
-  `EventRecord` (`setOffenseTeamId`/`setPrimaryPlayerId`/`setAssistPlayerId`);
-  `EntityMapper` (~L190–197) does the same for the read path. `GameEventEntity` columns
-  at `entity/GameEventEntity.java` (`assist_player_id` at ~L52–53 is the template).
-- Schema DDL: `game_event` table in `main/resources/db/release.1.0.4.game.sql`
-  (`assist_player_id VARCHAR` at ~L52; the `seed` column add at ~L120 shows a plain
-  nullable add). **Append here — no new release** (per the release.1.0.4-unreleased note).
+**The team-foul / bonus substrate — ALREADY BUILT (§3.10, #028 A1):**
+- `GameData.isInBonus(teamId, period)` + `GameData.periodFoulCount(teamId, period)`
+  derive the penalty from the `FOUL` event log — no stored counter, no reset logic,
+  **emit-then-count** (the event is added first, so the Nth foul awards). §3.11
+  reuses this **as-is**; an and-1 foul counts toward the tally like any other.
+- `game_event.committing_team_id` (nullable `VARCHAR`) carries the committer on
+  every `FOUL` event. An and-1 foul is on the **defense**, so it is `defTeamId` —
+  the simple case, not §3.10's two-sided one.
+- `SimConfig.BONUS_FOULS_PER_PERIOD = 5`.
 
-**The team-foul / bonus substrate (new, #028 A1):**
-- **No per-team-per-period foul count exists.** `PlayerGameState.fouls` is a per-player,
-  whole-game counter (foul-outs, #023-F). The penalty is a **derived predicate over the
-  `FOUL` events** (committing team + period + `BONUS_FOULS_PER_PERIOD`), NOT a stored
-  counter. Grouped by the new `committing_team_id` (uniform for both foul types).
-- `GameData.getEvents()` already exposes the event list (the harness reads it); the
-  derivation reads FOUL events from there.
+**Rare-event probability (learned in §3.7 + §3.10 — don't rediscover):**
+- `SimConfig.rareEventProbability(base, drivingSkill, opposingSkill, sensitivity)`
+  clamps to **[0, PROB_CEILING]** with **no `PROB_FLOOR`**, so a thin base stays
+  tunable downward and can be zeroed. `clampProbability` (floor 0.02) is for normal-
+  frequency outcomes only.
+- Rare events carry their own sensitivity: `BLOCK_SENSITIVITY = 0.12` (§3.7),
+  `REBOUND_FOUL_SENSITIVITY = 0.10` (§3.10). The global `SENSITIVITY = 0.5` is for
+  common contests.
 
-**The §3.7/§3.8/§3.9 templates to mirror (all shipped in `sim`):**
-- **§3.7 blocks** — the "carve a slice off the top, run the existing contest on the
-  remainder" shape (`P(BLOCK)` before make/miss). §3.10's foul roll mirrors this.
-- **§3.9 turnover causes** — a derived/relabel pass; and the discipline of reusing an
-  existing `PlayType` + an open-ended `outcome`, no schema.
-- **#023-F foul-outs** — the **derived-predicate, no-stored-flag** discipline the
-  penalty derivation copies to the team level.
+**`test/.../sim/CalibrationHarness.java`:** disabled-by-default
+(`-Dcalibration=true`), prints the §3.4 aggregates + §3.5 minutes/period-FG% + §3.7
+blocks + §3.8 OOB + §3.9 turnover-cause mix + §3.10 team-fouls/bonus-FT lines.
+Re-run after any `SimConfig` change. The §3.10 block already reports **fouls by
+outcome** and **bonus vs. total FTA** — an and-1 line extends it rather than
+starting fresh.
 
-**Reconciliation precedent — `GameSimulatorIntegrationTest`:** reconciles box-score
-counters against event counts (points, rebounds, assists, blocks — #020/#022/#025/#026).
-§3.10 adds `FOUL`/`FREE_THROW` events; points must still reconcile (bonus FTs `addScore`
-like shooting-foul FTs) — confirm it.
-
-**`test/.../sim/CalibrationHarness.java`:** disabled-by-default (`-Dcalibration=true`),
-prints the §3.4 aggregates + §3.5 minutes/period-FG% + §3.7 Blocks line + §3.8 OOB line
-+ §3.9 turnover-cause mix. Re-run after any `SimConfig` change; add the §3.10 team-fouls/
-bonus-FT line (Step 5).
+**§3.10 landing to recalibrate against (harness, 102 games):**
+`113.8 pts / 46.9% FG / 37.6% 3P / 27.7 ast / 14.2 TO / 5.0 blk / 2.8 OOB`,
+fouls 3.95/team/period, 37.1% of team-periods in the penalty, bonus FTA
+0.8/team/game. §3.4 targets remain ~112/47/36/26/14.
 
 ---
 
@@ -295,9 +137,6 @@ out so this file can be rewritten each phase without losing it:
 
 - **Infra/tooling/data-hygiene chores** (Testcontainers, seed-data split, star
   tuning) → [backlog.md](backlog.md).
-- **Deferred gameplay realism** (and-1) → **numbered sub-phase §3.11** in roadmap.md
-  ("Possession-fidelity completion"), scheduled before Phase 4. It builds on §3.10's
-  team-foul/bonus substrate (#028 follow-up) and gets its own design-pass + execution.
 - **Untriaged future-improvement ideas** (no phase home, not chores) →
   [ideas.md](ideas.md). *(Includes the parked cap 3→5 tuning idea — do NOT touch the
   `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` value without its own recalibration pass.)*
@@ -311,8 +150,14 @@ out so this file can be rewritten each phase without losing it:
 - **§3.9 seams left open by #027** (carry forward): §3.7-E shot-clock pressure (still
   parked); finer turnover sub-types (`DOUBLE_DRIBBLE`/`CARRYING`/`PALMING`/etc. — add a
   weight + enum value when a consumer wants the granularity).
+- **§3.10 seams left open by #028** (carry forward): `committing_team_id` is
+  **populated and queryable but not surfaced on the OpenAPI `GameEvent`** — additive
+  whenever a play-by-play or Phase-4 stats consumer wants it; and the observed
+  off/def rebounding-foul split (**78/22**) drifts from the configured 75/25 because
+  defensive fouls compound through retained possessions — back-solve only if a
+  consumer needs the observed split to hit a target.
 - **Calibration harness** — `CalibrationHarness` (disabled-by-default, run with
   `-Dcalibration=true`) stays in the `sim` test sources; it reports the §3.4
   aggregates + the §3.5 minutes/period-FG% distributions + the §3.7 blocks line
-  + the §3.8 OOB line + the §3.9 turnover-cause mix. Re-run it after any `SimConfig`
-  change.
+  + the §3.8 OOB line + the §3.9 turnover-cause mix + the §3.10 team-fouls/bonus-FT
+  lines. Re-run it after any `SimConfig` change.

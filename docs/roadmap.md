@@ -197,9 +197,13 @@ against a known-good baseline instead of tuning against two moving point-sources
 once. The harness **reports**, it does not gate the build — "recalibration" means
 re-running the loop and re-agreeing the numbers, not a red build.
 
-> **Shared dependency:** §3.10 and §3.11 both need a **team-foul / bonus model**
-> that does not exist yet (foul counts per team per period → bonus free throws).
-> They're adjacent so that substrate is designed and built once.
+> **Shared dependency — BUILT in §3.10 (decisions.md #028):** §3.10 and §3.11 both
+> need a **team-foul / bonus model** (foul counts per team per period → bonus free
+> throws). They're adjacent so that substrate was designed and built once, in §3.10.
+> It is **derived, not stored** — `GameData.isInBonus(teamId, period)` counts `FOUL`
+> events by the `committing_team_id` column against `SimConfig.BONUS_FOULS_PER_PERIOD`,
+> emit-then-count. §3.11 reuses it as-is plus the extracted
+> `PossessionEngine.awardFreeThrows` block; no further substrate work is needed.
 
 - [x] **§3.7 — Blocked shots ✓** *(own recalibration; the pilot)*.
       _Shipped (decisions.md #025): a blocked shot is now a first-class event — a
@@ -270,14 +274,45 @@ re-running the loop and re-agreeing the numbers, not a red build.
       minutes + FG%-by-period intact) — no recalibration. New `sim` classes at
       95.8–100% line coverage, `PossessionEngine` 99.4%; full `mvn clean install`
       gate green. Seam: `TurnoverResolver` + `SimConfig` + `PossessionEngine`._
-- [ ] **§3.10 — Loose-ball / rebounding fouls** *(needs the team-foul/bonus
-      substrate; small recalibration)*. A foul committed *during* the rebound phase
-      (box-out push, over-the-back). §3.3 only models shooting fouls on drive/post
-      attempts; the rebound contest is foul-free. When added, it's a foul roll on the
-      rebound contest → non-shooting foul (possession retained, or **bonus free
-      throws** once the team-foul/bonus model exists). Adds FT volume only if bonus
-      FTs are in scope → re-check FT rate in the harness. **Build the team-foul/bonus
-      model here** (shared with §3.11).
+- [x] **§3.10 — Loose-ball / rebounding fouls + the team-foul/bonus substrate ✓**
+      *(NOT free — recalibrated, points re-agreed at 113.8)*.
+      _Shipped (decisions.md #028): a **two-sided non-shooting foul in the rebound
+      phase** — a defensive box-out push OR an offensive over-the-back — carved off
+      the **top** of the miss flow (C, the §3.7 block-carve shape) and
+      short-circuiting the four-way board contest when it fires. New
+      `FoulResolver.resolveReboundFoul` + a `ReboundFoul` record; the committer is a
+      `foulProne`-weighted draw over the committing five. **Penalty status is
+      DERIVED** from the `FOUL` event log (A1) — `GameData.isInBonus(team, period)`
+      counts fouls by committing team against `BONUS_FOULS_PER_PERIOD = 5`, with **no
+      stored counter and no reset logic** (the #023-F discipline at team level), and
+      **emit-then-count** so the **5th foul itself** sends the fouled team to the
+      line. Fouls are **two-sided** (A2), so the possession **forks by who fouled**
+      (B): defense-commits → the offense retains (under the bonus) or shoots bonus FTs;
+      offense-commits → the possession **always ends**, defense's ball or defense's
+      bonus FTs. Bonus FTs reuse the existing FT block verbatim (extracted to
+      `awardFreeThrows`), so points/FT reconciliation is automatic. **ONE additive
+      schema column** — `game_event.committing_team_id` (D), appended to the
+      unreleased `release.1.0.4.game.sql`, populated on **every** `FOUL` (including
+      `SHOOTING_FOUL` = the defender's team) so the derivation reads one uniform
+      field; a deliberate, user-approved reversal of the §3.7–§3.9 schema-free stance,
+      earned by a real day-one consumer. **No new `PlayType`, no OpenAPI change** —
+      `REBOUNDING_FOUL_DEFENSE` / `REBOUNDING_FOUL_OFFENSE` are `outcome` strings on
+      `PlayType.FOUL`. **Recalibrated (E):** §3.10 landed **+2.7 pts** raw, of which
+      only ~1.1 was bonus FTs — **the bigger channel is retained possessions**, a
+      finding #028 E did not anticipate (noted for §3.11). `BASE_FOUL` proved the
+      **wrong lever** (trimming it *raises* points — a shooting foul ends a possession
+      for ~1.5 expected FT points, worth less than the live shot it replaces), so the
+      fix was the **§3.7 lever in reverse**: shot `BASE_*` rates trimmed ~1.2%.
+      Execution also surfaced that `PROB_FLOOR` (0.02) made the new rare-event knob
+      **tunable only upward** — fixed with a floor-free
+      `SimConfig.rareEventProbability` + its own `REBOUND_FOUL_SENSITIVITY`, the same
+      shape `BLOCK_SENSITIVITY` took in §3.7. **Landing (harness, 102 games): 113.8
+      pts / 46.9% FG / 37.6% 3P / 27.7 ast / 14.2 TO / 5.0 blk / 2.8 OOB**, minutes +
+      period-FG% intact; **fouls 3.95/team/period, 37.1% of team-periods in the
+      penalty, rebounding fouls 1.75 def + 0.48 off, bonus FTA 0.8/team/game**. New
+      `sim` classes at **100%**, `PossessionEngine` 99.5%; full `mvn clean install`
+      gate green (421 unit + 52 Cucumber). Seam: `FoulResolver` + `PossessionEngine` +
+      `GameData` + `SimConfig` + the one DDL column._
 - [ ] **§3.11 — And-1 / shooting foul on a made basket** *(biggest recalibration)*.
       Today a foul check happens *instead of* a shot (`PossessionEngine`: the foul
       branch returns before the make/miss roll — drive/post → foul → 2 FTs, never

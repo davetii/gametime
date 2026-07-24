@@ -57,7 +57,7 @@ phase reads each — **all five are now live**: §3.4 wired the scheme/pace trio
 |-----------|--------|-------------|--------|
 | **pace** | Possessions per game (scales the possession **count**) | §3.4 possession flow | ✅ read |
 | **offensiveScheme** | Shot distribution — perimeter/3pt lean vs. inside/post | §3.4 `ShotSelector` lean | ✅ read |
-| **defensiveScheme** | Aggressiveness — turnover/foul pressure vs. contain | §3.4 turnover/foul pressure | ✅ read |
+| **defensiveScheme** | Aggressiveness — turnover/foul pressure vs. contain | §3.4 turnover/foul pressure; §3.10 also scales **rebounding fouls** (→ bonus exposure) | ✅ read |
 | **rotationDepth** | How many players see real minutes (tight 7 vs. deep 10) | §3.5 minutes allocation | ✅ read |
 | **substitutionAggressiveness** | How early/eagerly fatigued starters are pulled | §3.5 sub triggers | ✅ read |
 

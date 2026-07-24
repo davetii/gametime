@@ -82,6 +82,22 @@ section above; decisions.md #020).
   `SHOT` events whose `assist_player_id` is set (events are the source of truth,
   #020). *Surfaced in the OpenAPI `GameEvent` model as `assistPlayerId` in §3.6
   (#024 D — see the API surface section below).*
+- `committing_team_id` — **(§3.10)** the team that **committed** this event, or
+  `null`. Set on **every `FOUL` event and only on `FOUL` events**: `SHOOTING_FOUL`
+  carries the defender's team, and the two-sided `REBOUNDING_FOUL_*` carries
+  whichever side the roll picked. It exists because a rebounding foul can be
+  committed by the **offense** (an over-the-back), so unlike a shooting foul the
+  committer is **not** recoverable from `defense_team_id` (decisions.md #028 A2/D).
+  This is the **one additive schema column** §3.10 took — a conscious, user-approved
+  reversal of the schema-free stance §3.7–§3.9 held, earned because it has a real
+  day-one consumer (the penalty derivation below) rather than being fabricated ahead
+  of one (the #014/#017/#020 discipline). It stores a **raw fact** about the event
+  (who committed it), *not* derived state — a per-period team-foul *count* column
+  was explicitly rejected as exactly the duplicate-state trap #023 F avoids. Mirrors
+  `assist_player_id` in shape (nullable `VARCHAR`, a second participant on an
+  existing event, no new `PlayType`). *Not yet surfaced in the OpenAPI `GameEvent`
+  model* — §3.10 took no API change; it is queryable in the DB and additive to the
+  spec whenever a play-by-play or Phase-4 stats consumer wants it.
 - *No in-game clock column.* §3.2 models time as an **abstract, configurable
   possession count** (decisions.md #021), and event time is **derived on read**
   (pace + `period` + `sequence`) for play-by-play display — not stored. §3.6
@@ -126,7 +142,16 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      picked by a weighted `passing` draw over the other four offensive players
      (the shooter excluded) and stamped on the SHOT event's `assist_player_id`.
      Not every make is assisted. On a **miss**, a rebound is resolved (§3.3):
-4. **Missed-shot outcome** (§3.3 + §3.8) — rolled only after a missed `SHOT`.
+4. **Rebounding foul** (§3.10, #028) — rolled after a missed `SHOT` but **before**
+   the board draw below, and **short-circuiting it** on a hit (the whistle stopped
+   play, so nobody rebounds). A small, independently-tunable slice carved off the
+   top, scaled by `foulProne` / `foulDrawing` / `defensivePressure`. On a hit,
+   a defense-leaning side draw picks the committer and emits `FOUL` /
+   `REBOUNDING_FOUL_DEFENSE` or `REBOUNDING_FOUL_OFFENSE` with `committing_team_id`
+   set; the possession then forks on who fouled, and the **penalty predicate**
+   (derived from the `FOUL` log — see the vocabulary section) decides whether bonus
+   `FREE_THROW`s follow. Otherwise the miss falls through to:
+5. **Missed-shot outcome** (§3.3 + §3.8) — rolled only after a missed `SHOT`.
    `MissedShotResolver` (which wraps `ReboundResolver`) resolves the miss to
    **one of four outcomes in a single draw** (decisions.md #026), all carried on
    the `REBOUND` play type:
@@ -156,9 +181,10 @@ Each possession produces **one or more** `GameEvent` rows in this order:
    so the possession terminates.
 
 A single possession therefore emits one of these patterns (a missed shot is
-always followed by a `REBOUND` event — an actual rebound or an OOB):
+always resolved — by a `REBOUND` event, an actual rebound or an OOB, **or** by a
+`REBOUNDING_FOUL_*` that stopped play, §3.10):
 - `TURNOVER`
-- `FOUL` → `FREE_THROW` → `FREE_THROW`
+- `FOUL` (`SHOOTING_FOUL`) → `FREE_THROW` → `FREE_THROW`
 - `SHOT` (made) — possession ends
 - `SHOT` (missed) → `REBOUND` (`DEFENSIVE`) — possession ends
 - `SHOT` (missed) → `REBOUND` (`OFFENSIVE`) → … second-chance possession …
@@ -166,6 +192,14 @@ always followed by a `REBOUND` event — an actual rebound or an OOB):
 - `SHOT` (missed) → `REBOUND` (`OUT_OF_BOUNDS_OFFENSE`) → … second-chance … (§3.8)
 - `SHOT` (`BLOCKED_*`) — defense recovers (in-bounds/OOB), possession ends
 - `SHOT` (`BLOCKED_*`) → … second-chance possession … — offense recovers the block
+- `SHOT` (missed) → `FOUL` (`REBOUNDING_FOUL_DEFENSE`) → … second-chance … — under
+  the bonus, the offense retains (§3.10)
+- `SHOT` (missed) → `FOUL` (`REBOUNDING_FOUL_DEFENSE`) → `FREE_THROW` ×2 — in the
+  bonus, the offense shoots; possession ends (§3.10)
+- `SHOT` (missed) → `FOUL` (`REBOUNDING_FOUL_OFFENSE`) — possession ends, defense's
+  ball (§3.10)
+- `SHOT` (missed) → `FOUL` (`REBOUNDING_FOUL_OFFENSE`) → `FREE_THROW` ×2 — in the
+  bonus, the **defense** shoots; possession still ends (§3.10)
 
 All events in a possession share the same `offense_team_id` / `defense_team_id`
 and `period`. `sequence` increments globally (not per possession).
@@ -229,7 +263,9 @@ rebound contests — a modest thumb on the scale composed multiplicatively with 
 | `TURNOVER` | `3_SECONDS_VIOLATION` | Offensive three-seconds-in-the-lane violation (§3.9) |
 | `TURNOVER` | `8_SECONDS_BACKCOURT_VIOLATION` | Failed to advance the ball past half-court in time (§3.9) |
 | `TURNOVER` | `OVER_AND_BACK` | Ball returned to the backcourt after crossing half (§3.9 — a sliver, ~2%) |
-| `FOUL` | `SHOOTING_FOUL` | Defensive foul on a drive/post attempt; free throws follow |
+| `FOUL` | `SHOOTING_FOUL` | Defensive foul on a drive/post attempt; free throws follow. `committing_team_id` = the defense (§3.10) |
+| `FOUL` | `REBOUNDING_FOUL_DEFENSE` | Defensive box-out push during the rebound phase — the **offense** is fouled, so it retains for a second chance, or shoots **bonus** FTs if the defense is in the penalty. `committing_team_id` = the defense (§3.10) |
+| `FOUL` | `REBOUNDING_FOUL_OFFENSE` | Offensive over-the-back during the rebound phase — the **defense** is fouled and the **possession ends** for the offense (defense's ball, or defense's **bonus** FTs if the offense is in the penalty). `committing_team_id` = the **offense** (§3.10) |
 | `FREE_THROW` | `MADE` | Free throw converted |
 | `FREE_THROW` | `MISSED` | Free throw missed |
 | `REBOUND` | `OFFENSIVE` | Offensive rebound; ball stays with the shooting team for a second-chance possession |
@@ -248,6 +284,44 @@ second chance, `OUT_OF_BOUNDS_DEFENSE` ends the possession. OOB events reuse the
 `REBOUND` play type but are **excluded from the rebound reconciliation** (which
 exact-matches `OFFENSIVE`/`DEFENSIVE`), so they never count as a box-score
 rebound (#026 E). See the possession-flow section below.
+
+**Rebounding fouls + the team-foul / bonus (penalty) model (§3.10, decisions.md
+#028).** Before that four-way board draw runs, §3.10 rolls a **rebounding-foul
+chance carved off the top** (the §3.7 block-carve shape): on a hit the whistle
+stopped play, so the board contest **never runs** and no rebound is credited. The
+foul is **two-sided** — a defensive box-out push or an offensive over-the-back,
+defense-leaning — which is why the committing team is stored explicitly rather than
+inferred from the possession's orientation.
+
+**Penalty status is DERIVED from this event log, never stored** (#028 A1). "Team T
+is in the bonus in period P" is computed on demand as
+
+> `count(FOUL events where committing_team_id = T and period = P) >= BONUS_FOULS_PER_PERIOD`
+
+with **no `teamFouls` column, field, or reset logic** — the same derived-predicate
+discipline #023 F used for foul-*outs*, carried to the team level, because the fact
+already lives in the events (#020) and a stored counter could only ever disagree
+with them. **Both** foul kinds count toward one unified tally. The count is
+**emit-then-count**: the current `FOUL` is written to the log *first*, so the **Nth
+foul itself** (the one that reaches the threshold) sends the fouled team to the line.
+
+The possession then **forks on who fouled**:
+
+- **Defense committed** → the offense is fouled → **under the bonus** it retains for
+  a second chance (respecting `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION`); **in the
+  bonus** it shoots bonus FTs and the possession ends.
+- **Offense committed** → the defense is fouled → the **possession always ends** for
+  the offense (an offensive foul is a turnover-like loss of the ball); in the bonus
+  the defense shoots its bonus FTs first.
+
+Bonus free throws are the **existing `MADE`/`MISSED` `FREE_THROW` vocabulary** and
+reuse the shooting foul's award block verbatim, so FT and points reconciliation is
+automatic — a bonus FT is indistinguishable from a shooting-foul FT except by the
+`FOUL` event preceding it (accepted; nothing consumes the distinction). A rebounding
+foul increments the committing player's `fouls` exactly like any foul, feeding
+foul-outs (#023 F). **No new box-score counter**, and `committing_team_id` is a raw
+event fact rather than derived state, so §3.10 adds **no new reconciliation
+obligation** of its own.
 
 **Steal / block symmetry (§3.7, decisions.md #025).** A **block is a field-goal
 outcome exactly as a steal is a turnover outcome** — a defensive event modeled as
