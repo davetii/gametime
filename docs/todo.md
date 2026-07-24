@@ -136,7 +136,11 @@ todo.md is **current-phase-only**. Work that outlives the current phase has move
 out so this file can be rewritten each phase without losing it:
 
 - **Infra/tooling/data-hygiene chores** (Testcontainers, seed-data split, star
-  tuning) → [backlog.md](backlog.md).
+  tuning) → [backlog.md](backlog.md). *(Includes a **`decisions.md` condense pass,
+  deliberately queued for AFTER §3.11 ships** — §3.11's design pass is the heaviest
+  consumer of the very entries that would be compressed (#025/#026 D/#028), so it
+  waits until §3.7–§3.11 is a complete arc. **Do not compress #028 while §3.11 is
+  live** — question 5 below depends on its implementation note.)*
 - **Untriaged future-improvement ideas** (no phase home, not chores) →
   [ideas.md](ideas.md). *(Includes the parked cap 3→5 tuning idea — do NOT touch the
   `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` value without its own recalibration pass.)*

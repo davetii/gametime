@@ -13,6 +13,43 @@ planned features), see [ideas.md](ideas.md).
 
 ---
 
+- [ ] **Condense `decisions.md` — AFTER §3.11 ships (not before).** The file is 403
+      lines / ~150k chars and has become hard to track. The cause is a size split, not
+      entry count: `#001`–`#020` (platform/domain/schema/roster/API) average ~2k chars
+      each, while the §3.x engine design passes `#021`–`#028` average ~14k (`#028`
+      alone is 24k). One file serves two readers — looking up "can I add a column?"
+      (a `#014`/`#017`/`#020` one-liner) means scrolling past ~100k chars of engine
+      reasoning.
+      **Deliberately deferred until §3.11 lands**, because §3.11's design pass is the
+      heaviest consumer of exactly the entries that would be compressed: `#028`'s
+      implementation note (todo.md tells that session to read it first — the
+      `BASE_FOUL` wrong-way lever and the retained-possession lift channel), `#025`'s
+      `BLOCK_SENSITIVITY` reasoning + `#028`'s `PROB_FLOOR` trap (its open question 6),
+      and `#026 D`'s build-the-instrument discipline (its question 5). Condensing now
+      would guess at what's still load-bearing right before finding out. After §3.11,
+      §3.7–§3.11 is a **complete arc** that goes historical at once, and which
+      cross-refs §3.11 actually reached for is *known* rather than guessed.
+      **What to compress** (highest-value first): the **Alternatives considered**
+      sections arguing against settled options nobody will reopen; **Trade-off** prose
+      restating costs already stated in the decision; and **implementation notes**,
+      which are read once right after execution (`#028`'s is ~10k chars for maybe four
+      bullets of lasting value). **What to keep**: each entry's crux decision, final
+      constants, and the traps worth not rediscovering.
+      **Also worth doing regardless**: a scannable index table at the top (one line per
+      decision + an explicit `<a id="NNN">` anchor per entry, since the headings are
+      long enough that auto-generated slugs are fragile), and a short preamble
+      collecting the recurring principles the entries constantly cite (events-are-truth
+      `#020`, derive-don't-store `#023 F`/`#028 A1`, don't-fabricate-ahead-of-a-consumer
+      `#014`/`#017`, reuse-the-play-type-vocabulary `#025 F`/`#026 E`, verify-neutrality
+      `#026 D`, rare-events-need-their-own-sensitivity `#025`/`#028`).
+      **Constraints**: keep it to **ONE file** (a `decisions.md` / `decisions-sim.md`
+      split was tried 2026-07 and reverted — user wants one file; the split also moved
+      volume around without reducing it). Never renumber; `#NNN` refs are cited from
+      prose *and* Java comments (e.g. `decisions.md #026 E` in `MissedShotResolverTest`),
+      and they cite the number, not a path. Update the `project-docs` skill in the same
+      pass — it currently says "append at the bottom, never renumber" with no size
+      guidance, so entries will re-grow the same way; add the "keep implementation
+      notes proportionate" rule there.
 - [ ] Hand-tune marquee/star players to 18–20 where appropriate (the rescale was
       mechanical). Deferred until the game engine shows whether it matters.
 - [ ] Switch `spring.jpa.hibernate.ddl-auto` from `update` to `validate` (or `none`)
