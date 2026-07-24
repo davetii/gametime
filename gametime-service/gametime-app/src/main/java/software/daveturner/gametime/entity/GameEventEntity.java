@@ -52,4 +52,17 @@ public class GameEventEntity {
     @Column(name = "assist_player_id")
     private String assistPlayerId;
 
+    /**
+     * §3.10 (decisions.md #028 D): which team COMMITTED this event. Set on every
+     * FOUL event — {@code SHOOTING_FOUL} carries the defender's team, and the
+     * two-sided {@code REBOUNDING_FOUL_*} carries whichever side the roll picked
+     * (a rebounding foul can be an OFFENSIVE over-the-back, so the committer is
+     * NOT implied by {@link #defenseTeamId}). Null on every non-foul event. The
+     * day-one consumer is the derived penalty/bonus predicate: count FOUL events
+     * by committing team within a period (#028 A1 — derived from the log, never a
+     * stored counter).
+     */
+    @Column(name = "committing_team_id")
+    private String committingTeamId;
+
 }

@@ -129,21 +129,16 @@ public class PossessionEngine {
             // 2. Foul check (drive/post only)
             if (foulResolver.isFoul(shotType, shooter, defender, defensivePressure, rng)) {
                 defender.recordFoul();
+                // §3.10 (#028 D): a shooting foul's committer is always the
+                // DEFENDER, but the column is populated here too so the penalty
+                // derivation reads ONE uniform field across all FOUL events.
                 data.addEvent(offTeamId, defTeamId, period, sequence,
-                        PlayType.FOUL, "SHOOTING_FOUL", defender.getPlayerId());
+                        PlayType.FOUL, "SHOOTING_FOUL", defender.getPlayerId(),
+                        null, defTeamId);
                 sequence++;
 
-                for (int ft = 0; ft < SimConfig.FREE_THROWS_PER_FOUL; ft++) {
-                    shooter.recordFreeThrowAttempt();
-                    boolean made = foulResolver.isFreeThrowMade(shooter, rng);
-                    if (made) {
-                        shooter.recordFreeThrowMade();
-                        data.addScore(offTeamId, 1);
-                    }
-                    data.addEvent(offTeamId, defTeamId, period, sequence,
-                            PlayType.FREE_THROW, made ? "MADE" : "MISSED", shooter.getPlayerId());
-                    sequence++;
-                }
+                sequence = awardFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
+                        period, sequence, rng);
                 return sequence;
             }
 
@@ -212,14 +207,35 @@ public class PossessionEngine {
                     PlayType.SHOT, outcome, shooter.getPlayerId());
             sequence++;
 
-            // 4. Missed-shot outcome (§3.8, decisions.md #026): a single four-way
+            boolean capReached =
+                    offensiveRebounds >= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION;
+
+            // 4a. Rebounding foul (§3.10, decisions.md #028 A2/C) — carved off the
+            // TOP of the rebound phase, exactly as §3.7 carves the block off the top
+            // of the shot outcome. On a hit the whistle stopped play, so the board
+            // contest below NEVER runs. Two-sided: the side draw inside the resolver
+            // decides whether the defense pushed on a box-out or the offense went
+            // over the back, which forks the possession both ways (Decision B).
+            ReboundFoul reboundFoul = foulResolver.resolveReboundFoul(
+                    offense, defense, defensivePressure, rng);
+            if (reboundFoul != null) {
+                ReboundFoulResult result = resolveReboundFoul(data, reboundFoul,
+                        offense, defense, offTeamId, defTeamId, period, sequence,
+                        capReached, rng);
+                sequence = result.sequence();
+                if (result.offenseRetains()) {
+                    offensiveRebounds++;
+                    continue; // second-chance possession (defense fouled, no bonus)
+                }
+                return sequence;
+            }
+
+            // 4b. Missed-shot outcome (§3.8, decisions.md #026): a single four-way
             // draw owned by MissedShotResolver (which wraps ReboundResolver) — an
             // offensive/defensive rebound OR the ball out of bounds (offense/defense).
             // The cap is passed IN so the resolver never returns an offense-retained
             // outcome once the second-chance loop is full; the loop still owns the
             // continue vs. return fork below (same shape as the §3.7 block recovery).
-            boolean capReached =
-                    offensiveRebounds >= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION;
             MissedShotResolver.Result miss =
                     missedShotResolver.resolve(offense, defense, capReached, rng);
             emitMissedShotEvent(data, miss, offTeamId, defTeamId, period, sequence);
@@ -231,6 +247,130 @@ public class PossessionEngine {
             }
             return sequence; // possession over (defensive rebound OR OOB-defense)
         }
+    }
+
+    /**
+     * §3.10: what the rebounding foul did to the possession — the new {@code
+     * sequence} and whether the OFFENSE keeps the ball (a second-chance
+     * {@code continue}) or the possession is over (a {@code return}).
+     */
+    record ReboundFoulResult(int sequence, boolean offenseRetains) {}
+
+    /**
+     * §3.10 (decisions.md #028 A1/A2/B/D): emit the rebounding foul, then fork the
+     * possession by WHO fouled and whether that team is in the bonus.
+     *
+     * <p><b>Emit-then-count</b> (#028 A1, the crux): the {@code FOUL} event —
+     * carrying {@code committingTeamId} — is added to the log FIRST, and only then
+     * is {@link GameData#isInBonus} asked. So the Nth foul (the one that reaches
+     * {@link SimConfig#BONUS_FOULS_PER_PERIOD}) itself sends the fouled team to the
+     * line. There is no stored team-foul counter anywhere; the predicate reads the
+     * events (#020).
+     *
+     * <p><b>The fork</b> (#028 B), driven by the side the resolver drew:
+     * <ul>
+     *   <li><b>Defense committed</b> (box-out push) → the OFFENSE is fouled.
+     *       In the bonus: the offense shoots bonus FTs and the possession ends.
+     *       Not in the bonus: the offense RETAINS for a second chance (an
+     *       offense-retention path like the offensive rebound / §3.7 recovery /
+     *       §3.8 OOB-offense) — unless the second-chance cap is already reached,
+     *       in which case the possession simply ends.</li>
+     *   <li><b>Offense committed</b> (over-the-back) → the DEFENSE is fouled and
+     *       the possession ALWAYS ends for the offense (an offensive foul is a
+     *       turnover-like loss of the ball). In the bonus the defense shoots its
+     *       bonus FTs first.</li>
+     * </ul>
+     *
+     * <p>Bonus free throws reuse {@link #awardFreeThrows} verbatim — the same block
+     * the shooting foul uses — so FT/points reconciliation is automatic (#028 B).
+     */
+    ReboundFoulResult resolveReboundFoul(GameData data, ReboundFoul foul,
+                                         List<PlayerGameState> offense,
+                                         List<PlayerGameState> defense,
+                                         String offTeamId, String defTeamId,
+                                         int period, int sequence,
+                                         boolean capReached, RandomGenerator rng) {
+        boolean offenseCommitted = foul.side() == ReboundFoul.Side.OFFENSE;
+        String committingTeamId = offenseCommitted ? offTeamId : defTeamId;
+
+        // The committing player wears the foul exactly as a shooting-foul defender
+        // does — it feeds the per-player foul-out predicate (#023 F).
+        foul.committer().recordFoul();
+        data.addEvent(offTeamId, defTeamId, period, sequence,
+                PlayType.FOUL, foul.side().outcome(), foul.committer().getPlayerId(),
+                null, committingTeamId);
+        sequence++;
+
+        // Emit-then-count: the event above is already in the log, so the Nth foul
+        // puts its own committing team in the bonus.
+        boolean inBonus = data.isInBonus(committingTeamId, period);
+
+        if (inBonus) {
+            // The FOULED team shoots. Its FTs score for that team.
+            List<PlayerGameState> fouledFive = offenseCommitted ? defense : offense;
+            String fouledTeamId = offenseCommitted ? defTeamId : offTeamId;
+            PlayerGameState freeThrowShooter = pickFreeThrowShooter(fouledFive, rng);
+            sequence = awardFreeThrows(data, freeThrowShooter, fouledTeamId,
+                    offTeamId, defTeamId, period, sequence, rng);
+            return new ReboundFoulResult(sequence, false); // possession over either way
+        }
+
+        // Under the bonus: no FTs. Only a DEFENSIVE foul leaves the offense the
+        // ball, and only while the second-chance loop has room.
+        boolean offenseRetains = !offenseCommitted && !capReached;
+        return new ReboundFoulResult(sequence, offenseRetains);
+    }
+
+    /**
+     * §3.10 (decisions.md #028 B): pick who shoots the bonus free throws from the
+     * fouled five — weighted by {@code foulDrawing}, so the players who live at the
+     * line are the ones fouled off the ball. (A shooting foul has no such choice:
+     * the shooter shoots.) Mirrors the skill-weighted draw pattern used throughout.
+     */
+    PlayerGameState pickFreeThrowShooter(List<PlayerGameState> players, RandomGenerator rng) {
+        double totalWeight = 0;
+        for (PlayerGameState p : players) {
+            totalWeight += p.getFoulDrawing();
+        }
+        double roll = rng.nextDouble() * totalWeight;
+        double cumulative = 0;
+        for (PlayerGameState p : players) {
+            cumulative += p.getFoulDrawing();
+            if (roll < cumulative) return p;
+        }
+        return players.get(players.size() - 1);
+    }
+
+    /**
+     * The free-throw award block, shared by the §3.2 shooting foul and §3.10's
+     * bonus free throws (decisions.md #028 B — "reuse the existing FT block
+     * verbatim", so no new FT machinery exists and FT/points reconciliation is
+     * automatic). {@code shootingTeamId} is the team the made FTs score for — the
+     * offense on a shooting foul, but the FOULED team on a rebounding foul, which
+     * may be the DEFENSE (an over-the-back sends the defending team to the line
+     * while the offense's possession ends).
+     *
+     * <p>{@code offTeamId}/{@code defTeamId} stay the possession's orientation on
+     * the emitted events (the event log always records who was on offense), which
+     * is why the scoring team is passed separately.
+     *
+     * @return the next free sequence number
+     */
+    int awardFreeThrows(GameData data, PlayerGameState shooter, String shootingTeamId,
+                        String offTeamId, String defTeamId, int period, int sequence,
+                        RandomGenerator rng) {
+        for (int ft = 0; ft < SimConfig.FREE_THROWS_PER_FOUL; ft++) {
+            shooter.recordFreeThrowAttempt();
+            boolean made = foulResolver.isFreeThrowMade(shooter, rng);
+            if (made) {
+                shooter.recordFreeThrowMade();
+                data.addScore(shootingTeamId, 1);
+            }
+            data.addEvent(offTeamId, defTeamId, period, sequence,
+                    PlayType.FREE_THROW, made ? "MADE" : "MISSED", shooter.getPlayerId());
+            sequence++;
+        }
+        return sequence;
     }
 
     /**

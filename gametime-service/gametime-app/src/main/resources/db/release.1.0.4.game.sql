@@ -119,6 +119,24 @@ alter table gametime.box_score
 alter table gametime.game
     add column seed BIGINT;
 
+-- changeset 1.04.3 failOnError:true splitStatements:true
+
+-- §3.10 (decisions.md #028 D): which team COMMITTED this event. Populated on
+-- every FOUL event (SHOOTING_FOUL = the defender's team; the two-sided
+-- REBOUNDING_FOUL_* = whichever side the roll picked), null elsewhere. Needed
+-- because a rebounding foul can be committed by the OFFENSE (over-the-back), so
+-- the committer is no longer implied by defense_team_id. Day-one consumer: the
+-- derived penalty/bonus predicate (count FOUL events by committing team + period
+-- >= BONUS_FOULS_PER_PERIOD — #028 A1, no stored counter). Nullable — plain
+-- column add, no Postgres-specific syntax, so no dbms gate.
+alter table gametime.game_event
+    add column committing_team_id VARCHAR;
+
+alter table gametime.game_event
+    add constraint fk_game_event_committing_team
+    foreign key (committing_team_id)
+    REFERENCES gametime.team (id);
+
 -- changeset 1.04.1-triggers failOnError:true splitStatements:true dbms:postgresql
 
 CREATE TRIGGER on_new_row_game BEFORE INSERT ON gametime.game FOR EACH ROW EXECUTE FUNCTION gametime.on_new_row();

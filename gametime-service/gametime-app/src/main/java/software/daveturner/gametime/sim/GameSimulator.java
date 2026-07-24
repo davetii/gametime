@@ -84,6 +84,8 @@ public class GameSimulator {
             event.setOutcome(e.outcome());
             event.setPrimaryPlayerId(e.primaryPlayerId());
             event.setAssistPlayerId(e.assistPlayerId());
+            // §3.10 (#028 D): who committed it — set on FOUL events, null elsewhere.
+            event.setCommittingTeamId(e.committingTeamId());
             gameEventRepo.save(event);
         }
 

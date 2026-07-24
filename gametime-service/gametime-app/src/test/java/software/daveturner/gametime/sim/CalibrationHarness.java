@@ -187,6 +187,55 @@ class CalibrationHarness {
                 agg.turnoverCauses.merge(e.getOutcome(), 1L, Long::sum);
             }
         }
+
+        // §3.10 (decisions.md #028 E): §3.10 is NOT free — bonus FTs add points that
+        // do not exist today — so the new FT source must be VISIBLE before any
+        // "points re-centered" claim (#026 D "build the instrument"). Three things
+        // are tracked: total fouls per team per period (is the penalty threshold
+        // even reachable?), the offense/defense split of rebounding fouls (does the
+        // defense-lean hold?), and how many FREE_THROW events came from a bonus
+        // rebounding foul rather than a shooting foul (the actual scoring lift).
+        accumulateFoulsAndFreeThrows(events, agg);
+    }
+
+    /**
+     * §3.10: walk the event log once, tallying fouls by kind, the per-team-period
+     * foul counts, and the FT split. A FREE_THROW block is attributed to whichever
+     * FOUL most recently preceded it — bonus FTs follow a REBOUNDING_FOUL_*,
+     * shooting-foul FTs follow a SHOOTING_FOUL.
+     */
+    private void accumulateFoulsAndFreeThrows(List<GameEventEntity> events, Agg agg) {
+        // (teamId, period) → fouls committed, so the per-period team-foul average
+        // can be reported and the bonus reachability eyeballed.
+        java.util.Map<String, Integer> foulsByTeamPeriod = new java.util.HashMap<>();
+        String lastFoulOutcome = null;
+
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() == PlayType.FOUL) {
+                lastFoulOutcome = e.getOutcome();
+                agg.foulsByOutcome.merge(String.valueOf(e.getOutcome()), 1L, Long::sum);
+                if (e.getCommittingTeamId() != null) {
+                    foulsByTeamPeriod.merge(
+                            e.getCommittingTeamId() + "#" + e.getPeriod(), 1, Integer::sum);
+                }
+            } else if (e.getPlayType() == PlayType.FREE_THROW) {
+                agg.freeThrows++;
+                if (lastFoulOutcome != null && lastFoulOutcome.startsWith("REBOUNDING_FOUL")) {
+                    agg.bonusFreeThrows++;
+                    if ("MADE".equals(e.getOutcome())) {
+                        agg.bonusFreeThrowsMade++;
+                    }
+                }
+            }
+        }
+
+        for (java.util.Map.Entry<String, Integer> entry : foulsByTeamPeriod.entrySet()) {
+            agg.teamPeriodFouls += entry.getValue();
+            agg.teamPeriods++;
+            if (entry.getValue() >= SimConfig.BONUS_FOULS_PER_PERIOD) {
+                agg.teamPeriodsInBonus++;
+            }
+        }
     }
 
     /** Sort one team's box scores by minutes desc and add to the per-slot totals. */
@@ -239,6 +288,13 @@ class CalibrationHarness {
         // §3.9 per-cause turnover tally (outcome string → count), for the mix line.
         final java.util.Map<String, Long> turnoverCauses = new java.util.HashMap<>();
 
+        // §3.10 (#028 E): fouls by kind, per-team-period foul load, and the
+        // bonus-FT share — the instrument for the recalibration pass.
+        final java.util.Map<String, Long> foulsByOutcome = new java.util.HashMap<>();
+        long freeThrows, bonusFreeThrows, bonusFreeThrowsMade;
+        long teamPeriodFouls;
+        int teamPeriods, teamPeriodsInBonus;
+
         void print(int games) {
             double tg = teamGames;
             List<String> lines = new ArrayList<>();
@@ -289,6 +345,30 @@ class CalibrationHarness {
                 System.out.printf("  %-30s %5.1f%%  (%d)%n",
                         cause.outcome(), totalTO == 0 ? 0.0 : 100.0 * n / totalTO, n);
             }
+
+            // §3.10 (decisions.md #028 E) team fouls / bonus FTs. Unlike §3.8/§3.9
+            // this pass is NOT free — bonus FTs are points that did not exist
+            // before — so these lines bound the recalibration: the team-fouls/period
+            // must be plausible (a handful, not 0 and not 20) for the penalty to
+            // mean anything, and the bonus-FT share is the size of the scoring lift.
+            System.out.println("--- Team fouls / bonus (§3.10) ---");
+            System.out.printf("  Fouls / team / period:   %.2f   (plausible: a handful; bonus at %d)%n",
+                    teamPeriods == 0 ? 0.0 : teamPeriodFouls / (double) teamPeriods,
+                    SimConfig.BONUS_FOULS_PER_PERIOD);
+            System.out.printf("  Team-periods in bonus:   %.1f%%  (%d of %d)%n",
+                    teamPeriods == 0 ? 0.0 : 100.0 * teamPeriodsInBonus / teamPeriods,
+                    teamPeriodsInBonus, teamPeriods);
+            long totalFouls = foulsByOutcome.values().stream().mapToLong(Long::longValue).sum();
+            for (java.util.Map.Entry<String, Long> e : new java.util.TreeMap<>(foulsByOutcome).entrySet()) {
+                System.out.printf("  %-28s %5.1f%%  (%.2f / team / game)%n",
+                        e.getKey(), totalFouls == 0 ? 0.0 : 100.0 * e.getValue() / totalFouls,
+                        e.getValue() / tg);
+            }
+            System.out.printf("  FTA / team / game:       %.1f%n", freeThrows / tg);
+            System.out.printf("  Bonus FTA / team / game: %.1f   (%.1f%% of all FTs; %.1f pts/team)%n",
+                    bonusFreeThrows / tg,
+                    freeThrows == 0 ? 0.0 : 100.0 * bonusFreeThrows / freeThrows,
+                    bonusFreeThrowsMade / tg);
 
             System.out.println("========================================================");
             System.out.println();

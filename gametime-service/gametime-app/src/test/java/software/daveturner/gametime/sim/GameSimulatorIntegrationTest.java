@@ -343,6 +343,97 @@ class GameSimulatorIntegrationTest {
         }
     }
 
+    @Test
+    void committingTeamIdPersistsAndRoundTripsForEveryFoul() {
+        // §3.10 (#028 D): the one schema change must actually survive the H2 write/
+        // read cycle — a nullable column that silently dropped its value would break
+        // the penalty derivation without failing anything else.
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+
+        List<GameEventEntity> fouls = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.FOUL).toList();
+        assertFalse(fouls.isEmpty(), "A full game should persist FOUL events");
+
+        for (GameEventEntity foul : fouls) {
+            assertNotNull(foul.getCommittingTeamId(),
+                    "Every persisted FOUL must carry a committing team: " + foul.getOutcome());
+            assertTrue(foul.getCommittingTeamId().equals(foul.getOffenseTeamId())
+                            || foul.getCommittingTeamId().equals(foul.getDefenseTeamId()),
+                    "The committing team must be one of the two teams on the floor");
+            if ("SHOOTING_FOUL".equals(foul.getOutcome())) {
+                assertEquals(foul.getDefenseTeamId(), foul.getCommittingTeamId(),
+                        "A shooting foul is always committed by the defense");
+            }
+            if ("REBOUNDING_FOUL_OFFENSE".equals(foul.getOutcome())) {
+                assertEquals(foul.getOffenseTeamId(), foul.getCommittingTeamId(),
+                        "An over-the-back is committed by the OFFENSE (#028 A2)");
+            }
+            if ("REBOUNDING_FOUL_DEFENSE".equals(foul.getOutcome())) {
+                assertEquals(foul.getDefenseTeamId(), foul.getCommittingTeamId());
+            }
+        }
+    }
+
+    @Test
+    void nonFoulEventsCarryNoCommittingTeam() {
+        // The column is a FOUL fact, not a general "who did this" field — leaving it
+        // null elsewhere keeps the penalty count unambiguous.
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() != PlayType.FOUL) {
+                assertNull(e.getCommittingTeamId(),
+                        "Only FOUL events carry a committing team, saw it on " + e.getPlayType());
+            }
+        }
+    }
+
+    @Test
+    void bonusFreeThrowsScoreForTheFouledTeamAndStillReconcile() {
+        // §3.10's reconciliation invariant: bonus FTs are new points, so the
+        // points-vs-event-log identity (#020) must still hold with them in.
+        SimResult result = simulator.simulate("CHI", "NY", 7L, 40);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        // There should be at least one rebounding foul at this length, and the
+        // FT/points identity must survive it.
+        long reboundingFouls = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.FOUL
+                        && e.getOutcome().startsWith("REBOUNDING_FOUL"))
+                .count();
+        assertTrue(reboundingFouls > 0, "Expected rebounding fouls in a 40-possession game");
+
+        int totalBoxPoints = boxScores.stream().mapToInt(BoxScoreEntity::getPoints).sum();
+        int totalEventPoints = events.stream().mapToInt(this::pointsFromEntity).sum();
+        assertEquals(totalEventPoints, totalBoxPoints,
+                "Points must still reconcile with the event log once bonus FTs exist");
+        assertEquals(result.getHomeScore() + result.getAwayScore(), totalBoxPoints);
+    }
+
+    @Test
+    void everyReboundingFoulIncrementsAPlayerFoulCount() {
+        // The rebounding foul feeds the per-player fouls counter (foul-outs, #023 F)
+        // exactly like a shooting foul — no new box-score counter (#028 scope).
+        SimResult result = simulator.simulate("CHI", "NY", 7L, 40);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        long foulEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.FOUL)
+                .filter(e -> e.getPrimaryPlayerId() != null)
+                .count();
+        int boxFouls = boxScores.stream().mapToInt(b -> b.getFouls() == null ? 0 : b.getFouls()).sum();
+        assertEquals(foulEvents, boxFouls,
+                "Box-score fouls must reconcile with FOUL events (both kinds)");
+    }
+
     private int pointsFromEntity(GameEventEntity e) {
         if (e.getPlayType() == PlayType.SHOT && e.getOutcome().startsWith("MADE")) {
             return e.getOutcome().contains("3PT") ? 3 : 2;

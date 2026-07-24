@@ -48,6 +48,32 @@ import org.springframework.stereotype.Component;
  * the global {@link #SENSITIVITY}): blocks are rare enough that the global 0.5
  * makes a good rim protector block ~23% of shots, so skilled defenders alone drove
  * blocks 2–3× over target regardless of the thin base — see the constant's note.
+ *
+ * <p><b>§3.10 calibration (decisions.md #028, Decision E).</b> Rebounding fouls add
+ * bonus free throws AND extra retained possessions, so — unlike §3.8/§3.9 — §3.10
+ * was NOT free: +2.7 pts before tuning, of which only ~1.1 was the bonus FTs. Two
+ * findings worth keeping:
+ * <ul>
+ *   <li>{@link #BASE_FOUL} is a <b>counter-intuitive lever that moves points the
+ *       WRONG way</b> — trimming it 0.15→0.138 <i>raised</i> scoring, because a
+ *       shooting foul ENDS a possession for ~1.5 expected FT points, which is worth
+ *       less than the live shot attempt it replaces at this FG%. Do not reach for it
+ *       to remove points.</li>
+ *   <li>The recalibration used the <b>§3.7 lever in reverse</b> — the shot
+ *       {@code BASE_*} rates trimmed ~1.2% (the same knob §3.7 nudged UP to refill
+ *       points blocks removed).</li>
+ * </ul>
+ * The landing spot, agreed with the user at 113.8 rather than chasing 112.9 exactly
+ * (trimming further pulls FG% below its calibrated target — a bad trade):
+ * <pre>
+ *   Points/team 113.8 | FG% 46.9% | 3P% 37.6% | Assists 27.7 | Turnovers 14.2
+ *   Blocks/team 5.0   | OOB 2.8
+ *   Fouls 3.95/team/period | 37.1% of team-periods in the penalty
+ *   Rebounding fouls 1.75 def + 0.48 off | Bonus FTA 0.8/team/game
+ * </pre>
+ * Turnovers 13.5→14.2 is an emergent §3.5 effect, not drift: more glass scrambles ⇒
+ * more possessions played ⇒ more fatigue ⇒ worse {@code ballSecurity} in
+ * {@code isTurnover}'s fatigue-scaled contest (and 14.2 is closer to the ~14 target).
  */
 @Component
 public class SimConfig {
@@ -64,10 +90,10 @@ public class SimConfig {
     public static final double SCALE_AVG = 10.0;
 
     // --- Shot base rates (calibrated §3.4 against ~47% FG / ~36% 3P) ---
-    public static final double BASE_DRIVE = 0.605;
-    public static final double BASE_PERIMETER = 0.445;
-    public static final double BASE_THREE = 0.345;
-    public static final double BASE_POST = 0.505;
+    public static final double BASE_DRIVE = 0.5975;
+    public static final double BASE_PERIMETER = 0.4375;
+    public static final double BASE_THREE = 0.3375;
+    public static final double BASE_POST = 0.4975;
 
     // --- Turnover base rate (per possession; calibrated §3.4 toward ~14 TO/team) ---
     public static final double BASE_TURNOVER = 0.038;
@@ -181,6 +207,39 @@ public class SimConfig {
     // the turnover count (Decision C). Kept modest and single-form (the #022 shape).
     // Placeholder, settled by the harness line alongside the weights above.
     public static final double TO_CAUSE_SENSITIVITY = 0.20;
+
+    // --- Rebounding fouls + team-foul / bonus substrate (§3.10, decisions.md #028) ---
+    // A non-shooting foul during the rebound phase — a defensive box-out push or an
+    // offensive over-the-back. Carved off the TOP of the miss flow (Decision C, the
+    // §3.7 block-carve shape): rolled BEFORE the four-way board draw and short-
+    // circuiting it on a hit, so the rebound-foul rate stays independently tunable
+    // and never entangles with the rebound weights.
+    //
+    // REBOUND_FOUL_BASE is the per-missed-shot probability at an average-vs-average
+    // contest, scaled by the same discipline/pressure inputs the shooting foul uses
+    // (foulProne / defensivePressure) in the avg-10 form (#021 C / #022). It must
+    // stay SMALL: every hit either hands the offense a second chance or (in the
+    // bonus) two free throws, so this is the knob that drives §3.10's scoring lift.
+    public static final double REBOUND_FOUL_BASE = 0.055;
+    // Two-sided split (Decision A2), DEFENSE-LEANING: box-out contact dominates,
+    // over-the-back is the genuine minority. Raw weights — the resolver normalizes
+    // by their sum, so only the ratio matters.
+    public static final double REBOUND_FOUL_DEFENSE_WEIGHT = 0.75;
+    public static final double REBOUND_FOUL_OFFENSE_WEIGHT = 0.25;
+    // Rebound-foul contest sensitivity — its OWN, far below the global SENSITIVITY
+    // (0.5), for the same reason BLOCK_SENSITIVITY is (§3.7): at a ~0.03 base, a
+    // ±0.5 swing per 10 skill points swamps the base entirely and lets skill alone
+    // drive the rate several-fold over target. The skills still matter (an
+    // undisciplined five fouls more on the glass) but the base stays dominant, so
+    // this remains a thin, independently-tunable slice off the top (#028 C).
+    public static final double REBOUND_FOUL_SENSITIVITY = 0.10;
+
+    // Team fouls per period after which the OTHER team is in the bonus (penalty) —
+    // the modern-NBA 5th team foul. The predicate is DERIVED from the FOUL event log
+    // (GameData.isInBonus), never stored (#028 A1); this is the only constant it
+    // needs. EMIT-THEN-COUNT: the Nth foul is emitted first, so it awards the bonus
+    // itself.
+    public static final int BONUS_FOULS_PER_PERIOD = 5;
 
     // --- Coach / chemistry modifiers (§3.4, decisions.md #022) ---
     // Single avg-10 deviation sensitivity shared by all coach effects
@@ -362,6 +421,24 @@ public class SimConfig {
 
     public double clampProbability(double p) {
         return Math.max(PROB_FLOOR, Math.min(PROB_CEILING, p));
+    }
+
+    /**
+     * §3.10 (decisions.md #028 C): the probability of a deliberately-RARE carved-off
+     * event, contested in the usual avg-10 form but clamped WITHOUT the {@link
+     * #PROB_FLOOR}. The global floor (0.02) exists so a skill mismatch can never make
+     * a normal outcome impossible; applied to a rare carve it does the opposite —
+     * it becomes a FLOOR the base rate cannot go below, so the constant is only
+     * tunable upward and a "turn it down" recalibration silently does nothing.
+     * {@link #REBOUND_FOUL_BASE} sits at ~0.03, close enough to 0.02 for that to
+     * bite. This is the same class of problem {@link #BLOCK_SENSITIVITY} solved for
+     * §3.7 — a global constant tuned for common events being wrong for a rare one.
+     * Floored at 0 (never negative) and ceilinged normally.
+     */
+    public double rareEventProbability(double base, double drivingSkill,
+                                       double opposingSkill, double sensitivity) {
+        double p = base + sensitivity * (drivingSkill - opposingSkill) / SCALE_AVG;
+        return Math.max(0.0, Math.min(PROB_CEILING, p));
     }
 
     public double contestProbability(double base, double offenseSkill, double defenseSkill) {

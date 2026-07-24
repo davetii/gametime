@@ -222,13 +222,19 @@ class PossessionEngineTest {
     }
 
     @Test
-    void foulEventsFollowedByTwoFreeThrows() {
+    void shootingFoulEventsFollowedByTwoFreeThrows() {
+        // §3.10 re-baseline (#028 B): a SHOOTING_FOUL still always goes to the
+        // line, but a REBOUNDING_FOUL_* only does so when the committing team is
+        // already in the bonus — under the bonus it awards possession, no FTs. So
+        // this invariant is now scoped to shooting fouls; the rebounding-foul
+        // cases are asserted by their own tests below.
         GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
         List<GameData.EventRecord> events = data.getEvents();
         for (int i = 0; i < events.size(); i++) {
-            if (events.get(i).playType() == PlayType.FOUL) {
+            GameData.EventRecord e = events.get(i);
+            if (e.playType() == PlayType.FOUL && "SHOOTING_FOUL".equals(e.outcome())) {
                 assertTrue(i + 2 < events.size(), "FOUL must be followed by 2 FREE_THROWs");
                 assertEquals(PlayType.FREE_THROW, events.get(i + 1).playType());
                 assertEquals(PlayType.FREE_THROW, events.get(i + 2).playType());
@@ -247,7 +253,12 @@ class PossessionEngineTest {
     }
 
     @Test
-    void everyMissedShotIsFollowedByARebound() {
+    void everyMissedShotIsFollowedByAReboundOrAReboundingFoul() {
+        // §3.10 re-baseline (#028 C): the rebound-foul roll is carved off the TOP
+        // of the miss flow and short-circuits the board contest when it hits (the
+        // whistle stopped play, so nobody rebounds). A missed shot is therefore
+        // resolved by EITHER a REBOUND event or a REBOUNDING_FOUL_* FOUL — never
+        // by nothing, which is what this invariant really guards.
         GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
 
@@ -256,9 +267,14 @@ class PossessionEngineTest {
             GameData.EventRecord e = events.get(i);
             if (e.playType() == PlayType.SHOT && e.outcome().startsWith("MISSED")) {
                 assertTrue(i + 1 < events.size(),
-                        "MISSED shot must be followed by a REBOUND");
-                assertEquals(PlayType.REBOUND, events.get(i + 1).playType(),
-                        "MISSED shot must be immediately followed by a REBOUND");
+                        "MISSED shot must be resolved by a following event");
+                GameData.EventRecord next = events.get(i + 1);
+                boolean resolved = next.playType() == PlayType.REBOUND
+                        || (next.playType() == PlayType.FOUL
+                            && next.outcome().startsWith("REBOUNDING_FOUL"));
+                assertTrue(resolved,
+                        "MISSED shot must be immediately followed by a REBOUND or a "
+                                + "REBOUNDING_FOUL, was: " + next.playType() + "/" + next.outcome());
             }
         }
     }
@@ -1031,6 +1047,226 @@ class PossessionEngineTest {
         assertEquals("DEFENSIVE", engine.missedShotOutcomeString(MissedShotOutcome.DEFENSIVE_REBOUND));
         assertEquals("OUT_OF_BOUNDS_OFFENSE", engine.missedShotOutcomeString(MissedShotOutcome.OOB_OFFENSE));
         assertEquals("OUT_OF_BOUNDS_DEFENSE", engine.missedShotOutcomeString(MissedShotOutcome.OOB_DEFENSE));
+    }
+
+    // ---------- §3.10: the rebounding-foul possession fork (decisions.md #028 B) ----------
+    // These trace the three worked examples in the §3.10 plan directly, driving
+    // engine.resolveReboundFoul with a constructed ReboundFoul so the fork is
+    // exercised deterministically rather than fished out of a whole game.
+
+    /** Pre-load {@code n} fouls for {@code teamId} in {@code period}. */
+    private void seedFouls(GameData data, String teamId, int period, int n) {
+        for (int i = 0; i < n; i++) {
+            data.addEvent("OFF", "DEF", period, i, PlayType.FOUL, "SHOOTING_FOUL",
+                    "x", null, teamId);
+        }
+    }
+
+    private GameData freshData() {
+        GameData data = new GameData();
+        data.setHomeTeamId("OFF");
+        data.setAwayTeamId("DEF");
+        return data;
+    }
+
+    @Test
+    void example1_defensiveReboundFoulUnderTheBonusRetainsForTheOffense() {
+        // Worked example 1: DEF has 3 fouls, commits a box-out foul → 4th, still
+        // under the bonus (5) → NO free throws, the OFFENSE retains for a second
+        // chance, and the board contest never runs.
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        seedFouls(data, "DEF", 1, 3);
+
+        PlayerGameState committer = defense.get(0);
+        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
+                data, new ReboundFoul(ReboundFoul.Side.DEFENSE, committer),
+                offense, defense, "OFF", "DEF", 1, 50, false, rng(1));
+
+        assertTrue(result.offenseRetains(), "Under the bonus a defensive foul retains");
+        assertEquals(4, data.periodFoulCount("DEF", 1));
+        assertFalse(data.isInBonus("DEF", 1));
+        assertEquals(1, committer.getFouls(), "The committer wears the foul (#023 F)");
+
+        List<GameData.EventRecord> emitted = data.getEvents().subList(3, data.getEvents().size());
+        assertEquals(1, emitted.size(), "Exactly one FOUL event, no free throws");
+        assertEquals(PlayType.FOUL, emitted.get(0).playType());
+        assertEquals("REBOUNDING_FOUL_DEFENSE", emitted.get(0).outcome());
+        assertEquals("DEF", emitted.get(0).committingTeamId());
+        assertEquals(committer.getPlayerId(), emitted.get(0).primaryPlayerId());
+        assertEquals(0, data.getHomeScore() + data.getAwayScore(), "No FTs, no points");
+    }
+
+    @Test
+    void example2_theFifthDefensiveFoulItselfSendsTheOffenseToTheLine() {
+        // Worked example 2: DEF already has 4 → this foul is the 5th, so
+        // EMIT-THEN-COUNT means THIS foul awards the bonus FTs to the OFFENSE.
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD - 1);
+
+        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
+                data, new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
+                offense, defense, "OFF", "DEF", 1, 50, false, rng(2));
+
+        assertFalse(result.offenseRetains(), "The possession ends after the bonus FTs");
+        assertTrue(data.isInBonus("DEF", 1), "The Nth foul puts DEF in the bonus");
+
+        List<GameData.EventRecord> emitted = data.getEvents()
+                .subList(SimConfig.BONUS_FOULS_PER_PERIOD - 1, data.getEvents().size());
+        assertEquals("REBOUNDING_FOUL_DEFENSE", emitted.get(0).outcome());
+        long freeThrows = emitted.stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW).count();
+        assertEquals(SimConfig.FREE_THROWS_PER_FOUL, freeThrows,
+                "The fouled team shoots FREE_THROWS_PER_FOUL bonus FTs");
+        // The OFFENSE was fouled, so any made FTs score for the offense.
+        assertEquals(0, data.getAwayScore(), "Bonus FTs must not score for the fouling team");
+    }
+
+    @Test
+    void example3_offensiveOverTheBackEndsThePossession() {
+        // Worked example 3: the OFFENSE commits → the possession ALWAYS ends, and
+        // it is OFF's foul count (not DEF's) that is measured against the bonus.
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD); // DEF in bonus, irrelevant
+
+        PlayerGameState committer = offense.get(0);
+        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
+                data, new ReboundFoul(ReboundFoul.Side.OFFENSE, committer),
+                offense, defense, "OFF", "DEF", 1, 50, false, rng(3));
+
+        assertFalse(result.offenseRetains(),
+                "An offensive foul is a turnover-like loss of the ball — never a retain");
+        assertEquals(1, data.periodFoulCount("OFF", 1));
+        assertFalse(data.isInBonus("OFF", 1), "OFF's own count is what matters, not DEF's");
+
+        List<GameData.EventRecord> emitted = data.getEvents()
+                .subList(SimConfig.BONUS_FOULS_PER_PERIOD, data.getEvents().size());
+        assertEquals(1, emitted.size(), "Under the bonus: the FOUL only, no FTs");
+        assertEquals("REBOUNDING_FOUL_OFFENSE", emitted.get(0).outcome());
+        assertEquals("OFF", emitted.get(0).committingTeamId());
+        assertEquals(1, committer.getFouls());
+    }
+
+    @Test
+    void offensiveFoulInTheBonusSendsTheDEFENCEToTheLineAndStillEndsThePossession() {
+        // The fourth corner of the fork: offense commits AND is in the penalty →
+        // the DEFENSE shoots, and the possession still ends for the offense.
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        seedFouls(data, "OFF", 1, SimConfig.BONUS_FOULS_PER_PERIOD - 1);
+
+        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
+                data, new ReboundFoul(ReboundFoul.Side.OFFENSE, offense.get(0)),
+                offense, defense, "OFF", "DEF", 1, 50, false, rng(4));
+
+        assertFalse(result.offenseRetains());
+        assertTrue(data.isInBonus("OFF", 1));
+
+        List<GameData.EventRecord> emitted = data.getEvents()
+                .subList(SimConfig.BONUS_FOULS_PER_PERIOD - 1, data.getEvents().size());
+        long freeThrows = emitted.stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW).count();
+        assertEquals(SimConfig.FREE_THROWS_PER_FOUL, freeThrows);
+        assertEquals(0, data.getHomeScore(),
+                "The DEFENCE shot them, so no points may land on the offense");
+    }
+
+    @Test
+    void defensiveFoulAtTheSecondChanceCapEndsThePossessionInsteadOfRetaining() {
+        // The cap still bounds the loop: a defensive foul under the bonus would
+        // normally retain, but not once MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION is hit.
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
+                data, new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
+                offense, defense, "OFF", "DEF", 1, 50, true, rng(5));
+
+        assertFalse(result.offenseRetains(), "capReached must force the possession to end");
+    }
+
+    @Test
+    void shootingFoulsCarryTheDefendersTeamAsCommittingTeam() {
+        // #028 D: the column is populated for SHOOTING_FOUL too, so the penalty
+        // derivation reads ONE uniform field across every FOUL event.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 25, rng(42));
+
+        List<GameData.EventRecord> fouls = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL).toList();
+        assertFalse(fouls.isEmpty(), "A full game should emit fouls");
+        for (GameData.EventRecord foul : fouls) {
+            assertNotNull(foul.committingTeamId(),
+                    "Every FOUL event must name a committing team: " + foul.outcome());
+            if ("SHOOTING_FOUL".equals(foul.outcome())) {
+                assertEquals(foul.defTeamId(), foul.committingTeamId(),
+                        "A shooting foul is always on the defender's team");
+            }
+        }
+    }
+
+    @Test
+    void reboundingFoulsAppearInAFullGameAndBothSidesOccur() {
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 60, rng(11));
+
+        Set<String> sides = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL)
+                .map(GameData.EventRecord::outcome)
+                .filter(o -> o.startsWith("REBOUNDING_FOUL"))
+                .collect(java.util.stream.Collectors.toSet());
+        assertTrue(sides.contains("REBOUNDING_FOUL_DEFENSE"),
+                "A long game must produce defensive rebounding fouls");
+        assertTrue(sides.contains("REBOUNDING_FOUL_OFFENSE"),
+                "A long game must produce offensive (over-the-back) fouls too");
+    }
+
+    @Test
+    void reboundingFoulsShortCircuitTheBoardContest() {
+        // #028 C: on a foul the whistle stopped play, so no REBOUND event follows.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 60, rng(11));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        for (int i = 0; i < events.size() - 1; i++) {
+            GameData.EventRecord e = events.get(i);
+            if (e.playType() == PlayType.FOUL && e.outcome().startsWith("REBOUNDING_FOUL")) {
+                assertNotEquals(PlayType.REBOUND, events.get(i + 1).playType(),
+                        "A rebounding foul must short-circuit the board contest");
+            }
+        }
+    }
+
+    @Test
+    void bonusFreeThrowShooterComesFromTheFouledTeam() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD - 1);
+
+        engine.resolveReboundFoul(data,
+                new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
+                offense, defense, "OFF", "DEF", 1, 50, false, rng(6));
+
+        Set<String> offenseIds = new HashSet<>();
+        offense.forEach(p -> offenseIds.add(p.getPlayerId()));
+        data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW)
+                .forEach(e -> assertTrue(offenseIds.contains(e.primaryPlayerId()),
+                        "The bonus FT shooter must be on the FOULED team"));
+    }
+
+    @Test
+    void pickFreeThrowShooterFallsBackWhenWeightsAreZero() {
+        List<PlayerGameState> zeroed = teamOf5("Z", 0);
+        assertNotNull(engine.pickFreeThrowShooter(zeroed, rng(1)));
     }
 
     private int pointsFromEvent(GameData.EventRecord e) {
