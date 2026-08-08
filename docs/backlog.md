@@ -13,22 +13,23 @@ planned features), see [ideas.md](ideas.md).
 
 ---
 
-- [ ] **Condense `decisions.md` — AFTER §3.11 ships (not before).** The file is 403
+- [ ] **Condense `decisions.md` — UNBLOCKED (§3.11 shipped 2026-08).** The file is ~440
       lines / ~150k chars and has become hard to track. The cause is a size split, not
       entry count: `#001`–`#020` (platform/domain/schema/roster/API) average ~2k chars
       each, while the §3.x engine design passes `#021`–`#028` average ~14k (`#028`
       alone is 24k). One file serves two readers — looking up "can I add a column?"
       (a `#014`/`#017`/`#020` one-liner) means scrolling past ~100k chars of engine
       reasoning.
-      **Deliberately deferred until §3.11 lands**, because §3.11's design pass is the
-      heaviest consumer of exactly the entries that would be compressed: `#028`'s
-      implementation note (todo.md tells that session to read it first — the
-      `BASE_FOUL` wrong-way lever and the retained-possession lift channel), `#025`'s
-      `BLOCK_SENSITIVITY` reasoning + `#028`'s `PROB_FLOOR` trap (its open question 6),
-      and `#026 D`'s build-the-instrument discipline (its question 5). Condensing now
-      would guess at what's still load-bearing right before finding out. After §3.11,
-      §3.7–§3.11 is a **complete arc** that goes historical at once, and which
-      cross-refs §3.11 actually reached for is *known* rather than guessed.
+      **The §3.11 gate has now cleared** — §3.7–§3.11 is a complete arc that goes
+      historical at once, and which cross-refs §3.11 actually reached for is **known**
+      rather than guessed. For the record, §3.11 execution *did* lean on all four
+      entries this deferral protected: `#028`'s implementation note (the `BASE_FOUL`
+      wrong-way lever and the lift-channel decomposition — both directly reused in
+      §3.11's recalibration), `#025`'s `BLOCK_SENSITIVITY` reasoning + `#028`'s
+      `PROB_FLOOR` trap (§3.11 C reused the machine rather than rediscovering it a third
+      time), and `#026 D`'s build-the-instrument discipline. **Preserve those four
+      findings** through any compression — they are the ones the next foul phase (§3.12)
+      will reach for again. Note `#029` is now the other 24k-class entry alongside `#028`.
       **What to compress** (highest-value first): the **Alternatives considered**
       sections arguing against settled options nobody will reopen; **Trade-off** prose
       restating costs already stated in the decision; and **implementation notes**,

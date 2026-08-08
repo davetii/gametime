@@ -202,8 +202,9 @@ re-running the loop and re-agreeing the numbers, not a red build.
 > throws). They're adjacent so that substrate was designed and built once, in §3.10.
 > It is **derived, not stored** — `GameData.isInBonus(teamId, period)` counts `FOUL`
 > events by the `committing_team_id` column against `SimConfig.BONUS_FOULS_PER_PERIOD`,
-> emit-then-count. §3.11 reuses it as-is plus the extracted
-> `PossessionEngine.awardFreeThrows` block; no further substrate work is needed.
+> emit-then-count. §3.11 **did** reuse it as-is plus the extracted
+> `PossessionEngine.awardFreeThrows` block (widening it with a per-situation FT count
+> + source, #029 D); no further substrate work is needed, and §3.12 inherits both.
 
 - [x] **§3.7 — Blocked shots ✓** *(own recalibration; the pilot)*.
       _Shipped (decisions.md #025): a blocked shot is now a first-class event — a
@@ -313,30 +314,50 @@ re-running the loop and re-agreeing the numbers, not a red build.
       `sim` classes at **100%**, `PossessionEngine` 99.5%; full `mvn clean install`
       gate green (421 unit + 52 Cucumber). Seam: `FoulResolver` + `PossessionEngine` +
       `GameData` + `SimConfig` + the one DDL column._
-- [ ] **§3.11 — And-1 / shooting foul on a made basket** *(design resolved — decisions.md #029; biggest recalibration)*.
-      Today a foul check happens *instead of* a shot (`PossessionEngine`: the foul
-      branch returns before the make/miss roll — drive/post → foul → 2 FTs, never
-      *with* a made shot). A real and-1 is: made FG **+ 1** free throw. **Design pass
-      done (decisions.md #029):** a **second, post-make foul roll** carved beside the
-      assist roll (A1/A3) — the pre-shot foul branch and `BASE_FOUL` are left untouched,
-      so the and-1 rate is independently tunable (the §3.7/§3.10 carve shape a third
-      time). Scoped to **made DRIVE/POST only** (`made && isContactType`, A2) so exactly
-      one new scoring source is tuned; all-shot-type contact is split to §3.12. Awards
-      **one** FT (B) via a **per-situation count** threaded through the reused
-      `awardFreeThrows` (`AND_ONE_FREE_THROWS = 1`; D). The and-1 rate is a **rare-event
-      probability** (`rareEventProbability` + its own `AND_ONE_BASE` + `AND_ONE_SENSITIVITY`,
-      C — reuse the machine, own dials, avoiding the `PROB_FLOOR`/global-`SENSITIVITY`
-      traps §3.7+§3.10 hit). **Free throws become self-describing (D):** each `FREE_THROW`
-      carries its source (`SHOOTING`/`BONUS`/`AND_ONE`), retiring §3.10's accepted
-      bonus/shooting-foul FT ambiguity now that there are three sources. **No schema,
-      no OpenAPI change** — `AND_ONE` is an `outcome` on `PlayType.FOUL`
-      (`committing_team_id = defTeamId`, reusing #028's column), the FT source an
-      `outcome` on `PlayType.FREE_THROW` (#020). Reuses the §3.10 team-foul/bonus
-      substrate as-is. **Recalibration (E):** a **pure-additive** points lift (FTs on
-      already-scored makes, no offset) → expect a larger, cleaner lift than §3.10; build
-      the and-1 + FT-source harness line first, tune the **shot `BASE_*` lever** (not the
-      wrong-way `BASE_FOUL`, per #028's note), steer by **multiple runs to the mean**.
-      Execute-ready plan: todo.md's §3.11 execution plan.
+- [x] **§3.11 — And-1 / shooting foul on a made basket ✓**
+      _Shipped (decisions.md #029): a defensive foul on a shot that **still goes in** —
+      made FG **+ 1** free throw. Before this, a foul fired *instead of* the shot (the
+      pre-shot foul branch returned before the make/miss roll), so a foul and a made
+      basket were mutually exclusive. Built as a **second, post-make foul roll** carved
+      beside the assist roll (A1/A3) — the pre-shot branch and `BASE_FOUL` left
+      **untouched**, so that branch keeps meaning "P(contact stopped the shot)" and the
+      and-1 rate stays independently tunable (the §3.7/§3.10 carve shape a third time).
+      Scoped to **made DRIVE/POST** (`made && isContactType`, A2) so exactly one new
+      scoring source was tuned; all-shot-type contact is §3.12. Awards **one** FT (B) via
+      a **per-situation count** through the reused `awardFreeThrows`
+      (`AND_ONE_FREE_THROWS = 1`) — it never forks the possession (the make already
+      ended it) and **never consults the bonus** (an and-1 is 1 FT by rule). Rate is a
+      **rare-event probability** (`rareEventProbability` + `AND_ONE_BASE = 0.055` +
+      `AND_ONE_SENSITIVITY = 0.10`, C) — reusing the machine with its own dials from the
+      start meant the `PROB_FLOOR`/global-`SENSITIVITY` traps §3.7+§3.10 each hit were
+      **never rediscovered**. **Free throws are now self-describing (D):** every
+      `FREE_THROW` carries its source as a `MADE_*`/`MISSED_*` suffix
+      (`MADE_SHOOTING` / `MISSED_BONUS` / `MADE_AND_ONE`), retiring §3.10's accepted
+      ambiguity now that there are three sources; the suffix (not a structured field)
+      was chosen because leading with `MADE`/`MISSED` keeps every existing prefix read
+      working. **No schema, no OpenAPI, no new `PlayType`** — `AND_ONE` is an `outcome`
+      on `PlayType.FOUL` (`committing_team_id = defTeamId`, reusing #028's column).
+      **Recalibrated (E):** +2.4 pts raw at the 0.11 placeholder, and — unlike §3.10 —
+      **essentially all of it was the FT channel** (+2.35 of +2.4), exactly as the
+      pure-additive prediction said, since an and-1 never forks a possession. The
+      placeholder was also wrong on realism (11.4% of made contact FG vs. a real ~4–6%),
+      so **`AND_ONE_BASE` 0.11 → 0.055** fixed the rate *and* removed ~0.9 of the lift.
+      **User call: no shot-`BASE_*` trim** — the measured exchange rate is ~0.6% FG% per
+      1.0 point, worse than §3.10's precisely because this lift is free throws (which
+      cost no FG%), and §3.12 adds more foul volume anyway, so points are re-centered
+      once, there. `BASE_FOUL` untouched (#028's wrong-way finding). **Landing (harness,
+      ~102 games × 5 seeds, tuned to the mean): 115.9 pts / 46.8% FG / 37.6% 3P / 27.5
+      ast / 13.9 TO / 4.9 blk / 2.8 OOB** — FG%/3P% **on** their §3.4 targets, which is
+      what the no-trim call bought; **and-1s 1.67/team/game (6.4% of made contact FG),
+      FT-source split SHOOTING 90.6% / AND_ONE 5.8% / BONUS 3.6%**, fouls
+      4.41/team/period, 43.4% of team-periods in the penalty. Also recorded: **a zero
+      base does NOT switch a rare event off** (the skill term alone keeps it positive
+      off an even contest) — only the caller's gate does. `FoulResolver` /
+      `FreeThrowSource` / `SimConfig` / `GameData` at **100%**, `PossessionEngine` 99.5%,
+      `sim` package 99.1%; full `mvn clean install` gate green (441 unit + 52 Cucumber).
+      Seam: `FoulResolver` + `PossessionEngine` + `FreeThrowSource` + `SimConfig` +
+      `CalibrationHarness`. **Points at 115.9 is a deliberate deferral to §3.12, not
+      drift** — treat it as §3.12's baseline._
 - [ ] **§3.12 — All-shot-type contact fouls + graduated foul rate + fouled-three = 3 FTs**
       *(needs its own design pass — the §3.11 end-state, split out)*.
       §3.11 draws and-1s only on made DRIVE/POST because the whole foul model gates on
@@ -348,7 +369,11 @@ re-running the loop and re-agreeing the numbers, not a red build.
       loops a flat count, so a fouled `THREE` would award 2 FTs not 3 — today it never
       fires only because `THREE` isn't a contact type, so widening contact **activates**
       the bug and must fix it (the §3.11 D per-situation count is the seam — pass `3`).
-      Moves scoring (more fouls, more 3-FT trips) → its own recalibration.
+      Moves scoring (more fouls, more 3-FT trips) → its own recalibration — and it
+      inherits **§3.11's deferred re-centering**: points sit at **115.9** vs. the ~112
+      target because §3.11 deliberately took no shot-`BASE_*` trim (paying FG% twice for
+      two adjacent foul phases was the worse trade). §3.12 should re-center **once**,
+      against the shot `BASE_*` lever, from a 115.9 baseline.
 - [ ] **§3.13 — Flagrant / technical fouls** *(needs its own design pass — a distinct
       foul sub-system)*. A separate foul class the possession model has no path for: it
       changes **who shoots** (a technical is shot by a chosen shooter, not the fouled
