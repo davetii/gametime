@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB, §3.11 and-1)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -33,13 +33,27 @@ repeat
   pick shot type (skill-weight draw
   //× offensiveScheme shot-mix lean §3.4//);
 
-partition "TurnoverResolver" {
+partition "TurnoverResolver (§3.9 causes — decisions.md #027)" {
   if (turnover?\n//ballSecurity vs stealing/individualDefense//\n//× defensiveScheme pressure §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
-    if (stolen?) then (yes)
+    note right
+      **The gate above is UNCHANGED by §3.9** (#027 A) — a turnover
+      happens exactly as often as before. Only AFTER a turnover is
+      declared does a weighted draw pick WHICH of NINE causes it was,
+      so the draw re-partitions the label without moving the count.
+      That is what made §3.9 free by construction.
+      Leans (#027 C): SHOT_CLOCK_VIOLATION on //acumen//↓ ×
+      //defensiveScheme//↑; OFFENSIVE_FOUL / BAD_PASS on //teamOffense//↓.
+      STOLEN stays dominant. Every cause charges the ball-handler.
+    end note
+    if (cause == STOLEN?\n//weighted nine-way draw//) then (yes)
       :TURNOVER — STOLEN
       credit defender steal;
     else (no)
-      :TURNOVER — LOST_BALL;
+      :TURNOVER — one of
+      SHOT_CLOCK_VIOLATION / OFFENSIVE_FOUL / BAD_PASS /
+      TRAVELLING / LOST_BALL_OUT_OF_BOUNDS / 3_SECONDS_VIOLATION /
+      8_SECONDS_BACKCOURT_VIOLATION / OVER_AND_BACK
+      //no stealer credited//;
     endif
     stop
   endif
@@ -155,6 +169,52 @@ partition "ShotResolver" {
   endif
 }
 
+partition "Rebounding foul (§3.10 — decisions.md #028)" {
+  note right
+    **Carved off the TOP of the rebound phase** (C) — rolled BEFORE
+    the board contest and SHORT-CIRCUITING it on a hit (the whistle
+    stopped play, so nobody rebounds). Same shape as §3.7's block
+    carve, which keeps this rate independently tunable — it never
+    entangles with the rebound weights.
+    **TWO-SIDED** (A2): a defensive box-out push (dominant) or an
+    offensive over-the-back (the minority). The committer is drawn
+    //foulProne//-weighted from the committing five, so the
+    undisciplined bang bodies commit most of them.
+    Rate = rareEventProbability(REBOUND_FOUL_BASE, …,
+    REBOUND_FOUL_SENSITIVITY) × defensivePressure — floor-free,
+    its own dial (the PROB_FLOOR trap, #028 impl note).
+  end note
+  if (rebounding foul?\n//aggregate foulDrawing vs (20 − foulProne)//\n//× defensivePressure; REBOUND_FOUL_SENSITIVITY//\n//× fatigueFactor per player §3.5//) then (yes)
+    :FOUL — REBOUNDING_FOUL_DEFENSE or _OFFENSE
+    charge committer foul (feeds foul-outs §3.5)
+    committing_team_id = the committing side (#028 D);
+    note right
+      **EMIT-THEN-COUNT** (A1, the crux): the FOUL event is written
+      FIRST, then GameData.isInBonus(committingTeam, period) reads
+      the log — so the Nth foul (reaching BONUS_FOULS_PER_PERIOD = 5)
+      **itself** sends the fouled team to the line. The penalty is
+      **DERIVED from the FOUL events, never stored** — no teamFouls
+      field, no reset logic (the #023-F / #013 / #015 discipline).
+    end note
+    if (committing team in the bonus?\n//count(FOUL by team, period) >= 5//) then (yes)
+      :FREE_THROW ×2 — *_BONUS (source-tagged §3.11 D)
+      the FOULED team shoots (foulDrawing-weighted shooter)
+      → possession over either way;
+      stop
+    else (no)
+      if (DEFENSE committed?) then (yes)
+        :offense was fouled → RETAINS
+        → second-chance (respects the off-rebound cap);
+        stop
+      else (no — offense committed)
+        :over-the-back → defense's ball
+        → possession over;
+        stop
+      endif
+    endif
+  endif
+}
+
 partition "MissedShotResolver (§3.8 — #026) — wraps ReboundResolver (§3.3)" {
   note right
     **§3.8 (#026 A/B):** a missed shot resolves to ONE of FOUR
@@ -197,8 +257,21 @@ stop
 legend bottom left
   **Probability formula (all resolvers)**
   p = base(path) + SENSITIVITY × (offense − defense) / 10
-  Clamped [0.02, 0.97]. Average vs average → base rate.
-  All constants in SimConfig.
+  Clamped [PROB_FLOOR 0.02, PROB_CEILING 0.97] for
+  NORMAL-frequency outcomes (contestProbability).
+  Average vs average → base rate. All constants in SimConfig.
+
+  **RARE events use a different clamp** (§3.7 / §3.10 / §3.11)
+  rareEventProbability(base, driving, opposing, sensitivity)
+  clamps to **[0, ceiling] with NO floor** — on a thin base the
+  0.02 floor would act as a FLOOR and make the knob tunable only
+  UPWARD (found the hard way in §3.10, #028 impl note). Each rare
+  event also carries its OWN sensitivity, far below the global 0.5,
+  which would otherwise swamp a thin base: BLOCK_SENSITIVITY 0.12,
+  REBOUND_FOUL_SENSITIVITY 0.10, AND_ONE_SENSITIVITY 0.10.
+  NB a zero base does **not** disable a rare event — the skill term
+  alone stays positive off an even contest; only the caller's gate
+  (e.g. isContactType) truly switches one off.
 
   **§3.4 coach / chemistry modifiers** (decisions.md #022)
   Each is the avg-10 deviation multiplier
@@ -239,6 +312,33 @@ legend bottom left
   path against the one MAX_OFFENSIVE_REBOUNDS cap. Sail-out is a
   new outcome (fewer second chances) → VERIFIED harness-neutral
   (#026 D): OOB ~3/team/game, §3.4/§3.5 aggregates held.
+
+  **§3.9 turnover causes** (decisions.md #027)
+  The turnover GATE is untouched — same BASE_TURNOVER, same contest,
+  same coach/fatigue scaling — so the turnover COUNT never moves
+  (#027 A). A post-declaration weighted draw only picks WHICH of
+  nine causes it was, replacing §3.2's binary STOLEN / LOST_BALL.
+  STOLEN stays dominant and keeps the pickStealer + recordSteal()
+  path; every cause charges the ball-handler. Modest avg-10 leans on
+  four causes (#027 C). Note LOST_BALL_OUT_OF_BOUNDS is on TURNOVER
+  and must NOT be confused with §3.8's OUT_OF_BOUNDS_* on REBOUND —
+  different play types, deliberately distinct vocabulary (#027 D).
+  Free by construction → no recalibration.
+
+  **§3.10 rebounding fouls + the team-foul/bonus substrate** (#028)
+  A non-shooting foul during the rebound phase, carved off the TOP
+  of the board contest and short-circuiting it (C — the §3.7 shape).
+  TWO-SIDED (A2): defensive box-out push (dominant) or offensive
+  over-the-back, so the committing team is NOT implied by the
+  possession orientation — hence game_event.committing_team_id, the
+  one additive column this arc took (D). The penalty is **DERIVED**
+  from the FOUL log, never stored (A1), emit-then-count so the Nth
+  foul awards the bonus itself. Bonus FTs reuse awardFreeThrows
+  verbatim (B). NOT free: +2.7 pts before tuning, of which only
+  ~1.1 was bonus FTs — **the bigger channel was retained
+  possessions**, which the design did not anticipate. BASE_FOUL
+  proved the WRONG lever (trimming it RAISES points); the fix was
+  the shot BASE_* rates trimmed ~1.2%.
 
   **§3.11 and-1** (decisions.md #029)
   A defensive foul on a shot that STILL GOES IN: made FG + 1 FT.
