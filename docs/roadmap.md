@@ -20,6 +20,14 @@ _Last updated: 2026-07-10_
 - **Skill calculation engine**: SkillCalculator interface, 23 calculator implementations, SkillMapper orchestrator
 - **Entity-to-model mapping**: EntityMapper with full attribute + skill wiring
 - **Database**: Postgres (local dev) + H2 (tests), Liquibase migrations, gametime schema, audit triggers
+- **Possession engine (§3.2–§3.11)** — a full, seeded, deterministic game
+  simulation, not a stub. Shot selection → turnover (9 causes) → foul → three-way
+  MAKE/MISS/BLOCK draw → four-way missed-shot outcome (rebound / out of bounds),
+  with coach pace/scheme modifiers, real assists, minutes/fatigue/substitution,
+  rebounding fouls + a derived team-foul/bonus model, and and-1s. Persists a full
+  `GameEvent` log + per-player `BoxScore`, exposed via the §3.6 simulation APIs.
+  Calibrated against modern-NBA benchmarks with a `CalibrationHarness`
+  (disabled-by-default). See game.md for the flow and decisions.md #021–#029.
 - **Test suite**: unit + Cucumber integration, 80% line coverage enforced (JaCoCo gate)
 - **Build pipeline**: Multi-module Maven, OpenAPI codegen with delegate pattern, Docker Compose
 

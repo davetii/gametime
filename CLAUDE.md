@@ -8,7 +8,7 @@ Basketball simulation game — API service, future React frontend.
 gametime/
 ├── CLAUDE.md                  AI session entry point (this file)
 ├── docs/                      Project documentation
-│   ├── roadmap.md        Phased roadmap (8 phases)
+│   ├── roadmap.md             Phased roadmap (Phases 3–8; 1–2 shipped, see "What Exists Today")
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list (current phase only)
@@ -19,6 +19,7 @@ gametime/
 │   ├── coach.md               Coach domain design (5 decision attributes, #018)
 │   ├── game.md                Game domain + possession engine (§3.1 models, §3.2–§3.11 flow)
 │   └── possession-flow.puml   Possession-flow diagram (kept in sync with the engine)
+│                              (.png renders are gitignored — `plantuml -tpng` to view)
 ├── gametime-service/          Multi-module Maven project (Spring Boot 3.5.14)
 │   ├── pom.xml                Parent POM (packaging=pom)
 │   ├── gametime-api/          OpenAPI codegen module (generates server stubs)
@@ -39,6 +40,16 @@ Before starting work, review these for context:
 - **`docs/coach.md`** — coach domain design: 5 continuous decision attributes (#018) + engine interface
 - **`docs/game.md`** — game domain + the possession engine: Game/GameEvent/BoxScore
   models (§3.1) and the event vocabulary + flow the engine actually runs (§3.2–§3.11)
+- **`docs/possession-flow.puml`** — **the possession flow as a diagram, and the
+  fastest way to understand the engine.** Read it before changing anything in the
+  `sim` package: it shows every branch in order (turnover → foul → block →
+  make/miss → and-1 → rebound-foul → missed-shot outcome), which fork each §3.x
+  sub-phase added, and carries inline notes citing the decision behind each one.
+  A new branch or event **must** be reflected here in the same change — it is a
+  living spec, not an illustration. Validate edits with
+  `plantuml -checkonly docs/possession-flow.puml`; render a viewable copy with
+  `plantuml -tpng docs/possession-flow.puml` (the `.png` is gitignored, so the
+  `.puml` is the artifact that matters).
 - **`docs/decisions.md`** — past architecture choices (check before proposing alternatives)
 - **`docs/todo.md`** — current-phase task list (deferred work lives in backlog.md + roadmap.md)
 - **`docs/backlog.md`** — cross-phase infra/tooling chores with no phase home
@@ -49,6 +60,28 @@ When writing or editing any of these planning docs (a `#NNN` decision, a design
 pass, an execute-ready plan, moving deferred work, parking an idea), invoke the
 **`project-docs`** skill first — it captures the house format, the cross-file
 routing rules, and the design-pass→decision→plan rhythm the docs follow.
+
+When adding or changing production code under `gametime-app/src/main/java`,
+invoke the **`test-coverage`** skill — the JaCoCo gate is per-package and runs at
+`install`, not `test`, so a green `mvn test` does not prove it passes.
+
+### How a phase moves (read this before starting work)
+
+Engine sub-phases (§3.4, §3.7 … §3.12) run in **three separate sessions**, and
+knowing which one you're in matters more than anything else in these docs:
+
+1. **Design pass** — resolve the open questions in todo.md into a new numbered
+   `decisions.md #NNN` (Decisions A, B, C…) **plus** an execute-ready plan in
+   todo.md. **Write no production code in this session.**
+2. **Execution** — build exactly that plan; add an implementation note to `#NNN`
+   recording any divergence; flip the roadmap bullet to `[x]`.
+3. The next phase's design pass starts the cycle again, and todo.md is rewritten.
+
+**`docs/todo.md` always states the current phase and which session it needs** —
+its header callout says either "needs a DESIGN PASS first" or "execute-ready,
+design resolved as #NNN". Start there. Don't execute a roadmap bullet as if it
+were a plan: the bullets are seams, deliberately under-specified, and every phase
+so far has found real design questions the one-liner hid.
 
 ## Build requirements
 

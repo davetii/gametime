@@ -13,7 +13,9 @@ neighbor (e.g. decisions.md #025/#026, the latest todo.md plan) before writing.*
 
 ## Which file does a note belong in? (routing — decide first)
 
-The six docs partition cleanly. Put a note in exactly one:
+The six planning docs partition cleanly — put a note in exactly one. (The seventh
+row, `possession-flow.puml`, is not a planning doc but a **living spec** of the
+engine: any sub-phase that adds a branch or event updates it in the same change.)
 
 | File | Holds | Does NOT hold |
 |------|-------|---------------|
@@ -23,6 +25,7 @@ The six docs partition cleanly. Put a note in exactly one:
 | **backlog.md** | Cross-phase infra/tooling/data-hygiene chores with no phase home | Gameplay scope (→ roadmap sub-phase), untriaged ideas (→ ideas.md) |
 | **ideas.md** | Untriaged future-improvement ideas, no phase home, not chores | Planned work, decided things |
 | **risks.md** | Known active risks and concerns | Decisions, tasks |
+| **possession-flow.puml** | The possession flow as a diagram — every branch, in engine order, with inline notes citing the decision behind each fork | Prose reasoning (that's a `#NNN`), anything not on the possession path |
 
 **The cardinal rule: todo.md is current-phase-only.** When a phase closes, todo.md
 is rewritten for the next one — so anything that must survive that rewrite has to
@@ -38,10 +41,13 @@ Each numbered phase/sub-phase (§3.4, §3.7, §3.8, §3.9 …) moves through thr
 sessions, and the docs reflect which session you're in:
 
 1. **Design pass** — resolve the open questions. Output: a new `decisions.md #NNN`
-   (Decisions A–E…) + an **execute-ready plan** in todo.md. NO production code.
+   (Decisions A–E…) + an **execute-ready plan** in todo.md, and — if the pass adds
+   or moves a branch on the possession path — the new fork drawn into
+   `possession-flow.puml` with a note citing the decision. NO production code.
 2. **Execution** — build it. Output: code + tests, an **implementation note** on
-   #NNN recording any divergence, and flip the roadmap bullet to `[x]` with a
-   landing summary.
+   #NNN recording any divergence, flip the roadmap bullet to `[x]` with a landing
+   summary, and **confirm `possession-flow.puml` matches what actually shipped**
+   (adjust if the placement moved during execution).
 3. (The next phase's design pass starts the cycle again; todo.md is rewritten.)
 
 Don't write resolver/production code in a design session; don't re-litigate a
@@ -155,6 +161,9 @@ missing consumer), the same "ahead of a consumer" discipline the decisions use.
 - Rationale / Trade-off / Alternatives keyed to the Decisions; crux bolded.
 - If a design pass: no production code, execute-ready plan left in todo.md.
 - If execution: implementation note on #NNN, roadmap bullet flipped to `[x]`.
+- **`possession-flow.puml` reflects reality** if the change touched the possession
+  path — a new branch or event that isn't on the diagram is a silent doc rot the
+  next design pass will inherit.
 - **Do NOT commit.** Leave the edits in the working tree, summarize what changed,
   and wait for the user to ask for the commit. A completed doc close-out is not
   permission to write history — see CLAUDE.md's git rule.
