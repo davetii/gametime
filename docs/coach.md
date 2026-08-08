@@ -1,4 +1,4 @@
-# Coach Domain *(attribute model + §3.4 scheme/pace effects + §3.5 rotation effects built)*
+# Coach Domain *(attribute model + all five effects built — §3.4 scheme/pace, §3.5 rotation)*
 
 The Coach is a team's **decision-maker model**: the inputs the game engine reads
 to decide how a team plays — pace, shot distribution, defensive posture, and how
@@ -11,7 +11,9 @@ deep/early the bench gets used.
 possession engine all consume them (decisions.md #022). The §3.5 rotation
 attributes (`rotationDepth`, `substitutionAggressiveness`) are now **also consumed
 end-to-end** — the §3.5 minutes/fatigue/substitution model reads them through
-`CoachModifiers` (decisions.md #023).
+`CoachModifiers` (decisions.md #023). Since then §3.9–§3.11 have each widened the
+*reach* of `defensiveScheme` without adding any coach-side code (see the note under
+the attribute table).
 
 > **Scope discipline** (cf. decisions.md #014): the *attribute model* shipped
 > ahead of its consumers, but each effect's *formula* landed with the engine phase
@@ -57,13 +59,24 @@ phase reads each — **all five are now live**: §3.4 wired the scheme/pace trio
 |-----------|--------|-------------|--------|
 | **pace** | Possessions per game (scales the possession **count**) | §3.4 possession flow | ✅ read |
 | **offensiveScheme** | Shot distribution — perimeter/3pt lean vs. inside/post | §3.4 `ShotSelector` lean | ✅ read |
-| **defensiveScheme** | Aggressiveness — turnover/foul pressure vs. contain | §3.4 turnover/foul pressure; §3.10 also scales **rebounding fouls** (→ bonus exposure) | ✅ read |
+| **defensiveScheme** | Aggressiveness — turnover/foul pressure vs. contain | §3.4 turnover/foul pressure; §3.9 also leans the shot-clock **turnover cause**; §3.10 scales **rebounding fouls** (→ bonus exposure); §3.11 scales **and-1s** | ✅ read |
 | **rotationDepth** | How many players see real minutes (tight 7 vs. deep 10) | §3.5 minutes allocation | ✅ read |
 | **substitutionAggressiveness** | How early/eagerly fatigued starters are pulled | §3.5 sub triggers | ✅ read |
 
 These form two coherent pairs plus pace: the **§3.4** schemes (what shots happen
 on each end) and the **§3.5** rotation knobs (who is on the floor) — mapping to
 the two things a coach controls during a game.
+
+**`defensiveScheme` has quietly become the widest-reaching attribute.** It was
+wired in §3.4 as one `defensivePressure` multiplier on the turnover and foul
+gates, but every foul-adjacent sub-phase since has scaled *its* new roll by the
+same number: §3.9 scales the shot-clock-violation turnover cause by it, §3.10
+scales rebounding fouls (and so a team's bonus exposure), and §3.11 scales
+and-1s. That is the intended pressure/breakdown trade-off compounding — an
+aggressive scheme forces more turnovers *and* concedes more fouls — but it
+means **a `defensiveScheme` change now moves more of the box score than any other
+coach attribute**, and §3.12 (all-shot-type contact fouls) will widen it again.
+Worth watching in calibration: the effects multiply rather than add.
 
 **Deferred until a consumer is live:**
 
@@ -94,10 +107,28 @@ numbers on one scale with no translation layer. Concretely:
 ```
 basePace        × f(pace)                 → team possessions  (scales the possession COUNT, §3.4)
 baseShotMix     × f(offensiveScheme)      → perimeter vs. interior shot share  (§3.4 ShotSelector lean)
-basePressure    × f(defensiveScheme)      → turnover/foul pressure on defense   (§3.4)
+basePressure    × f(defensiveScheme)      → turnover/foul pressure on defense   (§3.4, §3.9–§3.11)
 benchDepth      × f(rotationDepth)        → how far down rotationOrder the bench plays  (input: #014; §3.5)
 subThreshold    × f(substitutionAggr.)    → energy level at which a tired starter is pulled  (§3.5)
 ```
+
+Three mechanical details worth knowing before tuning any of these:
+
+- **`pace` is BLENDED across both coaches, not applied per-team.** The two teams
+  alternate possessions and therefore share one possession count, so
+  `PossessionEngine` averages the two `paceMultiplier`s — a fast coach against a
+  slow one lands in between, and *neither* coach gets their own pace. There is no
+  per-team possession count to scale.
+- **`offensiveScheme` multiplies only the `PERIMETER` + `THREE` shot weights.**
+  `DRIVE` and `POST` keep the player's own weight; the weighted draw then
+  re-normalizes, so leaning *out* is what pushes the inside share down. There is no
+  separate inside/post lean — the "vs. inside/post" in the table is the emergent
+  effect, not a second knob.
+- **`substitutionAggressiveness` scales the threshold, but starters get a flat
+  bonus on top.** `subEnergyThreshold` subtracts `STARTER_SUB_THRESHOLD_BONUS`
+  (8.0) for starters, so a starter is always pulled later than a bench player at
+  the same energy regardless of the coach (§3.5 Decision C star retention). The
+  coach knob and the starter bonus are independent.
 
 All five are now read. **§3.4 reads the first three** (`pace`, `offensiveScheme`,
 `defensiveScheme` — decisions.md #022 Decision E); **§3.5 reads the last two**
@@ -134,12 +165,15 @@ display/API open questions below, not engine work.
 | 7. **Tests** — entity + mapping coverage | ✅ `EntityMapperTest` |
 | 8. **§3.4 effects** — `pace`/`offensiveScheme`/`defensiveScheme` → engine | ✅ decisions.md #022 (`CoachModifiers` + `TeamContext`) |
 | 9. **§3.5 effects** — `rotationDepth`/`substitutionAggressiveness` → minutes/fatigue | ✅ decisions.md #023 (`CoachModifiers.rotationDepthFactor()`/`subAggressivenessFactor()` + `RotationState`) |
+| 10. **§3.9–§3.11 reach** — `defensiveScheme` extended to the new foul/turnover rolls | ✅ no new coach code; each sub-phase scales its own roll by the existing `defensivePressure` (#027 C, #028 C, #029 C) |
 
 All five effects (`f(...)` in the interface above) are implemented as the
 `CoachModifiers` value object, threaded through `PossessionEngine` via
 `TeamContext`. The §3.4 scheme/pace effects bend the possession flow; the §3.5
 rotation effects drive the between-possession substitution check in
 `RotationState` (who is on the floor, and when a tired starter is pulled).
+**No coach-side code has changed since §3.5** — §3.9–§3.11 each reused
+`defensivePressure` as-is, which is the seam working as designed.
 
 ---
 
