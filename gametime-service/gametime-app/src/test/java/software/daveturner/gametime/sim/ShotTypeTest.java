@@ -28,24 +28,37 @@ class ShotTypeTest {
         assertEquals(3, ShotType.THREE.getPoints());
     }
 
+    // §3.12 (decisions.md #030 A1/C): these four REPLACE the isContactType()
+    // assertions. That binary predicate is deleted — every shot type can now draw a
+    // foul, at a graduated rate carried by SimConfig's FOUL_MULT_* table — and the
+    // rule that took its place on this enum is the free-throw count.
+
     @Test
-    void driveIsContactType() {
-        assertTrue(ShotType.DRIVE.isContactType());
+    void aFouledThreeAwardsThreeFreeThrows() {
+        // The latent bug §3.12 activates and fixes: unreachable before, because a
+        // THREE could not be fouled at all.
+        assertEquals(3, ShotType.THREE.freeThrowsIfFouled());
     }
 
     @Test
-    void postIsContactType() {
-        assertTrue(ShotType.POST.isContactType());
+    void aFouledDriveAwardsTwoFreeThrows() {
+        assertEquals(2, ShotType.DRIVE.freeThrowsIfFouled());
     }
 
     @Test
-    void perimeterIsNotContactType() {
-        assertFalse(ShotType.PERIMETER.isContactType());
+    void aFouledPostAwardsTwoFreeThrows() {
+        assertEquals(2, ShotType.POST.freeThrowsIfFouled());
     }
 
     @Test
-    void threeIsNotContactType() {
-        assertFalse(ShotType.THREE.isContactType());
+    void aFouledPerimeterAwardsTwoFreeThrows() {
+        assertEquals(2, ShotType.PERIMETER.freeThrowsIfFouled());
+    }
+
+    @ParameterizedTest
+    @EnumSource(ShotType.class)
+    void onlyAThreeAwardsMoreThanTwoFreeThrows(ShotType type) {
+        assertEquals(type == ShotType.THREE ? 3 : 2, type.freeThrowsIfFouled());
     }
 
     @ParameterizedTest

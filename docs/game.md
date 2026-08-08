@@ -1,4 +1,4 @@
-# Game Domain *(model shipped §3.1; engine fills it through §3.11)*
+# Game Domain *(model shipped §3.1; engine fills it through §3.12)*
 
 The Game domain is the **data a simulated game produces**: the matchup and its
 result (`Game`), the event log that records how it unfolded (`GameEvent`), and
@@ -8,7 +8,7 @@ one doc, the way [roster.md](roster.md) holds player↔team + lineups + transact
 together.
 
 The **model** shipped in §3.1; the **possession engine** that fills it is built
-through §3.11 and this doc now documents both:
+through §3.12 and this doc now documents both:
 - **§3.2** possession flow — shot selection / turnover / foul / shot outcome
 - **§3.3** rebounding — the second-chance loop after a missed shot
 - **§3.4** coaching + chemistry — coach modifiers on the flow, and real assists
@@ -154,9 +154,10 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      picked by a weighted `passing` draw over the other four offensive players
      (the shooter excluded) and stamped on the SHOT event's `assist_player_id`.
      Not every make is assisted.
-   - **And-1 check (§3.11, #029)** — on a made **DRIVE/POST** only, a second,
-     independent foul roll runs **after** the assist and before the possession
-     ends. On a hit: the defender is charged a foul, a `FOUL` / `AND_ONE` event is
+   - **And-1 check (§3.11, #029; widened §3.12, #030)** — on **any** made shot, a
+     second, independent foul roll runs **after** the assist and before the
+     possession ends. (§3.11 rolled this only on a made DRIVE/POST; §3.12 deleted
+     that gate — the graduation now lives in the rate, not a gate.) On a hit: the defender is charged a foul, a `FOUL` / `AND_ONE` event is
      emitted (`committing_team_id` = the defense), and **one** `FREE_THROW`
      (`*_AND_ONE`) follows for the shooter. The FG points/FGM/assist are **not**
      re-rolled or re-scored, and the possession is **never forked** — the make
@@ -285,11 +286,11 @@ rebound contests — a modest thumb on the scale composed multiplicatively with 
 | `TURNOVER` | `3_SECONDS_VIOLATION` | Offensive three-seconds-in-the-lane violation (§3.9) |
 | `TURNOVER` | `8_SECONDS_BACKCOURT_VIOLATION` | Failed to advance the ball past half-court in time (§3.9) |
 | `TURNOVER` | `OVER_AND_BACK` | Ball returned to the backcourt after crossing half (§3.9 — a sliver, ~2%) |
-| `FOUL` | `SHOOTING_FOUL` | Defensive foul on a drive/post attempt; free throws follow. `committing_team_id` = the defense (§3.10) |
+| `FOUL` | `SHOOTING_FOUL` | Defensive foul that **stopped** a shot of **any** type (§3.12); free throws follow — **3 if it stopped a `THREE`**, else 2. `committing_team_id` = the defense (§3.10) |
 | `FOUL` | `REBOUNDING_FOUL_DEFENSE` | Defensive box-out push during the rebound phase — the **offense** is fouled, so it retains for a second chance, or shoots **bonus** FTs if the defense is in the penalty. `committing_team_id` = the defense (§3.10) |
 | `FOUL` | `REBOUNDING_FOUL_OFFENSE` | Offensive over-the-back during the rebound phase — the **defense** is fouled and the **possession ends** for the offense (defense's ball, or defense's **bonus** FTs if the offense is in the penalty). `committing_team_id` = the **offense** (§3.10) |
-| `FOUL` | `AND_ONE` | Defensive foul on a made drive/post — the basket **counts** and **one** free throw follows. One-sided (always the defender), so `committing_team_id` = the defense (§3.11) |
-| `FREE_THROW` | `MADE_SHOOTING` / `MISSED_SHOOTING` | Free throw from a shooting foul that **stopped** the shot (2 per trip) (§3.11 D) |
+| `FOUL` | `AND_ONE` | Defensive foul on **any** made shot (§3.12) — the basket **counts** and **one** free throw follows, a made three included. One-sided (always the defender), so `committing_team_id` = the defense (§3.11) |
+| `FREE_THROW` | `MADE_SHOOTING` / `MISSED_SHOOTING` | Free throw from a shooting foul that **stopped** the shot — **2 per trip, or 3 if the stopped shot was a `THREE`** (§3.11 D, §3.12 C) |
 | `FREE_THROW` | `MADE_BONUS` / `MISSED_BONUS` | Free throw from a **bonus (penalty)** trip after a rebounding foul (2 per trip) (§3.11 D) |
 | `FREE_THROW` | `MADE_AND_ONE` / `MISSED_AND_ONE` | The single free throw riding a made basket (§3.11 D) |
 | `REBOUND` | `OFFENSIVE` | Offensive rebound; ball stays with the shooting team for a second-chance possession |
@@ -373,9 +374,9 @@ Two properties distinguish it from every other foul:
   in the penalty or not. (The and-1 foul still *counts toward* the committing team's
   period tally like any other foul; it just doesn't read it.)
 
-§3.11 is deliberately scoped to made **DRIVE/POST** (`isContactType`), because the
-whole foul model gates there today. Widening contact to perimeter/three at a
-graduated rate — and the fouled-three = 3 FTs fix — is **§3.12**.
+§3.11 was deliberately scoped to made **DRIVE/POST** (`isContactType`), because the
+whole foul model gated there. **§3.12 (#030) removed that fence** — see
+"All-shot-type contact fouls" below.
 
 **Free-throw sources (§3.11 D).** Every `FREE_THROW` event is **self-describing**: its
 outcome carries both the result and the **source** that sent the shooter to the line
@@ -390,6 +391,53 @@ a prefix check, and the source strings cannot collide with the `FOUL` outcomes
 shooting foul and bonus = 2) — count and source are independent, which is the seam
 §3.12 reuses to award 3 on a fouled three. **No schema change:** both are the
 existing free-text `outcome` (#020).
+
+**All-shot-type contact fouls (§3.12, decisions.md #030).** Until §3.12 the *entire*
+foul model gated on a binary `ShotType.isContactType()` (`DRIVE || POST`): a
+perimeter or three-point attempt could not draw a shooting foul, and could not draw
+an and-1, **at any rate**. §3.12 **deleted** that predicate and replaced it with a
+**graduated per-shot-type foul multiplier** in `SimConfig`, so every shot type can be
+fouled — post/drive frequent, perimeter uncommon, three rare (a closeout on a
+three-point shooter is a real foul). The rate now carries the information the gate
+used to carry: one mechanism instead of a gate plus a rate.
+
+**A shooting foul therefore applies to ALL four shot types**, and one shared
+multiplier table drives **both** foul rolls — the pre-shot "the contact stopped the
+shot" roll and the post-make and-1 roll. A shot type's propensity to draw contact is
+a property of *the shot*, not of which roll is asking. An and-1 on a three being
+rarer than a foul on a three needs no extra modeling: the two rolls are independent,
+so the shot must *also* go in, and a three both makes less often and fouls less
+often.
+
+**A fouled `THREE` awards 3 free throws** — the latent bug §3.12 activated and fixed.
+The pre-shot branch used to pass a flat count of 2; it never misfired only because a
+`THREE` could not be fouled at all, so widening contact made the path reachable. The
+count is a **rule** on the enum (`ShotType.freeThrowsIfFouled()` — 3 for `THREE`, 2
+for the rest), deliberately *not* a `SimConfig` value: `SimConfig` is the tuning
+surface, and housing a rule there invites someone to tune it. It rides #029 D's
+already-parameterized per-situation FT count, so this was a call-site change, not new
+plumbing.
+
+**An and-1 stays exactly ONE free throw for every shot type, a made three included** —
+a made 3 plus a foul is 3 points and 1 FT, not 3. Only the *stopped*-shot count
+graduates. (These two counts sitting side by side is the easy wrong turn in this
+area; it is guarded by an explicit test.)
+
+**The event vocabulary is UNCHANGED, which is worth stating explicitly.** §3.12 added
+**no** new `PlayType`, **no** new `FreeThrowSource`, **no** new `outcome` string, and
+**no** schema or OpenAPI change. A fouled three emits the existing `SHOOTING_FOUL`
+`FOUL` followed by **three** existing `MADE_SHOOTING`/`MISSED_SHOOTING` `FREE_THROW`
+events — three-FT-ness is carried by *there being three of them*, not by a tag. The
+`FreeThrowSource` records **why** the shooter is at the line (it is a shooting foul),
+which is unchanged; nothing today asks to distinguish a 3-FT trip, so nothing was
+fabricated ahead of a consumer (#014/#017/#020). A consumer that ever wants "3-FT
+trips" counts `SHOOTING` FTs per preceding `FOUL`.
+
+**The two foul rolls remain mutually exclusive** — by control flow, not by a check.
+The pre-shot branch *returns*, so a shot that drew a stopped-shot foul never reaches
+the make/miss roll and therefore never reaches the and-1 roll. One shot attempt emits
+**at most one** of `SHOOTING_FOUL` / `AND_ONE`, never both, and sharing one multiplier
+table does not apply it twice to a single shot.
 
 **Steal / block symmetry (§3.7, decisions.md #025).** A **block is a field-goal
 outcome exactly as a steal is a turnover outcome** — a defensive event modeled as

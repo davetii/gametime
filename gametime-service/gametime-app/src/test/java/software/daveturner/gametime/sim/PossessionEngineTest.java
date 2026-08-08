@@ -121,9 +121,17 @@ class PossessionEngineTest {
 
         int eventHomePoints = 0;
         int eventAwayPoints = 0;
+        // A BONUS free throw is the one event whose points do NOT score for the
+        // possession's offense (see scoringTeamId): when the OFFENSE committed the
+        // rebounding foul, the DEFENSE shoots. The FREE_THROW event itself carries
+        // no committing team, so track it from the FOUL that precedes it.
+        String lastFoulCommitter = null;
         for (GameData.EventRecord e : data.getEvents()) {
+            if (e.playType() == PlayType.FOUL) {
+                lastFoulCommitter = e.committingTeamId();
+            }
             int pts = pointsFromEvent(e);
-            if (e.offTeamId().equals("H")) eventHomePoints += pts;
+            if (scoringTeamId(e, lastFoulCommitter).equals("H")) eventHomePoints += pts;
             else eventAwayPoints += pts;
         }
 
@@ -235,9 +243,23 @@ class PossessionEngineTest {
         for (int i = 0; i < events.size(); i++) {
             GameData.EventRecord e = events.get(i);
             if (e.playType() == PlayType.FOUL && "SHOOTING_FOUL".equals(e.outcome())) {
-                assertTrue(i + 2 < events.size(), "FOUL must be followed by 2 FREE_THROWs");
+                // §3.12 re-baseline (#030 C): the count is no longer a flat 2 — a
+                // foul that stopped a THREE awards 3. Assert "2 or 3, all tagged
+                // SHOOTING" rather than a fixed count; the exact 2-vs-3 rule is
+                // pinned by shotTypeDecidesTheStoppedShotFreeThrowCount below.
+                assertTrue(i + 2 < events.size(), "FOUL must be followed by >= 2 FREE_THROWs");
                 assertEquals(PlayType.FREE_THROW, events.get(i + 1).playType());
                 assertEquals(PlayType.FREE_THROW, events.get(i + 2).playType());
+                int fts = 0;
+                for (int j = i + 1; j < events.size()
+                        && events.get(j).playType() == PlayType.FREE_THROW; j++) {
+                    assertTrue(events.get(j).outcome().endsWith("_SHOOTING"),
+                            "A stopped-shot FT carries the SHOOTING source: "
+                                    + events.get(j).outcome());
+                    fts++;
+                }
+                assertTrue(fts == 2 || fts == 3,
+                        "A shooting foul awards 2 FTs, or 3 on a stopped three: " + fts);
             }
         }
     }
@@ -1343,10 +1365,13 @@ class PossessionEngineTest {
     }
 
     @Test
-    void andOneNeverFiresOnAMissedShotOrANonContactShotType() {
-        // #029 A2 (the scope fence §3.12 later lifts): only a MADE DRIVE/POST can
-        // draw an and-1. Verified structurally over a long game — every AND_ONE
-        // foul must sit immediately after a made contact SHOT event.
+    void andOneNeverFiresOnAMissedShot() {
+        // §3.12 RE-BASELINED (#030 A1), not deleted: this used to also assert the
+        // shot type was DRIVE/POST (#029 A2's scope fence). §3.12 LIFTED that fence
+        // — every made shot rolls the and-1 now, a three included — so that clause
+        // is gone and the surviving invariant is the one that still holds: an and-1
+        // only ever rides a MADE shot. (That a three CAN draw one is asserted
+        // positively by everyShotTypeCanNowDrawAnAndOne in FoulResolverTest.)
         GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 80, rng(31));
 
@@ -1362,11 +1387,145 @@ class PossessionEngineTest {
                     "An and-1 must ride the SHOT event it was drawn on");
             assertTrue(prev.outcome().startsWith("MADE"),
                     "An and-1 only ever follows a MADE shot: " + prev.outcome());
-            assertTrue(prev.outcome().endsWith("DRIVE") || prev.outcome().endsWith("POST"),
-                    "An and-1 only ever follows a contact shot type (#029 A2): "
-                            + prev.outcome());
         }
         assertTrue(andOnes > 0, "A long game must produce some and-1s");
+    }
+
+    // --- §3.12 all-shot-type contact fouls (decisions.md #030) ---------------
+
+    @Test
+    void aStoppedThreeAwardsThreeFreeThrowsAndAStoppedTwoAwardsTwo() {
+        // #030 C — the latent bug §3.12 activates and fixes, asserted END-TO-END
+        // through the engine rather than only on the enum.
+        //
+        // A stopped shot emits NO SHOT event (the foul branch returns before
+        // recordFieldGoalAttempt), so the shot type is not readable backward from
+        // the log. It IS recoverable from the free-throw RUN LENGTH, which is the
+        // same derivation the CalibrationHarness uses: a run of 3 is unambiguously
+        // a fouled THREE. What this pins is that BOTH lengths occur and NOTHING
+        // else does — before §3.12 a 3-run was impossible.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 200, rng(31));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        int twoShotTrips = 0;
+        int threeShotTrips = 0;
+        for (int i = 0; i < events.size(); i++) {
+            GameData.EventRecord e = events.get(i);
+            if (e.playType() != PlayType.FOUL || !"SHOOTING_FOUL".equals(e.outcome())) continue;
+
+            int fts = 0;
+            for (int j = i + 1; j < events.size()
+                    && events.get(j).playType() == PlayType.FREE_THROW; j++) {
+                fts++;
+            }
+            if (fts == 2) twoShotTrips++;
+            else if (fts == 3) threeShotTrips++;
+            else fail("A stopped shot awards exactly 2 or 3 FTs, got " + fts);
+        }
+        assertTrue(twoShotTrips > 0, "A long game must stop some two-point attempts");
+        assertTrue(threeShotTrips > 0,
+                "A long game must stop some THREES — impossible before §3.12");
+        // And the fouled three stays the RARE case (#030 G: ~2% of 3PA).
+        assertTrue(threeShotTrips < twoShotTrips,
+                "Fouled threes must stay rarer than fouled twos: "
+                        + threeShotTrips + " vs " + twoShotTrips);
+    }
+
+    @Test
+    void anAndOneOnAMadeThreeAwardsExactlyOneFreeThrow() {
+        // #030 C's explicit guard against the parallel-graduation wrong turn: only
+        // the STOPPED-shot count graduates by shot type. A made 3 + foul is 3
+        // points and ONE free throw, not three. The `count` parameter makes the
+        // mistake a one-character edit, and it would silently inflate scoring on
+        // top of §3.12's real lift — so it is pinned, not just documented.
+        //
+        // An and-1 on a three is the RAREST event this pass introduces (~0.10 per
+        // team per game on the harness — a three must both go in AND draw a foul at
+        // 13.3% of the drive rate), so this needs a genuinely long run to observe a
+        // few. Several possession-batches rather than one huge game, so the
+        // rotation/fatigue state stays realistic.
+        int andOnesOnThrees = 0;
+        for (long seed = 31; seed < 39; seed++) {
+            GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                    "H", "A", 400, rng(seed));
+
+            List<GameData.EventRecord> events = data.getEvents();
+            for (int i = 0; i < events.size(); i++) {
+                GameData.EventRecord e = events.get(i);
+                if (e.playType() != PlayType.FOUL || !"AND_ONE".equals(e.outcome())) continue;
+                if (!events.get(i - 1).outcome().contains("3PT")) continue;
+
+                andOnesOnThrees++;
+                int fts = 0;
+                for (int j = i + 1; j < events.size()
+                        && events.get(j).playType() == PlayType.FREE_THROW; j++) {
+                    fts++;
+                }
+                assertEquals(1, fts,
+                        "An and-1 on a made THREE awards exactly ONE free throw (#030 C) "
+                                + "— NOT three; only the stopped-shot count graduates");
+            }
+        }
+        assertTrue(andOnesOnThrees > 0,
+                "This run must produce some and-1s on threes — impossible before §3.12");
+    }
+
+    @Test
+    void aSingleShotNeverEmitsBothAShootingFoulAndAnAndOne() {
+        // #030 B's mutual-exclusivity invariant. The two rolls share ONE multiplier
+        // table, which is the thing most likely to be misread as "a shot can be
+        // fouled twice". It cannot: the pre-shot branch RETURNS, so a stopped shot
+        // never reaches the make/miss roll and thus never reaches the and-1 roll.
+        //
+        // That is currently guaranteed only by the `return` — a refactor could
+        // silently break it — and now that both rolls fire on all four shot types
+        // the coincidence is far likelier than it was in §3.11. Hence a test.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 200, rng(31));
+
+        // Anchor on the SHOT event, because ONE ATTEMPT IS ONE SHOT. A stopped shot
+        // emits no SHOT event at all (the foul branch returns before
+        // recordFieldGoalAttempt), so a SHOOTING_FOUL can never attach to a SHOT —
+        // which is precisely what makes the two mutually exclusive. An AND_ONE, by
+        // contrast, always rides the SHOT immediately preceding it.
+        //
+        // (Do NOT try to detect this by walking consecutive FOUL events: an AND_ONE
+        // ending one possession and a SHOOTING_FOUL opening the next are adjacent in
+        // the log but belong to different attempts — the offTeamId flips between
+        // them. That naive walk produces a false positive.)
+        List<GameData.EventRecord> events = data.getEvents();
+        int andOnesChecked = 0;
+        for (int i = 0; i < events.size(); i++) {
+            GameData.EventRecord e = events.get(i);
+            if (e.playType() != PlayType.FOUL || !"AND_ONE".equals(e.outcome())) continue;
+
+            andOnesChecked++;
+            // The and-1's shot: immediately before, a MADE SHOT in the same possession.
+            GameData.EventRecord shot = events.get(i - 1);
+            assertEquals(PlayType.SHOT, shot.playType(),
+                    "An and-1 must ride its SHOT event");
+            assertEquals(e.offTeamId(), shot.offTeamId(),
+                    "An and-1 belongs to the same possession as its shot");
+
+            // Nothing between that shot and this foul, and the foul run that follows
+            // is exactly this and-1 — no SHOOTING_FOUL may join the same attempt.
+            int j = i + 1;
+            while (j < events.size() && events.get(j).playType() == PlayType.FREE_THROW) {
+                assertTrue(events.get(j).outcome().endsWith("_AND_ONE"),
+                        "Only AND_ONE-tagged FTs may follow an and-1: "
+                                + events.get(j).outcome());
+                j++;
+            }
+            if (j < events.size() && events.get(j).playType() == PlayType.FOUL
+                    && "SHOOTING_FOUL".equals(events.get(j).outcome())) {
+                assertNotEquals(e.offTeamId(), events.get(j).offTeamId(),
+                        "A SHOOTING_FOUL following an and-1 in the SAME possession "
+                                + "would mean one attempt drew both fouls (#030 B), "
+                                + "at event " + i);
+            }
+        }
+        assertTrue(andOnesChecked > 0, "A long game must produce and-1s to check");
     }
 
     @Test
@@ -1534,6 +1693,30 @@ class PossessionEngineTest {
                 .count();
     }
 
+    /**
+     * Which team an event's points score FOR — almost always the offense, with one
+     * exception: a §3.10 BONUS free throw awarded when the OFFENSE committed a
+     * rebounding foul in the penalty. There the DEFENSE shoots and scores, while
+     * the event still carries the possession's offense/defense orientation, so
+     * bucketing purely on {@code offTeamId} mis-attributes those points.
+     *
+     * <p>Latent since §3.10 and exposed (not caused) by §3.12: the engine has always
+     * scored these correctly — {@code awardFreeThrows} takes an explicit
+     * {@code shootingTeamId} — but this HELPER could not tell, and no seed had
+     * reached the offense-commits-in-penalty case until §3.12's RNG shift moved the
+     * draws. The fouled (scoring) team is the one that did NOT commit the foul;
+     * {@code committingTeamId} (#028 D) is on the FOUL event, not on the
+     * FREE_THROW, hence the caller threading the preceding foul's committer in.
+     */
+    private String scoringTeamId(GameData.EventRecord e, String lastFoulCommitter) {
+        if (e.playType() == PlayType.FREE_THROW
+                && String.valueOf(e.outcome()).endsWith("_BONUS")
+                && lastFoulCommitter != null) {
+            return lastFoulCommitter.equals(e.offTeamId()) ? e.defTeamId() : e.offTeamId();
+        }
+        return e.offTeamId();
+    }
+
     private int pointsFromEvent(GameData.EventRecord e) {
         if (e.playType() == PlayType.SHOT && e.outcome().startsWith("MADE")) {
             return e.outcome().contains("3PT") ? 3 : 2;
@@ -1546,4 +1729,5 @@ class PossessionEngineTest {
         }
         return 0;
     }
+
 }

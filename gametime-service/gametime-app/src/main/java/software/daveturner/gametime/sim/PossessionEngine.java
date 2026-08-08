@@ -126,7 +126,9 @@ public class PossessionEngine {
                 return sequence + 1;
             }
 
-            // 2. Foul check (drive/post only)
+            // 2. Foul check — a foul that STOPPED the shot (no basket), on ANY shot
+            // type since §3.12 (#030 A1). The FT count graduates with the type:
+            // a stopped THREE is 3 FTs, everything else 2 (#030 C).
             if (foulResolver.isFoul(shotType, shooter, defender, defensivePressure, rng)) {
                 defender.recordFoul();
                 // §3.10 (#028 D): a shooting foul's committer is always the
@@ -138,7 +140,7 @@ public class PossessionEngine {
                 sequence++;
 
                 sequence = awardFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
-                        period, sequence, SimConfig.FREE_THROWS_PER_FOUL,
+                        period, sequence, shotType.freeThrowsIfFouled(),
                         FreeThrowSource.SHOOTING, rng);
                 return sequence;
             }
@@ -202,16 +204,23 @@ public class PossessionEngine {
                         PlayType.SHOT, outcome, shooter.getPlayerId(), assistPlayerId);
                 sequence++;
 
-                // §3.11 (decisions.md #029 A1/A2/A3/B): the and-1 — a SECOND,
+                // §3.11 (decisions.md #029 A1/A3/B): the and-1 — a SECOND,
                 // post-make foul roll carved BESIDE the assist above. The pre-shot
-                // foul branch (and BASE_FOUL) is untouched: that one still means
-                // "the contact stopped the shot", and this one is the independent
-                // "the shot went in anyway" slice, so both rates stay separately
-                // tunable (the §3.7 block / §3.10 rebound-foul carve, a third time).
-                // Gated on a contact shot type (A2 — DRIVE/POST only; widening to
-                // perimeter/three, and a fouled three's 3 FTs, is §3.12).
-                if (shotType.isContactType()
-                        && foulResolver.isAndOne(shooter, defender, defensivePressure, rng)) {
+                // foul branch (and BASE_NO_BASKET_FOUL) is untouched: that one still
+                // means "the contact stopped the shot", and this one is the
+                // independent "the shot went in anyway" slice, so both rates stay
+                // separately tunable (the §3.7 block / §3.10 rebound-foul carve, a
+                // third time).
+                //
+                // §3.12 (#030 A1): the shot-type gate is GONE — EVERY made shot
+                // rolls the and-1, including a perimeter and a three. The
+                // graduation moved into the rate itself (the shared
+                // SimConfig.foulMultiplier table, #030 B), which is the whole point
+                // of deleting the binary: one mechanism, not a gate plus a rate.
+                // A made three + foul is still exactly ONE FT (#030 C) — see
+                // awardAndOne.
+                if (foulResolver.isAndOne(shotType, shooter, defender,
+                        defensivePressure, rng)) {
                     sequence = awardAndOne(data, shooter, defender, offTeamId, defTeamId,
                             period, sequence, rng);
                 }
@@ -356,6 +365,14 @@ public class PossessionEngine {
      * the foul-out predicate, #023 F) and counts toward that team's period tally
      * (§3.10 A1). It does <b>not</b> consult the bonus: an and-1 is always exactly
      * one free throw by rule, in the penalty or not (#029 B).
+     *
+     * <p><b>§3.12 (#030 C): the count stays {@code AND_ONE_FREE_THROWS = 1} for
+     * EVERY shot type — a made three plus a foul is 3 points and ONE free throw,
+     * not three.</b> §3.12 made the STOPPED-shot count graduate by shot type
+     * ({@link ShotType#freeThrowsIfFouled}); this count deliberately does not
+     * follow it. Making them graduate in parallel is a one-character mistake the
+     * {@code count} parameter makes easy, and it would silently inflate scoring on
+     * top of §3.12's real lift — hence the explicit test guarding it.
      *
      * @return the next free sequence number
      */

@@ -18,24 +18,38 @@ class FoulResolverTest {
         return RandomGeneratorFactory.of("L64X128MixRandom").create(seed);
     }
 
+    // §3.12 (decisions.md #030 A1) RE-BASELINED, not deleted: these two used to
+    // assert that a PERIMETER and a THREE could NEVER be fouled — the binary
+    // isContactType gate. That gate is gone and the premise is now false by design
+    // (a closeout on a three-point shooter is a real foul), so each is inverted to
+    // the invariant that replaced it: a jump shot fouls RARELY, not never.
+
     @Test
-    void foulNeverTriggeredOnPerimeter() {
+    void perimeterFoulsAreUncommonButPossible() {
         PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 20.0);
         PlayerGameState defender = TestPlayerFactory.create("d1", "B", 1.0);
         RandomGenerator r = rng(42);
-        for (int i = 0; i < 1_000; i++) {
-            assertFalse(resolver.isFoul(ShotType.PERIMETER, shooter, defender, r));
+        int fouls = 0;
+        for (int i = 0; i < 10_000; i++) {
+            if (resolver.isFoul(ShotType.PERIMETER, shooter, defender, r)) fouls++;
         }
+        assertTrue(fouls > 0, "A mid-range jumper CAN now be fouled (§3.12)");
+        assertTrue(fouls < 10_000 / 2,
+                "...but a perimeter foul stays uncommon, even at this skill gap: " + fouls);
     }
 
     @Test
-    void foulNeverTriggeredOnThree() {
+    void threeFoulsAreRareButPossible() {
         PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 20.0);
         PlayerGameState defender = TestPlayerFactory.create("d1", "B", 1.0);
         RandomGenerator r = rng(42);
-        for (int i = 0; i < 1_000; i++) {
-            assertFalse(resolver.isFoul(ShotType.THREE, shooter, defender, r));
+        int fouls = 0;
+        for (int i = 0; i < 10_000; i++) {
+            if (resolver.isFoul(ShotType.THREE, shooter, defender, r)) fouls++;
         }
+        assertTrue(fouls > 0, "A three CAN now be fouled — and it awards 3 FTs (§3.12)");
+        assertTrue(fouls < 10_000 / 4,
+                "...but a fouled three is the RAREST of the four types: " + fouls);
     }
 
     @Test
@@ -145,14 +159,27 @@ class FoulResolverTest {
     }
 
     @Test
-    void pressureStillNeverFoulsOnJumpShots() {
+    void pressureScalesJumpShotFoulsToo() {
+        // §3.12 (#030 A1) RE-BASELINED: this asserted that even max pressure could
+        // not foul on a three (the isContactType gate). Now it can, so the surviving
+        // invariant is the one that actually matters — defensivePressure scales the
+        // jump-shot foul rate the same way it scales a drive's, since the multiplier
+        // is applied to the same contest rather than replacing it.
         PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 20.0);
         PlayerGameState defender = TestPlayerFactory.create("d1", "B", 1.0);
-        RandomGenerator r = rng(42);
-        for (int i = 0; i < 1_000; i++) {
-            assertFalse(resolver.isFoul(ShotType.THREE, shooter, defender, 2.0, r),
-                    "Even max pressure cannot foul on a three");
+        int neutral = 0;
+        RandomGenerator r1 = rng(42);
+        for (int i = 0; i < 10_000; i++) {
+            if (resolver.isFoul(ShotType.THREE, shooter, defender, 1.0, r1)) neutral++;
         }
+        int pressured = 0;
+        RandomGenerator r2 = rng(42);
+        for (int i = 0; i < 10_000; i++) {
+            if (resolver.isFoul(ShotType.THREE, shooter, defender, 2.0, r2)) pressured++;
+        }
+        assertTrue(pressured > neutral,
+                "Aggressive defense must concede more fouls on threes too: pressured="
+                        + pressured + " neutral=" + neutral);
     }
 
     @Test
@@ -307,12 +334,23 @@ class FoulResolverTest {
                 10.0, 10.0, foulDrawing, 10.0, 10.0, 10.0, 10.0, foulProne);
     }
 
+    /**
+     * §3.12: defaults to DRIVE, whose FOUL_MULT_DRIVE = 1.0 anchor makes the rate
+     * numerically identical to §3.11's — so the pre-existing and-1 assertions below
+     * keep testing exactly what they tested before the multiplier was introduced.
+     */
     private double andOneRate(PlayerGameState shooter, PlayerGameState defender,
                               double defensivePressure, long seed, int trials) {
+        return andOneRate(ShotType.DRIVE, shooter, defender, defensivePressure, seed, trials);
+    }
+
+    private double andOneRate(ShotType shotType, PlayerGameState shooter,
+                              PlayerGameState defender, double defensivePressure,
+                              long seed, int trials) {
         RandomGenerator r = rng(seed);
         int hits = 0;
         for (int i = 0; i < trials; i++) {
-            if (resolver.isAndOne(shooter, defender, defensivePressure, r)) hits++;
+            if (resolver.isAndOne(shotType, shooter, defender, defensivePressure, r)) hits++;
         }
         return hits / (double) trials;
     }
@@ -388,9 +426,14 @@ class FoulResolverTest {
         // foulDrawing exceeds the defender's fatigue-scaled discipline, the skill
         // term alone keeps the rate positive. Zeroing AND_ONE_BASE therefore makes
         // and-1s rare, NOT impossible — the same shape §3.10's rebound foul has.
-        // To truly disable the feature the CALLER must not roll (the isContactType
-        // gate in PossessionEngine), which is exactly how §3.11 fences PERIMETER
-        // and THREE (#029 A2).
+        //
+        // §3.12 (#030 A1): the caller's gate that USED to be the real off-switch
+        // (isContactType in PossessionEngine, §3.11's fence around PERIMETER/THREE)
+        // is DELETED — every shot type rolls now. The one true off-switch left is a
+        // ZERO MULTIPLIER (FOUL_MULT_* = 0.0), which scales the whole probability
+        // including this skill term, unlike the zero BASE tested here. That
+        // contrast is the point of this test: see
+        // aZeroMultiplierIsTheOneTrueOffSwitchForAShotType below.
         double favourable = config.rareEventProbability(0.0, 14.0, 10.0,
                 SimConfig.AND_ONE_SENSITIVITY);
         assertTrue(favourable > 0.0,
@@ -429,8 +472,146 @@ class FoulResolverTest {
     void andOneIsDeterministicForASeed() {
         PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
         PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
-        assertEquals(resolver.isAndOne(shooter, defender, 1.0, rng(2024)),
-                resolver.isAndOne(shooter, defender, 1.0, rng(2024)),
+        assertEquals(resolver.isAndOne(ShotType.DRIVE, shooter, defender, 1.0, rng(2024)),
+                resolver.isAndOne(ShotType.DRIVE, shooter, defender, 1.0, rng(2024)),
                 "Same seed must give the same and-1 result");
+    }
+
+    // --- §3.12 all-shot-type contact fouls (decisions.md #030) ---------------
+
+    @Test
+    void everyShotTypeCanNowDrawAFoul() {
+        // The crux of §3.12 (#030 A1). Before this pass isFoul early-returned false
+        // for PERIMETER and THREE — they could not be fouled at ANY rate. Now the
+        // graduated multiplier replaces the gate, so all four must fire.
+        PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
+        for (ShotType type : ShotType.values()) {
+            assertTrue(foulRate(type, shooter, defender, 7, 20_000) > 0.0,
+                    type + " must be able to draw a shooting foul after §3.12");
+        }
+    }
+
+    @Test
+    void everyShotTypeCanNowDrawAnAndOne() {
+        // The same widening on the post-make roll — PossessionEngine's
+        // isContactType gate is gone, so a made three can draw an and-1 too.
+        PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
+        for (ShotType type : ShotType.values()) {
+            assertTrue(andOneRate(type, shooter, defender, 1.0, 7, 40_000) > 0.0,
+                    type + " must be able to draw an and-1 after §3.12");
+        }
+    }
+
+    @Test
+    void foulRateIsGraduatedDriveMostThreeLeast() {
+        // The ORDERING is the model (#030 A1/A2): post/drive frequent → perimeter
+        // uncommon → three rare. At EQUAL skill, so the ordering can only come from
+        // the multiplier table, not from the contest.
+        PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
+        double drive = foulRate(ShotType.DRIVE, shooter, defender, 11, 40_000);
+        double post = foulRate(ShotType.POST, shooter, defender, 11, 40_000);
+        double perimeter = foulRate(ShotType.PERIMETER, shooter, defender, 11, 40_000);
+        double three = foulRate(ShotType.THREE, shooter, defender, 11, 40_000);
+
+        assertEquals(drive, post, 0.02, "DRIVE and POST share the 1.0 anchor");
+        assertTrue(perimeter < drive,
+                "A perimeter jumper must foul less than a drive: " + perimeter + " vs " + drive);
+        assertTrue(three < perimeter,
+                "A three must foul less than a mid-range jumper: " + three + " vs " + perimeter);
+        assertTrue(three > 0.0, "...but a three is RARE, not impossible");
+    }
+
+    @Test
+    void drivePostFoulRatesAreUnchangedFromSection311() {
+        // #030 A2's attributability guarantee, pinned. The multiplier table anchors
+        // DRIVE/POST at 1.0 precisely so their behavior is numerically IDENTICAL to
+        // §3.11 — which is what makes §3.12's entire harness delta attributable to
+        // perimeter/three. If someone retunes FOUL_MULT_DRIVE off 1.0, this fails.
+        assertEquals(1.0, SimConfig.FOUL_MULT_DRIVE, 1e-9,
+                "DRIVE is the anchor — raising it reopens a §3.4-calibrated number");
+        assertEquals(1.0, SimConfig.FOUL_MULT_POST, 1e-9,
+                "POST passed the same gate as DRIVE in §3.11, so it stays 1.0");
+
+        // And the realized rate matches the un-multiplied §3.11 computation.
+        PlayerGameState shooter = contactPlayer("s1", "A", 12.0, 10.0);
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 13.0);
+        double expected = config.clampProbability(config.contestProbability(
+                SimConfig.BASE_NO_BASKET_FOUL,
+                shooter.getFoulDrawing() * shooter.fatigueFactor(),
+                (SimConfig.SCALE_AVG * 2 - defender.getFoulProne()) * defender.fatigueFactor()));
+        assertEquals(expected, foulRate(ShotType.DRIVE, shooter, defender, 99, 40_000), 0.01,
+                "The DRIVE foul rate must still be BASE_NO_BASKET_FOUL's contest, unscaled");
+    }
+
+    @Test
+    void aFouledThreeIsRareButLandsNearItsIntendedRate() {
+        // #030 G: FOUL_MULT_THREE encodes the STOPPED-three rate (~2% of 3PA), the
+        // benchmark the user agreed. Anchor on the RATE, never the trip count —
+        // this engine shoots fewer 3PA than the NBA, so the same rate yields fewer
+        // trips. Asserted as a band so harness retuning within the agreed range
+        // does not break the build.
+        PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
+        double three = foulRate(ShotType.THREE, shooter, defender, 5, 60_000);
+        assertEquals(SimConfig.BASE_NO_BASKET_FOUL * SimConfig.FOUL_MULT_THREE, three, 0.01,
+                "A stopped three should land near BASE_NO_BASKET_FOUL × FOUL_MULT_THREE");
+        assertTrue(three < 0.05,
+                "A fouled three must stay rare (well under the perimeter rate): " + three);
+    }
+
+    @Test
+    void aZeroMultiplierIsTheOneTrueOffSwitchForAShotType() {
+        // The contrast with aZeroBaseStillLeavesASkillDrivenAndOneTail above, and
+        // the reason #030 A1 could delete the caller's gate. A zero BASE leaves a
+        // skill-driven tail (the skill term is additive); a zero MULTIPLIER scales
+        // the WHOLE probability, skill term included, so it genuinely reaches zero
+        // — even at a lopsided contest that maximally favours the shooter.
+        //
+        // Verified against the arithmetic rather than a config edit: the constants
+        // are final, so this pins the property the multiply must have.
+        PlayerGameState shooter = contactPlayer("s1", "A", 20.0, 10.0);
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 20.0);
+        double contested = config.contestProbability(SimConfig.BASE_NO_BASKET_FOUL,
+                shooter.getFoulDrawing() * shooter.fatigueFactor(),
+                (SimConfig.SCALE_AVG * 2 - defender.getFoulProne()) * defender.fatigueFactor());
+        assertTrue(contested > 0.0, "the un-multiplied contest is positive here");
+        assertEquals(0.0, 0.0 * contested, 1e-12,
+                "A 0.0 multiplier must zero the whole probability, skill term included");
+
+        // ...whereas a zero BASE at the same lopsided contest does NOT reach zero.
+        assertTrue(config.rareEventProbability(0.0, 14.0, 10.0,
+                        SimConfig.AND_ONE_SENSITIVITY) > 0.0,
+                "a zero base leaves a tail — which is why the OFF-switch is the multiplier");
+    }
+
+    @Test
+    void theMultiplierIsAnchoredNotAProbability() {
+        // The units hazard #030 records: these constants sit beside
+        // BASE_NO_BASKET_FOUL = 0.15 where everything LOOKS like a probability.
+        // FOUL_MULT_THREE = 0.133 means "13.3% of the drive rate" (⇒ ~2%), not
+        // "13.3% of threes are fouled". Pin the arithmetic so the meaning is
+        // executable, not just documented.
+        assertEquals(0.15 * SimConfig.FOUL_MULT_THREE,
+                SimConfig.BASE_NO_BASKET_FOUL * config.foulMultiplier(ShotType.THREE), 1e-9);
+        assertTrue(SimConfig.BASE_NO_BASKET_FOUL * SimConfig.FOUL_MULT_THREE < 0.03,
+                "The THREE multiplier must resolve to a ~2% foul rate, not a 13% one");
+        for (ShotType type : ShotType.values()) {
+            assertTrue(config.foulMultiplier(type) > 0.0 && config.foulMultiplier(type) <= 1.0,
+                    type + " multiplier must sit in (0, 1] with DRIVE as the 1.0 anchor");
+        }
+    }
+
+    /** §3.12: the realized stopped-shot foul rate for a shot type over many trials. */
+    private double foulRate(ShotType shotType, PlayerGameState shooter,
+                            PlayerGameState defender, long seed, int trials) {
+        RandomGenerator r = rng(seed);
+        int hits = 0;
+        for (int i = 0; i < trials; i++) {
+            if (resolver.isFoul(shotType, shooter, defender, 1.0, r)) hits++;
+        }
+        return hits / (double) trials;
     }
 }

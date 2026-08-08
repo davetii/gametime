@@ -366,45 +366,118 @@ re-running the loop and re-agreeing the numbers, not a red build.
       Seam: `FoulResolver` + `PossessionEngine` + `FreeThrowSource` + `SimConfig` +
       `CalibrationHarness`. **Points at 115.9 is a deliberate deferral to §3.12, not
       drift** — treat it as §3.12's baseline._
-- [ ] **§3.12 — All-shot-type contact fouls + graduated foul rate + fouled-three = 3 FTs**
-      *(**design pass DONE — resolved as decisions.md #030**; execute-ready plan in
-      todo.md)*.
-      §3.11 draws and-1s only on made DRIVE/POST because the whole foul model gates on
-      the **binary** `ShotType.isContactType()` (drive/post only). The end-state (user
-      call, decisions.md #029 A2) is that **every** shot type can draw a foul/and-1 at a
-      **graduated** rate — post frequent → perimeter/three rare (a closeout on a
-      three-point shooter is a real foul). #030 A1 **deletes** the binary outright for a
-      per-shot-type foul **multiplier** table, anchored (A2) on an untouched
-      `BASE_FOUL` — itself **renamed `BASE_NO_BASKET_FOUL`** (F), value unchanged, since
-      it never meant "the foul rate" but "the foul stopped the shot". **One shared
-      multiplier table drives both the pre-shot roll and the and-1 roll** (B). Same root
-      cause fixes the **latent fouled-three bug**: the pre-shot foul branch passes a
-      constant `FREE_THROWS_PER_FOUL` (2), so a fouled `THREE` would award 2 FTs not
-      3 — today it never fires only because `THREE` isn't a contact type, so widening
-      contact **activates** the bug and must fix it. **The machinery is already in
-      place** — §3.11 D parameterized `awardFreeThrows` with a per-situation `count`, so
-      this is a call-site change (pass `shotType.freeThrowsIfFouled()`, C), not new
-      plumbing. An and-1 stays **1** FT for every type, a made three included.
-      Moves scoring (more fouls, more 3-FT trips) → its own recalibration — and it
-      inherits **§3.11's deferred re-centering**: points sit at **115.9** vs. the ~112
-      target because §3.11 deliberately took no shot-`BASE_*` trim (paying FG% twice for
-      two adjacent foul phases was the worse trade). §3.12 re-centers **once** from that
-      115.9 baseline, spending levers **cheapest-first** (#030 E): the **new,
-      uncalibrated perimeter/three multipliers** absorb lift for free and go first; the
-      shot `BASE_*` lever (which costs ~0.6% calibrated FG% per point) covers only the
-      remainder; `BASE_NO_BASKET_FOUL` is **never** used — it is a wrong-way lever
-      (#028). Net schema change: **NONE**. Two `CalibrationHarness` fixes ride along:
-      the §3.11 and-1 denominator is repaired (it is hardcoded to DRIVE/POST and would
-      silently inflate once the numerator widens), and a **foul-out line is added** —
-      `FOUL_OUT_LIMIT = 6` has shipped since §3.5 but its rate has **never been
-      measured**, and §3.12 is the pass that moves it (#030 G).
-- [ ] **§3.13 — Flagrant / technical fouls** *(needs its own design pass — a distinct
-      foul sub-system)*. A separate foul class the possession model has no path for: it
+- [x] **§3.12 — All-shot-type contact fouls + graduated foul rate + fouled-three = 3 FTs**
+      _Shipped (decisions.md #030): the binary `ShotType.isContactType()` **deleted** for a
+      per-shot-type foul-multiplier table in `SimConfig` (`FOUL_MULT_DRIVE`/`_POST` = **1.0**
+      anchor, `_PERIMETER` = **0.30**, `_THREE` = **0.133** ⇒ a 2% stopped-three rate), one
+      shared table driving **both** foul rolls, `BASE_FOUL` renamed **`BASE_NO_BASKET_FOUL`**
+      at its unchanged 0.15, and `ShotType.freeThrowsIfFouled()` awarding **3** FTs on a
+      stopped three (an and-1 stays **1** for every type). Net schema change: **NONE** — no
+      new `PlayType`, `FreeThrowSource`, or `outcome` string.
+      **Landing (harness, ~102 games × 5 seeds, tuned to the MEAN): 117.0 pts / 46.4% FG /
+      36.7% 3P / 26.8 ast / 13.5 TO / 4.8 blk / 2.8 OOB**; fouls **19.1**/team/game (was
+      16.8, ballpark ~19–20), and-1s **1.87**, 3-FT trips **0.59** (2.9% of 3PA), foul-outs
+      **0.60**. **NO shot-`BASE_*` trim was taken** — the third consecutive pass to decline
+      it. The lift was **+1.1** (not the ~+2.5 the design sized): decomposed, stopped-shot
+      **+1.6** (fouled threes +0.71, extra stopped twos +0.89), and-1 **+0.15** (a
+      near-non-event, exactly as #030 B predicted), possession-ending **−0.6**. Two findings
+      dominate the close-out and each opened a new sub-phase: the re-centering to ~112 was
+      **not taken** because the target itself is contested (→ **§3.16**, see
+      [calibration.md](calibration.md)), and the new foul-out instrument found a rate ~2.4×
+      its ballpark that **predates this pass** (→ **§3.13**). Coverage: `FoulResolver`,
+      `ShotType`, `SimConfig` all **100%**; `PossessionEngine` 99.5% (the same single
+      pre-existing uncovered line as §3.10/§3.11); `sim` package **99.1%**. Full
+      `mvn clean install` gate green — **455 unit + 52 Cucumber**._
+      _Two `CalibrationHarness` repairs rode along, both prerequisites to reading any
+      §3.12 number (#030 D/G): the §3.11 and-1 **denominator** was widened from made
+      DRIVE/POST to all made FG (leaving it would have silently inflated the printed
+      percentage once the numerator widened — an instrument wrong in the direction of the
+      change it measures), and the **foul-out line was added** with the end-of-game
+      per-player foul distribution. Compare and-1s across the change on **per team per
+      game** (1.67 → 1.87), which is denominator-independent; §3.11's "6.4% of made
+      contact FG" is not comparable to the new percentage._
+- [ ] **§3.13 — Foul trouble & foul-outs** *(needs its own design pass — moved AHEAD of
+      flagrants by user call 2026-08: "it seems more core to the game")*. §3.12's new
+      foul-out instrument (#030 G) measured the rate for the **first time** and found it
+      **~2.4× the plausibility ballpark** — **0.60 foul-outs/team/game against ~0.1–0.25**.
+      **~70% of that PREDATES §3.12**: with §3.12's multipliers zeroed (i.e. §3.11's exact
+      foul reach) it is already **0.425** across 5 seeds, so this is a §3.5-era problem the
+      arc has been carrying unmeasured, not §3.12 lift — which is why #030 G directed it be
+      **triaged separately**, and it was.
+      **The naive fix is a trap**: "fouls are high, trim the foul rate" reaches for
+      `BASE_NO_BASKET_FOUL`, a **wrong-way lever** — trimming it *raises* points (#028,
+      measured). The likely real fix is **behavioral, in §3.5/rotation territory**: a coach
+      benching a player in foul trouble. Nothing in `RotationState` reacts to foul count
+      today — a player is forced off only at the hard `FOUL_OUT_LIMIT = 6`. Open questions
+      for the design pass: at what foul count does a player sit, does the threshold vary by
+      period (5 fouls in Q2 ≠ Q4), does it lean on the `rotationDepth`/coach attributes, and
+      is it a derived predicate (the #023 F / #028 A1 discipline) rather than new state.
+      Moves minutes and fouls → recalibration-adjacent; sequenced before §3.14 so the
+      ejection path lands on a rotation that already understands "get this player off".
+- [ ] **§3.14 — Flagrant / technical fouls** *(needs its own design pass — a distinct
+      foul sub-system; was §3.13, renumbered when foul-outs moved ahead of it)*. A separate
+      foul class the possession model has no path for: it
       changes **who shoots** (a technical is shot by a chosen shooter, not the fouled
       player), **possession retention** (a flagrant awards FTs *and* returns the ball to
       the offense — a retention path no current model has), and adds **ejections**.
       Impacts shooting fouls, non-shooting fouls, and post-foul possession. Its own
-      design pass + sub-system.
+      design pass + sub-system. **Note the §3.13 interaction**: ejections are a *second*
+      way a player leaves early, so they should build on §3.13's foul-trouble handling
+      rather than bolting on a parallel removal mechanism.
+- [ ] **§3.15 — `SimConfig` profiles** *(needs its own design pass — user call 2026-08 to
+      promote this from a backlog chore to a numbered phase)*. Load the tunable constants
+      from **named, swappable profiles** instead of compile-time constants, so tuning
+      becomes **comparable experiments** rather than sequential edits (change a constant,
+      rebuild, run, write the number down — the previous config gone unless someone
+      remembered it). Composes with the instrument that already exists: a
+      `-DcalibrationProfile=<name>` beside the existing `-DcalibrationSeed=NNNN` yields the
+      full **profile × seed matrix** — exactly the sweep §3.11 ran by hand ("3-config ×
+      5-seed") and §3.12 ran again for the foul multipliers. **That hand-run sweep is the
+      consumer**; the full reasoning, the open shape question (full-replacement vs.
+      **override-layer** profiles — the override shape looks better), and the caveat that
+      `SimConfig`'s javadoc carries tuning *history* worth not separating from the knobs,
+      are all in [backlog.md](backlog.md)'s parked entry — **read it before the design
+      pass; it is the starting point, not a resolved plan.**
+      **Scope fence (user call):** §3.15 is the **developer-facing substrate** — engine +
+      harness, no schema, no OpenAPI, consistent with every §3.x sub-phase since §3.10. The
+      **player-facing** side (selectable **eras** — 1990s low-pace/high-foul vs. modern
+      three-heavy — plus difficulty and custom rules) is the natural follow-on and needs an
+      API surface, persistence of which profile a league runs, and a rule about what a
+      profile may legally contain: that is **Phase 4+**, noted here so the substrate's
+      design does not paint it out.
+      **Timing**: placed after the fidelity arc per backlog.md's "do NOT do this mid-arc"
+      note — changing how constants load *while* actively tuning them forfeits exact
+      reproducibility of a prior landing. Placed *before* §3.16 deliberately: the
+      recalibration is the largest multi-config sweep the project will run, and this is the
+      tool for it. **Validation gate**: §3.15 must reproduce §3.14's shipped landing
+      **exactly** before any §3.16 number is read off it — the same check that validated the
+      §3.11 harness against §3.10's numbers.
+- [ ] **§3.16 — Recalibration against verified targets** *(needs its own design pass; the
+      LAST Phase-3 sub-phase, and a different KIND of pass — it adds no mechanic, it
+      re-solves numbers)*. **This is a second §3.4, not a fidelity sub-phase.** See
+      [calibration.md](calibration.md) for the live statement of the problem.
+      **The finding that creates it (§3.12, 2026-08):** the §3.4 targets for **points
+      (~112)** and **FG% (~47%)** were set from unsourced estimates and have never been
+      revisited; current figures suggest **points ~114–117** and **FG% ~47–48**, which would
+      make both targets too LOW. Against those ranges §3.12 landed **117.0 pts / 46.4% FG** —
+      points ~1–2 high, FG% ~0.6–1.6 **low**.
+      **Why one knob cannot fix it, which is the whole reason this needs its own pass:** the
+      only lever that moves points is the shot `BASE_*` rates, and it moves points and FG%
+      **the same direction** (measured on §3.12's numbers: **~0.50% FG% per 1.0 point**). So
+      points want a trim and FG% wants a raise, and no setting of that one lever satisfies
+      both. Identifying a lever that separates **efficiency from volume** (pace/possession
+      count, or shot mix) **is** the design pass.
+      **Prerequisite, and it is not engine work:** *verify the benchmarks*. Every number on
+      both sides of this — §3.4's originals and the figures now contesting them — is
+      unsourced. A sourced set of modern-NBA figures is a research chore filed in
+      [backlog.md](backlog.md) and can happen any time, independent of §3.13–§3.15.
+      **Sequenced LAST on the calibration-blast-radius principle** the rest of this section
+      uses: §3.13 (minutes/fouls) and §3.14 (FTs + a retention path) both move scoring, so
+      recalibrating before them would tune against a baseline they then move. **Three
+      consecutive passes have now declined the same `BASE_*` trim** (§3.10 stopped at 113.8,
+      §3.11 took none, §3.12 took none) — each because the trim cost more calibrated FG%
+      than the points miss was worth. Three passes rejecting one lever is evidence about the
+      **target**, not about the passes.
 
 _(A future defensive-fidelity or Phase-4 stats pass may surface more; add new
 numbered sub-phases here rather than reopening a catch-all deferred bucket.)_

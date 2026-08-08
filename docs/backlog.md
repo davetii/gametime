@@ -13,10 +13,60 @@ planned features), see [ideas.md](ideas.md).
 
 ---
 
+- [ ] **VERIFY THE CALIBRATION BENCHMARKS — find sourced modern-NBA figures for the
+      five §3.4 targets.** *(Filed 2026-08 from §3.12's close-out. **This is the
+      prerequisite for roadmap.md §3.16**, the recalibration sub-phase — and it is
+      research, not engine work, so it can happen any time, independent of
+      §3.13–§3.15.)*
+      **The problem, stated plainly: every number on both sides of the current argument
+      is unsourced.** The §3.4 targets (~112 pts / ~47% FG / ~36% 3P / ~26 ast / ~14 TO)
+      were set in `decisions.md` #022 D as "agreed target benchmarks (modern NBA)" with
+      no citation, and have never been revisited across nine engine sub-phases. During
+      §3.12 the user checked two of them and found figures suggesting **points ~114–117**
+      and **FG% ~47–48** — but those came from search summaries, which is *the same
+      standard* the originals were set by. Replacing one unsourced number with another
+      is not progress.
+      **What "done" looks like:** a per-team-per-game figure for each of the five, with a
+      **named source and season**, plus a note on whether it is a league average or a
+      per-team mean (they differ) and whether pace-adjusted. Record them in
+      [calibration.md](calibration.md) — the source-of-truth table created by §3.12 —
+      and update the `CalibrationHarness` `(target ~N)` strings in the same change.
+      **Two traps worth naming.** (1) **Points and FG% are not independent** — the only
+      lever the engine has (shot `BASE_*`) moves both the same direction, so verifying
+      them separately and then discovering they are mutually unreachable is the failure
+      mode §3.16 exists to avoid; capture *both* before designing the re-solve.
+      (2) **Do not promote the plausibility ballparks** (fouls ~19–20, foul-outs
+      ~0.1–0.25, blocks ~5) into targets while doing this — #030 G kept them ranges
+      deliberately, and #017's don't-fabricate-a-constraint rule applies to targets too.
+      **Why it matters now:** three consecutive passes (§3.10/§3.11/§3.12) have declined
+      the same `BASE_*` trim because it cost more calibrated FG% than the points miss was
+      worth. That is evidence the target is wrong, but nobody can *act* on it until the
+      real number is known.
+
+- [x] **PROMOTED OUT OF THE BACKLOG → `roadmap.md` §3.15** *(user call, 2026-08:
+      "profiles should be a numbered phase")*. **This is no longer a chore** — it is a
+      numbered Phase-3 sub-phase needing its own design pass. **Everything below stays
+      here as the design-pass input** (it is the accumulated reasoning, not a plan), so
+      read it before designing §3.15; the roadmap bullet points back at it.
+      **What changed beyond the promotion:** §3.15 is scope-fenced to the
+      **developer-facing substrate** (engine + harness, no schema/OpenAPI, consistent
+      with every §3.x sub-phase since §3.10). The **player-facing** side the note below
+      calls "a separable extension" — selectable **eras**, difficulty, custom rules — now
+      has a stated consumer (the user wants it) and is **Phase 4+**, not §3.15.
+      **The timing argument below still holds and got stronger:** §3.15 sits after the
+      fidelity arc (§3.13 foul trouble, §3.14 flagrants) but **before §3.16**, the
+      recalibration — which is the largest multi-config sweep the project will run and
+      is exactly what profiles are for. **Validation gate:** §3.15 must reproduce
+      §3.14's shipped landing *exactly* before any §3.16 number is read off it (the
+      check that validated the §3.11 harness against §3.10's numbers).
+      **A third pass has now paid the cost:** §3.12 ran its `PERIMETER` sweep, its
+      `THREE` verification, its `BASE_*` exchange-rate measurement, and a
+      multipliers-zeroed triage baseline **all by hand** — editing constants and
+      rebuilding between every reading, ~28 harness runs. That is the evidence.
+
 - [ ] **Load the `SimConfig` constants from flat properties files, as SWAPPABLE
       PROFILES the harness can be run against.** *(User direction, 2026-08 —
-      deferred, not designed. Recorded so it isn't lost; the shape below is the
-      starting point, not a resolved plan.)*
+      **now roadmap.md §3.15**, see above. The text below is the design-pass input.)*
       **The profile framing is the point, and it is a bigger win than "avoid a
       rebuild".** It turns tuning from *sequential edits* (change a constant,
       rebuild, run, write the number down, change it again — the previous config now

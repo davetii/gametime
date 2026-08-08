@@ -54,7 +54,8 @@ import org.springframework.stereotype.Component;
  * was NOT free: +2.7 pts before tuning, of which only ~1.1 was the bonus FTs. Two
  * findings worth keeping:
  * <ul>
- *   <li>{@link #BASE_FOUL} is a <b>counter-intuitive lever that moves points the
+ *   <li>{@link #BASE_NO_BASKET_FOUL} (then named {@code BASE_FOUL}) is a
+ *       <b>counter-intuitive lever that moves points the
  *       WRONG way</b> — trimming it 0.15→0.138 <i>raised</i> scoring, because a
  *       shooting foul ENDS a possession for ~1.5 expected FT points, which is worth
  *       less than the live shot attempt it replaces at this FG%. Do not reach for it
@@ -92,7 +93,8 @@ import org.springframework.stereotype.Component;
  *       free throws, which cost no FG%. Spending calibrated FG% to hide it (only for
  *       §3.12 to re-tune the same number) was rejected: <b>no {@code BASE_*} trim was
  *       taken</b> (user call), leaving points knowingly high for §3.12 to re-center
- *       once. {@link #BASE_FOUL} was again NOT touched (see §3.10 above).</li>
+ *       once. {@link #BASE_NO_BASKET_FOUL} was again NOT touched (see §3.10
+ *       above).</li>
  * </ul>
  * The landing (harness, ~102 games × <b>5 seeds, tuned to the mean</b> — a single run
  * carries enough per-seed noise to bait an over-correction):
@@ -130,8 +132,93 @@ public class SimConfig {
     // --- Turnover base rate (per possession; calibrated §3.4 toward ~14 TO/team) ---
     public static final double BASE_TURNOVER = 0.038;
 
-    // --- Foul base rate (on drive/post attempts) ---
-    public static final double BASE_FOUL = 0.15;
+    // --- Foul base rate: P(a foul STOPPED the shot) on a DRIVE (§3.12 anchor) ---
+    // RENAMED from BASE_FOUL by §3.12 (#030 F). The VALUE NEVER MOVED — it is the
+    // same §3.4-calibrated 0.15, under a name that says which outcome it governs.
+    // "BASE_FOUL" read as "the foul rate" and is not that: it is the possession-
+    // ENDING branch (foul, no basket, go to the line), which is exactly why
+    // trimming it moves points the WRONG way (#028's measured finding, re-warned in
+    // #029). Its pair is AND_ONE_BASE — no basket vs. basket-plus-one.
+    //
+    // Since §3.12 this is the DRIVE rate and the anchor for the FOUL_MULT_* table
+    // below (#030 A2): every shot type's stopped-shot probability is
+    // BASE_NO_BASKET_FOUL × FOUL_MULT_<type>. It is deliberately NOT re-derived as
+    // a league-wide average — keeping it the drive rate is what makes drive/post
+    // behavior bit-identical to §3.11 and §3.12's whole delta attributable to
+    // perimeter/three.
+    public static final double BASE_NO_BASKET_FOUL = 0.15;
+
+    // --- Per-shot-type foul multipliers (§3.12, decisions.md #030 A1/A2/B) ---
+    //
+    // ⚠ THESE ARE MULTIPLIERS, NOT PROBABILITIES. They sit beside
+    // BASE_NO_BASKET_FOUL = 0.15, where every value looks like a probability, so
+    // read them carefully: FOUL_MULT_THREE = 0.133 does NOT mean "13.3% of threes
+    // are fouled" — it means "a three draws contact at 13.3% of the rate a drive
+    // does", i.e. 0.15 × 0.133 = 0.02 = 2%. (This misreading happened once during
+    // the design pass; hence the shouting.)
+    //
+    // §3.12 DELETED the binary ShotType.isContactType() (#030 A1): before it, a
+    // PERIMETER or THREE could not draw a shooting foul or an and-1 at any rate.
+    // Now every type can, at a GRADUATED rate — post/drive frequent, perimeter
+    // uncommon, three rare (a closeout on a three-point shooter is a real foul).
+    // The rate carries the information the gate used to carry, so there is one
+    // mechanism instead of a gate plus a rate (the #013/#015 single-source rule).
+    //
+    // ANCHORED at DRIVE = 1.0 on the untouched BASE_NO_BASKET_FOUL (#030 A2), NOT
+    // re-derived as a new league-wide base. The consequence is the point: drive and
+    // post foul rates are numerically IDENTICAL to §3.11, so §3.12's entire delta
+    // is isolated to the two types that previously could not foul at all — a
+    // decomposable, attributable change on the harness. Re-deriving the base would
+    // have entangled a calibrated-number re-solve with two new scoring sources in
+    // one measurement (the #029 A1 trap).
+    //
+    // ONE SHARED TABLE drives BOTH foul rolls (#030 B) — FoulResolver.isFoul (the
+    // shot was stopped) and FoulResolver.isAndOne (the shot went in anyway). A shot
+    // type's propensity to draw contact is a property of THE SHOT, not of which
+    // roll is asking. Do NOT add a second, steeper and-1 table: an and-1 on a three
+    // being rarer than a foul on a three ALREADY falls out of the two rolls being
+    // independent (the shot must also go in), so modeling it again double-counts
+    // it. Note the multiplier therefore lands TWICE in the and-1 path (scaling both
+    // the stopped-shot roll the shot must survive and the and-1 roll itself), which
+    // makes these knobs NON-LINEAR on and-1s: halving FOUL_MULT_THREE more than
+    // halves the three's and-1 rate.
+    //
+    // A multiplier of exactly 0.0 is the ONE true off-switch for a shot type — it
+    // scales the whole probability, skill term included. A zero BASE does NOT
+    // switch a rare event off (#029's measured finding): base + sensitivity ×
+    // (driving − opposing)/10 stays positive off the skill term alone whenever the
+    // shooter is favored. Since §3.12 removed the caller's gate, the multiplier is
+    // the only remaining honest off-switch.
+    //
+    // Raising DRIVE above 1.0 would break the attributability A2 was chosen for; if
+    // drives should foul more, that is a BASE_NO_BASKET_FOUL conversation, and it
+    // reopens a §3.4-calibrated number.
+    public static final double FOUL_MULT_DRIVE = 1.0;
+    public static final double FOUL_MULT_POST = 1.0;
+    public static final double FOUL_MULT_PERIMETER = 0.30;
+    public static final double FOUL_MULT_THREE = 0.133;
+
+    /**
+     * §3.12 (#030 A1/A2/B): the per-shot-type foul multiplier — how often this shot
+     * type draws contact <b>relative to a drive</b>, which is the 1.0 anchor.
+     *
+     * <p>Read by both foul rolls ({@link FoulResolver#isFoul} and {@link
+     * FoulResolver#isAndOne}), so a type's contact propensity has one owner. The
+     * arithmetic at the stopped-shot roll is {@code BASE_NO_BASKET_FOUL ×
+     * foulMultiplier(type)}, then the usual skill/fatigue/{@code defensivePressure}
+     * terms.
+     *
+     * <p><b>This returns a multiplier, not a probability</b> — see the constants'
+     * note above.
+     */
+    public double foulMultiplier(ShotType shotType) {
+        return switch (shotType) {
+            case DRIVE -> FOUL_MULT_DRIVE;
+            case POST -> FOUL_MULT_POST;
+            case PERIMETER -> FOUL_MULT_PERIMETER;
+            case THREE -> FOUL_MULT_THREE;
+        };
+    }
 
     // --- Free throw ---
     public static final double FT_BASE = 0.75;
@@ -275,7 +362,7 @@ public class SimConfig {
 
     // --- And-1 / shooting foul on a made basket (§3.11, decisions.md #029) ---
     // An and-1 is a SECOND, post-make foul roll (#029 A1) carved beside the assist:
-    // the pre-shot foul branch and BASE_FOUL are untouched, so "P(a contact foul
+    // the pre-shot foul branch and BASE_NO_BASKET_FOUL are untouched, so "P(a foul
     // stops the shot)" keeps its §3.4 meaning and this rate stays independently
     // tunable — the §3.7 block / §3.10 rebound-foul carve, a third time.
     //

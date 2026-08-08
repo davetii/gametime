@@ -14,6 +14,7 @@ gametime/
 │   ├── todo.md                Tactical task list (current phase only)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
 │   ├── ideas.md               Parking lot — untriaged future-improvement ideas
+│   ├── calibration.md         Calibration targets — THE source of truth for them
 │   ├── player.md              Player domain design (attributes, skills, formulas)
 │   ├── roster.md              Roster & lineup domain (player↔team, lineups)
 │   ├── coach.md               Coach domain design (5 decision attributes, #018)
@@ -50,6 +51,15 @@ Before starting work, review these for context:
   `plantuml -checkonly docs/possession-flow.puml`; render a viewable copy with
   `plantuml -tpng docs/possession-flow.puml` (the `.png` is gitignored, so the
   `.puml` is the artifact that matters).
+- **`docs/calibration.md`** — **the calibration targets, and the single source of
+  truth for them.** What the simulation is tuned toward (the §3.4 five: points,
+  FG%, 3P%, assists, turnovers), the §3.5 minutes targets, the per-phase rates,
+  and the plausibility ballparks that are deliberately *not* targets. Read it
+  before changing any `SimConfig` constant or claiming a landing is "on target" —
+  and update it (plus the `CalibrationHarness` `(target ~N)` strings) in the same
+  change whenever a target moves. It **supersedes** `decisions.md` #022 D, which
+  is now historical on the target question. Two targets are currently flagged
+  **CONTESTED** (points, FG%) — read that section before re-centering anything.
 - **`docs/decisions.md`** — past architecture choices (check before proposing alternatives)
 - **`docs/todo.md`** — current-phase task list (deferred work lives in backlog.md + roadmap.md)
 - **`docs/backlog.md`** — cross-phase infra/tooling chores with no phase home
