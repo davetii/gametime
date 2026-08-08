@@ -13,13 +13,18 @@ planned features), see [ideas.md](ideas.md).
 
 ---
 
-- [ ] **Condense `decisions.md` — UNBLOCKED (§3.11 shipped 2026-08).** The file is ~440
-      lines / ~150k chars and has become hard to track. The cause is a size split, not
-      entry count: `#001`–`#020` (platform/domain/schema/roster/API) average ~2k chars
-      each, while the §3.x engine design passes `#021`–`#028` average ~14k (`#028`
-      alone is 24k). One file serves two readers — looking up "can I add a column?"
-      (a `#014`/`#017`/`#020` one-liner) means scrolling past ~100k chars of engine
+- [ ] **Condense `decisions.md` — UNBLOCKED (§3.11 shipped 2026-08).** The file is 443
+      lines / **~170k chars** and has become hard to track. The cause is a size split,
+      not entry count: `#001`–`#020` (platform/domain/schema/roster/API) average **~1.3k**
+      chars each, while the nine §3.x engine design passes `#021`+ average **~16k** — a
+      **12×** gap. The five largest are `#029` (26k), `#028` (23k), `#027` (19k), `#026`
+      (15k), `#024` (13k). One file serves two readers — looking up "can I add a column?"
+      (a `#014`/`#017`/`#020` one-liner) means scrolling past ~120k chars of engine
       reasoning.
+      **The trend is the argument**: each successive design pass has produced a larger
+      entry than the last, and `#029` — written *after* this item was filed, warning of
+      exactly this — is now the biggest in the file. Left alone, `#030` (§3.12) will beat
+      it. (Figures measured 2026-08; re-measure rather than trusting them if time passes.)
       **The §3.11 gate has now cleared** — §3.7–§3.11 is a complete arc that goes
       historical at once, and which cross-refs §3.11 actually reached for is **known**
       rather than guessed. For the record, §3.11 execution *did* lean on all four
@@ -48,9 +53,13 @@ planned features), see [ideas.md](ideas.md).
       volume around without reducing it). Never renumber; `#NNN` refs are cited from
       prose *and* Java comments (e.g. `decisions.md #026 E` in `MissedShotResolverTest`),
       and they cite the number, not a path. Update the `project-docs` skill in the same
-      pass — it currently says "append at the bottom, never renumber" with no size
-      guidance, so entries will re-grow the same way; add the "keep implementation
-      notes proportionate" rule there.
+      pass — it still says "append at the bottom, never renumber" with **no size
+      guidance** (re-checked 2026-08), so entries will re-grow the same way; add the
+      "keep implementation notes proportionate" rule there.
+      **That prediction has now been tested and held**: `#029`'s implementation note was
+      written under the unchanged skill and came out the largest in the file. Compressing
+      the history without fixing the skill that generates it just resets the clock — treat
+      the skill edit as **part of this item, not a nice-to-have**.
 - [ ] Hand-tune marquee/star players to 18–20 where appropriate (the rescale was
       mechanical). Deferred until the game engine shows whether it matters.
 - [ ] Switch `spring.jpa.hibernate.ddl-auto` from `update` to `validate` (or `none`)
@@ -69,6 +78,39 @@ planned features), see [ideas.md](ideas.md).
       [risks.md](risks.md) (the gate stayed green because H2 accepted the mismatch),
       and it overlaps the Testcontainers item below (real-Postgres integration tests
       would have caught it).
+- [ ] **Harness self-verification — assert the instrument's own invariants.** The
+      known risk is that `CalibrationHarness` *reports* and doesn't gate
+      ([risks.md](risks.md)); this is the narrower, cheaper problem underneath it: **the
+      harness can confidently print a wrong baseline**, and nothing catches that. §3.11
+      hit it twice in one session:
+      (1) a `-DandOneBaseOverride=0` flag was passed to disable the new feature for a
+      baseline run — `AND_ONE_BASE` is a compile-time constant, so the flag was silently
+      ignored and three "baseline" runs measured the *shipped* config;
+      (2) the assumption that a zero base disables a rare event turned out false — a
+      zeroed `AND_ONE_BASE` still produced ~0.44 and-1s/team/game, because
+      `rareEventProbability`'s skill term alone stays positive off an even contest
+      (now recorded in `#029`'s implementation note and guarded by a unit test).
+      Both were caught only because the numbers looked *odd* — a recalibration steered
+      off either would have been silently wrong, and the §3.x cadence tunes each phase
+      against the previous phase's baseline.
+      **The pattern to generalize** is already proven in-tree: §3.11's FT-source split
+      carries an `UNKNOWN` bucket, so an untagged free throw shows up as a visible row
+      instead of being mis-attributed to a real source. Do the same for the harness's own
+      assumptions — assert, per batch, that the FT-source counts **sum to** total FTs with
+      no `UNKNOWN`; that points reconcile with the event log; and above all that a
+      **"baseline" run's config is the config it claims** — have the harness *print the
+      constants it actually ran with*, so a run is self-describing the way an event is.
+      That last one is the load-bearing fix: it catches misfire (1) directly, and it is
+      the honest form of the check, because misfire (2) proved that "feature off" is
+      **not** the same as "base = 0" for a rare event (only the caller's gate truly
+      disables one). A run that prints `AND_ONE_BASE = 0.11` when the operator believed
+      they had zeroed it is immediately visible; asserting "zero events" would instead
+      have baked in the very assumption that turned out false. Cheap, and it would have
+      caught both §3.11 misfires.
+      *Distinct from the risks.md tolerance-band gate* — that one asks "are the aggregates
+      still on target"; this asks "is the harness measuring what it says it is." The
+      tolerance-band gate is reconsidered at §3.12's close-out; this is worth doing
+      **before** §3.12's recalibration, since that pass steers off a 115.9 baseline.
 - [ ] Evaluate Testcontainers as an alternative to H2 for integration tests.
 - [ ] Separate test seed data from production seed. Today both the `local`
       (Postgres) and test (H2) profiles load the *same* Liquibase changelog
