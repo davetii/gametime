@@ -46,30 +46,27 @@ into a graveyard.
   termination *guarantee* is independent of the value (it holds at 3, 5, or 50); only
   the realism/aggregate trade-off is at stake. **Natural home if promoted:** a
   dedicated calibration/tuning pass (its own harness loop + re-agreed aggregates),
-  slots cleanly after any of §3.8–§3.11 rather than inside one.
+  slotting cleanly *between* sub-phases rather than inside one — after §3.13 closes
+  the §3.7–§3.13 arc is the cleanest window. **Note (2026-08):** points already sit
+  ~3.9 above target as §3.11's deferred debt, to be re-centered in §3.12 — do not
+  stack this pass on top of that until §3.12 has landed its recalibration, or two
+  moving point-sources get tuned at once (the §3.10 scope lesson).
 
-- **Flagrant / technical fouls, and altercations (fights).** §3.10 (decisions.md
-  #028) models **personal** fouls only — shooting fouls and rebounding fouls, both
-  ordinary `PlayType.FOUL` events that feed the team-foul/bonus derivation and the
-  per-player foul-out counter (#023-F). Real basketball also has **non-personal
-  fouls**: a **technical** (unsportsmanlike conduct, arguing) awards the *other* team
-  **1 FT and keeps possession** with the fouled team; a **flagrant** (excessive/
-  dangerous contact) awards **2 FTs + possession**; and at the extreme an **altercation
-  / fight** ejects players (a foul-out-like removal independent of the 6-foul count)
-  and can swing a game by pulling a star. None of these exist in the engine.
-  **Why it's parked, not designed:** each needs mechanics the sim has no substrate for
-  yet — a technical/flagrant is **FTs *plus* retained possession** (a shape neither the
-  shooting-foul path, which ends the possession, nor §3.10's bonus path models), and a
-  fight needs an **ejection** (a removal that isn't a foul-count derivation — it would
-  want a trigger, likely tied to a `Player`/`Coach` temperament axis that doesn't exist,
-  the #014/#017 "no attribute ahead of its consumer" discipline). They're also **rare
-  events** whose main value is play-by-play texture + the occasional star ejection, not
-  aggregate fidelity — so they don't earn a calibration pass the way §3.10's bonus FTs
-  do. **Natural home if promoted:** its own numbered sub-phase *after* §3.11 (it reuses
-  §3.10's team-foul/bonus substrate + FT machinery but adds the retain-possession-with-FTs
-  fork and an ejection path), or a later "player temperament / discipline" pass that
-  gives the fight trigger a real attribute to read. Until then it's genuine parking-lot
-  texture, not planned work.
+- ~~**Flagrant / technical fouls, and altercations (fights).**~~ **PROMOTED (2026-08)
+  to §3.13** — see roadmap.md's Possession-fidelity section and decisions.md #029's
+  follow-up list. This is now **planned work needing its own design pass**, not a
+  parked idea. The reasoning that kept it here still describes the hard parts, and
+  §3.13's design pass should start from them: a technical/flagrant is **FTs *plus*
+  retained possession** (a shape neither the shooting-foul path, which ends the
+  possession, nor §3.10's bonus path models), a technical is shot by a **chosen**
+  shooter rather than the fouled player, and a fight needs an **ejection** (a removal
+  that isn't a foul-count derivation — it would want a trigger, likely a
+  `Player`/`Coach` temperament axis that doesn't exist yet, the #014/#017 "no
+  attribute ahead of its consumer" discipline). Note these are **rare events** whose
+  value is play-by-play texture + the occasional star ejection, not aggregate
+  fidelity, so §3.13 likely does **not** earn a recalibration pass the way §3.10/§3.11
+  did. The "later player-temperament pass" remains a genuine open alternative for the
+  fight trigger specifically.
 
 - **Coach competence in rotation decisions.** The §3.5 fatigue rotation reads only
   the coach's `rotationDepth` / `substitutionAggressiveness` (both *style* axes) —
