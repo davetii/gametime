@@ -23,3 +23,6 @@ databaseChangeLog:
 - include:
     comment: Load current roster assignments into player_team
     file: classpath:db/release.1.0.3.roster.dataload.yml
+- include:
+    comment: Create game domain tables (game, game_event, box_score)
+    file: classpath:db/release.1.0.4.game.sql

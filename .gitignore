@@ -38,3 +38,5 @@ build/
 .vscode/
 
 /postgres-data
+### Rendered PlantUML diagrams (source-of-truth is the .puml) ###
+docs/*.png

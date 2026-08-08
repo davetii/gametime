@@ -14,4 +14,7 @@ public interface GametimeService {
     List<PlayerTransaction> getPlayerHistory(String playerId);
     Team setLineup(String teamId, LineupRequest request);
     void removePlayerFromTeam(String teamId, String playerId);
+    GameResult simulateGame(String homeTeamId, String awayTeamId, Long seed);
+    GameResult getGame(String gameId);
+    List<GameEvent> getPlayByPlay(String gameId);
 }

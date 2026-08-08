@@ -21,9 +21,20 @@ A player belongs to at most one team at a time. The current assignment lives in
 `player_team` (player_id is the PK — a free agent simply has no row). Every
 assignment change is also appended to `player_team_hist` (append-only), so a
 player's full team history is queryable. The `Team` entity holds no JPA roster
-association; a team's roster is sourced via `PlayerTeamRepo.findByTeamId` and
-composed by `EntityMapper`. The link is decoupled from both entities — see
-decisions.md #012.
+association; a team's roster is **assembled at read time** by
+`TeamQueryService.toTeamWithRoster` — it fetches the assignments
+(`PlayerTeamRepo.findByTeamId`), loads those players in one batch, and hands all
+three to `EntityMapper.entityToTeam` to map. The link is decoupled from both
+entities — see decisions.md #012.
+
+> **`TeamQueryService` is a deliberate seam, not a helper.** It is the single
+> read path for "a team with its roster," and both `GametimeServiceImp` (the
+> top-level application service) and `sim.GameSimulator` (the engine) depend on
+> **it** rather than on each other. That is what breaks a Spring constructor
+> cycle: the engine used to reach into the whole `GametimeService` just for
+> `getTeam`, while the service depended on the engine for `simulateGame`.
+> Depending on this small read-only service points the dependency arrow one way.
+> **Don't reintroduce that edge** — roster reads go through `TeamQueryService`.
 
 ```
 Player (entity)        player_team (current, 1 row/player)      Team (entity)
@@ -118,12 +129,40 @@ Size caps (`MAX_ACTIVE_ROSTER = 15`, `MAX_MINORS = 5` in `GametimeServiceImp`):
   maximums. A team may carry any positional mix; a lopsided roster is punished by
   the game engine, not an API rule. See decisions.md #017.
 
+## How gameplay consumes the roster (built)
+
+The roster domain feeds the game engine, and both consumers are now live.
+
+**The bridge is `TeamQueryService`** (see Data model above). At the start of a
+simulation `GameSimulator` calls `teamQueryService.getTeam(...)` for each side —
+the *same* read path the `GET /v1/team/{teamId}` endpoint uses — then splits the
+returned `RosterEntry` list into starters (`lineupRole == STARTER`) and a bench
+sorted by `rotationOrder`, turning each into a `PlayerGameState` and wrapping the
+squad in a `RotationState` + `TeamContext`. The two fields this domain owns
+therefore cross into gameplay at exactly one point, as ordinary API-model data:
+`lineupRole == STARTER` becomes `PlayerGameState.isStarter()` (driving sub
+priority, rested-return, and the starter fatigue tolerance of §3.5 Decision C),
+and `rotationOrder` becomes the bench queue order `RotationState` draws from.
+
+The two live consumers:
+
+- **Minutes & fatigue** (§3.5, decisions.md #023) — the lineup this domain owns
+  (`STARTER` set + `rotationOrder` bench queue) drives the engine's dynamic
+  rotation: `rotationOrder` + a player's `endurance` govern minutes allocation and
+  the between-possession substitution check (`RotationState`). In-game subs stay
+  transient — they never write back to `player_team` (see Lineups above), so a
+  simulation never mutates roster state.
+- **Coach rotation influence** (§3.5, decisions.md #023) — the coach's
+  `rotationDepth` / `substitutionAggressiveness` (built and read; see
+  [coach.md](coach.md)) decide how far down the `rotationOrder` queue the bench
+  plays and how eagerly tired starters are pulled. `rotationOrder` is the roster's
+  contribution; the coach knobs are how that chart is *used* — the clean seam
+  between this domain and gameplay.
+
 ## Not yet built
 
-These touch the roster domain but are not implemented yet:
-
-- **Minutes & fatigue** (Phase 3.5) — `rotationOrder` + `endurance` drive minutes
-  allocation and in-game substitution.
-- **Coach rotation influence** (Phase 3.5) — gated on the Coach model (parked).
 - **Trades / free agency / waivers** (Phase 6.4) — more `TransactionType` paths
-  through the same `player_team` / `player_team_hist` machinery.
+  (`TRADE` / `FREE_AGENCY` / `WAIVER` / `DRAFT`) through the same `player_team` /
+  `player_team_hist` machinery that `SIGN` / `RELEASE` already use. A normalized
+  multi-player-trade `transaction` table is a future option, not needed until
+  trades exist.

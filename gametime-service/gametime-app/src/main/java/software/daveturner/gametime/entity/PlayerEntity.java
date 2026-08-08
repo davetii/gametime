@@ -22,7 +22,11 @@ public class PlayerEntity {
 
 
     private String height;
-    private Integer weight;
+    // Stored as VARCHAR (release.1.0.1.sql) — matches the varchar column so
+    // Hibernate ddl-auto=update issues no ALTER (which Postgres rejects, as it
+    // can't implicitly cast varchar→integer). The OpenAPI Player.weight stays an
+    // integer; EntityMapper converts at the boundary. Data is always numeric.
+    private String weight;
     private Integer yearsPro;
     private String draftSlot;
     private String origin;

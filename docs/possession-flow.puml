@@ -1,0 +1,473 @@
+@startuml possession-flow
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls)
+
+skinparam ActivityDiamondFontSize 11
+skinparam ActivityFontSize 12
+skinparam NoteFontSize 10
+
+start
+
+note right
+  **§3.4 coach pace** scales the possession COUNT
+  (loop bound), blended across both coaches.
+end note
+
+partition "RotationState — between-possession sub (§3.5)" {
+  :drain on-floor energy (× endurance)
+  recover benched energy;
+  :force off any fouled-out player
+  //getFouls() >= FOUL_OUT_LIMIT// → sub from full roster;
+  :fatigue sub — pull most-tired starter below
+  //subAggressiveness// threshold for freshest bench
+  within //rotationDepth//; starters pulled later / return first;
+  note right
+    Deterministic given (energy, fouls, coach attrs).
+    **Consumes no RNG, emits no events.** onFloor()
+    is always exactly 5 (least-fouled stays as last resort).
+  end note
+}
+
+repeat
+:ShotSelector
+  pick shooter (offensive-weight draw)
+  pick shot type (skill-weight draw
+  //× offensiveScheme shot-mix lean §3.4//);
+
+partition "TurnoverResolver (§3.9 causes — decisions.md #027)" {
+  if (turnover?\n//ballSecurity vs stealing/individualDefense//\n//× defensiveScheme pressure §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
+    note right
+      **The gate above is UNCHANGED by §3.9** (#027 A) — a turnover
+      happens exactly as often as before. Only AFTER a turnover is
+      declared does a weighted draw pick WHICH of NINE causes it was,
+      so the draw re-partitions the label without moving the count.
+      That is what made §3.9 free by construction.
+      Leans (#027 C): SHOT_CLOCK_VIOLATION on //acumen//↓ ×
+      //defensiveScheme//↑; OFFENSIVE_FOUL / BAD_PASS on //teamOffense//↓.
+      STOLEN stays dominant. Every cause charges the ball-handler.
+    end note
+    if (cause == STOLEN?\n//weighted nine-way draw//) then (yes)
+      :TURNOVER — STOLEN
+      credit defender steal;
+    else (no)
+      :TURNOVER — one of
+      SHOT_CLOCK_VIOLATION / OFFENSIVE_FOUL / BAD_PASS /
+      TRAVELLING / LOST_BALL_OUT_OF_BOUNDS / 3_SECONDS_VIOLATION /
+      8_SECONDS_BACKCOURT_VIOLATION / OVER_AND_BACK
+      //no stealer credited//;
+    endif
+    stop
+  endif
+}
+
+partition "FoulResolver" {
+  note right
+    **§3.12 (decisions.md #030 A1/A2) — SHIPPED.**
+    The binary ``ShotType.isContactType()`` gate that stood here
+    (DRIVE or POST?) is **DELETED**. **Every** shot type can now be
+    fouled, graduated by a per-shot-type multiplier on the base
+    constant: DRIVE 1.0 (the anchor) ≈ POST > PERIMETER > THREE.
+    That base is **UNTOUCHED at 0.15** and still means "P(contact
+    stops the shot)" **on a drive**, so drive/post rates stay
+    numerically identical to §3.11 and the whole §3.12 delta is
+    attributable to the two newly foulable types (A2).
+    It is **RENAMED ``BASE_FOUL`` → ``BASE_NO_BASKET_FOUL``** (F) —
+    value unchanged; it never meant "the foul rate", it means the
+    foul STOPPED the shot, which is exactly why trimming it moves
+    points the WRONG way (see the legend).
+    A multiplier of 0.0 — not a zero base — is the only true
+    off-switch (the #029 zero-base finding).
+  end note
+  if (foul?\n//foulDrawing vs (20 − foulProne)//\n//× foulMultiplier(shotType) §3.12 A1//\n//× fatigueFactor per player §3.5//) then (yes)
+    :FOUL — SHOOTING_FOUL
+    charge defender foul;
+    note right
+      foul rate × defensiveScheme pressure §3.4.
+      This is the **pre-shot** foul — the shot is stopped,
+      a 2-FT trip (**3 on a THREE**, §3.12 C), mutually
+      exclusive with a made basket. The **and-1** (foul WITH
+      a made shot) is a separate post-make roll (§3.11,
+      inside SHOT — MADE below).
+      **NB the stopped shot charges NO FGA** — this branch
+      returns before recordFieldGoalAttempt() — so it removes
+      points without moving FG% directly, but it DOES change
+      the shot mix FG% is computed over (§3.12 E).
+    end note
+
+    repeat
+      if (free throw made?\n//freeThrows skill//) then (yes)
+        :FREE_THROW — MADE_SHOOTING (source-tagged §3.11 D)
+        +1 point;
+      else (no)
+        :FREE_THROW — MISSED_SHOOTING;
+      endif
+    repeat while (shotType.freeThrowsIfFouled() done?\n//§3.12 C: 3 for THREE, else 2//) is (no) not (yes)
+    note right
+      **§3.12 C — the latent fouled-three fix.** The count is a
+      RULE on ShotType (``freeThrowsIfFouled()``), not a SimConfig
+      tunable, threaded through #029 D's already-parameterized
+      ``awardFreeThrows`` — a call-site change, no new plumbing.
+      A stopped THREE = **3** FTs; it never fired before only
+      because THREE wasn't a contact type. No new FreeThrowSource:
+      these are SHOOTING FTs, there are simply three of them.
+    end note
+    stop
+  endif
+}
+
+partition "ShotResolver" {
+  :record FGA (+ 3PA if THREE);
+
+  if (BLOCKED? //§3.7 — decisions.md #025//\n//P(BLOCK) carved off the top (A1), then MAKE/MISS on remainder//\n//contest: defender rimProtection (rim) / shotContest (jumper)//\n//vs shooter finishing (B2); own BLOCK_SENSITIVITY, THREE very-low (C)//\n//× fatigueFactor per player §3.5//) then (yes)
+    :SHOT — BLOCKED_*
+    event: PlayType.SHOT, outcome BLOCKED_* (F1)
+    primaryPlayerId = shooter (the victim)
+    shooter charged missed FGA (+3PA if THREE), 0 FGM (F3)
+    blocker.recordBlock() — separate credit, not on event (F2)
+    no assistPlayerId (F4);
+    note right
+      **Block = a field-goal outcome, exactly as a steal is a
+      turnover outcome** (§3.2: TURNOVER/STOLEN + recordSteal).
+      v3: one three-way MAKE/MISS/BLOCK draw — no double-count
+      (probs sum to 1). No new PlayType.BLOCK. Reconciliation:
+      count(SHOT outcome LIKE 'BLOCKED%') == sum(BoxScore.blocks).
+    end note
+
+    partition "BlockResolver (§3.7 — #025 D)" {
+      note right
+        A blocked ball is a **chaotic loose ball**, NOT the
+        offenseRebound-vs-defenseRebound box-out contest — so
+        recovery is a FLAT four-way roll (fixed weights, same
+        for every block, defense-leaning). Weights are
+        placeholders → calibrate empirically (~5 blocks/team).
+      end note
+      switch (recovery? //flat four-way roll (D)//)
+      case (RECOVERED_OFFENSE)
+        :in-bounds, offense retains
+        → second-chance;
+        stop
+      case (RECOVERED_DEFENSE)
+        :in-bounds, defense's ball
+        → possession over;
+        stop
+      case (OOB_OFFENSE)
+        :OOB off the blocker
+        → offense retains → second-chance;
+        stop
+      case (OOB_DEFENSE)
+        :OOB off the shooter
+        → defense's ball → possession over;
+        stop
+      endswitch
+    }
+  else (no)
+    if (shot made?\n//offense skill vs defense skill//\n//× acumen + teamOffense/teamDefense §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
+      :SHOT — MADE_*
+      +2 or +3 points;
+      partition "Assist (§3.4)" {
+        if (assisted?\n//supporting-cast passing draw//) then (yes)
+          :stamp assist_player_id
+          credit assister;
+        endif
+      }
+      partition "And-1 (§3.11 — decisions.md #029)" {
+        note right
+          **And-1 = a SECOND, post-make foul roll** (A1), carved
+          BESIDE the assist — the pre-shot foul branch + BASE_FOUL
+          are untouched, so this rate is independently tunable
+          (the §3.7 block / §3.10 rebound-foul carve, a third time).
+          A made basket already ended the possession → the and-1
+          NEVER forks it; it only tacks on ONE FT (B). Coexists with
+          the assist, doesn't interact (A3). Rate = rareEventProbability
+          on AND_ONE_BASE + its own AND_ONE_SENSITIVITY (C).
+        end note
+        note right
+          **§3.12 (decisions.md #030 A1/B) — SHIPPED.**
+          §3.11's ``DRIVE or POST?`` gate here is **DELETED** — every
+          made shot now rolls the and-1, and the graduation lives in
+          the rate via the **SAME shared** foulMultiplier(shotType)
+          table the pre-shot roll uses (B: one table, not two — the
+          contact propensity is a property of the SHOT, not of which
+          roll is asking). An and-1 on a THREE is rarer than a foul
+          on a three **automatically**: the two rolls are independent
+          and the shot must ALSO go in, so modeling it again would
+          double-count it.
+          **The two foul rolls are MUTUALLY EXCLUSIVE** — trace the
+          flow above: the pre-shot FoulResolver branch **stops**, so a
+          stopped shot never reaches here. One shot emits at most ONE
+          of SHOOTING_FOUL / AND_ONE, never both, and the shared table
+          is never applied twice to the same shot. The and-1 is
+          conditioned TWICE (survived the foul roll, AND went in), so
+          at §3.11's numbers a drive is ~15% stopped + ~2.6% and-1 —
+          **~17.6% combined, not double**. Where they DO compound is
+          the §3.10 period foul tally: both emit a FOUL and both count
+          toward the bonus (and-1s alone moved fouls 3.95 → 4.41/team/
+          period in §3.11). §3.12 roughly DOUBLES this roll's REACH
+          — every made shot, not just made DRIVE/POST — but **MEASURED,
+          the and-1 RATE rose only ~1.12× (1.67 → 1.87/team/game)**,
+          because the shared multiplier lands TWICE in this path and
+          compounds with the lower make rates. The tally channel is
+          what the penalty-rate line (D) watches: 43.4% → 52.3% of
+          team-periods in the penalty.
+        end note
+        if (and-1?\n//shooter foulDrawing vs defender discipline//\n//× foulMultiplier(shotType) §3.12 B — same table//\n//× defensivePressure; AND_ONE_SENSITIVITY (C)//\n//× fatigueFactor per player §3.5//) then (yes)
+          :FOUL — AND_ONE
+          charge defender foul (feeds foul-outs + §3.10 tally)
+          committing_team_id = defTeamId (reuses #028 D column);
+          :FREE_THROW — *_AND_ONE (source-tagged, D)
+          ONE FT for the shooter (AND_ONE_FREE_THROWS = 1, B)
+          **ALWAYS 1 — including a made THREE** (§3.12 C:
+          3 pts + 1 FT, NOT 3 FTs — do not graduate this)
+          +1 if made; FG points already recorded;
+        endif
+      }
+      stop
+    else (no)
+      :SHOT — MISSED_*;
+    endif
+  endif
+}
+
+partition "Rebounding foul (§3.10 — decisions.md #028)" {
+  note right
+    **Carved off the TOP of the rebound phase** (C) — rolled BEFORE
+    the board contest and SHORT-CIRCUITING it on a hit (the whistle
+    stopped play, so nobody rebounds). Same shape as §3.7's block
+    carve, which keeps this rate independently tunable — it never
+    entangles with the rebound weights.
+    **TWO-SIDED** (A2): a defensive box-out push (dominant) or an
+    offensive over-the-back (the minority). The committer is drawn
+    //foulProne//-weighted from the committing five, so the
+    undisciplined bang bodies commit most of them.
+    Rate = rareEventProbability(REBOUND_FOUL_BASE, …,
+    REBOUND_FOUL_SENSITIVITY) × defensivePressure — floor-free,
+    its own dial (the PROB_FLOOR trap, #028 impl note).
+  end note
+  if (rebounding foul?\n//aggregate foulDrawing vs (20 − foulProne)//\n//× defensivePressure; REBOUND_FOUL_SENSITIVITY//\n//× fatigueFactor per player §3.5//) then (yes)
+    :FOUL — REBOUNDING_FOUL_DEFENSE or _OFFENSE
+    charge committer foul (feeds foul-outs §3.5)
+    committing_team_id = the committing side (#028 D);
+    note right
+      **EMIT-THEN-COUNT** (A1, the crux): the FOUL event is written
+      FIRST, then GameData.isInBonus(committingTeam, period) reads
+      the log — so the Nth foul (reaching BONUS_FOULS_PER_PERIOD = 5)
+      **itself** sends the fouled team to the line. The penalty is
+      **DERIVED from the FOUL events, never stored** — no teamFouls
+      field, no reset logic (the #023-F / #013 / #015 discipline).
+    end note
+    if (committing team in the bonus?\n//count(FOUL by team, period) >= 5//) then (yes)
+      :FREE_THROW ×2 — *_BONUS (source-tagged §3.11 D)
+      the FOULED team shoots (foulDrawing-weighted shooter)
+      → possession over either way;
+      stop
+    else (no)
+      if (DEFENSE committed?) then (yes)
+        :offense was fouled → RETAINS
+        → second-chance (respects the off-rebound cap);
+        stop
+      else (no — offense committed)
+        :over-the-back → defense's ball
+        → possession over;
+        stop
+      endif
+    endif
+  endif
+}
+
+partition "MissedShotResolver (§3.8 — #026) — wraps ReboundResolver (§3.3)" {
+  note right
+    **§3.8 (#026 A/B):** a missed shot resolves to ONE of FOUR
+    outcomes in a single SKILL-WEIGHTED draw. MissedShotResolver
+    WRAPS ReboundResolver (unchanged) for the rebound-vs-rebound
+    balance, then applies a fixed DEFENSE-LEANING lean to carve
+    the two OOB slices. NOT a separate "is it OOB?" sub-decision.
+    OOB credits NO rebounder (#026 E) and must stay out of the
+    rebound reconciliation. Skill-weighted here is the deliberate
+    difference from §3.7's FLAT BlockResolver (#026 C).
+  end note
+  :pick offensive rebounder (offenseRebound draw)
+  pick defensive rebounder (defenseRebound draw);
+  switch (missed-shot outcome?\n//rebound balance: offenseRebound vs defenseRebound//\n//× fatigueFactor §3.5; OOB slices defense-leaning lean §3.8//\n//(offense-retained forced to ending once cap hit)//)
+  case (OFFENSIVE rebound)
+    :REBOUND — OFFENSIVE
+    credit off rebounder
+    → offense retains → second-chance;
+    stop
+  case (DEFENSIVE rebound)
+    :REBOUND — DEFENSIVE
+    credit def rebounder
+    → possession over;
+    stop
+  case (OOB — offense §3.8)
+    :OUT_OF_BOUNDS_OFFENSE (no rebounder)
+    → offense retains → second-chance;
+    stop
+  case (OOB — defense §3.8)
+    :OUT_OF_BOUNDS_DEFENSE (no rebounder)
+    → possession over;
+    stop
+  endswitch
+}
+repeat while (off rebounds < MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION?) is (yes) not (no)
+
+:cap reached → next miss forced to DEFENSIVE rebound;
+stop
+
+legend bottom left
+  **Probability formula (all resolvers)**
+  p = base(path) + SENSITIVITY × (offense − defense) / 10
+  Clamped [PROB_FLOOR 0.02, PROB_CEILING 0.97] for
+  NORMAL-frequency outcomes (contestProbability).
+  Average vs average → base rate. All constants in SimConfig.
+
+  **RARE events use a different clamp** (§3.7 / §3.10 / §3.11)
+  rareEventProbability(base, driving, opposing, sensitivity)
+  clamps to **[0, ceiling] with NO floor** — on a thin base the
+  0.02 floor would act as a FLOOR and make the knob tunable only
+  UPWARD (found the hard way in §3.10, #028 impl note). Each rare
+  event also carries its OWN sensitivity, far below the global 0.5,
+  which would otherwise swamp a thin base: BLOCK_SENSITIVITY 0.12,
+  REBOUND_FOUL_SENSITIVITY 0.10, AND_ONE_SENSITIVITY 0.10.
+  NB a zero base does **not** disable a rare event — the skill term
+  alone stays positive off an even contest; only the caller's gate
+  truly switches one off. **§3.12 deletes the isContactType gate**,
+  so from then on the only off-switch is a **zero foulMultiplier**,
+  which scales the whole probability, skill term included (#030 A1).
+
+  **§3.4 coach / chemistry modifiers** (decisions.md #022)
+  Each is the avg-10 deviation multiplier
+  m(attr) = 1 + COACH_SENSITIVITY × (attr − 10) / 10
+  applied as a thumb on the scale over the contest above.
+
+  **§3.5 fatigue / substitution** (decisions.md #023)
+  Between-possession sub (top, RNG-free) changes WHO is on
+  the floor; each contest skill is × fatigueFactor(energy),
+  ×1.0 at a full tank. Minutes are a possession-share
+  projection (no game clock). Foul-out = getFouls() >= 6.
+
+  **§3.7 blocked shots** (decisions.md #025)
+  BLOCKED? is one leg of a three-way MAKE/MISS/BLOCK draw inside
+  ShotResolver (v3): P(BLOCK) carved off the top, defender-vs-
+  finisher contest (own BLOCK_SENSITIVITY). A block is a SHOT/
+  BLOCKED_* event (a field-goal outcome, exactly as a steal is a
+  TURNOVER outcome) — missed FGA on the shooter + a BLK via
+  recordBlock() on the defender, no assist. BlockResolver runs a
+  flat four-way loose-ball recovery (offense/defense × in-bounds/
+  OOB). Recalibrated: ~5 blocks/team, §3.4/§3.5 aggregates held.
+
+  **§3.8 missed-shot OOB** (decisions.md #026)
+  A missed shot resolves to ONE of FOUR outcomes in a single
+  skill-weighted draw: OFFENSIVE / DEFENSIVE rebound, or OOB
+  offense / OOB defense. MissedShotResolver WRAPS ReboundResolver
+  (the two-way skill contest, unchanged): it carves the OOB share
+  off the top by a flat defense-leaning lean FIRST (skill-
+  independent), then runs the board contest only on the clean-
+  rebound remainder — NOT a separate OOB sub-decision, so OOB never
+  inherits the board winner. Both sail-out (shot flies OOB
+  untouched) and tipped-OOB (a board contest, last-touch decides)
+  land here, sharing one OOB outcome each (offense/defense). OOB is
+  a REBOUND event with an OUT_OF_BOUNDS_* outcome that credits NO
+  rebounder and stays out of the rebound reconciliation (#026 E).
+  Skill-weighted — the deliberate difference from §3.7's flat
+  BlockResolver (#026 C). OOB-offense is a third offense-retention
+  path against the one MAX_OFFENSIVE_REBOUNDS cap. Sail-out is a
+  new outcome (fewer second chances) → VERIFIED harness-neutral
+  (#026 D): OOB ~3/team/game, §3.4/§3.5 aggregates held.
+
+  **§3.9 turnover causes** (decisions.md #027)
+  The turnover GATE is untouched — same BASE_TURNOVER, same contest,
+  same coach/fatigue scaling — so the turnover COUNT never moves
+  (#027 A). A post-declaration weighted draw only picks WHICH of
+  nine causes it was, replacing §3.2's binary STOLEN / LOST_BALL.
+  STOLEN stays dominant and keeps the pickStealer + recordSteal()
+  path; every cause charges the ball-handler. Modest avg-10 leans on
+  four causes (#027 C). Note LOST_BALL_OUT_OF_BOUNDS is on TURNOVER
+  and must NOT be confused with §3.8's OUT_OF_BOUNDS_* on REBOUND —
+  different play types, deliberately distinct vocabulary (#027 D).
+  Free by construction → no recalibration.
+
+  **§3.10 rebounding fouls + the team-foul/bonus substrate** (#028)
+  A non-shooting foul during the rebound phase, carved off the TOP
+  of the board contest and short-circuiting it (C — the §3.7 shape).
+  TWO-SIDED (A2): defensive box-out push (dominant) or offensive
+  over-the-back, so the committing team is NOT implied by the
+  possession orientation — hence game_event.committing_team_id, the
+  one additive column this arc took (D). The penalty is **DERIVED**
+  from the FOUL log, never stored (A1), emit-then-count so the Nth
+  foul awards the bonus itself. Bonus FTs reuse awardFreeThrows
+  verbatim (B). NOT free: +2.7 pts before tuning, of which only
+  ~1.1 was bonus FTs — **the bigger channel was retained
+  possessions**, which the design did not anticipate. BASE_FOUL
+  proved the WRONG lever (trimming it RAISES points); the fix was
+  the shot BASE_* rates trimmed ~1.2%.
+
+  **§3.11 and-1** (decisions.md #029)
+  A defensive foul on a shot that STILL GOES IN: made FG + 1 FT.
+  Modeled as a SECOND, post-make foul roll (A1) BESIDE the assist
+  (A3) inside SHOT — MADE — the pre-shot foul branch + BASE_FOUL
+  are untouched, so the and-1 rate stays independently tunable
+  (the §3.7/§3.10 carve, a third time). Scoped to made DRIVE/POST
+  (A2 — §3.12 widens to all shot types + fouled-three = 3 FTs).
+  Awards exactly ONE FT via a per-situation count through the reused
+  awardFreeThrows (B); never forks the possession (the make already
+  ended it). Rate = rareEventProbability(AND_ONE_BASE, …,
+  AND_ONE_SENSITIVITY) — reuse the machine, own dials, avoiding the
+  PROB_FLOOR/global-SENSITIVITY traps §3.7+§3.10 hit (C). Free throws
+  become SELF-DESCRIBING (D): each FREE_THROW carries its source
+  (SHOOTING / BONUS / AND_ONE), retiring §3.10's accepted ambiguity
+  now that there are three FT sources. No schema / OpenAPI / new
+  PlayType (AND_ONE is a FOUL outcome, committing_team_id = defTeamId).
+  PURE-ADDITIVE points lift → recalibrate the shot BASE_* lever, NOT
+  BASE_FOUL (wrong-way, #028 note), by multiple runs to the mean (E).
+
+  **§3.12 all-shot-type contact fouls** (decisions.md #030) **SHIPPED**
+  — the two §3.12 notes above mark the forks it changed. The binary ShotType.isContactType() (DRIVE||POST)
+  is DELETED (A1) — it gated the WHOLE foul model, so today a jump
+  shot cannot be fouled at all. It is replaced by a graduated
+  per-shot-type **foulMultiplier** (the §3.7 BASE_BLOCK_* shape):
+  DRIVE 1.0 anchor ≈ POST > PERIMETER > THREE. The base constant is
+  UNTOUCHED at 0.15 and still means the DRIVE rate (A2) — though it is
+  RENAMED ``BASE_FOUL`` → ``BASE_NO_BASKET_FOUL`` (F), since "no basket"
+  is what it actually encodes and the old name kept inviting misuse as
+  a points lever. So drive/
+  post behavior is bit-identical to §3.11 and the entire §3.12 delta
+  is attributable to perimeter/three. ONE shared table drives BOTH
+  the pre-shot roll and the and-1 roll (B). The same widening
+  ACTIVATES the latent fouled-three bug and fixes it: a stopped
+  THREE awards **3** FTs via a freeThrowsIfFouled() rule on ShotType
+  (C) through #029 D's parameterized count — but an and-1 stays
+  **1** FT for every type, a made three included. No schema, no
+  OpenAPI, no new PlayType/FreeThrowSource/outcome string.
+  BONUS_FOULS_PER_PERIOD stays 5 — a real NBA rule, not a lever (D).
+  NOT free, and the LARGEST RNG shift of the arc (perimeter/three
+  possessions now consume foul + and-1 draws). Both new stopped-shot
+  cases are net points-POSITIVE (a stopped THREE is the biggest
+  single-event gain in the model: −1.01 expected, +2.25 in FTs).
+  **SHIPPED VALUES:** DRIVE/POST 1.0, PERIMETER **0.30**, THREE
+  **0.133** (⇒ a 2% stopped-three rate, the user-agreed anchor).
+  **LANDING (5 seeds, to the mean): 117.0 pts / 46.4% FG / 36.7% 3P**,
+  fouls 19.1/team/game, and-1s 1.87, 3-FT trips 0.59 (2.9% of 3PA).
+  The lift was **+1.1**, HALF what the design sized: stopped-shot
+  +1.6, and-1 **+0.15** (B's "close to a non-event" was exactly
+  right), possession-ending −0.6.
+  **The planned re-centering to ~112 was NOT taken.** E's lever order
+  (cheapest-first) had almost nothing to spend — the new perimeter/
+  three multipliers move points by only ~0.3 across their whole
+  defensible range (measured) — and the shot BASE_* lever costs
+  **~0.50% FG% per point** on §3.12's own numbers, so reaching ~112
+  would have dragged FG% to ~43.9% against a ~47% target. E's own
+  stop condition fired. The ~112 TARGET is itself now contested
+  (points may be ~114–117, FG% ~47–48): see **docs/calibration.md**,
+  which is the source of truth for targets, and **§3.16**, the
+  recalibration sub-phase this finding created.
+  The no-basket-foul base was **never** touched — a WRONG-WAY lever,
+  because it controls a SWAP (a live shot worth >1.5 pts once its
+  rebound/and-1 continuations are counted, vs. a 2-FT trip worth
+  ~1.5), so trimming it moves points UP (measured, #028: 0.15→0.138
+  raised points to 116.1).
+  **§3.12's foul-out instrument (G) found a PRE-EXISTING problem:**
+  0.60 foul-outs/team/game vs. a ~0.1–0.25 ballpark, of which 0.425
+  predates this pass (measured with both new multipliers zeroed).
+  Triaged separately per G → **§3.13**, ahead of flagrants.
+endlegend
+
+@enduml

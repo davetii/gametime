@@ -60,6 +60,10 @@ Mirror the package under `gametime-app/src/test/java/...`:
    `All coverage checks have been met.`
 3. No new dead code left uncovered (delete it instead).
 
+**A green gate is not permission to commit.** `All coverage checks have been met.`
+means the change is *ready for review*, not that it should be committed — leave it
+in the working tree and wait for the user to ask (see CLAUDE.md's git rule).
+
 Build notes: always set `JAVA_HOME` to the SDKMAN JDK 21
 (`/Users/dave/.sdkman/candidates/java/21.0.9-tem`) — see CLAUDE.md. The JaCoCo
 excludes (generated API stubs, `model/*`, `GametimeApplication`,

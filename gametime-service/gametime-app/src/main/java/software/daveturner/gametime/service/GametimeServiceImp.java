@@ -7,7 +7,9 @@ import software.daveturner.gametime.exception.*;
 import software.daveturner.gametime.mapper.*;
 import software.daveturner.gametime.model.*;
 import software.daveturner.gametime.repo.*;
+import software.daveturner.gametime.sim.*;
 
+import java.security.SecureRandom;
 import java.time.*;
 import java.util.*;
 import java.util.stream.*;
@@ -20,8 +22,16 @@ public class GametimeServiceImp implements GametimeService {
     private final PlayerRepo playerRepo;
     private final PlayerTeamRepo playerTeamRepo;
     private final PlayerTeamHistRepo playerTeamHistRepo;
+    private final GameRepo gameRepo;
+    private final GameEventRepo gameEventRepo;
+    private final BoxScoreRepo boxScoreRepo;
+    private final GameSimulator gameSimulator;
+    private final TeamQueryService teamQueryService;
 
     private final EntityMapper entityMapper;
+
+    /** Fresh seeds for real games (#021 A); persisted so a game is reproducible (#024 B). */
+    private final SecureRandom seedSource = new SecureRandom();
 
     /** Max players on the active roster (everything except MINORS). */
     static final int MAX_ACTIVE_ROSTER = 15;
@@ -34,11 +44,18 @@ public class GametimeServiceImp implements GametimeService {
 
     public GametimeServiceImp(TeamRepo teamRepo, PlayerRepo playerRepo,
                               PlayerTeamRepo playerTeamRepo, PlayerTeamHistRepo playerTeamHistRepo,
-                              EntityMapper entityMapper) {
+                              GameRepo gameRepo, GameEventRepo gameEventRepo,
+                              BoxScoreRepo boxScoreRepo, GameSimulator gameSimulator,
+                              TeamQueryService teamQueryService, EntityMapper entityMapper) {
         this.teamRepo = teamRepo;
         this.playerRepo = playerRepo;
         this.playerTeamRepo = playerTeamRepo;
         this.playerTeamHistRepo = playerTeamHistRepo;
+        this.gameRepo = gameRepo;
+        this.gameEventRepo = gameEventRepo;
+        this.boxScoreRepo = boxScoreRepo;
+        this.gameSimulator = gameSimulator;
+        this.teamQueryService = teamQueryService;
         this.entityMapper = entityMapper;
     }
 
@@ -46,7 +63,7 @@ public class GametimeServiceImp implements GametimeService {
     public List<Team> getLeague() {
         List<Team> teams = StreamSupport
                 .stream(teamRepo.findAll().spliterator(), false)
-                .map(this::toTeamWithRoster)
+                .map(teamQueryService::toTeamWithRoster)
                 .collect(Collectors.toList());
         teams.sort(byConfById);
         return teams;
@@ -59,7 +76,7 @@ public class GametimeServiceImp implements GametimeService {
 
     @Override
     public Optional<Team> getTeam(String teamId) {
-        return teamRepo.findById(teamId).map(this::toTeamWithRoster);
+        return teamQueryService.getTeam(teamId);
     }
 
     @Override
@@ -189,7 +206,7 @@ public class GametimeServiceImp implements GametimeService {
             pt.setRotationOrder(e.getRotationOrder());
             playerTeamRepo.save(pt);
         }
-        return toTeamWithRoster(team);
+        return teamQueryService.toTeamWithRoster(team);
     }
 
     @Override
@@ -206,6 +223,52 @@ public class GametimeServiceImp implements GametimeService {
         hist.setTransactionType(TransactionType.RELEASE);
         hist.setTransactionDate(LocalDateTime.now());
         playerTeamHistRepo.save(hist);
+    }
+
+    @Override
+    public GameResult simulateGame(String homeTeamId, String awayTeamId, Long seed) {
+        // Well-formed but a same-team matchup violates a business rule → 422 (#024 F).
+        // Both team ids are validated by the engine, which throws ResourceNotFound
+        // (→ 404) on an unknown id (#021 E) — no pre-check needed here.
+        if (Objects.equals(homeTeamId, awayTeamId)) {
+            throw new ResourceUnprocessableException();
+        }
+        // Optional in, random default (#024 B / #021 A) — persisted by the engine.
+        long resolvedSeed = seed != null ? seed : seedSource.nextLong();
+        SimResult sim = gameSimulator.simulate(homeTeamId, awayTeamId, resolvedSeed,
+                SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD);
+        // The engine returns only the score summary (no box score), so read the
+        // persisted rows back into the shared GameResult shape.
+        return getGame(sim.getGameId());
+    }
+
+    @Override
+    public GameResult getGame(String gameId) {
+        GameEntity game = gameRepo.findById(gameId)
+                .orElseThrow(ResourceNotFoundException::new);
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(gameId);
+        return entityMapper.toGameResult(game, boxScores, homePlayerIds(game));
+    }
+
+    @Override
+    public List<GameEvent> getPlayByPlay(String gameId) {
+        if (!gameRepo.existsById(gameId)) {
+            throw new ResourceNotFoundException();
+        }
+        return gameEventRepo.findByGameIdOrderBySequenceAsc(gameId).stream()
+                .map(entityMapper::entityToGameEvent)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * The home team's roster as a set of player ids — one player_team lookup that
+     * lets the mapper bucket box-score rows home vs. away (#024 A). The box_score
+     * row has no team_id (#020), so team is resolved from game + player_team here.
+     */
+    private Set<String> homePlayerIds(GameEntity game) {
+        return playerTeamRepo.findByTeamId(game.getHomeTeamId()).stream()
+                .map(PlayerTeamEntity::getPlayerId)
+                .collect(Collectors.toSet());
     }
 
     /** Convert the generated API LineupRole model enum to the entity enum. */
@@ -244,13 +307,4 @@ public class GametimeServiceImp implements GametimeService {
         return player;
     }
 
-    private Team toTeamWithRoster(TeamEntity entity) {
-        List<PlayerTeamEntity> assignments = playerTeamRepo.findByTeamId(entity.getId());
-        Map<String, PlayerEntity> players = assignments.isEmpty()
-                ? Map.of()
-                : playerRepo.findByIdIn(assignments.stream()
-                        .map(PlayerTeamEntity::getPlayerId).collect(Collectors.toList()))
-                .stream().collect(Collectors.toMap(PlayerEntity::getId, p -> p));
-        return entityMapper.entityToTeam(entity, assignments, players);
-    }
 }
