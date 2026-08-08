@@ -53,11 +53,22 @@ current-phase-only). §3.7–§3.11 have all shipped; §3.12 is next, then §3.1
    than a foul on a three, since the shot must also go in — but that falls out of
    the two rolls being independent, so it may need no extra modeling.)
 3. **Free-throw count per situation — where does the `3` come from?** #029 D
-   parameterized the count, so the mechanism exists. Is it a `switch` on `ShotType`
-   at the call site, a method on `ShotType` (`freeThrowsIfFouled()`), or a
-   `SimConfig` lookup? Also: a fouled-three that **goes in** is an and-1 worth
-   **1** FT, not 3 — confirm the rule split (stopped 3 → 3 FTs; made 3 + foul → 1
-   FT) is modeled, since that is the case the binary gate has hidden until now.
+   parameterized the count, so the mechanism exists: `awardFreeThrows` already
+   takes a `count`, and the pre-shot foul branch passes a constant
+   `FREE_THROWS_PER_FOUL` (2). The open question is only *where the number is
+   decided* — a `switch` on `ShotType` at the call site, a method on `ShotType`
+   (`freeThrowsIfFouled()`), or a `SimConfig` lookup.
+   **The rule this must encode (not an open question — real basketball):**
+   | Situation | FTs |
+   |---|---|
+   | Foul stops a 2 (`DRIVE`/`POST`/`PERIMETER`) | 2 |
+   | Foul stops a `THREE` | **3** ← the latent bug §3.12 activates |
+   | Foul on a **made** shot (and-1), **any** shot type | **1** |
+   So **only the stopped-shot count graduates by shot type**;
+   `AND_ONE_FREE_THROWS = 1` stays 1 for *every* shot type, including a made three
+   (a made 3 + foul is 3 points + 1 FT, not 3 FTs). Do **not** make the and-1 count
+   graduate in parallel with the shooting-foul count — that is the easy wrong turn
+   here, and it would silently inflate scoring on top of §3.12's real lift.
 4. **Does `BASE_FOUL` keep its meaning, and does it need re-deriving?** §3.11 A1
    deliberately protected `BASE_FOUL` as "P(a contact foul stops the shot)" *on
    drive/post*. Once perimeter/three can be fouled, is `BASE_FOUL` the drive/post
@@ -76,6 +87,26 @@ current-phase-only). §3.7–§3.11 have all shipped; §3.12 is next, then §3.1
    finding), that `BASE_FOUL` is **not** used to remove points (#028: wrong way),
    and that steering is by **multiple seeds to the mean** (#029 E; the harness takes
    `-DcalibrationSeed`). Decide the target: back to ~112, or a re-agreed landing.
+   **Decompose the lift by channel BEFORE picking a trim** — both prior foul passes
+   proved the headline number hides the mechanism, and §3.12's lift is the first
+   that is genuinely *mixed*:
+   - **FT channel** (up) — more fouls drawn, and 3-FT trips on fouled threes.
+   - **Possession-ending channel** (*down*) — a foul that **stops** a perimeter or
+     three attempt removes a live shot and replaces it with ~1.5–2.3 expected FT
+     points. That is the #028 `BASE_FOUL` wrong-way effect, and §3.12 is the pass
+     where it starts applying to **jump shots** — where it bites hardest, because a
+     stopped `THREE` removes a 3-point attempt but awards 3 FTs at ~75%, which is
+     roughly a wash rather than a clear gain. **A wider foul model may move points
+     LESS than expected, or even down in places.** Do not assume the lift is
+     additive the way §3.11's was.
+   Because the two channels partly cancel, §3.11's ~0.6% FG% per point exchange
+   rate does **not** carry over — re-measure it on §3.12's own numbers before
+   trading any FG% away. Note the FG% mechanics: the pre-shot foul branch returns
+   **before** `recordFieldGoalAttempt()`, so a stopped shot charges **no FGA** —
+   it removes points without moving FG% directly. But it does change the *shot mix*
+   FG% is computed over (fouls would now remove perimeter/three attempts, not just
+   drive/post ones), so **3P% and FG% can drift even though no individual shot
+   probability changed**. Watch both on the harness rather than assuming they hold.
 
 ---
 

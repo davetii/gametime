@@ -365,10 +365,13 @@ re-running the loop and re-agreeing the numbers, not a red build.
       call, decisions.md #029 A2) is that **every** shot type can draw a foul/and-1 at a
       **graduated** rate — post frequent → perimeter/three rare (a closeout on a
       three-point shooter is a real foul), replacing the binary with a per-shot-type
-      rate. Same root cause fixes the **latent fouled-three bug**: `awardFreeThrows`
-      loops a flat count, so a fouled `THREE` would award 2 FTs not 3 — today it never
-      fires only because `THREE` isn't a contact type, so widening contact **activates**
-      the bug and must fix it (the §3.11 D per-situation count is the seam — pass `3`).
+      rate. Same root cause fixes the **latent fouled-three bug**: the pre-shot foul
+      branch passes a constant `FREE_THROWS_PER_FOUL` (2), so a fouled `THREE` would
+      award 2 FTs not 3 — today it never fires only because `THREE` isn't a contact
+      type, so widening contact **activates** the bug and must fix it. **The machinery
+      is already in place** — §3.11 D parameterized `awardFreeThrows` with a
+      per-situation `count`, so this is a call-site change (pass `3` for a fouled
+      three), not new plumbing.
       Moves scoring (more fouls, more 3-FT trips) → its own recalibration — and it
       inherits **§3.11's deferred re-centering**: points sit at **115.9** vs. the ~112
       target because §3.11 deliberately took no shot-`BASE_*` trim (paying FG% twice for
