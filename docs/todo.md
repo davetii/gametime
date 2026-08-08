@@ -45,10 +45,26 @@ and it is a **behavioral** gap, not a rate problem.
    the last two minutes of Q4 is often played through. A period- or
    time-remaining-aware rule is more realistic but adds a dimension; a flat
    threshold is simpler. Which, and why?
-3. **Does it lean on the coach attributes?** §3.5 already threads
-   `CoachModifiers` (rotationDepth / aggressiveness). A cautious coach benching
-   earlier than a gambler is a natural fit for the established avg-10 deviation
-   shape (#022) — but it is another knob to calibrate. Worth it, or flat for now?
+3. **How does `substitutionAggressiveness` scale the threshold?** **The WHICH is
+   already settled (user call, 2026-08): reuse the existing
+   `substitutionAggressiveness` coach attribute — do NOT add a 6th coach
+   attribute, and do NOT make the threshold flat/coach-blind.** It already means
+   "how readily does this coach pull a player," which is precisely the
+   foul-trouble decision: a cautious coach sits a 4-foul player, a gambler rides
+   him. It costs no schema change (#018's five attributes stand), and inventing a
+   sixth for a sibling behavior would fabricate a field ahead of its consumer
+   (#014/#017). **What is still open is the SHAPE**: does it shift the threshold
+   itself (4 vs. 5 fouls), or the *probability* of sitting at a given count, or
+   how long the player stays down? Use the established avg-10 deviation form
+   (#022 / `SimConfig.rotationModifier`), which is what `CoachModifiers` already
+   applies to this attribute.
+   **Note the coupling this creates, and say something about it in #031:**
+   `substitutionAggressiveness` currently drives **fatigue** subs
+   (`runFatigueSubs`), so after §3.13 one number governs two behaviors that need
+   not correlate in reality (quick with tired legs, stubborn about foul trouble).
+   That is an accepted cost of the reuse call, not an oversight — record it as a
+   trade-off, and note that splitting it later is additive if a consumer ever
+   wants the distinction.
 4. **Derived predicate or stored state?** The house discipline (#023 F for
    foul-outs, #028 A1 for the penalty) is to **derive** from the existing `fouls`
    counter rather than store a `inFoulTrouble` flag — the #013/#015
@@ -116,6 +132,18 @@ Trust these; re-check only if the code moved.
 - `RotationState.eligible(...)` — filters `isFouledOut()` out of any pool.
 - **`RotationState.runFatigueSubs()` is the ONLY other substitution driver, and
   it considers energy alone — it does not look at `fouls`.** That is the gap.
+
+**The coach attributes (#018) — all five, and the one §3.13 uses:**
+- A coach has **exactly five** continuous 1–20 avg-10 attributes on
+  `CoachEntity`: `pace`, `offensiveScheme`, `defensiveScheme` (all §3.4),
+  `rotationDepth`, `substitutionAggressiveness` (both §3.5). **There is NO coach
+  `acumen`** — acumen is one of the 23 *player* skills (`PlayerGameState`), and
+  the two are easy to conflate.
+- `CoachModifiers.from(coach, config)` turns them into multipliers, already
+  threaded into `RotationState` via `TeamContext` — so **§3.13 needs no new
+  plumbing**, just a new read of `subAggressivenessFactor()`.
+- `SimConfig.rotationModifier(...)` is the avg-10 deviation helper the two
+  rotation attributes use; `coachModifier(...)` is the §3.4 equivalent.
 
 **The measurement (§3.12 harness, and how to reproduce it):**
 ```bash
