@@ -1269,11 +1269,279 @@ class PossessionEngineTest {
         assertNotNull(engine.pickFreeThrowShooter(zeroed, rng(1)));
     }
 
+    // --- §3.11 and-1 (decisions.md #029 A1/A2/A3/B/D) -----------------------
+
+    @Test
+    void andOneEmitsAFoulOnTheDefenderAndExactlyOneFreeThrow() {
+        // #029 B: the make is already scored; the and-1 only ADDS one FT. The foul
+        // is one-sided (always the defender), so committingTeamId is defTeamId —
+        // #028 D's column reused with no new plumbing.
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        PlayerGameState shooter = offense.get(0);
+        PlayerGameState defender = defense.get(0);
+
+        int next = engine.awardAndOne(data, shooter, defender, "OFF", "DEF", 1, 50, rng(1));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        assertEquals(1 + SimConfig.AND_ONE_FREE_THROWS, events.size(),
+                "An and-1 is exactly one FOUL plus one FREE_THROW");
+        assertEquals(52, next, "sequence advances past the FOUL and the single FT");
+
+        GameData.EventRecord foul = events.get(0);
+        assertEquals(PlayType.FOUL, foul.playType());
+        assertEquals("AND_ONE", foul.outcome());
+        assertEquals(defender.getPlayerId(), foul.primaryPlayerId(),
+                "The DEFENDER commits an and-1 foul");
+        assertEquals("DEF", foul.committingTeamId(),
+                "One-sided: the committing team is always the defense");
+        assertEquals(1, defender.getFouls(), "The defender wears the foul (#023 F)");
+
+        GameData.EventRecord ft = events.get(1);
+        assertEquals(PlayType.FREE_THROW, ft.playType());
+        assertEquals(shooter.getPlayerId(), ft.primaryPlayerId(),
+                "The SHOOTER shoots the and-1 free throw");
+        assertTrue(ft.outcome().endsWith("_AND_ONE"),
+                "The FT must be tagged with its source (#029 D): " + ft.outcome());
+        assertEquals(1, shooter.getFreeThrowsAttempted());
+    }
+
+    @Test
+    void andOneAwardsExactlyOneFreeThrowEvenInTheBonus() {
+        // #029 B (a guardrail, not an emergent property): an and-1 is ALWAYS one
+        // FT by rule, penalty status irrelevant — it must never consult the bonus.
+        GameData data = freshData();
+        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD + 2);
+        assertTrue(data.isInBonus("DEF", 1), "precondition: DEF is well into the penalty");
+
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        int before = data.getEvents().size();
+        engine.awardAndOne(data, offense.get(0), defense.get(0), "OFF", "DEF", 1, 50, rng(2));
+
+        long freeThrows = data.getEvents().subList(before, data.getEvents().size()).stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW).count();
+        assertEquals(1, freeThrows,
+                "An and-1 is one FT in the bonus exactly as it is under it");
+    }
+
+    @Test
+    void andOneFreeThrowScoresForTheOFFENSE() {
+        // Unlike a rebounding foul (where the FOULED team may be the defense), an
+        // and-1 always scores for the shooting team.
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        // Drive many attempts so at least one FT falls.
+        for (int i = 0; i < 40; i++) {
+            engine.awardAndOne(data, offense.get(0), defense.get(0), "OFF", "DEF",
+                    1, 50 + i * 2, rng(100 + i));
+        }
+        assertTrue(data.getHomeScore() > 0, "Made and-1 FTs must score for the offense");
+        assertEquals(0, data.getAwayScore(), "and-1 FTs must never score for the defense");
+    }
+
+    @Test
+    void andOneNeverFiresOnAMissedShotOrANonContactShotType() {
+        // #029 A2 (the scope fence §3.12 later lifts): only a MADE DRIVE/POST can
+        // draw an and-1. Verified structurally over a long game — every AND_ONE
+        // foul must sit immediately after a made contact SHOT event.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 80, rng(31));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        int andOnes = 0;
+        for (int i = 0; i < events.size(); i++) {
+            GameData.EventRecord e = events.get(i);
+            if (e.playType() != PlayType.FOUL || !"AND_ONE".equals(e.outcome())) continue;
+            andOnes++;
+            assertTrue(i > 0, "An AND_ONE can never be the first event");
+            GameData.EventRecord prev = events.get(i - 1);
+            assertEquals(PlayType.SHOT, prev.playType(),
+                    "An and-1 must ride the SHOT event it was drawn on");
+            assertTrue(prev.outcome().startsWith("MADE"),
+                    "An and-1 only ever follows a MADE shot: " + prev.outcome());
+            assertTrue(prev.outcome().endsWith("DRIVE") || prev.outcome().endsWith("POST"),
+                    "An and-1 only ever follows a contact shot type (#029 A2): "
+                            + prev.outcome());
+        }
+        assertTrue(andOnes > 0, "A long game must produce some and-1s");
+    }
+
+    @Test
+    void andOneIsFollowedByExactlyOneAndOneTaggedFreeThrow() {
+        // #029 B/D end-to-end through the real possession loop: the count is 1 and
+        // the source tag lands on the emitted event.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 80, rng(31));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        int checked = 0;
+        for (int i = 0; i < events.size(); i++) {
+            GameData.EventRecord e = events.get(i);
+            if (e.playType() != PlayType.FOUL || !"AND_ONE".equals(e.outcome())) continue;
+            checked++;
+            assertTrue(i + 1 < events.size(), "An AND_ONE must be followed by its FT");
+            assertEquals(PlayType.FREE_THROW, events.get(i + 1).playType());
+            assertTrue(events.get(i + 1).outcome().endsWith("_AND_ONE"),
+                    "The FT after an and-1 must carry the AND_ONE source");
+            // Exactly ONE: the event after the FT is never another and-1 FT.
+            if (i + 2 < events.size()) {
+                GameData.EventRecord after = events.get(i + 2);
+                assertFalse(after.playType() == PlayType.FREE_THROW
+                                && after.outcome().endsWith("_AND_ONE"),
+                        "An and-1 awards exactly ONE free throw (#029 B)");
+            }
+        }
+        assertTrue(checked > 0, "Expected at least one and-1 to inspect");
+    }
+
+    @Test
+    void aMadeAndOneCanStillCarryAnAssist() {
+        // #029 A3 (Step 4's coexistence guard): the and-1 roll sits BESIDE the
+        // assist roll and the two do not interact — the assist is already stamped
+        // on the SHOT event before the and-1 rolls, so a made basket can be both
+        // assisted AND an and-1.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 90, rng(77));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        boolean foundAssistedAndOne = false;
+        for (int i = 1; i < events.size(); i++) {
+            GameData.EventRecord e = events.get(i);
+            if (e.playType() == PlayType.FOUL && "AND_ONE".equals(e.outcome())
+                    && events.get(i - 1).assistPlayerId() != null) {
+                foundAssistedAndOne = true;
+                break;
+            }
+        }
+        assertTrue(foundAssistedAndOne,
+                "An and-1 must still be able to be assisted (#029 A3)");
+    }
+
+    @Test
+    void andOneEventsDoNotDisturbAssistReconciliation() {
+        // #029 A3's correctness obligation: a FOUL/FREE_THROW landing between the
+        // SHOT and the next possession must not break the assist invariant
+        // (assisted SHOT events == box-score assists).
+        List<PlayerGameState> home = teamOf5("H", 10);
+        List<PlayerGameState> away = teamOf5("A", 10);
+        GameData data = simulate(home, away, "H", "A", 80, rng(31));
+
+        long assistedShots = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.SHOT && e.assistPlayerId() != null)
+                .count();
+        int recordedAssists = 0;
+        for (PlayerGameState p : home) recordedAssists += p.getAssists();
+        for (PlayerGameState p : away) recordedAssists += p.getAssists();
+        assertEquals(assistedShots, recordedAssists,
+                "Assist reconciliation must hold with and-1 events in the log");
+    }
+
+    @Test
+    void everyFreeThrowIsSelfDescribing() {
+        // #029 D: at three FT sources the backward join to the preceding FOUL is
+        // retired — every FREE_THROW says where it came from, and made/missed
+        // stays readable from the prefix (the spelling constraint).
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 80, rng(31));
+
+        Set<String> sources = new HashSet<>();
+        for (GameData.EventRecord e : data.getEvents()) {
+            if (e.playType() != PlayType.FREE_THROW) continue;
+            String outcome = e.outcome();
+            assertTrue(outcome.startsWith("MADE_") || outcome.startsWith("MISSED_"),
+                    "An FT outcome must stay readable as made/missed: " + outcome);
+            sources.add(outcome.substring(outcome.indexOf('_') + 1));
+        }
+        assertTrue(sources.contains(FreeThrowSource.SHOOTING.name()),
+                "A long game must produce shooting-foul FTs");
+        assertTrue(sources.contains(FreeThrowSource.AND_ONE.name()),
+                "A long game must produce and-1 FTs");
+        assertTrue(FreeThrowSource.SHOOTING.name().equals("SHOOTING")
+                        && sources.stream().allMatch(s -> s.equals("SHOOTING")
+                        || s.equals("BONUS") || s.equals("AND_ONE")),
+                "Every FT source must be one of the three known sources: " + sources);
+    }
+
+    @Test
+    void freeThrowSourceStampsBothMadeAndMissedOutcomes() {
+        assertEquals("MADE_AND_ONE", FreeThrowSource.AND_ONE.outcome(true));
+        assertEquals("MISSED_AND_ONE", FreeThrowSource.AND_ONE.outcome(false));
+        assertEquals("MADE_SHOOTING", FreeThrowSource.SHOOTING.outcome(true));
+        assertEquals("MISSED_SHOOTING", FreeThrowSource.SHOOTING.outcome(false));
+        assertEquals("MADE_BONUS", FreeThrowSource.BONUS.outcome(true));
+        assertEquals("MISSED_BONUS", FreeThrowSource.BONUS.outcome(false));
+        // The FT source strings must not collide with the FOUL outcomes (#029 D's
+        // spelling constraint) — those live on a different PlayType, but the tags
+        // still must stay distinguishable in a mixed log.
+        for (FreeThrowSource source : FreeThrowSource.values()) {
+            assertNotEquals("SHOOTING_FOUL", source.outcome(true));
+            assertFalse(source.outcome(true).startsWith("REBOUNDING_FOUL"));
+        }
+    }
+
+    @Test
+    void awardFreeThrowsHonoursTheRequestedCount() {
+        // #029 D: the count is per-situation, no longer a hard-coded constant —
+        // the seam §3.12 reuses to award 3 on a fouled three.
+        GameData data = freshData();
+        PlayerGameState shooter = teamOf5("OFF", 10).get(0);
+        engine.awardFreeThrows(data, shooter, "OFF", "OFF", "DEF", 1, 50,
+                3, FreeThrowSource.SHOOTING, rng(9));
+        assertEquals(3, data.getEvents().size(), "The count parameter drives the loop");
+        assertEquals(3, shooter.getFreeThrowsAttempted());
+    }
+
+    @Test
+    void shootingFoulAndBonusFreeThrowsStillAwardTwoWithTheirOwnSource() {
+        // The re-baseline half of #029 D: the two pre-existing FT sources keep
+        // FREE_THROWS_PER_FOUL (2) and now carry their own tags.
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
+                "H", "A", 80, rng(31));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        int checked = 0;
+        for (int i = 0; i < events.size(); i++) {
+            GameData.EventRecord e = events.get(i);
+            if (e.playType() != PlayType.FOUL || !"SHOOTING_FOUL".equals(e.outcome())) continue;
+            checked++;
+            assertTrue(i + 2 < events.size(), "A shooting foul must be followed by 2 FTs");
+            for (int ft = 1; ft <= SimConfig.FREE_THROWS_PER_FOUL; ft++) {
+                assertEquals(PlayType.FREE_THROW, events.get(i + ft).playType());
+                assertTrue(events.get(i + ft).outcome().endsWith("_SHOOTING"),
+                        "A shooting foul's FTs carry the SHOOTING source: "
+                                + events.get(i + ft).outcome());
+            }
+        }
+        assertTrue(checked > 0, "Expected at least one shooting foul to inspect");
+    }
+
+    @Test
+    void andOneIsDeterministicForASeed() {
+        GameData first = simulate(teamOf5("H", 10), teamOf5("A", 10), "H", "A", 60, rng(5150));
+        GameData second = simulate(teamOf5("H", 10), teamOf5("A", 10), "H", "A", 60, rng(5150));
+        assertEquals(countAndOnes(first), countAndOnes(second),
+                "The and-1 roll consumes the seed at a fixed point — same seed, same count");
+        assertEquals(first.getHomeScore(), second.getHomeScore());
+        assertEquals(first.getAwayScore(), second.getAwayScore());
+    }
+
+    private long countAndOnes(GameData data) {
+        return data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL && "AND_ONE".equals(e.outcome()))
+                .count();
+    }
+
     private int pointsFromEvent(GameData.EventRecord e) {
         if (e.playType() == PlayType.SHOT && e.outcome().startsWith("MADE")) {
             return e.outcome().contains("3PT") ? 3 : 2;
         }
-        if (e.playType() == PlayType.FREE_THROW && "MADE".equals(e.outcome())) {
+        // §3.11 (#029 D): FT outcomes are self-describing (MADE_SHOOTING /
+        // MADE_BONUS / MADE_AND_ONE), so this is a prefix read, not an exact match —
+        // the MADE/MISSED prefix leads precisely so made-vs-missed stays readable.
+        if (e.playType() == PlayType.FREE_THROW && e.outcome().startsWith("MADE")) {
             return 1;
         }
         return 0;

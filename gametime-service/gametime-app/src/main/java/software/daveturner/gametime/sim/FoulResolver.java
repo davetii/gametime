@@ -42,6 +42,43 @@ public class FoulResolver {
         return rng.nextDouble() < prob;
     }
 
+    /**
+     * §3.11 (decisions.md #029 A1/C): roll an <b>and-1</b> — a defensive foul on a
+     * shot that still went in. This is a SECOND, post-make roll, entirely separate
+     * from {@link #isFoul}: the pre-shot foul branch keeps meaning "the contact
+     * stopped the shot" and {@link SimConfig#BASE_FOUL} keeps its §3.4 calibration
+     * (#029 A1). The caller rolls this only on a MADE shot, and only on a contact
+     * shot type (#029 A2 — DRIVE/POST; widening to perimeter/three is §3.12), so
+     * this method does not re-check the make or the shot type.
+     *
+     * <p><b>Carved off the top</b>, the §3.7 block / §3.10 rebound-foul shape a
+     * third time: an independent roll layered on an existing outcome, never
+     * entangled with the outcome it rides, which is what keeps its rate tunable on
+     * its own.
+     *
+     * <p>Probability reuses {@link #isFoul}'s exact avg-10 inputs (#021 C / #022) —
+     * the shooter's {@code foulDrawing} against the defender's effective discipline
+     * ({@code foulProne} inverted), both fatigue-scaled, scaled by {@code
+     * defensivePressure} (an aggressive scheme concedes more contact, the coach.md
+     * pressure/breakdown trade-off) — but on {@link SimConfig#AND_ONE_BASE} through
+     * {@link SimConfig#rareEventProbability}, NOT {@code contestProbability}: the
+     * global {@code PROB_FLOOR} (0.02) would act as a floor on a thin base and make
+     * this knob tunable only upward (the #028 trap), and the global {@code
+     * SENSITIVITY} (0.5) would swamp it — hence its own {@link
+     * SimConfig#AND_ONE_SENSITIVITY} (#029 C).
+     */
+    public boolean isAndOne(PlayerGameState shooter, PlayerGameState defender,
+                            double defensivePressure, RandomGenerator rng) {
+        double effectiveDefense = (SimConfig.SCALE_AVG * 2 - defender.getFoulProne())
+                * defender.fatigueFactor();
+        double foulDrawing = shooter.getFoulDrawing() * shooter.fatigueFactor();
+        double prob = Math.min(SimConfig.PROB_CEILING,
+                defensivePressure * config.rareEventProbability(
+                        SimConfig.AND_ONE_BASE, foulDrawing, effectiveDefense,
+                        SimConfig.AND_ONE_SENSITIVITY));
+        return rng.nextDouble() < prob;
+    }
+
     public boolean isFreeThrowMade(PlayerGameState shooter, RandomGenerator rng) {
         double prob = config.freeThrowProbability(shooter.getFreeThrows());
         return rng.nextDouble() < prob;

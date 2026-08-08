@@ -74,6 +74,38 @@ import org.springframework.stereotype.Component;
  * Turnovers 13.5→14.2 is an emergent §3.5 effect, not drift: more glass scrambles ⇒
  * more possessions played ⇒ more fatigue ⇒ worse {@code ballSecurity} in
  * {@code isTurnover}'s fatigue-scaled contest (and 14.2 is closer to the ~14 target).
+ *
+ * <p><b>§3.11 calibration (decisions.md #029, Decision E).</b> And-1s add free throws
+ * on top of shots that already scored, with <b>no offsetting removal</b> — a
+ * pure-additive lift, and the harness confirmed the prediction exactly: of the +2.4
+ * pts the untuned placeholder added, <b>essentially all of it was the FT channel</b>
+ * (the mirror image of §3.10, where retained possessions dominated — an and-1 never
+ * forks a possession, so there is no retention channel). The recalibration was
+ * therefore a <b>lever choice</b>, and the finding worth keeping is this:
+ * <ul>
+ *   <li>The placeholder {@code AND_ONE_BASE = 0.11} was wrong on <b>realism</b>
+ *       independent of points (11.4% of made contact FG vs. a real ~4–6%), so
+ *       trimming it to <b>0.055</b> fixed the rate AND removed ~0.9 of the lift —
+ *       a lever §3.10 did not have.</li>
+ *   <li>The shot {@code BASE_*} lever costs <b>~0.6% FG% per 1.0 point</b> removed
+ *       here — a worse exchange rate than §3.10's, precisely BECAUSE this lift is
+ *       free throws, which cost no FG%. Spending calibrated FG% to hide it (only for
+ *       §3.12 to re-tune the same number) was rejected: <b>no {@code BASE_*} trim was
+ *       taken</b> (user call), leaving points knowingly high for §3.12 to re-center
+ *       once. {@link #BASE_FOUL} was again NOT touched (see §3.10 above).</li>
+ * </ul>
+ * The landing (harness, ~102 games × <b>5 seeds, tuned to the mean</b> — a single run
+ * carries enough per-seed noise to bait an over-correction):
+ * <pre>
+ *   Points/team 115.9 | FG% 46.8% | 3P% 37.6% | Assists 27.5 | Turnovers 13.9
+ *   Blocks/team 4.9   | OOB 2.8
+ *   And-1s 1.67/team/game (6.4% of made contact FG)
+ *   FT sources: SHOOTING 90.6% | AND_ONE 5.8% | BONUS 3.6%
+ *   Fouls 4.41/team/period | 43.4% of team-periods in the penalty
+ * </pre>
+ * FG% and 3P% sit ON their §3.4 targets — that is what the no-trim call bought.
+ * <b>Points are deliberately ~3.9 above the ~112 target; that is deferred debt for
+ * §3.12, not drift.</b>
  */
 @Component
 public class SimConfig {
@@ -240,6 +272,32 @@ public class SimConfig {
     // needs. EMIT-THEN-COUNT: the Nth foul is emitted first, so it awards the bonus
     // itself.
     public static final int BONUS_FOULS_PER_PERIOD = 5;
+
+    // --- And-1 / shooting foul on a made basket (§3.11, decisions.md #029) ---
+    // An and-1 is a SECOND, post-make foul roll (#029 A1) carved beside the assist:
+    // the pre-shot foul branch and BASE_FOUL are untouched, so "P(a contact foul
+    // stops the shot)" keeps its §3.4 meaning and this rate stays independently
+    // tunable — the §3.7 block / §3.10 rebound-foul carve, a third time.
+    //
+    // AND_ONE_BASE is P(the make also drew a foul) at an average-vs-average contest,
+    // rolled ONLY on a made DRIVE/POST (#029 A2 — widening to all shot types is
+    // §3.12). It must stay THIN: every hit is a pure-additive point (a made FG plus
+    // one FT with no offsetting removal), so this is the knob that drives §3.11's
+    // scoring lift. Placeholder, settled by the CalibrationHarness and-1 line (E).
+    public static final double AND_ONE_BASE = 0.055;
+    // And-1 contest sensitivity — its OWN, far below the global SENSITIVITY (0.5),
+    // for the same reason BLOCK_SENSITIVITY (§3.7) and REBOUND_FOUL_SENSITIVITY
+    // (§3.10) are: at a thin base, a ±0.5 swing per 10 skill points swamps the base
+    // and lets skill alone drive the rate several-fold over target. The skills still
+    // matter (a strong foul-drawer converts more contact) but the base stays
+    // dominant (#029 C). Note this rate rides rareEventProbability, NOT
+    // contestProbability — the PROB_FLOOR (0.02) would make a thin base tunable
+    // only UPWARD (the #028 trap), and §3.11's recalibration needs it to go down.
+    public static final double AND_ONE_SENSITIVITY = 0.10;
+    // An and-1 is ALWAYS exactly one free throw, by rule — independent of the bonus
+    // (#029 B). Threaded through awardFreeThrows as the per-situation count, the
+    // same seam §3.12 will reuse to pass 3 for a fouled three.
+    public static final int AND_ONE_FREE_THROWS = 1;
 
     // --- Coach / chemistry modifiers (§3.4, decisions.md #022) ---
     // Single avg-10 deviation sensitivity shared by all coach effects

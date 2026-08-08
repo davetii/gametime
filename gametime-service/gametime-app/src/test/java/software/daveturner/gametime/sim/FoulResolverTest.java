@@ -297,4 +297,140 @@ class FoulResolverTest {
         assertTrue(ReboundFoul.Side.OFFENSE.endsPossession());
         assertFalse(ReboundFoul.Side.DEFENSE.endsPossession());
     }
+
+    // --- §3.11 and-1 (decisions.md #029 A1/C) -------------------------------
+
+    /** A player whose only non-average skills are foulDrawing and foulProne. */
+    private PlayerGameState contactPlayer(String id, String teamId,
+                                          double foulDrawing, double foulProne) {
+        return TestPlayerFactory.create(id, teamId, 10.0, 10.0, 10.0, 10.0, 10.0,
+                10.0, 10.0, foulDrawing, 10.0, 10.0, 10.0, 10.0, foulProne);
+    }
+
+    private double andOneRate(PlayerGameState shooter, PlayerGameState defender,
+                              double defensivePressure, long seed, int trials) {
+        RandomGenerator r = rng(seed);
+        int hits = 0;
+        for (int i = 0; i < trials; i++) {
+            if (resolver.isAndOne(shooter, defender, defensivePressure, r)) hits++;
+        }
+        return hits / (double) trials;
+    }
+
+    @Test
+    void andOneCanTriggerAtAverageSkill() {
+        // The base case: an average shooter against an average defender draws
+        // and-1s at roughly AND_ONE_BASE. This is the thin slice carved off the
+        // top of made contact shots (#029 A1) — it must actually fire.
+        double rate = andOneRate(contactPlayer("s1", "A", 10.0, 10.0),
+                contactPlayer("d1", "B", 10.0, 10.0), 1.0, 42, 20_000);
+        assertEquals(SimConfig.AND_ONE_BASE, rate, 0.02,
+                "At avg-vs-avg the and-1 rate should sit near AND_ONE_BASE");
+    }
+
+    @Test
+    void betterFoulDrawingRaisesTheAndOneRate() {
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
+        double weak = andOneRate(contactPlayer("s1", "A", 2.0, 10.0), defender, 1.0, 7, 20_000);
+        double strong = andOneRate(contactPlayer("s2", "A", 18.0, 10.0), defender, 1.0, 7, 20_000);
+        assertTrue(strong > weak,
+                "A shooter who draws contact should convert more and-1s (" + strong
+                        + " vs " + weak + ")");
+    }
+
+    @Test
+    void anUndisciplinedDefenderConcedesMoreAndOnes() {
+        // foulProne is INVERTED into discipline: high foulProne = fouls more.
+        PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
+        double disciplined = andOneRate(shooter, contactPlayer("d1", "B", 10.0, 2.0),
+                1.0, 11, 20_000);
+        double hacker = andOneRate(shooter, contactPlayer("d2", "B", 10.0, 18.0),
+                1.0, 11, 20_000);
+        assertTrue(hacker > disciplined,
+                "A low-discipline defender should concede more and-1s (" + hacker
+                        + " vs " + disciplined + ")");
+    }
+
+    @Test
+    void defensivePressureScalesTheAndOneRate() {
+        // §3.4/coach.md: an aggressive scheme concedes more contact — the same
+        // pressure/breakdown trade-off the other foul rolls carry.
+        PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
+        double passive = andOneRate(shooter, defender, 0.8, 5, 20_000);
+        double aggressive = andOneRate(shooter, defender, 1.2, 5, 20_000);
+        assertTrue(aggressive > passive,
+                "Higher defensivePressure must concede more and-1s (" + aggressive
+                        + " vs " + passive + ")");
+    }
+
+    @Test
+    void andOneBaseIsTunableDownwardAndCanBeSwitchedOff() {
+        // The §3.11 twin of reboundFoulBaseIsTunableDownward — the same PROB_FLOOR
+        // regression guard (#028 C impl note), asserted against the and-1's OWN
+        // sensitivity. §3.11's recalibration (#029 E) may need to turn this rate
+        // DOWN, which clampProbability's 0.02 floor would have silently prevented.
+        double tiny = config.rareEventProbability(0.001, 10.0, 10.0,
+                SimConfig.AND_ONE_SENSITIVITY);
+        assertEquals(0.001, tiny, 1e-9,
+                "An and-1 base below PROB_FLOOR must NOT be floored up to it");
+        assertEquals(0.0, config.rareEventProbability(0.0, 10.0, 10.0,
+                SimConfig.AND_ONE_SENSITIVITY), 1e-9,
+                "A zero base must yield zero at an EVEN contest");
+    }
+
+    @Test
+    void aZeroBaseStillLeavesASkillDrivenAndOneTail() {
+        // An honest boundary on the "switched off" claim, measured rather than
+        // assumed (it cost a confusing baseline run to find). rareEventProbability
+        // is base + sensitivity × (driving − opposing)/10, so a ZERO base is only
+        // zero at an EVEN contest: whenever the shooter's fatigue-scaled
+        // foulDrawing exceeds the defender's fatigue-scaled discipline, the skill
+        // term alone keeps the rate positive. Zeroing AND_ONE_BASE therefore makes
+        // and-1s rare, NOT impossible — the same shape §3.10's rebound foul has.
+        // To truly disable the feature the CALLER must not roll (the isContactType
+        // gate in PossessionEngine), which is exactly how §3.11 fences PERIMETER
+        // and THREE (#029 A2).
+        double favourable = config.rareEventProbability(0.0, 14.0, 10.0,
+                SimConfig.AND_ONE_SENSITIVITY);
+        assertTrue(favourable > 0.0,
+                "A zero base still leaves a skill-driven tail: " + favourable);
+        // ...and the tail stays small, so a zeroed base is a meaningful floor.
+        assertTrue(favourable < 0.05,
+                "The zero-base tail must stay thin: " + favourable);
+    }
+
+    @Test
+    void andOneSensitivityStaysGentleEnoughForTheBaseToDominate() {
+        // The §3.7 blocks / §3.10 rebound-foul finding, twice discovered: the
+        // global SENSITIVITY (0.5) swamps a thin base, letting skill alone drive
+        // the rate several-fold over target. Guard that the and-1 dial is its own
+        // and stays far below it (#029 C).
+        assertTrue(SimConfig.AND_ONE_SENSITIVITY < SimConfig.SENSITIVITY / 2,
+                "AND_ONE_SENSITIVITY must stay well below the global SENSITIVITY");
+        // The bound that matters is ABSOLUTE, not a multiple of the base: the skill
+        // term is sensitivity × (Δskill)/10, so it is independent of the base, and
+        // a thinner base makes the SAME small swing a larger multiple. (Asserting a
+        // multiple would spuriously fail every time the base is tuned down — which
+        // is exactly what §3.11's recalibration did, 0.11 → 0.055.) What must hold
+        // is that even a max mismatch leaves the and-1 a RARE event.
+        double extreme = config.rareEventProbability(SimConfig.AND_ONE_BASE, 20.0, 0.0,
+                SimConfig.AND_ONE_SENSITIVITY);
+        assertTrue(extreme < 0.30,
+                "Even a max-skill mismatch must leave the and-1 rare: " + extreme);
+        // And the global sensitivity would NOT: it is the trap §3.7/§3.10 hit twice.
+        double withGlobal = config.rareEventProbability(SimConfig.AND_ONE_BASE, 20.0, 0.0,
+                SimConfig.SENSITIVITY);
+        assertTrue(withGlobal > 3 * extreme,
+                "The global SENSITIVITY would swamp a thin base — hence our own dial");
+    }
+
+    @Test
+    void andOneIsDeterministicForASeed() {
+        PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
+        PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
+        assertEquals(resolver.isAndOne(shooter, defender, 1.0, rng(2024)),
+                resolver.isAndOne(shooter, defender, 1.0, rng(2024)),
+                "Same seed must give the same and-1 result");
+    }
 }

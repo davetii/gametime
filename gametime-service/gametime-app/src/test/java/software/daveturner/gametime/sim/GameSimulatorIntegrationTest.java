@@ -438,7 +438,9 @@ class GameSimulatorIntegrationTest {
         if (e.getPlayType() == PlayType.SHOT && e.getOutcome().startsWith("MADE")) {
             return e.getOutcome().contains("3PT") ? 3 : 2;
         }
-        if (e.getPlayType() == PlayType.FREE_THROW && "MADE".equals(e.getOutcome())) {
+        // §3.11 (#029 D): FT outcomes are self-describing (MADE_SHOOTING /
+        // MADE_BONUS / MADE_AND_ONE), so this is a prefix read, not an exact match.
+        if (e.getPlayType() == PlayType.FREE_THROW && e.getOutcome().startsWith("MADE")) {
             return 1;
         }
         return 0;

@@ -138,7 +138,8 @@ public class PossessionEngine {
                 sequence++;
 
                 sequence = awardFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
-                        period, sequence, rng);
+                        period, sequence, SimConfig.FREE_THROWS_PER_FOUL,
+                        FreeThrowSource.SHOOTING, rng);
                 return sequence;
             }
 
@@ -199,7 +200,24 @@ public class PossessionEngine {
                 }
                 data.addEvent(offTeamId, defTeamId, period, sequence,
                         PlayType.SHOT, outcome, shooter.getPlayerId(), assistPlayerId);
-                return sequence + 1;
+                sequence++;
+
+                // §3.11 (decisions.md #029 A1/A2/A3/B): the and-1 — a SECOND,
+                // post-make foul roll carved BESIDE the assist above. The pre-shot
+                // foul branch (and BASE_FOUL) is untouched: that one still means
+                // "the contact stopped the shot", and this one is the independent
+                // "the shot went in anyway" slice, so both rates stay separately
+                // tunable (the §3.7 block / §3.10 rebound-foul carve, a third time).
+                // Gated on a contact shot type (A2 — DRIVE/POST only; widening to
+                // perimeter/three, and a fouled three's 3 FTs, is §3.12).
+                if (shotType.isContactType()
+                        && foulResolver.isAndOne(shooter, defender, defensivePressure, rng)) {
+                    sequence = awardAndOne(data, shooter, defender, offTeamId, defTeamId,
+                            period, sequence, rng);
+                }
+                // The and-1 never forks the possession — the make already ended it
+                // (#029 B); the FT is simply tacked on before the ball changes hands.
+                return sequence;
             }
 
             // Missed shot — emit the SHOT event, then resolve the miss (§3.3 + §3.8).
@@ -311,7 +329,8 @@ public class PossessionEngine {
             String fouledTeamId = offenseCommitted ? defTeamId : offTeamId;
             PlayerGameState freeThrowShooter = pickFreeThrowShooter(fouledFive, rng);
             sequence = awardFreeThrows(data, freeThrowShooter, fouledTeamId,
-                    offTeamId, defTeamId, period, sequence, rng);
+                    offTeamId, defTeamId, period, sequence,
+                    SimConfig.FREE_THROWS_PER_FOUL, FreeThrowSource.BONUS, rng);
             return new ReboundFoulResult(sequence, false); // possession over either way
         }
 
@@ -319,6 +338,38 @@ public class PossessionEngine {
         // ball, and only while the second-chance loop has room.
         boolean offenseRetains = !offenseCommitted && !capReached;
         return new ReboundFoulResult(sequence, offenseRetains);
+    }
+
+    /**
+     * §3.11 (decisions.md #029 A1/B/D): emit the and-1 — the {@code FOUL} event and
+     * the single free throw that ride a basket that already counted.
+     *
+     * <p>The made field goal is <b>not</b> re-rolled or re-scored: the {@code if
+     * (made)} block above has already recorded the points, the FGM, and (possibly)
+     * the assist, and the and-1 only ADDS one attempt from the line (#029 B). That
+     * is also why nothing here forks the possession — a made basket already ended
+     * it.
+     *
+     * <p>The foul is one-sided (a shooting foul is always on the DEFENDER), so
+     * {@code committingTeamId} is simply {@code defTeamId} — #028 D's column reused
+     * with no new plumbing. Like every other foul it charges the defender (feeding
+     * the foul-out predicate, #023 F) and counts toward that team's period tally
+     * (§3.10 A1). It does <b>not</b> consult the bonus: an and-1 is always exactly
+     * one free throw by rule, in the penalty or not (#029 B).
+     *
+     * @return the next free sequence number
+     */
+    int awardAndOne(GameData data, PlayerGameState shooter, PlayerGameState defender,
+                    String offTeamId, String defTeamId, int period, int sequence,
+                    RandomGenerator rng) {
+        defender.recordFoul();
+        data.addEvent(offTeamId, defTeamId, period, sequence,
+                PlayType.FOUL, "AND_ONE", defender.getPlayerId(), null, defTeamId);
+        sequence++;
+
+        return awardFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
+                period, sequence, SimConfig.AND_ONE_FREE_THROWS,
+                FreeThrowSource.AND_ONE, rng);
     }
 
     /**
@@ -342,24 +393,38 @@ public class PossessionEngine {
     }
 
     /**
-     * The free-throw award block, shared by the §3.2 shooting foul and §3.10's
-     * bonus free throws (decisions.md #028 B — "reuse the existing FT block
-     * verbatim", so no new FT machinery exists and FT/points reconciliation is
-     * automatic). {@code shootingTeamId} is the team the made FTs score for — the
-     * offense on a shooting foul, but the FOULED team on a rebounding foul, which
-     * may be the DEFENSE (an over-the-back sends the defending team to the line
-     * while the offense's possession ends).
+     * The free-throw award block, shared by all THREE free-throw situations — the
+     * §3.2 shooting foul, §3.10's bonus trip, and §3.11's and-1 (decisions.md #028 B
+     * — "reuse the existing FT block verbatim", so no new FT machinery exists and
+     * FT/points reconciliation is automatic). {@code shootingTeamId} is the team the
+     * made FTs score for — the offense on a shooting foul or an and-1, but the
+     * FOULED team on a rebounding foul, which may be the DEFENSE (an over-the-back
+     * sends the defending team to the line while the offense's possession ends).
      *
      * <p>{@code offTeamId}/{@code defTeamId} stay the possession's orientation on
      * the emitted events (the event log always records who was on offense), which
      * is why the scoring team is passed separately.
      *
+     * <p>§3.11 (#029 B/D) made the two things that differ per situation into
+     * parameters rather than constants:
+     * <ul>
+     *   <li>{@code count} — how many attempts. A shooting foul and a bonus trip pass
+     *       {@link SimConfig#FREE_THROWS_PER_FOUL} (2, unchanged); an and-1 passes
+     *       {@link SimConfig#AND_ONE_FREE_THROWS} (1, always — an and-1 never
+     *       consults the bonus, that is the rule). This is also the seam §3.12 will
+     *       reuse to award 3 on a fouled three.</li>
+     *   <li>{@code source} — stamped onto every emitted event's {@code outcome}, so
+     *       a free throw says what sent the shooter to the line without a backward
+     *       join to the preceding {@code FOUL} (#029 D, retiring #028 D's accepted
+     *       ambiguity now that there are three sources).</li>
+     * </ul>
+     *
      * @return the next free sequence number
      */
     int awardFreeThrows(GameData data, PlayerGameState shooter, String shootingTeamId,
                         String offTeamId, String defTeamId, int period, int sequence,
-                        RandomGenerator rng) {
-        for (int ft = 0; ft < SimConfig.FREE_THROWS_PER_FOUL; ft++) {
+                        int count, FreeThrowSource source, RandomGenerator rng) {
+        for (int ft = 0; ft < count; ft++) {
             shooter.recordFreeThrowAttempt();
             boolean made = foulResolver.isFreeThrowMade(shooter, rng);
             if (made) {
@@ -367,7 +432,7 @@ public class PossessionEngine {
                 data.addScore(shootingTeamId, 1);
             }
             data.addEvent(offTeamId, defTeamId, period, sequence,
-                    PlayType.FREE_THROW, made ? "MADE" : "MISSED", shooter.getPlayerId());
+                    PlayType.FREE_THROW, source.outcome(made), shooter.getPlayerId());
             sequence++;
         }
         return sequence;

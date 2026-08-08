@@ -86,7 +86,11 @@ class CalibrationHarness {
         // Pair adjacent teams into matchups, run several rounds (rotating the
         // pairing + seed) to reach ~100 games over distinct matchups.
         int rounds = 6;
-        long seed = 1_000L;
+        // §3.11 (#029 E): the seed base is overridable (-DcalibrationSeed=NNNN) so
+        // the same configuration can be observed across SEVERAL independent runs
+        // and tuned to the MEAN. A single run carries per-seed noise big enough to
+        // bait an over-correction — the explicit discipline this pass adopted.
+        long seed = Long.getLong("calibrationSeed", 1_000L);
         Agg agg = new Agg();
         int games = 0;
 
@@ -199,20 +203,29 @@ class CalibrationHarness {
     }
 
     /**
-     * §3.10: walk the event log once, tallying fouls by kind, the per-team-period
-     * foul counts, and the FT split. A FREE_THROW block is attributed to whichever
-     * FOUL most recently preceded it — bonus FTs follow a REBOUNDING_FOUL_*,
-     * shooting-foul FTs follow a SHOOTING_FOUL.
+     * §3.10 + §3.11: walk the event log once, tallying fouls by kind, the
+     * per-team-period foul counts, and the FT split BY SOURCE.
+     *
+     * <p>§3.11 (#029 D) replaced the backward join this used to do — "a FREE_THROW
+     * belongs to whichever FOUL most recently preceded it" — with a direct read of
+     * the free throw's own outcome, now that every FT is self-describing
+     * ({@code MADE_SHOOTING} / {@code MISSED_BONUS} / {@code MADE_AND_ONE}). That is
+     * the point of the tag: the source is a fact on the event, not something
+     * reconstructed by replaying the sequence. It also makes this line a self-check
+     * on the tagging itself — an untagged or mis-tagged FT shows up as an UNKNOWN
+     * bucket rather than being silently mis-attributed.
      */
     private void accumulateFoulsAndFreeThrows(List<GameEventEntity> events, Agg agg) {
         // (teamId, period) → fouls committed, so the per-period team-foul average
         // can be reported and the bonus reachability eyeballed.
         java.util.Map<String, Integer> foulsByTeamPeriod = new java.util.HashMap<>();
-        String lastFoulOutcome = null;
 
         for (GameEventEntity e : events) {
-            if (e.getPlayType() == PlayType.FOUL) {
-                lastFoulOutcome = e.getOutcome();
+            if (e.getPlayType() == PlayType.SHOT && e.getOutcome() != null
+                    && e.getOutcome().startsWith("MADE")
+                    && (e.getOutcome().endsWith("DRIVE") || e.getOutcome().endsWith("POST"))) {
+                agg.madeContactShots++;
+            } else if (e.getPlayType() == PlayType.FOUL) {
                 agg.foulsByOutcome.merge(String.valueOf(e.getOutcome()), 1L, Long::sum);
                 if (e.getCommittingTeamId() != null) {
                     foulsByTeamPeriod.merge(
@@ -220,11 +233,10 @@ class CalibrationHarness {
                 }
             } else if (e.getPlayType() == PlayType.FREE_THROW) {
                 agg.freeThrows++;
-                if (lastFoulOutcome != null && lastFoulOutcome.startsWith("REBOUNDING_FOUL")) {
-                    agg.bonusFreeThrows++;
-                    if ("MADE".equals(e.getOutcome())) {
-                        agg.bonusFreeThrowsMade++;
-                    }
+                String source = freeThrowSource(e.getOutcome());
+                agg.freeThrowsBySource.merge(source, 1L, Long::sum);
+                if (e.getOutcome() != null && e.getOutcome().startsWith("MADE")) {
+                    agg.freeThrowsMadeBySource.merge(source, 1L, Long::sum);
                 }
             }
         }
@@ -236,6 +248,18 @@ class CalibrationHarness {
                 agg.teamPeriodsInBonus++;
             }
         }
+    }
+
+    /**
+     * §3.11 (#029 D): the source half of a self-describing FT outcome
+     * ({@code MADE_AND_ONE} → {@code AND_ONE}). Anything that does not parse is
+     * bucketed as {@code UNKNOWN} rather than guessed at, so a missed tag is
+     * VISIBLE on the harness line instead of quietly folding into a real source.
+     */
+    private String freeThrowSource(String outcome) {
+        if (outcome == null) return "UNKNOWN";
+        int split = outcome.indexOf('_');
+        return split < 0 ? "UNKNOWN" : outcome.substring(split + 1);
     }
 
     /** Sort one team's box scores by minutes desc and add to the per-slot totals. */
@@ -291,9 +315,19 @@ class CalibrationHarness {
         // §3.10 (#028 E): fouls by kind, per-team-period foul load, and the
         // bonus-FT share — the instrument for the recalibration pass.
         final java.util.Map<String, Long> foulsByOutcome = new java.util.HashMap<>();
-        long freeThrows, bonusFreeThrows, bonusFreeThrowsMade;
+        long freeThrows;
+        // §3.11: made DRIVE/POST — the denominator the and-1 rate is a share OF
+        // (the A2 gate: only a made contact shot can draw one).
+        long madeContactShots;
         long teamPeriodFouls;
         int teamPeriods, teamPeriodsInBonus;
+
+        // §3.11 (#029 D/E): the FT split BY SOURCE, read straight off the
+        // self-describing outcome. This is the instrument for §3.11's recalibration
+        // (how big is the and-1 lift?) AND the self-check on the tag itself (an
+        // UNKNOWN bucket means an FT was emitted without a source).
+        final java.util.Map<String, Long> freeThrowsBySource = new java.util.HashMap<>();
+        final java.util.Map<String, Long> freeThrowsMadeBySource = new java.util.HashMap<>();
 
         void print(int games) {
             double tg = teamGames;
@@ -365,10 +399,29 @@ class CalibrationHarness {
                         e.getValue() / tg);
             }
             System.out.printf("  FTA / team / game:       %.1f%n", freeThrows / tg);
-            System.out.printf("  Bonus FTA / team / game: %.1f   (%.1f%% of all FTs; %.1f pts/team)%n",
-                    bonusFreeThrows / tg,
-                    freeThrows == 0 ? 0.0 : 100.0 * bonusFreeThrows / freeThrows,
-                    bonusFreeThrowsMade / tg);
+
+            // §3.11 (decisions.md #029 E) and-1 rate + FT-source split. §3.11 is a
+            // PURE-ADDITIVE lift — an FT tacked onto a shot that already scored,
+            // with no offsetting removal — so this block is what bounds its
+            // recalibration: the and-1 conversion rate (how often a made contact
+            // shot draws one) sizes the new source, and the per-source FT split
+            // shows the lift against the two sources that already existed. The
+            // split is read off the self-describing outcome (#029 D), so an
+            // UNKNOWN row here means an FT was emitted without its source tag.
+            System.out.println("--- And-1 / FT sources (§3.11) ---");
+            System.out.printf("  Made contact FG / team:  %.1f   (the and-1 denominator: made DRIVE/POST)%n",
+                    madeContactShots / tg);
+            long andOnes = foulsByOutcome.getOrDefault("AND_ONE", 0L);
+            System.out.printf("  And-1s / team / game:    %.2f   (%.1f%% of made contact FG)%n",
+                    andOnes / tg,
+                    madeContactShots == 0 ? 0.0 : 100.0 * andOnes / madeContactShots);
+            for (java.util.Map.Entry<String, Long> e
+                    : new java.util.TreeMap<>(freeThrowsBySource).entrySet()) {
+                long made = freeThrowsMadeBySource.getOrDefault(e.getKey(), 0L);
+                System.out.printf("  FTA %-12s %5.1f%%  (%.2f / team / game; %.2f pts/team)%n",
+                        e.getKey() + ":", freeThrows == 0 ? 0.0 : 100.0 * e.getValue() / freeThrows,
+                        e.getValue() / tg, made / tg);
+            }
 
             System.out.println("========================================================");
             System.out.println();
