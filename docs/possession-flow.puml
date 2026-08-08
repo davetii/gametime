@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB, §3.11 and-1)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -50,16 +50,22 @@ partition "FoulResolver" {
     if (foul?\n//foulDrawing vs (20 − foulProne)//\n//× fatigueFactor per player §3.5//) then (yes)
       :FOUL — SHOOTING_FOUL
       charge defender foul;
-      note right: foul rate × defensiveScheme pressure §3.4
+      note right
+        foul rate × defensiveScheme pressure §3.4.
+        This is the **pre-shot** foul — the shot is stopped,
+        a 2-FT trip, mutually exclusive with a made basket.
+        The **and-1** (foul WITH a made shot) is a separate
+        post-make roll (§3.11, inside SHOT — MADE below).
+      end note
 
       repeat
         if (free throw made?\n//freeThrows skill//) then (yes)
-          :FREE_THROW — MADE
+          :FREE_THROW — MADE_SHOOTING (source-tagged §3.11 D)
           +1 point;
         else (no)
-          :FREE_THROW — MISSED;
+          :FREE_THROW — MISSED_SHOOTING;
         endif
-      repeat while (2 FTs done?) is (no) not (yes)
+      repeat while (FREE_THROWS_PER_FOUL done?) is (no) not (yes)
       stop
     endif
   endif
@@ -118,6 +124,28 @@ partition "ShotResolver" {
         if (assisted?\n//supporting-cast passing draw//) then (yes)
           :stamp assist_player_id
           credit assister;
+        endif
+      }
+      partition "And-1 (§3.11 — decisions.md #029)" {
+        note right
+          **And-1 = a SECOND, post-make foul roll** (A1), carved
+          BESIDE the assist — the pre-shot foul branch + BASE_FOUL
+          are untouched, so this rate is independently tunable
+          (the §3.7 block / §3.10 rebound-foul carve, a third time).
+          A made basket already ended the possession → the and-1
+          NEVER forks it; it only tacks on ONE FT (B). Coexists with
+          the assist, doesn't interact (A3). Rate = rareEventProbability
+          on AND_ONE_BASE + its own AND_ONE_SENSITIVITY (C).
+        end note
+        if (DRIVE or POST? //A2 — §3.12 widens to all shot types//) then (yes)
+          if (and-1?\n//shooter foulDrawing vs defender discipline//\n//× defensivePressure; AND_ONE_SENSITIVITY (C)//\n//× fatigueFactor per player §3.5//) then (yes)
+            :FOUL — AND_ONE
+            charge defender foul (feeds foul-outs + §3.10 tally)
+            committing_team_id = defTeamId (reuses #028 D column);
+            :FREE_THROW — *_AND_ONE (source-tagged, D)
+            ONE FT for the shooter (AND_ONE_FREE_THROWS = 1, B)
+            +1 if made; FG points already recorded;
+          endif
         endif
       }
       stop
@@ -211,6 +239,25 @@ legend bottom left
   path against the one MAX_OFFENSIVE_REBOUNDS cap. Sail-out is a
   new outcome (fewer second chances) → VERIFIED harness-neutral
   (#026 D): OOB ~3/team/game, §3.4/§3.5 aggregates held.
+
+  **§3.11 and-1** (decisions.md #029)
+  A defensive foul on a shot that STILL GOES IN: made FG + 1 FT.
+  Modeled as a SECOND, post-make foul roll (A1) BESIDE the assist
+  (A3) inside SHOT — MADE — the pre-shot foul branch + BASE_FOUL
+  are untouched, so the and-1 rate stays independently tunable
+  (the §3.7/§3.10 carve, a third time). Scoped to made DRIVE/POST
+  (A2 — §3.12 widens to all shot types + fouled-three = 3 FTs).
+  Awards exactly ONE FT via a per-situation count through the reused
+  awardFreeThrows (B); never forks the possession (the make already
+  ended it). Rate = rareEventProbability(AND_ONE_BASE, …,
+  AND_ONE_SENSITIVITY) — reuse the machine, own dials, avoiding the
+  PROB_FLOOR/global-SENSITIVITY traps §3.7+§3.10 hit (C). Free throws
+  become SELF-DESCRIBING (D): each FREE_THROW carries its source
+  (SHOOTING / BONUS / AND_ONE), retiring §3.10's accepted ambiguity
+  now that there are three FT sources. No schema / OpenAPI / new
+  PlayType (AND_ONE is a FOUL outcome, committing_team_id = defTeamId).
+  PURE-ADDITIVE points lift → recalibrate the shot BASE_* lever, NOT
+  BASE_FOUL (wrong-way, #028 note), by multiple runs to the mean (E).
 endlegend
 
 @enduml
