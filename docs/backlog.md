@@ -13,6 +13,79 @@ planned features), see [ideas.md](ideas.md).
 
 ---
 
+- [ ] **Load the `SimConfig` constants from flat properties files, as SWAPPABLE
+      PROFILES the harness can be run against.** *(User direction, 2026-08 —
+      deferred, not designed. Recorded so it isn't lost; the shape below is the
+      starting point, not a resolved plan.)*
+      **The profile framing is the point, and it is a bigger win than "avoid a
+      rebuild".** It turns tuning from *sequential edits* (change a constant,
+      rebuild, run, write the number down, change it again — the previous config now
+      gone unless someone remembered it) into **comparable experiments**: several
+      named profiles coexist as files, and the harness runs against each.
+      **It composes with the instrument that already exists:** `CalibrationHarness`
+      takes **`-DcalibrationSeed=NNNN`** (§3.11) precisely so one config can be
+      observed across seeds and tuned to the **mean** (#029 E). A
+      `-DcalibrationProfile=<name>` beside it yields the full **profile × seed
+      matrix** — which is exactly the sweep §3.11 ran *by hand* ("3-config × 5-seed")
+      and §3.12 will have to run again for the foul multipliers. That hand-run sweep
+      is the concrete evidence this chore has a real consumer.
+      **Natural profiles to start with:** the shipped baseline (whatever `SimConfig`
+      currently holds, so a landing stays reproducible), plus one per hypothesis
+      under test (e.g. a `THREE = 0.133` vs. `0.20` pair — the exact open question
+      §3.12 carries).
+      **A separable extension worth not foreclosing:** the same mechanism is how
+      **eras** (1990s low-pace/high-foul vs. modern three-heavy) or **difficulty
+      settings** would eventually be expressed. That is a *gameplay feature* needing
+      a consumer, not this chore (see the "not to be confused with" note below) — but
+      the tuning design shouldn't paint it out.
+      **The single-location goal is already met and should not be disturbed:** all
+      **65** tunable constants live in `SimConfig.java`, with **zero** defined
+      anywhere else in the `sim` package (verified 2026-08). That invariant has held
+      from §3.2 through §3.11 — protect it. What's missing is not a *location* but a
+      **workflow**: every calibration change (a `BASE_*` trim, a foul multiplier)
+      currently costs an edit + rebuild + re-run, which is real friction in a pass
+      that sweeps several values across several seeds.
+      **The open design question**, when this is picked up, is whether a profile is
+      a **full replacement** (each file carries all 65 constants — self-contained and
+      unambiguous, but 65 lines to change one knob, and a new constant must be added
+      to every file) or an **override layer** (the Java constants stay the defaults;
+      a profile lists only its deltas — far more readable as an experiment, "this
+      profile is baseline except `FOUL_MULT_THREE`", at the cost that a profile alone
+      no longer tells you the effective config). **The override shape looks better
+      for the stated purpose** — comparing hypotheses is exactly a deltas problem —
+      but decide it then, with the code in front of you.
+      Worth weighing at the same time: `SimConfig`'s javadoc carries the tuning
+      *history* — the `BASE_NO_BASKET_FOUL` wrong-way-lever finding (#028), the
+      `PROB_FLOOR` trap (#028), the per-rare-event sensitivity reasoning (#025/#029)
+      — and those comments have repeatedly stopped real mistakes, so any shape that
+      separates a knob from its reasoning, or gives up compile-time key safety, is
+      paying something for the convenience. (The override shape keeps the javadoc
+      intact by construction, which is a further point in its favour.)
+      **Record which profile produced a landing.** Once profiles exist, a harness
+      result is only meaningful paired with the profile that generated it — the
+      implementation notes in `decisions.md` should name it alongside the seed.
+      **A second, separable piece of the same problem: documentation drift.** Values
+      are currently restated by hand across `todo.md`, `decisions.md`, and
+      `possession-flow.puml` — the §3.12 design pass alone had to update a single
+      changed multiplier in five places. A reference table **generated from the
+      source** would make that drift structurally impossible; docs would link rather
+      than restate. Independent of the properties work and can land separately.
+      **Timing — do NOT do this mid-arc.** The natural window is **after §3.13**,
+      once the §3.7–§3.13 sequence closes. Changing how constants load *while*
+      actively tuning them would forfeit the ability to reproduce a prior landing
+      exactly — which is what validated the §3.11 harness (seed 1000 reproduced
+      §3.10's shipped numbers before any §3.11 figure was read off it). Same
+      one-moving-knob-at-a-time discipline the cap 3→5 idea cites.
+      **Not to be confused with** player-facing league/rules settings (difficulty,
+      custom rules, selectable eras) — those are *gameplay features* needing a
+      consumer, and belong in [ideas.md](ideas.md)/roadmap.md, not this chore. The
+      distinction is the audience: this chore serves **the developer at the harness**
+      (a real consumer today, evidenced by §3.11's hand-run 3-config sweep); a
+      player-facing profile picker serves an end user and has no consumer yet. The
+      mechanism could later be shared, which is why the extension is noted above —
+      but building for the second audience now would be fabricating ahead of a
+      consumer (#014/#017).
+
 - [ ] **Condense `decisions.md` — UNBLOCKED (§3.11 shipped 2026-08).** The file is 443
       lines / **~170k chars** and has become hard to track. The cause is a size split,
       not entry count: `#001`–`#020` (platform/domain/schema/roster/API) average **~1.3k**

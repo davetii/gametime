@@ -367,24 +367,37 @@ re-running the loop and re-agreeing the numbers, not a red build.
       `CalibrationHarness`. **Points at 115.9 is a deliberate deferral to §3.12, not
       drift** — treat it as §3.12's baseline._
 - [ ] **§3.12 — All-shot-type contact fouls + graduated foul rate + fouled-three = 3 FTs**
-      *(needs its own design pass — the §3.11 end-state, split out)*.
+      *(**design pass DONE — resolved as decisions.md #030**; execute-ready plan in
+      todo.md)*.
       §3.11 draws and-1s only on made DRIVE/POST because the whole foul model gates on
       the **binary** `ShotType.isContactType()` (drive/post only). The end-state (user
       call, decisions.md #029 A2) is that **every** shot type can draw a foul/and-1 at a
       **graduated** rate — post frequent → perimeter/three rare (a closeout on a
-      three-point shooter is a real foul), replacing the binary with a per-shot-type
-      rate. Same root cause fixes the **latent fouled-three bug**: the pre-shot foul
-      branch passes a constant `FREE_THROWS_PER_FOUL` (2), so a fouled `THREE` would
-      award 2 FTs not 3 — today it never fires only because `THREE` isn't a contact
-      type, so widening contact **activates** the bug and must fix it. **The machinery
-      is already in place** — §3.11 D parameterized `awardFreeThrows` with a
-      per-situation `count`, so this is a call-site change (pass `3` for a fouled
-      three), not new plumbing.
+      three-point shooter is a real foul). #030 A1 **deletes** the binary outright for a
+      per-shot-type foul **multiplier** table, anchored (A2) on an untouched
+      `BASE_FOUL` — itself **renamed `BASE_NO_BASKET_FOUL`** (F), value unchanged, since
+      it never meant "the foul rate" but "the foul stopped the shot". **One shared
+      multiplier table drives both the pre-shot roll and the and-1 roll** (B). Same root
+      cause fixes the **latent fouled-three bug**: the pre-shot foul branch passes a
+      constant `FREE_THROWS_PER_FOUL` (2), so a fouled `THREE` would award 2 FTs not
+      3 — today it never fires only because `THREE` isn't a contact type, so widening
+      contact **activates** the bug and must fix it. **The machinery is already in
+      place** — §3.11 D parameterized `awardFreeThrows` with a per-situation `count`, so
+      this is a call-site change (pass `shotType.freeThrowsIfFouled()`, C), not new
+      plumbing. An and-1 stays **1** FT for every type, a made three included.
       Moves scoring (more fouls, more 3-FT trips) → its own recalibration — and it
       inherits **§3.11's deferred re-centering**: points sit at **115.9** vs. the ~112
       target because §3.11 deliberately took no shot-`BASE_*` trim (paying FG% twice for
-      two adjacent foul phases was the worse trade). §3.12 should re-center **once**,
-      against the shot `BASE_*` lever, from a 115.9 baseline.
+      two adjacent foul phases was the worse trade). §3.12 re-centers **once** from that
+      115.9 baseline, spending levers **cheapest-first** (#030 E): the **new,
+      uncalibrated perimeter/three multipliers** absorb lift for free and go first; the
+      shot `BASE_*` lever (which costs ~0.6% calibrated FG% per point) covers only the
+      remainder; `BASE_NO_BASKET_FOUL` is **never** used — it is a wrong-way lever
+      (#028). Net schema change: **NONE**. Two `CalibrationHarness` fixes ride along:
+      the §3.11 and-1 denominator is repaired (it is hardcoded to DRIVE/POST and would
+      silently inflate once the numerator widens), and a **foul-out line is added** —
+      `FOUL_OUT_LIMIT = 6` has shipped since §3.5 but its rate has **never been
+      measured**, and §3.12 is the pass that moves it (#030 G).
 - [ ] **§3.13 — Flagrant / technical fouls** *(needs its own design pass — a distinct
       foul sub-system)*. A separate foul class the possession model has no path for: it
       changes **who shoots** (a technical is shot by a chosen shooter, not the fouled

@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls — DESIGNED, NOT YET BUILT)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -60,28 +60,57 @@ partition "TurnoverResolver (§3.9 causes — decisions.md #027)" {
 }
 
 partition "FoulResolver" {
-  if (DRIVE or POST?) then (yes)
-    if (foul?\n//foulDrawing vs (20 − foulProne)//\n//× fatigueFactor per player §3.5//) then (yes)
-      :FOUL — SHOOTING_FOUL
-      charge defender foul;
-      note right
-        foul rate × defensiveScheme pressure §3.4.
-        This is the **pre-shot** foul — the shot is stopped,
-        a 2-FT trip, mutually exclusive with a made basket.
-        The **and-1** (foul WITH a made shot) is a separate
-        post-make roll (§3.11, inside SHOT — MADE below).
-      end note
+  note right
+    **§3.12 (decisions.md #030 A1/A2) — DESIGNED, NOT YET BUILT.**
+    The binary ``ShotType.isContactType()`` gate that stood here
+    (DRIVE or POST?) is **DELETED**. **Every** shot type can now be
+    fouled, graduated by a per-shot-type multiplier on the base
+    constant: DRIVE 1.0 (the anchor) ≈ POST > PERIMETER > THREE.
+    That base is **UNTOUCHED at 0.15** and still means "P(contact
+    stops the shot)" **on a drive**, so drive/post rates stay
+    numerically identical to §3.11 and the whole §3.12 delta is
+    attributable to the two newly foulable types (A2).
+    It is **RENAMED ``BASE_FOUL`` → ``BASE_NO_BASKET_FOUL``** (F) —
+    value unchanged; it never meant "the foul rate", it means the
+    foul STOPPED the shot, which is exactly why trimming it moves
+    points the WRONG way (see the legend).
+    A multiplier of 0.0 — not a zero base — is the only true
+    off-switch (the #029 zero-base finding).
+  end note
+  if (foul?\n//foulDrawing vs (20 − foulProne)//\n//× foulMultiplier(shotType) §3.12 A1//\n//× fatigueFactor per player §3.5//) then (yes)
+    :FOUL — SHOOTING_FOUL
+    charge defender foul;
+    note right
+      foul rate × defensiveScheme pressure §3.4.
+      This is the **pre-shot** foul — the shot is stopped,
+      a 2-FT trip (**3 on a THREE**, §3.12 C), mutually
+      exclusive with a made basket. The **and-1** (foul WITH
+      a made shot) is a separate post-make roll (§3.11,
+      inside SHOT — MADE below).
+      **NB the stopped shot charges NO FGA** — this branch
+      returns before recordFieldGoalAttempt() — so it removes
+      points without moving FG% directly, but it DOES change
+      the shot mix FG% is computed over (§3.12 E).
+    end note
 
-      repeat
-        if (free throw made?\n//freeThrows skill//) then (yes)
-          :FREE_THROW — MADE_SHOOTING (source-tagged §3.11 D)
-          +1 point;
-        else (no)
-          :FREE_THROW — MISSED_SHOOTING;
-        endif
-      repeat while (FREE_THROWS_PER_FOUL done?) is (no) not (yes)
-      stop
-    endif
+    repeat
+      if (free throw made?\n//freeThrows skill//) then (yes)
+        :FREE_THROW — MADE_SHOOTING (source-tagged §3.11 D)
+        +1 point;
+      else (no)
+        :FREE_THROW — MISSED_SHOOTING;
+      endif
+    repeat while (shotType.freeThrowsIfFouled() done?\n//§3.12 C: 3 for THREE, else 2//) is (no) not (yes)
+    note right
+      **§3.12 C — the latent fouled-three fix.** The count is a
+      RULE on ShotType (``freeThrowsIfFouled()``), not a SimConfig
+      tunable, threaded through #029 D's already-parameterized
+      ``awardFreeThrows`` — a call-site change, no new plumbing.
+      A stopped THREE = **3** FTs; it never fired before only
+      because THREE wasn't a contact type. No new FreeThrowSource:
+      these are SHOOTING FTs, there are simply three of them.
+    end note
+    stop
   endif
 }
 
@@ -151,15 +180,40 @@ partition "ShotResolver" {
           the assist, doesn't interact (A3). Rate = rareEventProbability
           on AND_ONE_BASE + its own AND_ONE_SENSITIVITY (C).
         end note
-        if (DRIVE or POST? //A2 — §3.12 widens to all shot types//) then (yes)
-          if (and-1?\n//shooter foulDrawing vs defender discipline//\n//× defensivePressure; AND_ONE_SENSITIVITY (C)//\n//× fatigueFactor per player §3.5//) then (yes)
-            :FOUL — AND_ONE
-            charge defender foul (feeds foul-outs + §3.10 tally)
-            committing_team_id = defTeamId (reuses #028 D column);
-            :FREE_THROW — *_AND_ONE (source-tagged, D)
-            ONE FT for the shooter (AND_ONE_FREE_THROWS = 1, B)
-            +1 if made; FG points already recorded;
-          endif
+        note right
+          **§3.12 (decisions.md #030 A1/B) — DESIGNED, NOT YET BUILT.**
+          §3.11's ``DRIVE or POST?`` gate here is **DELETED** — every
+          made shot now rolls the and-1, and the graduation lives in
+          the rate via the **SAME shared** foulMultiplier(shotType)
+          table the pre-shot roll uses (B: one table, not two — the
+          contact propensity is a property of the SHOT, not of which
+          roll is asking). An and-1 on a THREE is rarer than a foul
+          on a three **automatically**: the two rolls are independent
+          and the shot must ALSO go in, so modeling it again would
+          double-count it.
+          **The two foul rolls are MUTUALLY EXCLUSIVE** — trace the
+          flow above: the pre-shot FoulResolver branch **stops**, so a
+          stopped shot never reaches here. One shot emits at most ONE
+          of SHOOTING_FOUL / AND_ONE, never both, and the shared table
+          is never applied twice to the same shot. The and-1 is
+          conditioned TWICE (survived the foul roll, AND went in), so
+          at §3.11's numbers a drive is ~15% stopped + ~2.6% and-1 —
+          **~17.6% combined, not double**. Where they DO compound is
+          the §3.10 period foul tally: both emit a FOUL and both count
+          toward the bonus (and-1s alone moved fouls 3.95 → 4.41/team/
+          period in §3.11). §3.12 roughly QUADRUPLES this roll's reach
+          — every made shot, not just made DRIVE/POST — so that tally
+          channel is what the penalty-rate line (D) is watching.
+        end note
+        if (and-1?\n//shooter foulDrawing vs defender discipline//\n//× foulMultiplier(shotType) §3.12 B — same table//\n//× defensivePressure; AND_ONE_SENSITIVITY (C)//\n//× fatigueFactor per player §3.5//) then (yes)
+          :FOUL — AND_ONE
+          charge defender foul (feeds foul-outs + §3.10 tally)
+          committing_team_id = defTeamId (reuses #028 D column);
+          :FREE_THROW — *_AND_ONE (source-tagged, D)
+          ONE FT for the shooter (AND_ONE_FREE_THROWS = 1, B)
+          **ALWAYS 1 — including a made THREE** (§3.12 C:
+          3 pts + 1 FT, NOT 3 FTs — do not graduate this)
+          +1 if made; FG points already recorded;
         endif
       }
       stop
@@ -271,7 +325,9 @@ legend bottom left
   REBOUND_FOUL_SENSITIVITY 0.10, AND_ONE_SENSITIVITY 0.10.
   NB a zero base does **not** disable a rare event — the skill term
   alone stays positive off an even contest; only the caller's gate
-  (e.g. isContactType) truly switches one off.
+  truly switches one off. **§3.12 deletes the isContactType gate**,
+  so from then on the only off-switch is a **zero foulMultiplier**,
+  which scales the whole probability, skill term included (#030 A1).
 
   **§3.4 coach / chemistry modifiers** (decisions.md #022)
   Each is the avg-10 deviation multiplier
@@ -358,6 +414,40 @@ legend bottom left
   PlayType (AND_ONE is a FOUL outcome, committing_team_id = defTeamId).
   PURE-ADDITIVE points lift → recalibrate the shot BASE_* lever, NOT
   BASE_FOUL (wrong-way, #028 note), by multiple runs to the mean (E).
+
+  **§3.12 all-shot-type contact fouls** (decisions.md #030)
+  **DESIGNED, NOT YET BUILT** — the two §3.12 notes above mark the
+  forks it changes. The binary ShotType.isContactType() (DRIVE||POST)
+  is DELETED (A1) — it gated the WHOLE foul model, so today a jump
+  shot cannot be fouled at all. It is replaced by a graduated
+  per-shot-type **foulMultiplier** (the §3.7 BASE_BLOCK_* shape):
+  DRIVE 1.0 anchor ≈ POST > PERIMETER > THREE. The base constant is
+  UNTOUCHED at 0.15 and still means the DRIVE rate (A2) — though it is
+  RENAMED ``BASE_FOUL`` → ``BASE_NO_BASKET_FOUL`` (F), since "no basket"
+  is what it actually encodes and the old name kept inviting misuse as
+  a points lever. So drive/
+  post behavior is bit-identical to §3.11 and the entire §3.12 delta
+  is attributable to perimeter/three. ONE shared table drives BOTH
+  the pre-shot roll and the and-1 roll (B). The same widening
+  ACTIVATES the latent fouled-three bug and fixes it: a stopped
+  THREE awards **3** FTs via a freeThrowsIfFouled() rule on ShotType
+  (C) through #029 D's parameterized count — but an and-1 stays
+  **1** FT for every type, a made three included. No schema, no
+  OpenAPI, no new PlayType/FreeThrowSource/outcome string.
+  BONUS_FOULS_PER_PERIOD stays 5 — a real NBA rule, not a lever (D).
+  NOT free, and the LARGEST RNG shift of the arc (perimeter/three
+  possessions now consume foul + and-1 draws). Both new stopped-shot
+  cases are net points-POSITIVE (a stopped THREE is the biggest
+  single-event gain in the model: −1.01 expected, +2.25 in FTs), so
+  §3.12 re-centers ONCE from §3.11's deferred 115.9 baseline back to
+  ~112 — absorbing its own lift AND the inherited debt (E).
+  **Lever order, cheapest-first (E):** (1) the NEW perimeter/three
+  multipliers — uncalibrated, so free; (2) the shot BASE_* rates —
+  proven, but they spend calibrated FG% (~0.6%/point); (3) the
+  no-basket-foul base **never** — it is a WRONG-WAY lever, because it controls a SWAP
+  (a live shot worth >1.5 pts once its rebound/and-1 continuations
+  are counted, vs. a 2-FT trip worth ~1.5), so trimming it moves
+  points UP (measured, #028: 0.15→0.138 raised points to 116.1).
 endlegend
 
 @enduml
