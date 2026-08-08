@@ -101,6 +101,22 @@ JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn spring-boot:run -pl
 
 App runs on port 8080. Swagger UI at http://localhost:8080/swagger-ui.html
 
+## Git — never commit without the user's say-so
+
+**Do not run `git commit` (or `git push`) unless the user explicitly asks for it
+in that message.** This applies to every kind of change — engine code, tests,
+planning docs, skills — and to work that is finished, verified, and green. A
+passing build is not permission to commit.
+
+The workflow is: make the edits, summarize what changed, then **stop and wait**.
+The user reviews first and asks for the commit when they're ready. "Finish the
+task" / "close it out" / "ship it" do **not** imply a commit; if it's ambiguous,
+ask rather than assume. Completing a phase's close-out means the *files* are
+updated, not that history is written.
+
+Corollary: don't batch up "I'll commit it since I'm here" side commits, and don't
+push a branch just because it's ahead of origin.
+
 ## Key conventions
 
 - OpenAPI delegate pattern: generated `V1ApiDelegate` interface, hand-written `V1ApiDelegateimpl` implements it.

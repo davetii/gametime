@@ -155,3 +155,6 @@ missing consumer), the same "ahead of a consumer" discipline the decisions use.
 - Rationale / Trade-off / Alternatives keyed to the Decisions; crux bolded.
 - If a design pass: no production code, execute-ready plan left in todo.md.
 - If execution: implementation note on #NNN, roadmap bullet flipped to `[x]`.
+- **Do NOT commit.** Leave the edits in the working tree, summarize what changed,
+  and wait for the user to ask for the commit. A completed doc close-out is not
+  permission to write history — see CLAUDE.md's git rule.
