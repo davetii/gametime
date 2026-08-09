@@ -283,3 +283,6 @@ the engine (the rotation step, `RotationState.advancePossession()`):
 | Fatigue sub | `currentEnergy` vs a coach-scaled threshold; starters tolerate MORE | ✅ §3.5 |
 | Foul-out (forced off) | none — a derived predicate over the foul counter | ✅ §3.5 |
 | **Foul-trouble sub** | the **value composite** (individualDefense, rimProtection, defenseRebound + the five offense skills) × foul count × coach × roster slot; better players benched **sooner** | ✅ §3.13 |
+| **Technical foul** | **none for the RATE** — deliberately random, no causal model (#032 B); `foulProne` weights only **who** commits it, over the on-floor five (#032 C) | 🔜 §3.14a |
+| **Technical FT shooter** | `freeThrows` — a **deterministic** highest-on-the-floor pick, *not* the `foulDrawing`-weighted draw bonus FTs use (#032 G) | 🔜 §3.14a |
+| **Ejection (forced off)** | none — a **derived** predicate over the separate technical counter (`technicalFouls >= 2`), exactly as the foul-out is (#032 F) | 🔜 §3.14a |

@@ -1,5 +1,5 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -12,11 +12,43 @@ note right
   (loop bound), blended across both coaches.
 end note
 
-partition "RotationState — between-possession sub (§3.5, §3.13)" {
+partition "RotationState — between-possession sub (§3.5, §3.13, §3.14a)" {
   :drain on-floor energy (× endurance)
   recover benched energy;
-  :**hard** — force off any fouled-out player
-  //getFouls() >= FOUL_OUT_LIMIT// → sub from full roster;
+  if (**§3.14a — technical foul?**\n//P = TECHNICAL_FOULS_PER_TEAM_GAME ÷ nominal checks//\nrolled PER TEAM, no causal model at all) then (yes)
+    :FOUL — TECHNICAL_FOUL
+    committer: //foulProne//-weighted draw
+    over the ON-FLOOR FIVE only;
+    :**1 free throw** to the other team
+    shooter = highest //freeThrows// on the floor
+    (DETERMINISTIC — consumes no RNG);
+    note right
+      **§3.14a (#032 B/C/D/E/G) — the foul with NO contest behind it.**
+      Every other foul in this engine is a by-product of a contest
+      (pickDefender → isFoul). A technical is **behavioral**, so it
+      hangs off nothing — which is exactly why it is rolled HERE,
+      between possessions, and **NOT** on the possession path.
+      **THE POSSESSION IS UNCHANGED** (D) — no fork, no retention,
+      no switch, even when the offense commits it. §3.14a adds
+      **NO branch below this partition**; if you are looking for one,
+      there isn't one, and that is the design.
+      **Its own counter** (E): does NOT feed FOUL_OUT_LIMIT, does NOT
+      feed foulTroubleLevel(), and is EXCLUDED from the period bonus
+      tally — #028 A1's first outcome-aware exception.
+      **Committer is on-floor only** (C): the bench is excluded to
+      avoid spending ~2/3 of the rate on players whose technicals
+      have no engine consequence. foulProne is nearly flat (sd 1.22),
+      so the draw is near-uniform — accepted, because the RATE is a
+      fixed constant and the weighting moves no aggregate.
+      **No PROB_FLOOR** (H): the floor (0.02) is ~6× the per-check
+      rate (~0.0035) — it would inflate technicals ~6-fold. Routed
+      through the shared floor-free clamp helper this pass adds.
+    end note
+  else (no)
+  endif
+  :**hard** — force off any fouled-out player OR ejected player
+  //getFouls() >= FOUL_OUT_LIMIT// // || isEjected()//
+  → sub from full roster;
   :**soft** — foul-trouble sub (§3.13)
   //P = base(fouls) × subAggressiveness × value × roster//
   from //rotationDepth// window only; yields if bench can't cover;
@@ -25,10 +57,16 @@ partition "RotationState — between-possession sub (§3.5, §3.13)" {
   within //rotationDepth//; starters pulled later / return first;
   note right
     Three tiers: **hard/forced · soft/preference · fatigue**
-    (#031 H — §3.14's ejections extend the HARD tier).
-    **Emits no events, but consumes ONE RNG draw** —
-    §3.13's sit roll, taken unconditionally at a fixed
-    point so the stream never forks on rotation state
+    (#031 H). **§3.14a's ejection extends the HARD tier via
+    the `eligible(...)` filter — NOT a fourth removal path.**
+    It stays **DERIVED** (//technicalFouls >= 2//, a monotonic
+    counter — #023 F applies unchanged, #032 F). The genuine
+    stored-state exception is **§3.14b's flagrant-2**, which
+    is a severity grade with no counter behind it.
+    **Emits events only for §3.14a's technical, and consumes
+    TWO RNG draws** — §3.13's sit roll and §3.14a's technical
+    roll, both taken unconditionally at fixed points so the
+    stream never forks on rotation state
     (decisions.md #031, revising #023 C's RNG-free sub).
     The soft rule protects the BEST players MORE — the
     deliberate inverse of the fatigue rule's starter

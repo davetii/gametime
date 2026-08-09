@@ -37,6 +37,7 @@ target, reported for visibility.
 | Fouls | ballpark | ~19–20 | 19.0 | ✅ (was 16.8 pre-§3.12) |
 | **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.39** | ⚠️ the target IS the landing — see below |
 | Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.00 / 0.52 / 0.39 | the real diagnostic for foul-outs |
+| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | *(§3.14a, not yet built)* | ⚠️ **judge at 5 SEEDS ONLY** — see below |
 | Fouled-three rate | ballpark | **~2% of 3PA** | 3.0% | ✅ anchor on the RATE, not the count |
 | 3-FT trips | ballpark | ~0.3–0.6 *here* | 0.59 | ✅ (real NBA ~0.7 off ~35 3PA; we shoot ~20) |
 | And-1s | ballpark | ~4–6% of made FG | 1.88 (4.6%) | ✅ (#029 E) |
@@ -131,6 +132,36 @@ player; it deliberately did **not** flatten the concentration. **The foul rate
 itself is NOT implicated** (19.0/team/game is inside its own ballpark), and neither
 the defender weighting nor `foulProne` may be touched to fix this.
 
+## Technicals — a ballpark on purpose, and the one row a single seed CANNOT resolve
+
+Added by **§3.14a** (`decisions.md` #032 J). Two things make this row different from
+every other one:
+
+**It is a `ballpark`, not a TARGET, and deliberately so.** Nothing in the engine is
+*tuned toward* it — `SimConfig.TECHNICAL_FOULS_PER_TEAM_GAME` is set **directly from**
+the real-world figure (#032 B2), so the harness line is a **correctness check that the
+constant is wired right**, not a calibration objective. A TARGET, by this file's own
+rule, is a number a phase has deliberately tuned against. This one has nothing to tune.
+
+**Judge it at 5 seeds only — this is not the usual "prefer the mean" advice, it is a
+hard floor.** Computed before the rate was designed (#032 J):
+
+| Sample | Events | Relative sd |
+|---|---|---|
+| 1 seed (102 games) | ~71 | **11.8%** |
+| 5 seeds | ~357 | **5.3%** |
+
+A single-seed reading **cannot resolve** the rate. And per #032 B2 the constant's
+divisor is the **nominal** possession count while the real one is pace-scaled, so the
+landing sits a few percent off the constant **by design** — a fast-paced game genuinely
+takes more rotation checks and draws more technicals. **Do not back-solve the constant
+against that gap**; it is behavior, not error.
+
+**The §3.14a points budget is +0.26/team/game — below the ±1.5 per-seed noise band.**
+So the §3.4 aggregates are an **invariant** for that pass, not a target to re-center:
+measurable movement means the technical counter leaked into `getFouls()` or the bonus
+tally (#032 E/I), which is a bug.
+
 ---
 
 ## ⚠️ NOTHING IN THIS TABLE IS SOURCED YET — and that is §3.16's job (1)
@@ -141,7 +172,9 @@ verified that is where the NBA is." §3.16 is explicitly **two jobs in sequence*
 
 1. **Source the true constraints** — the [backlog.md](backlog.md) research chore.
    In scope: **points, FG%** (the CONTESTED pair), **foul-outs** (soft, added by
-   §3.13), and the load-bearing ballparks (fouls ~19–20, blocks ~5).
+   §3.13), **technicals** (ballpark, added by §3.14a — the ~0.6–0.8 league figure is
+   user-supplied and unverified), and the load-bearing ballparks (fouls ~19–20,
+   blocks ~5).
 2. **Re-solve the constants** against whatever those turn out to be.
 
 **The escalation rule (roadmap.md §3.16) — sourcing a number does not make it

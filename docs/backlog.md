@@ -68,7 +68,7 @@ planned features), see [ideas.md](ideas.md).
       fidelity arc (§3.13 foul trouble, §3.14 flagrants) but **before §3.16**, the
       recalibration — which is the largest multi-config sweep the project will run and
       is exactly what profiles are for. **Validation gate:** §3.15 must reproduce
-      §3.14's shipped landing *exactly* before any §3.16 number is read off it (the
+      **§3.14b's** shipped landing *exactly* before any §3.16 number is read off it (the
       check that validated the §3.11 harness against §3.10's numbers).
       **A third pass has now paid the cost:** §3.12 ran its `PERIMETER` sweep, its
       `THREE` verification, its `BASE_*` exchange-rate measurement, and a

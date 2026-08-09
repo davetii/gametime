@@ -56,25 +56,37 @@ into a graveyard.
   target question: it waits for §3.16, which owns both.
 
 - ~~**Flagrant / technical fouls, and altercations (fights).**~~ **PROMOTED (2026-08)
-  to §3.14** — *(originally promoted as §3.13; renumbered when foul-outs moved ahead
-  of it by user call)* — see roadmap.md's Possession-fidelity section and
-  decisions.md #029/#030's follow-up lists. This is now **planned work needing its own
-  design pass**, not a parked idea. The reasoning that kept it here still describes
-  the hard parts, and §3.14's design pass should start from them: a
-  technical/flagrant is **FTs *plus* retained possession** (a shape neither the
-  shooting-foul path, which ends the possession, nor §3.10's bonus path models), a
-  technical is shot by a **chosen** shooter rather than the fouled player, and a fight
-  needs an **ejection** (a removal that isn't a foul-count derivation — it would want
-  a trigger, likely a `Player`/`Coach` temperament axis that doesn't exist yet, the
-  #014/#017 "no attribute ahead of its consumer" discipline). **Per #031 H the
-  ejection must extend §3.13's hard/forced removal tier rather than add a parallel
-  mechanism**, and it is the first case genuinely needing *stored* state (an ejection
-  is not derivable from a counter the way `fouls >= 6` is — the first real exception
-  to #023 F, to be argued explicitly). Note these are **rare events** whose value is
-  play-by-play texture + the occasional star ejection, not aggregate fidelity, so
-  §3.14 likely does **not** earn a recalibration pass the way §3.10/§3.11 did. The
-  "later player-temperament pass" remains a genuine open alternative for the fight
-  trigger specifically.
+  to §3.14, then SPLIT into §3.14a (technicals) + §3.14b (flagrants)** — *(originally
+  promoted as §3.13; renumbered when foul-outs moved ahead of it by user call; split
+  by decisions.md #032 A on the finding that the two share nothing but the word
+  "foul")* — see roadmap.md's Possession-fidelity section. **§3.14a's design is
+  RESOLVED (#032 A–J) and execute-ready in todo.md; §3.14b still needs its own design
+  pass.** This is planned work, not a parked idea. Three notes from the reasoning that
+  kept it here, **corrected against what the design pass actually found**:
+  - **FTs *plus* retained possession** — still the hard part, and still unbuilt. It
+    belongs entirely to **§3.14b**: a technical turned out to leave the possession
+    **completely unchanged** (#032 D), which is why it went first.
+  - **A chosen FT shooter** — resolved as a **deterministic highest-`freeThrows`
+    on-the-floor pick**, a second rule beside the untouched `foulDrawing`-weighted
+    draw (#032 G).
+  - **The ejection needing stored state** — **this prediction was half wrong, and the
+    correction is the design pass's most useful finding.** It holds for a
+    **flagrant-2** (a severity grade with no counter behind it → §3.14b, argued via
+    the #028 D pattern), but **not** for the two-technical case, which is
+    `technicalFouls >= 2` — a monotonic counter, so #023 F's derive-don't-store
+    discipline applies **unchanged** (#032 F). Either way it extends §3.13's
+    hard/forced tier via `eligible(...)` rather than adding a parallel mechanism
+    (#031 H).
+
+  **Fights/altercations remain PARKED** and are in neither §3.14a nor §3.14b — they
+  still want a temperament trigger that does not exist, and #032 C **declined to
+  create one**: the engine consumes skills, not attributes, and `foulProne` already
+  carries the aggression/composure composite. A dedicated temperament axis stays the
+  genuine open alternative, blocked on the #014/#017 "no attribute ahead of its
+  consumer" discipline. Note these are **rare events** whose value is play-by-play
+  texture + the occasional star ejection, not aggregate fidelity — confirmed by
+  measurement: §3.14a costs **+0.26 points/team/game against a ±1.5 noise band**, so
+  it earns **no** recalibration pass the way §3.10/§3.11 did (#032 I).
 
 - **Strategic substitutions as a category — the engine now has exactly two, and
   §3.13 shipped the second.** Noticed during §3.13's design pass (user observation):
@@ -87,7 +99,7 @@ into a graveyard.
   | Fatigue | ✅ §3.5 | reactive |
   | Foul-out | ✅ §3.5 | rule, forced |
   | **Foul trouble** | **✅ §3.13 (#031)** | **strategic — the first** |
-  | Ejection | §3.14 | rule, forced |
+  | Ejection | §3.14a (technicals) / §3.14b (flagrant-2) | rule, forced |
   | Matchup / going small | ✗ | strategic |
   | Riding a hot hand | ✗ | strategic |
   | Closing lineup / garbage time | ✗ | strategic |

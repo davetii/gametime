@@ -446,27 +446,57 @@ re-running the loop and re-agreeing the numbers, not a red build.
       required — D's sticky sit prevents a competing *return* roll but not an immediate
       *re-sit*, which produced measured 1-possession flicker. Coverage: `mvn clean
       install` green, 487 tests._
-- [ ] **§3.14 — Flagrant / technical fouls** *(needs its own design pass — a distinct
-      foul sub-system; was §3.13, renumbered when foul-outs moved ahead of it)*. A separate
-      foul class the possession model has no path for: it
-      changes **who shoots** (a technical is shot by a chosen shooter, not the fouled
-      player), **possession retention** (a flagrant awards FTs *and* returns the ball to
-      the offense — a retention path no current model has), and adds **ejections**.
-      Impacts shooting fouls, non-shooting fouls, and post-foul possession. Its own
-      design pass + sub-system. **The open questions are written up in
-      [todo.md](todo.md)** — start there.
-      **The §3.13 interaction, now that §3.13 has shipped and the seam is concrete
-      (#031 H):** ejections are a *second* way a player leaves early, and §3.13 left
-      `RotationState` with a deliberate **three-tier** structure — **hard/forced**
-      (`replaceFouledOut`) · **soft/preference** (foul trouble) · **fatigue**. An
-      ejection is unambiguously the **hard** tier: it must extend the
-      `eligible(...)` filter every candidate pool already passes through, **not** add a
-      fourth removal path (two parallel mechanisms is the #013/#015 smell).
-      **It also breaks new ground on state**: an ejection is **not derivable from a
-      counter** the way `fouls >= 6` is, so it needs **real stored state** — the first
-      genuine exception to #023 F's derive-don't-store discipline, and §3.14 must argue
-      it explicitly (the #028 D pattern) rather than inherit it. Note also that the
-      rotation step now **consumes RNG** (§3.13), so §3.14 need not re-argue that.
+> **§3.14 SPLIT IN TWO (decisions.md #032 A, design pass 2026-08, user call).** The
+> design pass found that technicals and flagrants share **nothing but the word
+> "foul"** — different trigger (behavioral vs. a contact by-product), different
+> location in the engine (`RotationState` vs. the possession flow), different FT count
+> (1 vs. 2), different possession effect (**none** vs. a **retention fork**), different
+> disqualification accounting (excluded from vs. counting toward the 6-foul limit), and
+> different committer pool (drawn from the floor vs. already picked). Building them as
+> one resolver would assert a shared mechanism that does not exist, and would tune two
+> independent rate sources at once — the trap **#029 A2** split §3.11/§3.12 to avoid,
+> with the same ordering: **the self-contained half first, the structural half second.**
+> **§3.15 and §3.16 do NOT renumber** — §3.16 is named in the shipped,
+> never-retro-edited text of #030 and #031, so a full renumber would leave live
+> references meaning two different phases. Hence the `a`/`b` suffix.
+
+- [ ] **§3.14a — Technical fouls** *(design RESOLVED as `decisions.md` #032 A–J; the
+      **execute-ready plan is in [todo.md](todo.md)** — build it from there, not from this
+      bullet)*. A non-contact, **behavioral** penalty the engine has no path for: today
+      *every* foul is a by-product of a contest (`pickDefender` → `isFoul`), so a foul
+      not caused by the possession cannot be expressed. **Deliberately random — no causal
+      model at all** (#032 B), rolled per team in `RotationState.advancePossession(rng)`
+      (the only "happens to a team, not to a possession" seam), committer drawn from the
+      **on-floor five** weighted by `foulProne`, **one** free throw by a **deterministic
+      best-shooter** pick beside the untouched weighted draw (#032 G), and **no possession
+      change whatsoever** (#032 D) — which is exactly what makes it the cheap half.
+      **Its own counter**: technicals do **not** feed the 6-foul limit or the period bonus
+      tally (#032 E), so §3.13's calibrated foul-outs and penalty rate must not move.
+      **The ejection stays DERIVED** — `technicalFouls >= 2` is a monotonic counter, so
+      #023 F applies unchanged and the predicted stored-state exception **does not arise
+      here** (#032 F); it extends `eligible(...)` per #031 H, and will read **0.00 on the
+      harness for most seeds**, which is a correct result, not a failure. **Also folds in
+      #030's clamp-helper consolidation at its fourth site** (#032 H). Budgeted at
+      **+0.26 points/team/game — below the ±1.5 noise floor**, so the stop condition
+      **inverts**: measurable movement in the §3.4 aggregates is a **bug**, not a landing
+      (#032 I).
+- [ ] **§3.14b — Flagrant fouls** *(needs its own DESIGN PASS — the open questions are in
+      [todo.md](todo.md); §3.14a must ship first, since §3.14b builds on its ejection
+      seam)*. **The structural half, and it inherits every hard question.** A flagrant
+      awards free throws **and returns the ball to the offense** — a retention path no
+      current model has, breaking #030 B's invariant that **every existing FT path ends
+      the possession**. It is an *additional* roll on top of an existing foul (no change
+      to the foul roll itself), always **two** FTs, and it **does** count toward the
+      6-foul limit. **This is where the genuine #023 F exception lands**: a flagrant-2 is
+      a **severity grade with no counter behind it**, so unlike §3.14a's two-technical
+      case it is **not derivable** and needs real stored state — argued explicitly via the
+      **#028 D** pattern, not inherited (#032 F). It extends the **same** `eligible(...)`
+      hard-tier seam §3.14a builds (#031 H) — **not** a fourth removal path. Note the
+      rotation step already **consumes RNG** (§3.13), so neither half re-argues that.
+      Rate ~0.25–0.40/game league-wide; **coarser to measure than technicals** (~33 events
+      at 102 games, 17.4% relative sd — 5 seeds minimum). Budgeted at **+0.43
+      points/team/game**, still sub-noise, but **retention is a second channel and must be
+      re-priced rather than assumed**.
 - [ ] **§3.15 — `SimConfig` profiles** *(needs its own design pass — user call 2026-08 to
       promote this from a backlog chore to a numbered phase)*. Load the tunable constants
       from **named, swappable profiles** instead of compile-time constants, so tuning
@@ -492,7 +522,7 @@ re-running the loop and re-agreeing the numbers, not a red build.
       note — changing how constants load *while* actively tuning them forfeits exact
       reproducibility of a prior landing. Placed *before* §3.16 deliberately: the
       recalibration is the largest multi-config sweep the project will run, and this is the
-      tool for it. **Validation gate**: §3.15 must reproduce §3.14's shipped landing
+      tool for it. **Validation gate**: §3.15 must reproduce **§3.14b's** shipped landing
       **exactly** before any §3.16 number is read off it — the same check that validated the
       §3.11 harness against §3.10's numbers.
 - [ ] **§3.16 — Recalibration against verified targets** *(needs its own design pass; the
