@@ -214,7 +214,31 @@ points/FG% targets are CONTESTED.
 - [ ] Guard it with a test: technicals must not move the penalty rate (§3.13 landing:
   51.3% of team-periods).
 
-**Step 7 — the harness instrument (#032 J).**
+**Step 7 — tests (invoke the `test-coverage` skill).**
+- [ ] **Invoke the `test-coverage` skill.** The JaCoCo gate is **per-package** and runs
+  at `install`, **not** `test` — a green `mvn test` does **not** prove it passes. Aim for
+  ~90%, not the 80% floor.
+- [ ] **The counter split (#032 E) — the highest-value tests in the pass**, because a leak
+  here is exactly what the inverted stop condition is watching for: a technical must
+  **not** move `getFouls()`, must **not** trip `isFouledOut()`, must **not** raise
+  `foulTroubleLevel()`, and must **not** count toward `BONUS_FOULS_PER_PERIOD`.
+- [ ] **The ejection (#032 F)** — force `technicalFouls` to the limit directly and assert
+  the player is filtered by `eligible(...)` and forced off. **Do not wait for the event
+  to occur naturally**; it essentially never will.
+- [ ] **The never-below-5 invariant still holds** with ejected players in the mix —
+  including the degenerate case where ejections and foul-outs together exhaust the bench.
+- [ ] **The FT shooter (#032 G)** — assert the deterministic highest-`freeThrows` pick,
+  **and** assert `pickFreeThrowShooter` is unchanged for the bonus path (the merge this
+  pass explicitly refused).
+- [ ] **The clamp consolidation is behavior-neutral (#032 H)** — §3.10's and §3.13's
+  existing tests must pass **UNCHANGED**. If one moves, the refactor is wrong; fix the
+  refactor, not the test.
+- [ ] **The RNG draw is unconditional and fixed-point** — mirror §3.13's
+  `PossessionEngineTest` check that the stream does not fork on rotation state. Note the
+  draw count per `advancePossession` call **changes** (one → two), which re-baselines any
+  seed-pinned stream expectation.
+
+**Step 8 — the harness instrument (#032 J).**
 - [ ] Add a **technicals/team/game line** to `CalibrationHarness` (plus an ejection
   count, which will read 0.00 — decide at execution whether printing it earns its keep).
 - [ ] **The existing foul-mix line does NOT suffice** — it breaks down *shooting* fouls
@@ -228,20 +252,51 @@ points/FG% targets are CONTESTED.
   **Update the harness `(target ~N)` string in the same change** (calibration.md's rule),
   and mark it **UNSOURCED** like every other row.
 
-**Step 8 — docs, diagram, close-out.**
+**Step 9 — docs, diagram, close-out.**
 - [ ] Add the **implementation note** to `decisions.md` #032 recording any divergence
   and resolving the open-at-execution items (the final rate value, the clamp-helper and
   outcome-string spellings, the draw site, whether the ejection line prints).
-- [ ] Update **`possession-flow.puml`** — **only the rotation-step block at the top.**
-  §3.14a adds **no possession branch** (#032 D), and it is worth saying so **on the
-  diagram** so a reader does not go looking for one. Validate with
+- [ ] **Confirm `possession-flow.puml` matches what actually shipped.** The design pass
+  **already drew** §3.14a's technical roll into the rotation partition, updated the hard
+  tier for ejections, and corrected the RNG note to **two** draws — so this is a
+  *verify-and-adjust* step, not a write-from-scratch one. Adjust only if execution moved
+  the draw site or the branch shape. Re-validate with
   `plantuml -checkonly docs/possession-flow.puml`.
-- [ ] Flip the **roadmap** §3.14a bullet to `[x]` with a landing note.
-- [ ] **Retire the clamp-helper trigger** — #030's follow-up and the "⚠️ THE CLAMP-HELPER
-  TRIGGER HAS FIRED" note below are **done** as of this pass (#032 H). A fifth floor-free
-  site now costs one call, not a fourth copy.
-- [ ] Update `player.md`'s "Between possessions" table with the technical-foul row.
-- [ ] Rewrite this file for **§3.14b's design pass** (its open questions are below).
+- [ ] Flip the **roadmap** §3.14a bullet to `[x]` with a landing note. **Leave §3.14b's
+  bullet `[ ]`.**
+- [ ] **Retire the clamp-helper trigger** — #030's follow-up and the "✅ THE CLAMP-HELPER
+  CONSOLIDATION IS SCHEDULED" note below are **done** as of this pass (#032 H). A fifth
+  floor-free site now costs one call, not a fourth copy.
+- [ ] Update `calibration.md`'s **Technicals** row with the landed 5-seed figure
+  (it currently reads *"(§3.14a, not yet built)"*) **and** the `CalibrationHarness`
+  `(target ~N)` string — **in the same change**, per calibration.md's rule.
+- [ ] `player.md`'s "Between possessions" table **already carries** the three §3.14a rows
+  (technical foul / technical FT shooter / ejection) — flip their 🔜 markers to ✅.
+
+---
+
+## 🛑 STOP HERE — §3.14b IS A SEPARATE DESIGN-PASS SESSION
+
+**When Step 9 is done, §3.14a is finished. Do NOT start §3.14b in the same session.**
+
+§3.14b needs a **design pass** (open questions below → a new `decisions.md` #033 +
+an execute-ready plan), and per the three-session rhythm in CLAUDE.md a design pass
+**writes no production code**. Rolling straight from §3.14a's execution into §3.14b's
+implementation would skip that entirely — and §3.14b is the half carrying the
+possession-retention fork and the genuine #023 F stored-state exception, i.e. exactly
+the work that most needs designing before it is built.
+
+**Handing off to §3.14b's design pass — do this LAST, and mind the ordering trap:**
+
+1. §3.14b's open questions currently live **only in this file** (below). todo.md is
+   rewritten each phase, so **that section must be preserved before the rewrite, not
+   after** — copy it forward into the new todo.md as the design-pass input.
+2. Rewrite this file for §3.14b: a header callout saying it **needs a DESIGN PASS
+   first**, the preserved open questions, §3.14a's close-out handoff (what shipped, the
+   ejection seam's exact shape, the landed constants), and the verified-facts anchors.
+3. The **roadmap bullet is the durable home** for the fact that §3.14b exists and needs
+   its own pass — it survives any todo.md rewrite, so it is the backstop if step 1 is
+   ever fumbled.
 
 ---
 
