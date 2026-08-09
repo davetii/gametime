@@ -85,15 +85,33 @@ Tracked in risks.md.
 was **triaged separately** → **§3.13**, ahead of flagrants.
 
 **The naive fix is a trap:** trimming the foul rate means `BASE_NO_BASKET_FOUL`,
-a **wrong-way lever** — it *raises* points (#028, measured). The likely real fix
-is behavioral: nothing in `RotationState` reacts to foul *trouble*, only
-foul-*out*. **Judge §3.13 by the 4/5/6 distribution, not the headline count** —
-foul-outs are a tail phenomenon, and a benching rule works by moving players out
-of the 5-foul bucket before they reach 6.
+a **wrong-way lever** — it *raises* points (#028, measured). **Judge §3.13 by the
+4/5/6 distribution, not the headline count** — foul-outs are a tail phenomenon, and
+a benching rule works by moving players out of the 5-foul bucket before they reach 6.
+
+**§3.13's design pass decomposed it (#031 A), and the cause is not what the
+headline suggests.** Fouls are **over-dispersed**: `ShotSelector.pickDefender`
+weights the defender draw by `individualDefense` (measured sd **4.11** over 359
+players, a 3.2× spread) while `foulProne` is nearly flat (sd 1.22), so the best
+defenders absorb far more fouls than a flat per-minute rate would give them. A
+flat-rate Poisson over the engine's own minutes predicts **0.262** against the
+measured **0.593** — **2.3×**. That concentration is *correct realism*; what is
+missing is the coach who benches the player, which is what §3.13 adds. **The foul
+rate itself is NOT implicated** (19.0/team/game is inside its own ballpark), and
+neither the defender weighting nor `foulProne` may be touched to fix this.
 
 **Promotion to a TARGET is a §3.13 close-out decision** — once a phase has
-deliberately tuned against it, someone owns it. Until then it stays a ballpark,
-because the number itself is unsourced (0.11 from #030 G, 0.15–0.25 from a search).
+deliberately tuned against it, someone owns it, and **#031 H commits §3.13 to making
+that promotion** (updating this row *and* the harness `(target ~N)` string in the
+same change). The number stays **soft** even then, because it is unsourced (0.11
+from #030 G, 0.15–0.25 from a search) — verifying it belongs with §3.16's
+benchmark-verification prerequisite.
+
+**A landing near ~0.3 may be the right answer.** #031 G budgets the minutes cost:
+reaching ~0.1–0.25 costs roughly 1–2.5 minutes off the top starter, who sits at
+**36.6** against a **calibrated** ~34–36 target. A calibrated target outranks an
+unsourced ballpark, so §3.13 carries an explicit stop condition rather than chasing
+the low end.
 
 ---
 

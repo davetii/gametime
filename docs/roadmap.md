@@ -396,24 +396,40 @@ re-running the loop and re-agreeing the numbers, not a red build.
       per-player foul distribution. Compare and-1s across the change on **per team per
       game** (1.67 → 1.87), which is denominator-independent; §3.11's "6.4% of made
       contact FG" is not comparable to the new percentage._
-- [ ] **§3.13 — Foul trouble & foul-outs** *(needs its own design pass — moved AHEAD of
-      flagrants by user call 2026-08: "it seems more core to the game")*. §3.12's new
-      foul-out instrument (#030 G) measured the rate for the **first time** and found it
-      **~2.4× the plausibility ballpark** — **0.60 foul-outs/team/game against ~0.1–0.25**.
-      **~70% of that PREDATES §3.12**: with §3.12's multipliers zeroed (i.e. §3.11's exact
-      foul reach) it is already **0.425** across 5 seeds, so this is a §3.5-era problem the
-      arc has been carrying unmeasured, not §3.12 lift — which is why #030 G directed it be
-      **triaged separately**, and it was.
-      **The naive fix is a trap**: "fouls are high, trim the foul rate" reaches for
-      `BASE_NO_BASKET_FOUL`, a **wrong-way lever** — trimming it *raises* points (#028,
-      measured). The likely real fix is **behavioral, in §3.5/rotation territory**: a coach
-      benching a player in foul trouble. Nothing in `RotationState` reacts to foul count
-      today — a player is forced off only at the hard `FOUL_OUT_LIMIT = 6`. Open questions
-      for the design pass: at what foul count does a player sit, does the threshold vary by
-      period (5 fouls in Q2 ≠ Q4), does it lean on the `rotationDepth`/coach attributes, and
-      is it a derived predicate (the #023 F / #028 A1 discipline) rather than new state.
+- [ ] **§3.13 — Foul trouble & foul-outs** *(design pass DONE — resolved as decisions.md
+      **#031 A–H**; execute-ready plan in todo.md. Moved AHEAD of flagrants by user call
+      2026-08: "it seems more core to the game")*. §3.12's new foul-out instrument (#030 G)
+      measured the rate for the **first time** and found it **~2.4× the plausibility
+      ballpark** — **0.60 foul-outs/team/game against ~0.1–0.25**, **~70% of it predating
+      §3.12** (0.425 at §3.11's exact foul reach), so a §3.5-era problem the arc had been
+      carrying unmeasured.
+      **The design pass decomposed it first (#031 A) and OVERTURNED the hypothesis the phase
+      was created under.** The cause is neither foul volume (19.0/team/game is inside its own
+      ballpark) nor purely the missing benching rule: fouls are **over-dispersed by defender
+      selection**. `ShotSelector.pickDefender` weights by `individualDefense` (measured sd
+      **4.11**, a 3.2× league spread) while `foulProne` is nearly flat (sd 1.22), so the best
+      defenders guard — and foul — disproportionately. A flat-rate Poisson over the engine's
+      own minutes predicts **0.262**; the measured rate is **0.593**, i.e. **2.3×**. Feeding
+      the measured spread in reproduces **0.403** ≈ the 0.425 baseline. **That concentration
+      is correct realism, and the engine simply lacks its counterweight — a coach who sits
+      the player.**
+      **So the pass is purely behavioral**: a **probabilistic** foul-trouble bench rule in
+      `RotationState`, scaled by `substitutionAggressiveness` **and** the player's value to
+      the team (stars protected *more* — the inverse of §3.5's fatigue rule), a rest-then-
+      return cycle with **no timer and no stored state** (#023 F derived-predicate
+      discipline), yielding to the never-below-5 invariant. Its one significant mechanical
+      cost: it **revises #023 C** by putting an RNG draw in the rotation step, so seed-pinned
+      assertions re-baseline. Budgeted trade (#031 G): reaching the ballpark costs ~1–2.5
+      minutes off the top starter, which sits at 36.6 against a calibrated ~34–36 — with an
+      explicit **stop condition** if it would fall below ~34.
+      **Off the table**: `BASE_NO_BASKET_FOUL` (wrong-way lever, #028 — trimming it *raises*
+      points), §3.12's `FOUL_MULT_*` (settled on realism, #030 G), `pickDefender`'s weighting
+      (would delete correct realism and move calibrated blocks/steals), and points/FG%
+      re-centering (§3.16, contested targets).
       Moves minutes and fouls → recalibration-adjacent; sequenced before §3.14 so the
-      ejection path lands on a rotation that already understands "get this player off".
+      ejection path lands on a rotation that already understands "get this player off" —
+      #031 H leaves a three-tier structure (hard/forced · soft/preference · fatigue) for
+      §3.14's ejections to extend rather than parallel.
 - [ ] **§3.14 — Flagrant / technical fouls** *(needs its own design pass — a distinct
       foul sub-system; was §3.13, renumbered when foul-outs moved ahead of it)*. A separate
       foul class the possession model has no path for: it
