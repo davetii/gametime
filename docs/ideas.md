@@ -46,27 +46,82 @@ into a graveyard.
   termination *guarantee* is independent of the value (it holds at 3, 5, or 50); only
   the realism/aggregate trade-off is at stake. **Natural home if promoted:** a
   dedicated calibration/tuning pass (its own harness loop + re-agreed aggregates),
-  slotting cleanly *between* sub-phases rather than inside one — after §3.13 closes
-  the §3.7–§3.13 arc is the cleanest window. **Note (2026-08):** points already sit
-  ~3.9 above target as §3.11's deferred debt, to be re-centered in §3.12 — do not
-  stack this pass on top of that until §3.12 has landed its recalibration, or two
-  moving point-sources get tuned at once (the §3.10 scope lesson).
+  slotting cleanly *between* sub-phases rather than inside one. **The arc now runs
+  §3.7–§3.16**, and **§3.16 (recalibration against verified targets) is the natural
+  home** — it is already exactly this kind of pass. **Note (updated 2026-08, §3.13
+  design):** the earlier note here ("re-center in §3.12") is superseded — §3.12
+  **declined** the trim and the points/FG% **targets themselves are now CONTESTED**
+  ([calibration.md](calibration.md) is the source of truth). Three consecutive passes
+  have declined the same trim. Do **not** stack this idea on top of an unresolved
+  target question: it waits for §3.16, which owns both.
 
 - ~~**Flagrant / technical fouls, and altercations (fights).**~~ **PROMOTED (2026-08)
-  to §3.13** — see roadmap.md's Possession-fidelity section and decisions.md #029's
-  follow-up list. This is now **planned work needing its own design pass**, not a
-  parked idea. The reasoning that kept it here still describes the hard parts, and
-  §3.13's design pass should start from them: a technical/flagrant is **FTs *plus*
-  retained possession** (a shape neither the shooting-foul path, which ends the
-  possession, nor §3.10's bonus path models), a technical is shot by a **chosen**
-  shooter rather than the fouled player, and a fight needs an **ejection** (a removal
-  that isn't a foul-count derivation — it would want a trigger, likely a
-  `Player`/`Coach` temperament axis that doesn't exist yet, the #014/#017 "no
-  attribute ahead of its consumer" discipline). Note these are **rare events** whose
-  value is play-by-play texture + the occasional star ejection, not aggregate
-  fidelity, so §3.13 likely does **not** earn a recalibration pass the way §3.10/§3.11
-  did. The "later player-temperament pass" remains a genuine open alternative for the
-  fight trigger specifically.
+  to §3.14** — *(originally promoted as §3.13; renumbered when foul-outs moved ahead
+  of it by user call)* — see roadmap.md's Possession-fidelity section and
+  decisions.md #029/#030's follow-up lists. This is now **planned work needing its own
+  design pass**, not a parked idea. The reasoning that kept it here still describes
+  the hard parts, and §3.14's design pass should start from them: a
+  technical/flagrant is **FTs *plus* retained possession** (a shape neither the
+  shooting-foul path, which ends the possession, nor §3.10's bonus path models), a
+  technical is shot by a **chosen** shooter rather than the fouled player, and a fight
+  needs an **ejection** (a removal that isn't a foul-count derivation — it would want
+  a trigger, likely a `Player`/`Coach` temperament axis that doesn't exist yet, the
+  #014/#017 "no attribute ahead of its consumer" discipline). **Per #031 H the
+  ejection must extend §3.13's hard/forced removal tier rather than add a parallel
+  mechanism**, and it is the first case genuinely needing *stored* state (an ejection
+  is not derivable from a counter the way `fouls >= 6` is — the first real exception
+  to #023 F, to be argued explicitly). Note these are **rare events** whose value is
+  play-by-play texture + the occasional star ejection, not aggregate fidelity, so
+  §3.14 likely does **not** earn a recalibration pass the way §3.10/§3.11 did. The
+  "later player-temperament pass" remains a genuine open alternative for the fight
+  trigger specifically.
+
+- **Strategic substitutions as a category — the engine now has exactly two, and
+  §3.13 shipped the second.** Noticed during §3.13's design pass (user observation):
+  it was striking that a *fatigue* sub existed while "sit him so he doesn't foul out"
+  did not. Listing what a real coach actually decides makes the gap systematic
+  rather than incidental:
+
+  | Sub reason | Engine | Kind |
+  |---|---|---|
+  | Fatigue | ✅ §3.5 | reactive |
+  | Foul-out | ✅ §3.5 | rule, forced |
+  | **Foul trouble** | **✅ §3.13 (#031)** | **strategic — the first** |
+  | Ejection | §3.14 | rule, forced |
+  | Matchup / going small | ✗ | strategic |
+  | Riding a hot hand | ✗ | strategic |
+  | Closing lineup / garbage time | ✗ | strategic |
+  | Score-aware rotation | ✗ | strategic |
+
+  **Why fatigue got built first is worth recording, because it was availability, not
+  a judgement that it mattered most.** §3.5 already had `currentEnergy` as a
+  continuous, always-present number, so a threshold rule fell out of it nearly free.
+  Foul trouble needed the counter *plus* a notion of consequence, and nobody had
+  measured the consequence — that is #030 G's whole story (the instrument came first,
+  then the behavior). The remaining strategic subs are all blocked on the *same*
+  missing prerequisite, which is what makes this one idea rather than four:
+  **the rotation step has no game-situation awareness at all.** `advancePossession()`
+  is not even passed the `period`, let alone the score margin. Add score + time to
+  the rotation step and several of these become reachable at once — a better-shaped
+  future phase than picking off matchup subs alone.
+
+  **This is also where two deliberate §3.13 deferrals actually belong.** #031 C
+  declined a period-/time-aware foul-trouble threshold and the reinsertion rule
+  declined score-awareness — both framed there as foul-trouble limitations, but they
+  are really symptoms of this same absence.
+
+  **A deeper version of the gap:** the starting five come from `lineupRole` roster
+  data (#014, sticky persistent state) and **never change composition by choice** —
+  the coach swaps individuals out of a fixed lineup but never *picks* one. So
+  "strategy subs" is missing at a level below any individual rule.
+
+  **What §3.13 leaves behind that makes this cheaper later:** #031's rule is a
+  reusable *template* — a probabilistic, coach-scaled, player-value-weighted sub
+  decision with a sticky-sit/earned-return shape. A later strategic sub should extend
+  that shape rather than invent a parallel one (the same discipline #031 H imposes on
+  §3.14's ejections). **Natural home if promoted:** its own numbered sub-phase after
+  the §3.7–§3.16 arc, or Phase 4+ alongside a richer coach model — it needs a design
+  pass of its own, starting with the game-situation plumbing. **Not planned work.**
 
 - **Coach competence in rotation decisions.** The §3.5 fatigue rotation reads only
   the coach's `rotationDepth` / `substitutionAggressiveness` (both *style* axes) —

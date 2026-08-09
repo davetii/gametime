@@ -116,6 +116,53 @@ section above; decisions.md #020).
 
 ### Possession flow (§3.2–§3.3) — see also [possession-flow.puml](possession-flow.puml)
 
+### The calculation sequence (which resolver runs when)
+
+Before the event-by-event detail below, the **order the engine actually executes**.
+Two phases per possession: a **rotation phase** (state only) and the **possession
+phase** (the branching path). The rotation phase is the one that is easy to forget —
+it is not on `possession-flow.puml`'s path and emits no events, but it runs first and
+decides *who* the possession is played with.
+
+| # | Phase / resolver | What it decides | On a hit |
+|---|---|---|---|
+| 0 | **`RotationState.advancePossession()`** — **both teams**, before every possession | drain/recover energy, force off fouled-out, **foul-trouble sub (§3.13)**, fatigue sub | — (no events; **one RNG draw**†) |
+| 1 | **`ShotSelector`** | picks the shooter, then the shot type | — |
+| 2 | **`TurnoverResolver`** | turnover? then a 9-way cause draw | possession **ends** |
+| 3 | **`FoulResolver.isFoul`** | foul that **stops** the shot (no basket) | FTs, possession **ends** |
+| 4 | **`BlockResolver`** (via `ShotResolver`) | block carved off the top | loose-ball recovery |
+| 5 | **`ShotResolver.isMade`** | make / miss | — |
+| 6 | **`FoulResolver.isAndOne`** — *on a make only* | foul the shot **survived** | +1 FT, possession ends |
+| 7 | **`MissedShotResolver`** — *on a miss only* | wraps `ReboundResolver`; the §3.10 **rebounding foul** is carved off first, then a single four-way board/OOB draw | ends, or a second-chance possession |
+
+† **Steps 2–7 are the `resolvePossession()` path**; step 0 runs in `PossessionEngine`'s
+loop *before* it, for **both** rotations (both teams are on the floor, so both tire).
+Step 1 is easy to overlook but is load-bearing: the shot type it picks is what step 3
+multiplies by (§3.12's per-shot-type foul multiplier), so it must precede the foul roll.
+
+**Three things this ordering makes clear that the event list below does not:**
+- **Steps 3 and 6 are mutually exclusive by control flow.** Step 3 *returns*, so a
+  shot that draws a stopped-shot foul never reaches make/miss and therefore never
+  reaches the and-1. One shot cannot be fouled twice (#030 B — the thing most likely
+  to be misread in the foul model).
+- **Steps 4 and 7 are not separate "rebound" stages.** `MissedShotResolver` **wraps**
+  `ReboundResolver` into one four-way draw (#026); the rebounding foul is carved off
+  the top *inside* step 7, before the board contest.
+- **"No basket" ≠ "non-shooting".** Step 3 *is* a shooting foul (`SHOOTING_FOUL`) — it
+  is named for stopping the shot, not for being non-shooting. The engine's genuinely
+  non-shooting fouls are step 7's rebounding fouls and step 2's `OFFENSIVE_FOUL`
+  turnover cause. (This is exactly why §3.12 renamed the constant to
+  `BASE_NO_BASKET_FOUL`, #030 F.)
+
+† **`advancePossession()` consumes exactly one RNG draw per call** — §3.13's
+foul-trouble sit roll (decisions.md #031, revising #023 C's RNG-free substitution).
+The draw is taken **unconditionally at a fixed point**, whether or not anyone is in
+foul trouble, so the seed stream never forks on rotation state. Everything else in
+step 0 is still state-derived, and it still emits no events. See the substitution
+paragraph below.
+
+---
+
 Each possession produces **one or more** `GameEvent` rows in this order:
 
 1. **Turnover check** — rolled before the shot. If triggered:
@@ -128,14 +175,22 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      label without moving the count (#027 A). Every cause charges the ball-handler;
      `STOLEN` also credits a stealer.
    - `TURNOVER` event → possession ends, ball goes to the other team.
-2. **Foul check** — rolled on `DRIVE` and `POST` shot types only. If triggered:
+2. **Foul check** — rolled on **every** shot type (§3.12, #030 A1). The old
+   `DRIVE`/`POST`-only gate (`ShotType.isContactType()`) is **deleted**: the
+   graduation now lives in the **rate**, not a gate, via a per-shot-type multiplier
+   on `BASE_NO_BASKET_FOUL` (DRIVE 1.0 the anchor ≈ POST > PERIMETER > THREE). A
+   closeout on a three-point shooter is a real foul. If triggered:
    - `FOUL` event (primary_player = fouling defender) → free throws follow.
-   - Two `FREE_THROW` events (primary_player = shooter), each with its own
-     make/miss outcome, tagged `*_SHOOTING` (§3.11 D). Possession ends after free
-     throws.
-   - **This branch is only the "contact STOPPED the shot" case.** A foul on a shot
-     that still goes in is the **and-1**, rolled after the make in step 3 (§3.11) —
-     it does not come through here, and `BASE_FOUL` is untouched by it.
+   - `FREE_THROW` events (primary_player = shooter), each with its own make/miss
+     outcome, tagged `*_SHOOTING` (§3.11 D). **The count comes from
+     `ShotType.freeThrowsIfFouled()`: 3 for a fouled `THREE`, otherwise 2** (§3.12,
+     #030 C — a rule of basketball, so it lives on the enum, not in `SimConfig`).
+     Possession ends after free throws.
+   - **This branch is only the "contact STOPPED the shot" case** — hence the
+     constant's name (`BASE_NO_BASKET_FOUL`, renamed from `BASE_FOUL` in §3.12,
+     #030 F; value unchanged at 0.15). A foul on a shot that still goes in is the
+     **and-1**, rolled after the make in step 3 (§3.11), and it is **not** reachable
+     from here — this branch returns.
 3. **Shot** — if no turnover and no foul. The shooter is charged an FGA (+3PA if a
    THREE), then the outcome is a **three-way MAKE/MISS/BLOCK draw** (§3.7):
    - **Block check first (§3.7)** — `P(BLOCK)` is carved off the top: a
@@ -205,10 +260,14 @@ A single possession therefore emits one of these patterns (a missed shot is
 always resolved — by a `REBOUND` event, an actual rebound or an OOB, **or** by a
 `REBOUNDING_FOUL_*` that stopped play, §3.10):
 - `TURNOVER`
-- `FOUL` (`SHOOTING_FOUL`) → `FREE_THROW` → `FREE_THROW` (both `*_SHOOTING`)
+- `FOUL` (`SHOOTING_FOUL`) → `FREE_THROW` ×**2** (both `*_SHOOTING`) — any shot type
+  except a three (§3.12)
+- `FOUL` (`SHOOTING_FOUL`) → `FREE_THROW` ×**3** (all `*_SHOOTING`) — a fouled
+  `THREE`; the 3-FT trip (§3.12, #030 C)
 - `SHOT` (made) — possession ends
-- `SHOT` (made, DRIVE/POST) → `FOUL` (`AND_ONE`) → `FREE_THROW` (`*_AND_ONE`) — the
-  and-1: the basket counts, **one** FT follows, possession still ends (§3.11)
+- `SHOT` (made, **any** shot type) → `FOUL` (`AND_ONE`) → `FREE_THROW` (`*_AND_ONE`) —
+  the and-1: the basket counts, **one** FT follows (even on a made three — 3 pts + 1
+  FT, never 3 FTs), possession still ends (§3.11; widened to all types by §3.12)
 - `SHOT` (missed) → `REBOUND` (`DEFENSIVE`) — possession ends
 - `SHOT` (missed) → `REBOUND` (`OFFENSIVE`) → … second-chance possession …
 - `SHOT` (missed) → `REBOUND` (`OUT_OF_BOUNDS_DEFENSE`) — possession ends (§3.8)
@@ -229,22 +288,58 @@ and `period`. `sequence` increments globally (not per possession).
 
 **Substitution + fatigue + foul-outs (§3.5)** run as a **between-possession** step
 that changes *who* is on the floor without altering the possession flow's shape
-(decisions.md #023). Before each possession the engine, for the team about to
-play: drains the on-floor five's `currentEnergy` (drain scaled by `endurance`),
+(decisions.md #023) — step 0 of the calculation sequence above. Before each
+possession the engine, **for BOTH teams** (both are on the floor, so both tire —
+`PossessionEngine.simulate()` advances the home and away rotations before
+`resolvePossession()`): drains the on-floor five's `currentEnergy` (drain scaled by `endurance`),
 recovers the benched players' energy, **forces off any player who has fouled out**
 (a derived predicate `getFouls() >= FOUL_OUT_LIMIT`, not a stored flag), then runs
-a fatigue substitution (pull the most-tired starter below a
-`substitutionAggressiveness`-scaled threshold for the freshest eligible bench
-player, drawing down the `rotationOrder` queue only as far as `rotationDepth`
-allows; starters tolerate more fatigue and return first). The whole step is
-**deterministic given (energy, fouls, coach attrs) and consumes NO RNG** — it
-produces no `GameEvent` rows and does not touch the seeded stream. The on-floor
-five (`RotationState.onFloor()`) is **always exactly 5**: if the roster is
+**§3.13's soft foul-trouble sub**, then a fatigue substitution (pull the most-tired
+starter below a `substitutionAggressiveness`-scaled threshold for the freshest
+eligible bench player, drawing down the `rotationOrder` queue only as far as
+`rotationDepth` allows; starters tolerate more fatigue and return first). The
+on-floor five (`RotationState.onFloor()`) is **always exactly 5**: if the roster is
 exhausted (everyone fouled out), the least-fouled available player stays on so the
 floor never drops below 5. A fatigue **multiplier** over each on-floor player's
 skills (`effectiveSkill = skill × fatigueFactor(energy)`) then bends shot/defense/
 rebound contests — a modest thumb on the scale composed multiplicatively with the
 §3.4 coach/chemistry modifiers.
+
+**The step is reproducible from the seed but is NOT RNG-free** (§3.13, decisions.md
+**#031**, which deliberately revises #023 C). It consumes **exactly one draw per
+call** — the foul-trouble sit roll — taken **unconditionally at a fixed point**, so
+the stream advances identically whether or not anyone is in foul trouble. #023 C's
+"subs are a coaching decision, not chance" reasoning still fits the *fatigue* sub,
+whose trigger is a measurable state; it fits foul trouble poorly, because two coaches
+facing the same 4-foul situation genuinely make different calls. The step still
+produces no `GameEvent` rows.
+
+**The foul-trouble sub (§3.13)**, sequenced between the force-off and the fatigue
+sub, is the engine's **first strategic substitution** and the only thing in it that
+reacts to foul *trouble* rather than foul-*out*:
+- **Probabilistic, not a threshold**: `base(foulCount) × coach × value × roster`.
+  The base curve is zero below 3 fouls, rises to 5, and is zero at 6 (a foul-out is
+  the hard rule's business). One curve scaled by `substitutionAggressiveness`
+  expresses "an aggressive coach thinks about it at 3, an average one at 4, a passive
+  one at 5" without three thresholds.
+- **It protects the BEST players MORE** — the deliberate *inverse* of the fatigue
+  rule, where `STARTER_SUB_THRESHOLD_BONUS` lets starters tolerate more fatigue. You
+  ride your star when he's tired; you protect him when he's in foul trouble. Value is
+  a **derived** defense-leaning skill composite (`PlayerGameState.valueComposite()`),
+  combined with — not replacing — the `lineupRole`/`rotationOrder` roster signal.
+- **It yields**: it draws only from the `rotationDepth` window (a rotation decision,
+  not the emergency full-bench reach the foul-out force-off gets) and fires only if a
+  genuinely eligible, meaningfully fresher replacement exists. If the bench can't
+  cover it, the foul-troubled player keeps playing — a soft preference never weakens
+  a hard invariant.
+- **Sticky sit, earned return**: a player benched here becomes an *ordinary* bench
+  player, with no "benched for fouls" status and **no competing foul-trouble roll to
+  bring him back**. He returns only through the fatigue rule's freshness path, and
+  the return timer is energy recovery itself. Only the *sit* is probabilistic; the
+  *return* is earned. That asymmetry is what keeps a 4-foul player from flickering
+  on and off across consecutive possessions at ~100 checks per team per game.
+- **A fouled-out player still NEVER returns** — that bar is absolute and §3.13 does
+  not touch it.
 
 **Coach modifiers (§3.4)** bend this flow without changing its shape (decisions.md
 #022, all effects via the avg-10 deviation multiplier

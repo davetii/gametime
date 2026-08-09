@@ -14,10 +14,11 @@ planned features), see [ideas.md](ideas.md).
 ---
 
 - [ ] **VERIFY THE CALIBRATION BENCHMARKS — find sourced modern-NBA figures for the
-      five §3.4 targets.** *(Filed 2026-08 from §3.12's close-out. **This is the
-      prerequisite for roadmap.md §3.16**, the recalibration sub-phase — and it is
-      research, not engine work, so it can happen any time, independent of
-      §3.13–§3.15.)*
+      five §3.4 targets, PLUS the foul-out figure §3.13 promoted.** *(Filed 2026-08 from
+      §3.12's close-out; foul-outs added 2026-08 at §3.13's close-out. **This is
+      job (1) of roadmap.md §3.16** — that pass is "source the constraints, then re-solve
+      the numbers," and this chore is the sourcing half. It is research, not engine work,
+      so it can happen any time, independent of §3.14–§3.15.)*
       **The problem, stated plainly: every number on both sides of the current argument
       is unsourced.** The §3.4 targets (~112 pts / ~47% FG / ~36% 3P / ~26 ast / ~14 TO)
       were set in `decisions.md` #022 D as "agreed target benchmarks (modern NBA)" with
@@ -35,9 +36,19 @@ planned features), see [ideas.md](ideas.md).
       lever the engine has (shot `BASE_*`) moves both the same direction, so verifying
       them separately and then discovering they are mutually unreachable is the failure
       mode §3.16 exists to avoid; capture *both* before designing the re-solve.
-      (2) **Do not promote the plausibility ballparks** (fouls ~19–20, foul-outs
-      ~0.1–0.25, blocks ~5) into targets while doing this — #030 G kept them ranges
-      deliberately, and #017's don't-fabricate-a-constraint rule applies to targets too.
+      (2) **Do not promote the remaining plausibility ballparks** (fouls ~19–20, blocks
+      ~5) into targets while doing this — #030 G kept them ranges deliberately, and #017's
+      don't-fabricate-a-constraint rule applies to targets too.
+      **Foul-outs are now IN SCOPE, and are the one number where sourcing may not be
+      enough** *(added at §3.13's close-out)*. §3.13 promoted it from ballpark to a **soft
+      TARGET (~0.39)** per #031 H — because a phase deliberately tuned against it, so
+      someone owns it, **not** because it became sourced. Both competing figures remain
+      unsourced (0.11 from #030 G, 0.15–0.25 from a search), so this chore should settle
+      it alongside the five. **Then apply §3.16's escalation rule** (roadmap.md): a sourced
+      ~0.35–0.45 means no work at all, but a sourced ~0.15 means **escalate to a new
+      sub-phase, do not tune** — §3.13's lever is measured *saturated* (a ~3× stronger sit
+      curve moves the number by nothing), so closing that gap needs a new mechanic (the
+      benched-player timer + #031 C's period-awareness), which is outside what §3.16 does.
       **Why it matters now:** three consecutive passes (§3.10/§3.11/§3.12) have declined
       the same `BASE_*` trim because it cost more calibrated FG% than the points miss was
       worth. That is evidence the target is wrong, but nobody can *act* on it until the
@@ -89,9 +100,10 @@ planned features), see [ideas.md](ideas.md).
       a consumer, not this chore (see the "not to be confused with" note below) — but
       the tuning design shouldn't paint it out.
       **The single-location goal is already met and should not be disturbed:** all
-      **65** tunable constants live in `SimConfig.java`, with **zero** defined
-      anywhere else in the `sim` package (verified 2026-08). That invariant has held
-      from §3.2 through §3.11 — protect it. What's missing is not a *location* but a
+      **75** tunable constants live in `SimConfig.java`, with **zero** defined
+      anywhere else in the `sim` package (re-verified 2026-08 post-§3.13, which added
+      six foul-trouble constants). That invariant has held from §3.2 through §3.13 —
+      protect it. What's missing is not a *location* but a
       **workflow**: every calibration change (a `BASE_*` trim, a foul multiplier)
       currently costs an edit + rebuild + re-run, which is real friction in a pass
       that sweeps several values across several seeds.
@@ -120,8 +132,9 @@ planned features), see [ideas.md](ideas.md).
       changed multiplier in five places. A reference table **generated from the
       source** would make that drift structurally impossible; docs would link rather
       than restate. Independent of the properties work and can land separately.
-      **Timing — do NOT do this mid-arc.** The natural window is **after §3.13**,
-      once the §3.7–§3.13 sequence closes. Changing how constants load *while*
+      **Timing — do NOT do this mid-arc.** The window is **§3.15's own design pass**
+      (this entry was promoted there — see above): after §3.14 closes the fidelity arc
+      and before §3.16 reads any number off it. Changing how constants load *while*
       actively tuning them would forfeit the ability to reproduce a prior landing
       exactly — which is what validated the §3.11 harness (seed 1000 reproduced
       §3.10's shipped numbers before any §3.11 figure was read off it). Same

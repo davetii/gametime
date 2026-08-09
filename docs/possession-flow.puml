@@ -12,18 +12,30 @@ note right
   (loop bound), blended across both coaches.
 end note
 
-partition "RotationState — between-possession sub (§3.5)" {
+partition "RotationState — between-possession sub (§3.5, §3.13)" {
   :drain on-floor energy (× endurance)
   recover benched energy;
-  :force off any fouled-out player
+  :**hard** — force off any fouled-out player
   //getFouls() >= FOUL_OUT_LIMIT// → sub from full roster;
+  :**soft** — foul-trouble sub (§3.13)
+  //P = base(fouls) × subAggressiveness × value × roster//
+  from //rotationDepth// window only; yields if bench can't cover;
   :fatigue sub — pull most-tired starter below
   //subAggressiveness// threshold for freshest bench
   within //rotationDepth//; starters pulled later / return first;
   note right
-    Deterministic given (energy, fouls, coach attrs).
-    **Consumes no RNG, emits no events.** onFloor()
-    is always exactly 5 (least-fouled stays as last resort).
+    Three tiers: **hard/forced · soft/preference · fatigue**
+    (#031 H — §3.14's ejections extend the HARD tier).
+    **Emits no events, but consumes ONE RNG draw** —
+    §3.13's sit roll, taken unconditionally at a fixed
+    point so the stream never forks on rotation state
+    (decisions.md #031, revising #023 C's RNG-free sub).
+    The soft rule protects the BEST players MORE — the
+    deliberate inverse of the fatigue rule's starter
+    tolerance. Sticky sit: return is EARNED via the
+    fatigue freshness path, never re-rolled.
+    onFloor() is always exactly 5 (least-fouled stays
+    as last resort). A fouled-out player NEVER returns.
   end note
 }
 

@@ -143,6 +143,58 @@ public class PlayerGameState {
     }
 
     /**
+     * §3.13 (decisions.md #031 E): how deep in foul trouble this player is — a
+     * <b>pure question about the player</b>, derived fresh from the existing {@code
+     * fouls} counter, with no stored {@code inFoulTrouble} flag (the #013/#015
+     * duplicate-source trap, refused the same way {@link #isFouledOut()} refuses it).
+     *
+     * <p>Today this is simply the foul count, capped at {@link
+     * SimConfig#FOUL_OUT_LIMIT}; it exists as a named accessor because it is a
+     * different <i>question</i> from "how many fouls has he committed" (a box-score
+     * fact) — this one is the rotation's input, and a later pass may curve it.
+     *
+     * <p><b>Unlike {@link #isFouledOut()}, the RESPONSE to this is not monotonic.</b>
+     * A fouled-out player is gone for good, but a foul-troubled player can be
+     * benched, recover energy, return, and be benched again — which is exactly what
+     * #031 D's sticky-sit / earned-return cycle relies on. The predicate itself is
+     * stable and only grows; it is the rotation's <i>decision</i> that is re-made
+     * every check (~100 times per team per game).
+     *
+     * <p>Deliberately NOT a {@code shouldBench()}: that would need the coach factor
+     * and a {@code RandomGenerator}, and this class is (and stays) RNG-free and
+     * coach-free. The decision lives in {@link RotationState}.
+     */
+    public int foulTroubleLevel() {
+        return Math.min(fouls, SimConfig.FOUL_OUT_LIMIT);
+    }
+
+    /**
+     * §3.13 (decisions.md #031 B): this player's <b>value to his team</b>, on the
+     * same 1–20 avg-10 scale as the skills it is built from — the input that makes
+     * the foul-trouble rule protect a star more tightly than a role player.
+     *
+     * <pre>
+     *   value = (individualDefense + rimProtection + defenseRebound
+     *            + offense + offense) / 5
+     *   where offense = mean(drive, finishing, perimeter, post, longRange)
+     * </pre>
+     *
+     * <p>Offense is <b>deliberately double-weighted</b>, putting the composite at
+     * roughly 60/40 defense-leaning — the right lean for a foul-trouble rule, since
+     * fouls concentrate on defenders and bigs (#031 A). <b>The formula is a user
+     * call and was not open at execution.</b>
+     *
+     * <p>Derived, never stored — no new field and no new column, built from skills
+     * this class already holds (#014/#017: don't fabricate a field ahead of its
+     * consumer). Measured over the 359 seeded players during the #031 design pass:
+     * mean 10.06, sd 3.10, starters 11.95 vs. bench 8.36.
+     */
+    public double valueComposite() {
+        double offense = (drive + finishing + perimeter + post + longRange) / 5.0;
+        return (individualDefense + rimProtection + defenseRebound + offense + offense) / 5.0;
+    }
+
+    /**
      * §3.5 (Decision B): the fatigue multiplier over this player's skills, from
      * currentEnergy. Full energy ⇒ ×1.0, declining modestly as energy drops.
      */
