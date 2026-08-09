@@ -592,8 +592,8 @@ class CalibrationHarness {
             // been live since §3.5 but its rate has NEVER been observed. The
             // DISTRIBUTION matters more than the count — it shows pressure building
             // below the threshold before it crosses it.
-            System.out.printf("  Foul-outs / team / game: %.3f  (plausible ~0.11, ~1 per 9 games;"
-                            + " >~0.3 means the multipliers are too hot)%n",
+            System.out.printf("  Foul-outs / team / game: %.3f  (target ~0.39 — §3.13's landing,"
+                            + " a SOFT target; see calibration.md)%n",
                     foulOuts / tg);
             System.out.printf("  Players at 4 / 5 / 6 fouls per team/game: %.2f / %.2f / %.2f"
                             + "   (of %.1f who played)%n",

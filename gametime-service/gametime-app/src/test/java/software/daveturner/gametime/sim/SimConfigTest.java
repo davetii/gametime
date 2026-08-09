@@ -236,4 +236,97 @@ class SimConfigTest {
         assertTrue(aggressive > passive,
                 "a more aggressive coach has a higher threshold (pulls earlier)");
     }
+
+    // --- §3.13 foul trouble (decisions.md #031 B) ---
+
+    @Test
+    void foulTroubleCurveIsZeroBelowThreeFoulsAndAtTheFoulOutLimit() {
+        for (int f = 0; f <= 2; f++) {
+            assertEquals(0.0, SimConfig.FOUL_TROUBLE_SIT_PROBABILITY[f], 0.0,
+                    "no coach benches a player for " + f + " fouls");
+            assertEquals(0.0, config.foulTroubleSitProbability(f, 1.2, 16.0, true, null), 0.0);
+        }
+        assertEquals(0.0, SimConfig.FOUL_TROUBLE_SIT_PROBABILITY[SimConfig.FOUL_OUT_LIMIT], 0.0,
+                "6 fouls is the HARD foul-out rule's business, not the soft rule's");
+        assertEquals(0.0, config.foulTroubleSitProbability(
+                SimConfig.FOUL_OUT_LIMIT, 1.2, 16.0, true, null), 0.0);
+    }
+
+    @Test
+    void foulTroubleCurveRisesWithFoulCount() {
+        double three = config.foulTroubleSitProbability(3, 1.0, SimConfig.SCALE_AVG, false, 5);
+        double four = config.foulTroubleSitProbability(4, 1.0, SimConfig.SCALE_AVG, false, 5);
+        double five = config.foulTroubleSitProbability(5, 1.0, SimConfig.SCALE_AVG, false, 5);
+        assertTrue(three > 0.0 && three < four && four < five,
+                "one rising curve, not three thresholds: " + three + " " + four + " " + five);
+    }
+
+    @Test
+    void foulTroubleProbabilityIsOutOfRangeSafe() {
+        assertEquals(0.0, config.foulTroubleSitProbability(-1, 1.0, 10.0, true, null), 0.0);
+        assertEquals(0.0, config.foulTroubleSitProbability(99, 1.0, 10.0, true, null), 0.0);
+    }
+
+    @Test
+    void foulTroubleProbabilityScalesWithTheCoachFactor() {
+        double passive = config.foulTroubleSitProbability(4, 0.8, SimConfig.SCALE_AVG, true, null);
+        double aggressive = config.foulTroubleSitProbability(4, 1.2, SimConfig.SCALE_AVG, true, null);
+        assertTrue(aggressive > passive,
+                "a more aggressive coach sits a foul-troubled player more readily");
+    }
+
+    @Test
+    void foulTroubleProbabilityProtectsHighValuePlayersMore() {
+        // The deliberate INVERSE of the fatigue rule's starter tolerance (#031 B):
+        // a better player is benched MORE readily at the same foul count.
+        double star = config.foulTroubleSitProbability(4, 1.0, 16.0, true, null);
+        double average = config.foulTroubleSitProbability(4, 1.0, 10.0, true, null);
+        double weak = config.foulTroubleSitProbability(4, 1.0, 6.0, true, null);
+        assertTrue(star > average && average > weak,
+                "value scales the sit probability upward: " + weak + " " + average + " " + star);
+    }
+
+    @Test
+    void foulTroubleProbabilityNeverGoesNegativeForAnExtremeLowValuePlayer() {
+        // A value far below average must floor at 0, never invert the sign.
+        double p = config.foulTroubleSitProbability(5, 1.0, -50.0, false, 8);
+        assertTrue(p >= 0.0, "probability is never negative: " + p);
+    }
+
+    @Test
+    void foulTroubleProbabilityIsNotSubjectToTheProbabilityFloor() {
+        // clampProbability's PROB_FLOOR would give a clean player a 2% chance of
+        // being benched on EVERY check (~100 per game). The rare-event sites must
+        // dodge it; this is the third such site in the package (#030 follow-up).
+        // A clean player must be EXACTLY zero, not floored up to PROB_FLOOR (2%),
+        // which over ~100 checks a game would bench him roughly 87% of games.
+        for (int f = 0; f <= 2; f++) {
+            assertEquals(0.0, config.foulTroubleSitProbability(f, 1.2, 20.0, true, null), 0.0,
+                    "a clean player is never a foul-trouble candidate, at any coach"
+                            + " or value — the global probability floor must not apply");
+        }
+        // Contrast with the clamped helper: clampProbability would lift any of those
+        // zeros to PROB_FLOOR. The foul-trouble helper must not.
+        assertEquals(SimConfig.PROB_FLOOR, config.clampProbability(0.0), 0.0,
+                "the clamped helper floors at PROB_FLOOR — which is exactly why the"
+                        + " foul-trouble probability does not use it");
+    }
+
+    @Test
+    void rosterProtectionFactorCombinesWithTheValueComposite() {
+        double starter = config.rosterProtectionFactor(true, null);
+        double firstOffBench = config.rosterProtectionFactor(false, 1);
+        double deepBench = config.rosterProtectionFactor(false, 8);
+        assertEquals(1.0 + SimConfig.FOUL_TROUBLE_STARTER_BONUS, starter, 1e-9);
+        assertTrue(starter > firstOffBench, "a starter is managed more tightly");
+        assertTrue(firstOffBench > deepBench, "protection falls down the rotation queue");
+        assertEquals(SimConfig.FOUL_TROUBLE_MIN_ROSTER_FACTOR, deepBench, 1e-9,
+                "a deep reserve is protected less, never exempt");
+    }
+
+    @Test
+    void rosterProtectionFactorTreatsANullRotationOrderBenchPlayerAsFirstOffTheBench() {
+        assertEquals(config.rosterProtectionFactor(false, 1),
+                config.rosterProtectionFactor(false, null), 1e-9);
+    }
 }

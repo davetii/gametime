@@ -278,4 +278,72 @@ class PlayerGameStateTest {
         assertTrue(p.isFouledOut());
         assertEquals(SimConfig.FOUL_OUT_LIMIT, p.getFouls());
     }
+
+    // --- §3.13 foul trouble (decisions.md #031 B/E) ---
+
+    @Test
+    void foulTroubleLevelIsDerivedFromTheFoulCounter() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        assertEquals(0, p.foulTroubleLevel());
+        for (int i = 1; i <= SimConfig.FOUL_OUT_LIMIT; i++) {
+            p.recordFoul();
+            assertEquals(i, p.foulTroubleLevel(),
+                    "foul trouble tracks the counter with no stored flag");
+        }
+    }
+
+    @Test
+    void foulTroubleLevelIsCappedAtTheFoulOutLimit() {
+        // Defensive: the counter can in principle be incremented past the limit
+        // (a foul recorded on the possession the player fouls out), and the level
+        // must stay a valid index into the sit-probability curve.
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
+        for (int i = 0; i < SimConfig.FOUL_OUT_LIMIT + 3; i++) {
+            p.recordFoul();
+        }
+        assertEquals(SimConfig.FOUL_OUT_LIMIT, p.foulTroubleLevel());
+        assertTrue(p.isFouledOut());
+    }
+
+    @Test
+    void valueCompositeMatchesTheUserSetFormula() {
+        // value = (individualDefense + rimProtection + defenseRebound + off + off)/5
+        // where off = mean(drive, finishing, perimeter, post, longRange).
+        // drive finishing perimeter post longRange ballSec ft foulDraw
+        // indDef rimProt shotCont steal foulProne offReb defReb
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1",
+                12.0, 14.0, 8.0, 6.0, 10.0,   // offense: mean = 10.0
+                10.0, 10.0, 10.0,
+                16.0, 12.0, 10.0, 10.0, 10.0, // individualDefense 16, rimProtection 12
+                10.0, 8.0);                   // offenseRebound 10, defenseRebound 8
+        double expected = (16.0 + 12.0 + 8.0 + 10.0 + 10.0) / 5.0;
+        assertEquals(expected, p.valueComposite(), 1e-9);
+    }
+
+    @Test
+    void valueCompositeIsDefenseLeaningWithOffenseDoubleWeighted() {
+        // Offense is double-weighted (~60/40 defense-leaning): raising all five
+        // offense skills by 5 moves the composite by 2×5/5 = 2.0, while raising one
+        // defensive input by 5 moves it by 5/5 = 1.0.
+        PlayerGameState baseline = TestPlayerFactory.create("p", "T", 10.0);
+        PlayerGameState betterOffense = TestPlayerFactory.create("p", "T",
+                15.0, 15.0, 15.0, 15.0, 15.0,
+                10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0);
+        PlayerGameState betterDefense = TestPlayerFactory.create("p", "T",
+                10.0, 10.0, 10.0, 10.0, 10.0,
+                10.0, 10.0, 10.0, 15.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0);
+        assertEquals(10.0, baseline.valueComposite(), 1e-9,
+                "an all-average player sits at the league average");
+        assertEquals(2.0, betterOffense.valueComposite() - baseline.valueComposite(), 1e-9);
+        assertEquals(1.0, betterDefense.valueComposite() - baseline.valueComposite(), 1e-9);
+    }
+
+    @Test
+    void valueCompositeSeparatesAStarFromARolePlayer() {
+        PlayerGameState star = TestPlayerFactory.create("star", "T", 16.0);
+        PlayerGameState role = TestPlayerFactory.create("role", "T", 7.0);
+        assertTrue(star.valueComposite() > role.valueComposite());
+        assertEquals(16.0, star.valueComposite(), 1e-9);
+        assertEquals(7.0, role.valueComposite(), 1e-9);
+    }
 }

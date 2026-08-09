@@ -131,7 +131,7 @@ Size caps (`MAX_ACTIVE_ROSTER = 15`, `MAX_MINORS = 5` in `GametimeServiceImp`):
 
 ## How gameplay consumes the roster (built)
 
-The roster domain feeds the game engine, and both consumers are now live.
+The roster domain feeds the game engine, and all three consumers are now live.
 
 **The bridge is `TeamQueryService`** (see Data model above). At the start of a
 simulation `GameSimulator` calls `teamQueryService.getTeam(...)` for each side —
@@ -144,7 +144,18 @@ therefore cross into gameplay at exactly one point, as ordinary API-model data:
 priority, rested-return, and the starter fatigue tolerance of §3.5 Decision C),
 and `rotationOrder` becomes the bench queue order `RotationState` draws from.
 
-The two live consumers:
+> ⚠️ **The `squad` list is NOT ordered by rotation priority — do not read it that
+> way.** `GameSimulator.buildRotation` appends the five starters **in whatever order
+> `team.getPlayers()` returns**, then the bench sorted by `rotationOrder`. Because
+> starters carry a **null `rotationOrder`** (see Lineups above), **squad indices 0–4
+> are unordered among themselves**; only indices 5+ carry real priority. A §3.13
+> design draft derived a player's importance from his squad index and would have made
+> "the most protected player" a database-ordering accident — caught and corrected in
+> `decisions.md` #031 B. **The trap is still live in the code**, so anything needing
+> "how good is this player" must use a skill composite (§3.13's
+> `PlayerGameState.valueComposite()`), not a position in this list.
+
+The three live consumers:
 
 - **Minutes & fatigue** (§3.5, decisions.md #023) — the lineup this domain owns
   (`STARTER` set + `rotationOrder` bench queue) drives the engine's dynamic
@@ -158,6 +169,19 @@ The two live consumers:
   plays and how eagerly tired starters are pulled. `rotationOrder` is the roster's
   contribution; the coach knobs are how that chart is *used* — the clean seam
   between this domain and gameplay.
+- **Foul-trouble benching** (§3.13, decisions.md #031) — a **soft** substitution
+  rule that sits a player carrying fouls before he fouls out. It reads this
+  domain's two fields as a *protection* signal, **combined with** (not replaced by)
+  a skill composite: a `STARTER` is managed slightly more tightly, and a bench
+  player is discounted progressively down the `rotationOrder` queue, floored so a
+  deep reserve is protected less but never exempt.
+  **⚠️ The direction is the opposite of the fatigue rule, deliberately.** §3.5 lets
+  starters tolerate *more* fatigue before being pulled; §3.13 pulls the better
+  player *sooner*. You ride your star when he's tired, you protect him when he's in
+  foul trouble. It reads like an inconsistency between the two consumers of the same
+  field and is not — do not "fix" it into agreement.
+  Like the fatigue rule, it draws only within `rotationDepth` and **never writes
+  back to `player_team`**; and it can never bring a fouled-out player back.
 
 ## Not yet built
 

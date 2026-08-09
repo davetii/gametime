@@ -126,7 +126,7 @@ decides *who* the possession is played with.
 
 | # | Phase / resolver | What it decides | On a hit |
 |---|---|---|---|
-| 0 | **`RotationState.advancePossession()`** — **both teams**, before every possession | drain/recover energy, force off fouled-out, fatigue sub | — (no events, no RNG†) |
+| 0 | **`RotationState.advancePossession()`** — **both teams**, before every possession | drain/recover energy, force off fouled-out, **foul-trouble sub (§3.13)**, fatigue sub | — (no events; **one RNG draw**†) |
 | 1 | **`ShotSelector`** | picks the shooter, then the shot type | — |
 | 2 | **`TurnoverResolver`** | turnover? then a 9-way cause draw | possession **ends** |
 | 3 | **`FoulResolver.isFoul`** | foul that **stops** the shot (no basket) | FTs, possession **ends** |
@@ -154,8 +154,12 @@ multiplies by (§3.12's per-shot-type foul multiplier), so it must precede the f
   turnover cause. (This is exactly why §3.12 renamed the constant to
   `BASE_NO_BASKET_FOUL`, #030 F.)
 
-† **`advancePossession()` consumes no RNG today.** §3.13 (foul-trouble benching)
-changes this — see the substitution paragraph below.
+† **`advancePossession()` consumes exactly one RNG draw per call** — §3.13's
+foul-trouble sit roll (decisions.md #031, revising #023 C's RNG-free substitution).
+The draw is taken **unconditionally at a fixed point**, whether or not anyone is in
+foul trouble, so the seed stream never forks on rotation state. Everything else in
+step 0 is still state-derived, and it still emits no events. See the substitution
+paragraph below.
 
 ---
 
@@ -290,28 +294,52 @@ possession the engine, **for BOTH teams** (both are on the floor, so both tire �
 `resolvePossession()`): drains the on-floor five's `currentEnergy` (drain scaled by `endurance`),
 recovers the benched players' energy, **forces off any player who has fouled out**
 (a derived predicate `getFouls() >= FOUL_OUT_LIMIT`, not a stored flag), then runs
-a fatigue substitution (pull the most-tired starter below a
-`substitutionAggressiveness`-scaled threshold for the freshest eligible bench
-player, drawing down the `rotationOrder` queue only as far as `rotationDepth`
-allows; starters tolerate more fatigue and return first). The whole step is
-**deterministic given (energy, fouls, coach attrs) and consumes NO RNG** — it
-produces no `GameEvent` rows and does not touch the seeded stream. The on-floor
-five (`RotationState.onFloor()`) is **always exactly 5**: if the roster is
+**§3.13's soft foul-trouble sub**, then a fatigue substitution (pull the most-tired
+starter below a `substitutionAggressiveness`-scaled threshold for the freshest
+eligible bench player, drawing down the `rotationOrder` queue only as far as
+`rotationDepth` allows; starters tolerate more fatigue and return first). The
+on-floor five (`RotationState.onFloor()`) is **always exactly 5**: if the roster is
 exhausted (everyone fouled out), the least-fouled available player stays on so the
 floor never drops below 5. A fatigue **multiplier** over each on-floor player's
 skills (`effectiveSkill = skill × fatigueFactor(energy)`) then bends shot/defense/
 rebound contests — a modest thumb on the scale composed multiplicatively with the
 §3.4 coach/chemistry modifiers.
 
-> **§3.13 (foul trouble) will change this paragraph — not yet built.** Today nothing
-> reacts to foul *trouble*, only foul-*out*: `runFatigueSubs()` reads energy alone and
-> never reads `fouls`. §3.13 (design resolved as decisions.md **#031**, execute-ready
-> plan in todo.md) inserts a **soft, probabilistic foul-trouble sub** between the
-> force-off and the fatigue sub — scaled by `substitutionAggressiveness` and the
-> player's value, with a sticky sit and a return earned through the ordinary freshness
-> path. **It makes the "consumes NO RNG" claim above false** (revising #023 C), so this
-> paragraph and `possession-flow.puml`'s rotation box must both be corrected when
-> §3.13 lands. A fouled-out player still **never** returns — that bar is untouched.
+**The step is reproducible from the seed but is NOT RNG-free** (§3.13, decisions.md
+**#031**, which deliberately revises #023 C). It consumes **exactly one draw per
+call** — the foul-trouble sit roll — taken **unconditionally at a fixed point**, so
+the stream advances identically whether or not anyone is in foul trouble. #023 C's
+"subs are a coaching decision, not chance" reasoning still fits the *fatigue* sub,
+whose trigger is a measurable state; it fits foul trouble poorly, because two coaches
+facing the same 4-foul situation genuinely make different calls. The step still
+produces no `GameEvent` rows.
+
+**The foul-trouble sub (§3.13)**, sequenced between the force-off and the fatigue
+sub, is the engine's **first strategic substitution** and the only thing in it that
+reacts to foul *trouble* rather than foul-*out*:
+- **Probabilistic, not a threshold**: `base(foulCount) × coach × value × roster`.
+  The base curve is zero below 3 fouls, rises to 5, and is zero at 6 (a foul-out is
+  the hard rule's business). One curve scaled by `substitutionAggressiveness`
+  expresses "an aggressive coach thinks about it at 3, an average one at 4, a passive
+  one at 5" without three thresholds.
+- **It protects the BEST players MORE** — the deliberate *inverse* of the fatigue
+  rule, where `STARTER_SUB_THRESHOLD_BONUS` lets starters tolerate more fatigue. You
+  ride your star when he's tired; you protect him when he's in foul trouble. Value is
+  a **derived** defense-leaning skill composite (`PlayerGameState.valueComposite()`),
+  combined with — not replacing — the `lineupRole`/`rotationOrder` roster signal.
+- **It yields**: it draws only from the `rotationDepth` window (a rotation decision,
+  not the emergency full-bench reach the foul-out force-off gets) and fires only if a
+  genuinely eligible, meaningfully fresher replacement exists. If the bench can't
+  cover it, the foul-troubled player keeps playing — a soft preference never weakens
+  a hard invariant.
+- **Sticky sit, earned return**: a player benched here becomes an *ordinary* bench
+  player, with no "benched for fouls" status and **no competing foul-trouble roll to
+  bring him back**. He returns only through the fatigue rule's freshness path, and
+  the return timer is energy recovery itself. Only the *sit* is probabilistic; the
+  *return* is earned. That asymmetry is what keeps a 4-foul player from flickering
+  on and off across consecutive possessions at ~100 checks per team per game.
+- **A fouled-out player still NEVER returns** — that bar is absolute and §3.13 does
+  not touch it.
 
 **Coach modifiers (§3.4)** bend this flow without changing its shape (decisions.md
 #022, all effects via the avg-10 deviation multiplier

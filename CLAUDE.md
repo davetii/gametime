@@ -18,7 +18,7 @@ gametime/
 │   ├── player.md              Player domain design (attributes, skills, formulas)
 │   ├── roster.md              Roster & lineup domain (player↔team, lineups)
 │   ├── coach.md               Coach domain design (5 decision attributes, #018)
-│   ├── game.md                Game domain + possession engine (§3.1 models, §3.2–§3.11 flow)
+│   ├── game.md                Game domain + possession engine (§3.1 models, §3.2–§3.13 flow)
 │   └── possession-flow.puml   Possession-flow diagram (kept in sync with the engine)
 │                              (.png renders are gitignored — `plantuml -tpng` to view)
 ├── gametime-service/          Multi-module Maven project (Spring Boot 3.5.14)
@@ -40,7 +40,7 @@ Before starting work, review these for context:
 - **`docs/player.md`** — player domain reference: attributes, derived skills, calculator design
 - **`docs/coach.md`** — coach domain design: 5 continuous decision attributes (#018) + engine interface
 - **`docs/game.md`** — game domain + the possession engine: Game/GameEvent/BoxScore
-  models (§3.1) and the event vocabulary + flow the engine actually runs (§3.2–§3.11)
+  models (§3.1) and the event vocabulary + flow the engine actually runs (§3.2–§3.13)
 - **`docs/possession-flow.puml`** — **the possession flow as a diagram, and the
   fastest way to understand the engine.** Read it before changing anything in the
   `sim` package: it shows every branch in order (turnover → foul → block →
@@ -53,11 +53,14 @@ Before starting work, review these for context:
   `.puml` is the artifact that matters).
 - **`docs/calibration.md`** — **the calibration targets, and the single source of
   truth for them.** What the simulation is tuned toward (the §3.4 five: points,
-  FG%, 3P%, assists, turnovers), the §3.5 minutes targets, the per-phase rates,
-  and the plausibility ballparks that are deliberately *not* targets. Read it
-  before changing any `SimConfig` constant or claiming a landing is "on target" —
-  and update it (plus the `CalibrationHarness` `(target ~N)` strings) in the same
-  change whenever a target moves. It **supersedes** `decisions.md` #022 D, which
+  FG%, 3P%, assists, turnovers), the §3.5 minutes targets, §3.13's soft foul-out
+  target, the per-phase rates, and the plausibility ballparks that are deliberately
+  *not* targets. Read it before changing any `SimConfig` constant or claiming a
+  landing is "on target" — and update it (plus the `CalibrationHarness`
+  `(target ~N)` strings) in the same change whenever a target moves.
+  **No target in it is SOURCED yet** — that is §3.16's job (1); treat every one as
+  provisional, and note that a sourced target may turn out to be unreachable by any
+  existing knob (§3.16's escalation rule). It **supersedes** `decisions.md` #022 D, which
   is now historical on the target question. Two targets are currently flagged
   **CONTESTED** (points, FG%) — read that section before re-centering anything.
 - **`docs/decisions.md`** — past architecture choices (check before proposing alternatives)
@@ -77,7 +80,7 @@ invoke the **`test-coverage`** skill — the JaCoCo gate is per-package and runs
 
 ### How a phase moves (read this before starting work)
 
-Engine sub-phases (§3.4, §3.7 … §3.12) run in **three separate sessions**, and
+Engine sub-phases (§3.4, §3.7 … §3.13) run in **three separate sessions**, and
 knowing which one you're in matters more than anything else in these docs:
 
 1. **Design pass** — resolve the open questions in todo.md into a new numbered

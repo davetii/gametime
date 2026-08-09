@@ -76,9 +76,9 @@ into a graveyard.
   "later player-temperament pass" remains a genuine open alternative for the fight
   trigger specifically.
 
-- **Strategic substitutions as a category — the engine has essentially one, and
-  §3.13 adds the second.** Noticed during §3.13's design pass (user observation): it
-  is striking that a *fatigue* sub exists while "sit him so he doesn't foul out"
+- **Strategic substitutions as a category — the engine now has exactly two, and
+  §3.13 shipped the second.** Noticed during §3.13's design pass (user observation):
+  it was striking that a *fatigue* sub existed while "sit him so he doesn't foul out"
   did not. Listing what a real coach actually decides makes the gap systematic
   rather than incidental:
 
@@ -86,7 +86,7 @@ into a graveyard.
   |---|---|---|
   | Fatigue | ✅ §3.5 | reactive |
   | Foul-out | ✅ §3.5 | rule, forced |
-  | **Foul trouble** | **§3.13 (#031)** | **strategic — the first** |
+  | **Foul trouble** | **✅ §3.13 (#031)** | **strategic — the first** |
   | Ejection | §3.14 | rule, forced |
   | Matchup / going small | ✗ | strategic |
   | Riding a hot hand | ✗ | strategic |

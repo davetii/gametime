@@ -439,6 +439,90 @@ public class SimConfig {
     // available for forced (foul-out) subs regardless of this.
     public static final int BASE_ROTATION_DEPTH = 4;
 
+    // --- Foul trouble (§3.13, decisions.md #031 B) ---
+    // The SOFT benching rule: a player carrying fouls is a bench CANDIDATE, and
+    // whether he actually sits is a per-possession probability, not a threshold.
+    //
+    // UNITS — read this before touching the numbers below (the #030 G lesson):
+    //   FOUL_TROUBLE_SIT_PROBABILITY[f] is a PROBABILITY (per rotation check) that
+    //   an average-value player under an average (10) substitutionAggressiveness
+    //   coach is benched at foul count f. It is NOT a multiplier.
+    //   FOUL_TROUBLE_VALUE_SENSITIVITY is a MULTIPLIER sensitivity (avg-10
+    //   deviation form) — it scales the probability above, it is not one.
+    //
+    // Shape (#031 B, the user's stated intent and the acceptance criterion): one
+    // curve scaled by the coach factor, NOT three thresholds — a high-aggressiveness
+    // coach starts thinking about sitting at 3, a medium one at 4, a low one at 5.
+    // So index 3 is deliberately small (only an aggressive coach's multiplier lifts
+    // it to something that fires often) and index 5 is high (nearly everyone sits).
+    // Counts 0–2 are ZERO: no coach benches a player for 2 fouls. Index 6 is
+    // FOUL_OUT_LIMIT — a foul-out is the HARD rule's business, not this one.
+    //
+    // These are per-CHECK probabilities and substitution is re-decided ~100 times
+    // per team per game, so even a small value fires reliably given exposure; the
+    // curve is what decides HOW EARLY, not whether. Tuned against the harness in
+    // §3.13 Step 6 (foul-outs + the 4/5/6 distribution + the per-slot minutes cost).
+    //
+    // THE CURVE IS SATURATED — do not reach for it to move foul-outs further. §3.13
+    // measured this directly: raising it to {0.25, 0.75, 0.95} moved foul-outs 0.377
+    // → 0.407, and {0.40, 0.90, 0.98} → 0.382, i.e. nothing, despite ~60% more subs.
+    // The binding constraint is not how readily the coach sits the player; it is that
+    // #031 D sends him BACK (via the ordinary freshness path, by design) into the same
+    // over-dispersed defender draw that gave him the fouls. Getting below ~0.38 needs
+    // a different lever than this one — see #031's implementation note.
+    public static final double[] FOUL_TROUBLE_SIT_PROBABILITY =
+            {0.0, 0.0, 0.0, 0.120, 0.500, 0.900, 0.0};
+
+    // How strongly the player's VALUE composite (PlayerGameState.valueComposite())
+    // bends the sit probability, in the avg-10 deviation form the rest of this class
+    // uses: factor = 1 + FOUL_TROUBLE_VALUE_SENSITIVITY × (value − 10)/10.
+    //
+    // DIRECTION IS DELIBERATE AND INVERTS THE FATIGUE RULE (#031 B): a POSITIVE
+    // sensitivity means a BETTER player is MORE likely to be sat at the same foul
+    // count. You ride your star when he's tired (STARTER_SUB_THRESHOLD_BONUS lets
+    // starters tolerate more fatigue); you PROTECT him when he's in foul trouble.
+    // This looks like an inconsistency and is not — do not "fix" it.
+    public static final double FOUL_TROUBLE_VALUE_SENSITIVITY = 0.55;
+
+    // The extra protection the roster signal adds on top of the value composite
+    // (#031 B: the two signals are COMBINED, not substituted). A starter is a player
+    // the coach has already committed to, so he is managed a little more tightly
+    // still; bench players get a mild discount that deepens down the rotationOrder
+    // queue, capped so a deep reserve is never fully exempt.
+    public static final double FOUL_TROUBLE_STARTER_BONUS = 0.15;
+    public static final double FOUL_TROUBLE_BENCH_DISCOUNT_PER_SLOT = 0.05;
+    public static final double FOUL_TROUBLE_MIN_ROSTER_FACTOR = 0.70;
+
+    // How much fresher (energy points) a bench player must be before the SOFT
+    // foul-trouble rule will sit an on-floor player for him. This is the
+    // anti-oscillation guard, and it is what makes #031 D's sticky sit actually
+    // stick in BOTH directions without a stored flag or a countdown.
+    //
+    // Why it is needed: a player benched for foul trouble rests to full, returns via
+    // the ordinary freshness path, and is then — for a few possessions — barely less
+    // fresh than the bench. With NO margin at all the rule re-fires almost at once and
+    // the player visibly flickers on and off across consecutive possessions, which is
+    // exactly the behavior #031 D set out to prevent (measured during §3.13, not
+    // hypothetical).
+    //
+    // The value is NOT "as large as possible" — it is a genuine optimum, and the
+    // §3.13 sweep is worth recording because the direction is counter-intuitive. A
+    // LARGER margin makes foul-outs WORSE, because it blocks legitimate sits: at
+    // margin 12 it vetoed ~69% of fired rolls and foul-outs sat at 0.53; at 8 → 0.46;
+    // at 3 → 0.45; at 1 → 0.38. But 0 is also worse (0.40) than 1 — a bare `>` lets
+    // the rule swap for a replacement who is fresher by a rounding error, which
+    // churns without removing exposure. 1.0 is the floor of the useful band.
+    //
+    // Note this is BELOW one possession's drain (ENERGY_DRAIN_PER_POSSESSION = 2.6),
+    // so it does not by itself keep a just-returned player on the floor for a fixed
+    // number of possessions. It doesn't need to: the anti-oscillation guarantee comes
+    // from the combination of this margin and the fact that a returning player enters
+    // at or near a full tank, and it is pinned by RotationStateTest's average-sit-
+    // length assertion rather than by this constant's size.
+    //
+    // A margin, in energy points — NOT a probability and NOT a multiplier.
+    public static final double FOUL_TROUBLE_FRESHNESS_MARGIN = 1.0;
+
     // Base probability that a made field goal is assisted, at an average passing
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
     // much the supporting cast's passing deviates from average. Tuned in §3.4
@@ -546,6 +630,65 @@ public class SimConfig {
             threshold -= STARTER_SUB_THRESHOLD_BONUS;
         }
         return threshold;
+    }
+
+    /**
+     * §3.13 (decisions.md #031 B): the probability — <b>per rotation check</b> —
+     * that a coach benches this player for foul trouble. Returns a PROBABILITY in
+     * [0, 1], not a multiplier.
+     *
+     * <p>{@code base(foulCount) × coachFactor × valueFactor × rosterFactor}:
+     * <ul>
+     *   <li><b>base</b> — {@link #FOUL_TROUBLE_SIT_PROBABILITY}, zero below 3 fouls
+     *       and at the foul-out limit (6 is the hard rule's business, not this one).</li>
+     *   <li><b>coach</b> — {@code CoachModifiers.subAggressivenessFactor()}, so one
+     *       curve expresses "aggressive coaches think about it at 3, average at 4,
+     *       passive at 5" without three thresholds.</li>
+     *   <li><b>value</b> — the avg-10 deviation over the player's
+     *       {@code valueComposite()}. <b>Positive sensitivity: better players are
+     *       benched MORE readily</b>, the deliberate inverse of the fatigue rule's
+     *       starter tolerance (#031 B).</li>
+     *   <li><b>roster</b> — the {@code lineupRole}/{@code rotationOrder} signal,
+     *       <b>combined with</b> the composite rather than replacing it (#031 B).</li>
+     * </ul>
+     *
+     * <p>Deliberately NOT run through {@link #clampProbability} — its {@link
+     * #PROB_FLOOR} would give a 0-foul player a 2% chance of being benched every
+     * check (~100 per game), which is the opposite of the intent. This is the third
+     * floor-free site in the package; see #030's clamp-helper follow-up.
+     */
+    public double foulTroubleSitProbability(int foulCount, double subAggressivenessFactor,
+                                            double valueComposite, boolean starter,
+                                            Integer rotationOrder) {
+        if (foulCount < 0 || foulCount >= FOUL_TROUBLE_SIT_PROBABILITY.length) {
+            return 0.0;
+        }
+        double base = FOUL_TROUBLE_SIT_PROBABILITY[foulCount];
+        if (base <= 0.0) {
+            return 0.0;
+        }
+        double valueFactor = 1.0
+                + FOUL_TROUBLE_VALUE_SENSITIVITY * (valueComposite - SCALE_AVG) / SCALE_AVG;
+        double p = base * subAggressivenessFactor * Math.max(0.0, valueFactor)
+                * rosterProtectionFactor(starter, rotationOrder);
+        return Math.max(0.0, Math.min(PROB_CEILING, p));
+    }
+
+    /**
+     * §3.13 (decisions.md #031 B): the {@code lineupRole}/{@code rotationOrder} half
+     * of the foul-trouble value signal. A starter — a player the coach has already
+     * committed to — is managed slightly more tightly; a bench player is discounted
+     * progressively down the rotationOrder queue, floored at {@link
+     * #FOUL_TROUBLE_MIN_ROSTER_FACTOR} so a deep reserve is protected less, never
+     * exempt. Combined with (not substituted for) the skill composite.
+     */
+    public double rosterProtectionFactor(boolean starter, Integer rotationOrder) {
+        if (starter) {
+            return 1.0 + FOUL_TROUBLE_STARTER_BONUS;
+        }
+        int slot = (rotationOrder == null) ? 1 : Math.max(1, rotationOrder);
+        double factor = 1.0 - FOUL_TROUBLE_BENCH_DISCOUNT_PER_SLOT * slot;
+        return Math.max(FOUL_TROUBLE_MIN_ROSTER_FACTOR, factor);
     }
 
     /**

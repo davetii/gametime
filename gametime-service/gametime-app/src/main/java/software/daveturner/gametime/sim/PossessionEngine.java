@@ -60,11 +60,13 @@ public class PossessionEngine {
                 // Both teams are on the floor for every possession (one offense,
                 // one defense), so both rotations advance once per possession —
                 // drain the on-floor five's energy, recover the benched, force off
-                // fouled-out players, run fatigue subs. Deterministic, RNG-free,
-                // emits no events. Ordering (home then away, then resolve) is fixed
-                // so the seed-pinned stream stays reproducible.
-                home.rotation().advancePossession();
-                away.rotation().advancePossession();
+                // fouled-out players, run the §3.13 foul-trouble sub, run fatigue
+                // subs. Emits no events, but as of §3.13 it DOES consume RNG: one
+                // draw per call, unconditional (decisions.md #031, revising #023 C).
+                // Ordering (home then away, then resolve) is fixed so the seed-pinned
+                // stream stays reproducible.
+                home.rotation().advancePossession(rng);
+                away.rotation().advancePossession(rng);
 
                 sequence = resolvePossession(data, offense, defense,
                         period, sequence, rng);

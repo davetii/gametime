@@ -29,7 +29,7 @@ PlayerEntity (DB)  →  EntityMapper  →  Player (API model)
 | determination | Effort, hustle, willingness to grind |
 | ego | Self-confidence (high values penalize team play) |
 | endurance | Stamina over a game/season — §3.5 drives in-game fatigue: higher endurance drains `currentEnergy` slower |
-| energy | Burst effort, motor — §3.5 seeds a player's starting in-game energy |
+| energy | Burst effort, motor — §3.5 speeds how fast a benched player **recovers** `currentEnergy`. (It does *not* seed starting energy: every player tips off at a full tank, a deliberate deviation recorded in decisions.md #023 B's implementation note. §3.13 leans on this recovery rate — it is what returns a foul-troubled player to the floor) |
 | handle | Ball-handling ability |
 | health | Durability, injury resistance |
 | intelligence | Basketball IQ, reading the game |
@@ -226,6 +226,27 @@ single modest multiplier over a player's skills at contest time (decisions.md
 without moving the count, #027). §3.10 adds **rebounding fouls** (`foulProne` /
 `foulDrawing` again, two-sided, #028), and §3.11 adds the **and-1** — a second,
 post-make foul roll on the same `foulDrawing`-vs-`foulProne` wiring (#029).
+§3.12 extends the stopped-shot foul to **all four shot types** with a per-type
+multiplier, on the same `foulDrawing`-vs-`foulProne` contest (#030).
+
+**§3.13 wires skills to something new in kind — a *rotation* decision rather than
+a possession outcome** (#031). The foul-trouble bench rule scales the chance a
+coach sits a player by that player's **value to the team**, a *derived composite*
+over eight skills the engine already holds:
+
+```
+value = (individualDefense + rimProtection + defenseRebound + offense + offense) / 5
+where offense = mean(drive, finishing, perimeter, post, longRange)
+```
+
+Offense is deliberately **double-weighted** (~60/40 defense-leaning), because foul
+trouble bites defenders and bigs hardest. It is **derived, never stored** — no new
+attribute and no new column (the #014/#017 don't-fabricate-a-field discipline), and
+it lives on `PlayerGameState.valueComposite()`. Measured over the 359 seeded
+players: **mean 10.06, sd 3.10**, starters 11.95 vs. bench 8.36. **Note the
+direction**: a *higher* value makes a player **more** likely to be benched at a
+given foul count — the coach is protecting an asset, which is the deliberate
+inverse of §3.5's fatigue rule where starters tolerate *more* tiredness.
 
 **Four of the 23 skills are still read by nothing**: `transition`, `clutch`,
 `screenSetting`, and `offBallMovement` (verified against the `sim` package — no
@@ -244,7 +265,7 @@ the engine does read.
 | Shot attempt (open) | longRange / perimeter / post | ✅ §3.2/§3.4 |
 | Shot contest | shotContest, individualDefense | ✅ §3.2/§3.4 |
 | Shot block attempt | rimProtection (rim) / shotContest (jumper) vs finishing (shooter) | ✅ §3.7 |
-| Foul on attempt? | foulDrawing vs foulProne | ✅ §3.2/§3.4 |
+| Foul on attempt? | foulDrawing vs foulProne — all four shot types since §3.12, each with its own multiplier | ✅ §3.2/§3.4/§3.12 |
 | And-1 (foul on a MADE shot)? | foulDrawing vs foulProne again — a **second, post-make** roll on its own thin rate; made DRIVE/POST only until §3.12 | ✅ §3.11 |
 | Rebounding foul? | foulDrawing vs foulProne (two-sided — either team can commit; `foulProne` also weights *who* commits it) | ✅ §3.10 |
 | Free throws | freeThrows; clutch (late game) | ✅ §3.2 (clutch ⬜) |
@@ -252,3 +273,13 @@ the engine does read.
 | Turnover / steal | ballSecurity vs stealing (gate); §3.9 cause draw leans `SHOT_CLOCK_VIOLATION` on `acumen`↓ + defending `defensiveScheme`↑ and `OFFENSIVE_FOUL`/`BAD_PASS` on `teamOffense`↓ | ✅ §3.2/§3.9 |
 | Late-game pressure | clutch modifier on all actions | ⬜ not modeled |
 | Off-ball movement | offBallMovement, awareness | ⬜ not modeled |
+
+**Between possessions** — not a possession event, but the other place skills reach
+the engine (the rotation step, `RotationState.advancePossession()`):
+
+| Rotation decision | Skills / attributes used | Status |
+|-----------------|-------------|--------|
+| Fatigue drain / recovery | endurance (slows drain), energy (speeds recovery) | ✅ §3.5 |
+| Fatigue sub | `currentEnergy` vs a coach-scaled threshold; starters tolerate MORE | ✅ §3.5 |
+| Foul-out (forced off) | none — a derived predicate over the foul counter | ✅ §3.5 |
+| **Foul-trouble sub** | the **value composite** (individualDefense, rimProtection, defenseRebound + the five offense skills) × foul count × coach × roster slot; better players benched **sooner** | ✅ §3.13 |

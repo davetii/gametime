@@ -126,6 +126,54 @@ class TestPlayerFactory {
         return new PlayerGameState(id, teamId, entry);
     }
 
+    /**
+     * §3.13 overload: a rotation player whose skills are all {@code allSkillLevel}
+     * EXCEPT the five that feed {@code valueComposite()} (individualDefense,
+     * rimProtection, defenseRebound, and the five offense skills), which are set to
+     * {@code valueSkillLevel}. Because the composite is built only from those, this
+     * gives a player an exact, predictable value while leaving foulProne and the
+     * rest at league average — so foul-trouble tests vary value alone.
+     */
+    static PlayerGameState createValuedRotationPlayer(String id, String teamId,
+                                                      double allSkillLevel, double valueSkillLevel,
+                                                      LineupRole role, Integer rotationOrder,
+                                                      int endurance, int energy) {
+        Player player = new Player();
+        player.setId(id);
+        player.setEndurance(endurance);
+        player.setEnergy(energy);
+        PlayerSkills skills = new PlayerSkills();
+        // The five offense skills + the three defense/rebound skills the composite reads.
+        skills.setDrive(bd(valueSkillLevel));
+        skills.setFinishing(bd(valueSkillLevel));
+        skills.setPerimeter(bd(valueSkillLevel));
+        skills.setPost(bd(valueSkillLevel));
+        skills.setLongRange(bd(valueSkillLevel));
+        skills.setIndividualDefense(bd(valueSkillLevel));
+        skills.setRimProtection(bd(valueSkillLevel));
+        skills.setDefenseRebound(bd(valueSkillLevel));
+        // Everything else stays at the baseline level.
+        skills.setBallSecurity(bd(allSkillLevel));
+        skills.setFreeThrows(bd(allSkillLevel));
+        skills.setFoulDrawing(bd(allSkillLevel));
+        skills.setShotContest(bd(allSkillLevel));
+        skills.setStealing(bd(allSkillLevel));
+        skills.setFoulProne(bd(allSkillLevel));
+        skills.setOffenseRebound(bd(allSkillLevel));
+        skills.setTeamOffense(bd(allSkillLevel));
+        skills.setTeamDefense(bd(allSkillLevel));
+        skills.setPassing(bd(allSkillLevel));
+        skills.setAcumen(bd(allSkillLevel));
+        player.setSkills(skills);
+
+        RosterEntry entry = new RosterEntry();
+        entry.setPlayer(player);
+        entry.setLineupRole(role);
+        entry.setRotationOrder(rotationOrder);
+
+        return new PlayerGameState(id, teamId, entry);
+    }
+
     private static BigDecimal bd(double val) {
         return BigDecimal.valueOf(val);
     }

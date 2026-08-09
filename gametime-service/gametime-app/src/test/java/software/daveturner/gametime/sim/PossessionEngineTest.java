@@ -698,11 +698,40 @@ class PossessionEngineTest {
         assertEquals(d1.getHomeScore(), d2.getHomeScore());
         assertEquals(d1.getAwayScore(), d2.getAwayScore());
         assertEquals(d1.getEvents().size(), d2.getEvents().size());
-        // Same seed ⇒ same minutes distribution too (subs are deterministic).
+        // Same seed ⇒ same minutes distribution too. As of §3.13 the rotation step
+        // CONSUMES RNG (the foul-trouble sit roll, decisions.md #031 revising #023 C),
+        // so this is reproducibility from the seed rather than from the step being
+        // RNG-free — which is exactly why the draw is unconditional and fixed-point.
         for (int i = 0; i < h1.size(); i++) {
             assertEquals(h1.get(i).getOnFloorPossessions(), h2.get(i).getOnFloorPossessions(),
-                    "sub decisions are deterministic given the seed");
+                    "sub decisions are reproducible given the seed");
         }
+    }
+
+    @Test
+    void rotationStepConsumesTheSameRngRegardlessOfFoulTrouble() {
+        // §3.13 / decisions.md #031, Step 4: the foul-trouble draw is taken
+        // UNCONDITIONALLY at a fixed point in advancePossession(), so the seed stream
+        // advances identically whether or not anyone is in foul trouble. If it forked
+        // on rotation state the shift would be unreproducible.
+        List<PlayerGameState> squad = rotationOf("H", 5, 10);
+        RotationState clean = new RotationState(squad, CoachModifiers.neutral(), config);
+        List<PlayerGameState> troubledSquad = rotationOf("H", 5, 10);
+        for (int f = 0; f < 4; f++) {
+            troubledSquad.get(0).recordFoul();
+        }
+        RotationState troubled =
+                new RotationState(troubledSquad, CoachModifiers.neutral(), config);
+
+        RandomGenerator cleanRng = rng(7);
+        RandomGenerator troubledRng = rng(7);
+        for (int i = 0; i < 50; i++) {
+            clean.advancePossession(cleanRng);
+            troubled.advancePossession(troubledRng);
+        }
+        assertEquals(cleanRng.nextLong(), troubledRng.nextLong(),
+                "both streams must be at the same position after the same number of"
+                        + " rotation steps, regardless of foul state");
     }
 
     // ===================== §3.7 blocked shots =====================
