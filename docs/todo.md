@@ -230,12 +230,31 @@ noise. Use the mean, never one run, when tuning.)*
 - [ ] **Take the draw UNCONDITIONALLY at a fixed point**, not only when a bench
   candidate exists. A conditional draw forks the stream on rotation state and makes
   the shift unreproducible.
+- [ ] **Pass it as a METHOD parameter on `advancePossession()`, not a constructor
+  field.** Verified 2026-08: `new RotationState(...)` has **8 call sites** — 2 in
+  `GameSimulator` (:53, :55) and 6 in tests (`PossessionEngineTest` ×5,
+  `RotationStateTest` ×1). A method parameter leaves all 8 untouched; a constructor
+  field churns every one of them for no benefit.
 - [ ] **Expect every seed-pinned assertion to re-baseline** — a shift comparable to
   §3.12's. This is a controlled structural change, the same one §3.7–§3.12 each
   took; structural determinism tests (same seed ⇒ same result) stay valid and must
   still pass.
 
-**Step 5 — tests (invoke the `test-coverage` skill).**
+**Step 5 — tests. INVOKE THE `test-coverage` SKILL FIRST** (the JaCoCo gate is
+per-package and runs at `install`, not `test` — a green `mvn test` does not prove it
+passes).
+
+**Where the tests go — all four files already exist** (verified 2026-08, in
+`src/test/java/software/daveturner/gametime/sim/`):
+- **`RotationStateTest.java`** — the crux file: the sub rule, precedence, yield,
+  oscillation, sticky sit. Has a `new RotationState(squad, mods, config)` helper at
+  :40 to build from.
+- **`PlayerGameStateTest.java`** — the derived foul-trouble level and value composite.
+- **`SimConfigTest.java`** — the new constants and their helper.
+- **`PossessionEngineTest.java`** — the RNG plumbing + the seed-pinned re-baselines.
+- **`TestPlayerFactory.java`** — the shared builder for test players; use it rather
+  than hand-rolling `PlayerGameState` instances, and extend it if the value composite
+  needs skills it doesn't currently set.
 - [ ] The **oscillation** case (#031 D/E): a foul-troubled player must not flip on and
   off the floor across consecutive possessions. Assert a minimum realistic gap
   between being benched and returning, over a run.
@@ -288,7 +307,10 @@ noise. Use the mean, never one run, when tuning.)*
 - [ ] **Report points/FG%; do NOT chase them.** Benching starters lowers scoring.
   Re-centering is **§3.16** and its targets are CONTESTED ([calibration.md](calibration.md)).
 
-**Step 7 — close-out (#031 H), including the DESCRIPTIVE doc updates.**
+**Step 7 — close-out (#031 H), including the DESCRIPTIVE doc updates. INVOKE THE
+`project-docs` SKILL FIRST** — every item below edits a planning doc, and the skill
+carries the house format, the cross-file routing rules, and the implementation-note
+shape.
 - [ ] **`docs/game.md` — the "Substitution + fatigue + foul-outs (§3.5)" paragraph.
   REQUIRED, not optional.** The §3.13 design pass **pre-flagged** this with a
   `> §3.13 will change this paragraph — not yet built` block and already fixed the
