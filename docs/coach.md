@@ -89,6 +89,20 @@ temperament has no influence on his team's technicals, which is a real fidelity
 ceiling that no tuning can lift (it needs the game-situation awareness the rotation
 step does not have).
 
+**⏳ §3.14b (flagrants, designed as `decisions.md` #034, not yet built) reads no coach
+attribute either — but it is NOT coach-independent, and the distinction matters.** The
+flagrant *severity roll* is a flat constant with no coach input (#034 A/E), exactly like
+§3.14a's. **But a flagrant only exists if a foul happened first, and all three fouls it
+rides on ARE scaled by `defensiveScheme`** (`defensivePressure` multiplies the
+stopped-shot roll, the and-1 roll and the rebounding-foul roll). So an aggressive,
+gambling defense concedes more fouls and therefore commits **proportionally more
+flagrants** — the coach's influence flows through the parent event rather than through
+the new roll. That is the right shape: pressure makes contact more likely, but it does
+not make a given contact more *excessive*. **The five coach attributes stand unchanged
+at five** for the fourth sub-phase running — §3.14b adds none and reads none directly.
+Accepted cost, the same as §3.14a's: a coach's temperament has no influence on whether
+his players cross the line.
+
 **Deferred until a consumer is live:**
 
 - **playerDevelopment** (rate players improve under this coach) — its only

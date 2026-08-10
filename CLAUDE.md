@@ -20,7 +20,9 @@ gametime/
 │   ├── coach.md               Coach domain design (5 decision attributes, #018)
 │   ├── game.md                Game domain + possession engine (§3.1 models, §3.2–§3.13 flow)
 │   └── possession-flow.puml   Possession-flow diagram (kept in sync with the engine)
-│                              (.png renders are gitignored — `plantuml -tpng` to view)
+│                              (.png gitignored — render with `plantuml
+│                              -DPLANTUML_LIMIT_SIZE=16384 -tpng`; plain -tpng
+│                              silently truncates at 4096px — see below)
 ├── gametime-service/          Multi-module Maven project (Spring Boot 3.5.14)
 │   ├── pom.xml                Parent POM (packaging=pom)
 │   ├── gametime-api/          OpenAPI codegen module (generates server stubs)
@@ -49,8 +51,13 @@ Before starting work, review these for context:
   A new branch or event **must** be reflected here in the same change — it is a
   living spec, not an illustration. Validate edits with
   `plantuml -checkonly docs/possession-flow.puml`; render a viewable copy with
-  `plantuml -tpng docs/possession-flow.puml` (the `.png` is gitignored, so the
-  `.puml` is the artifact that matters).
+  **`plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng docs/possession-flow.puml`**
+  (the `.png` is gitignored, so the `.puml` is the artifact that matters).
+  ⚠ **The size flag is REQUIRED, not optional**: the diagram is ~9,600px tall
+  and PlantUML's default ceiling is 4096px, so a plain `-tpng` **silently
+  truncates it to the top ~43%** with no warning. `-checkonly` parses without
+  laying out, so **a green checkonly does not prove the PNG is complete** —
+  check the rendered height whenever you add a partition.
 - **`docs/calibration.md`** — **the calibration targets, and the single source of
   truth for them.** What the simulation is tuned toward (the §3.4 five: points,
   FG%, 3P%, assists, turnovers), the §3.5 minutes targets, §3.13's soft foul-out

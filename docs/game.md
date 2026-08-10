@@ -38,6 +38,15 @@ through §3.12 and this doc now documents both:
   6-foul limit nor the penalty tally, and a **derived** two-technical ejection.
   **Adds no branch to the possession flow at all** (#032 D)
 
+⏳ **§3.14b** flagrant fouls — **DESIGNED (`decisions.md` #034), NOT YET BUILT.** A
+severity roll layered on top of an existing foul at all three foul sites; 2 FTs that
+**replace** the underlying award; a **personal** foul (6-foul limit and bonus tally,
+unlike a technical); and **the first free-throw path that returns the ball to the
+offense** — breaking #030 B's invariant, via the second-chance loop's existing
+`continue` under its existing cap. A flagrant-2 (a flat 15%) ejects immediately, still
+as a **derived** predicate. **The only entry in this list not yet in the engine** —
+everything below describes the engine as it stands today, without it.
+
 The "Possession flow" section below reflects what the engine actually does today.
 
 > **Scope discipline** (cf. decisions.md #014, #017, #020): the entities shipped
@@ -413,10 +422,12 @@ reacts to foul *trouble* rather than foul-*out*:
 | `FOUL` | `REBOUNDING_FOUL_OFFENSE` | Offensive over-the-back during the rebound phase — the **defense** is fouled and the **possession ends** for the offense (defense's ball, or defense's **bonus** FTs if the offense is in the penalty). `committing_team_id` = the **offense** (§3.10) |
 | `FOUL` | `AND_ONE` | Defensive foul on **any** made shot (§3.12) — the basket **counts** and **one** free throw follows, a made three included. One-sided (always the defender), so `committing_team_id` = the defense (§3.11) |
 | `FOUL` | `TECHNICAL_FOUL` | A **behavioral** foul with no contest behind it (§3.14a) — rolled **between possessions** in `RotationState`, not on the possession path. `primary_player` = the committer, drawn `foulProne`-weighted from the **on-floor five**; `committing_team_id` = his team. **One** free throw to the other team and **the possession is UNCHANGED** — no fork, no switch, even when the offense commits it. Charged to a **separate `technicalFouls` counter**: it does **not** feed the 6-foul limit and is **excluded from the period bonus tally** (#032 D/E) |
+| `FOUL` | `FLAGRANT_FOUL_1` / `FLAGRANT_FOUL_2` | ⏳ **DESIGNED, NOT YET BUILT** (§3.14b, `decisions.md` #034 — the plan is todo.md's execution plan). An **excessive-contact** foul, rolled as a severity question **on top of** a foul that already happened, at **all three** foul sites (stopped shot · and-1 · rebounding foul) — so no existing foul rate moves (#034 A). **Always exactly 2 free throws, which REPLACE the underlying foul's award rather than adding to it** (#034 C — a flagrant stopped `THREE` is **2** FTs, not 3, and not 5). **Unlike a technical it IS a personal foul**: `recordFoul()`, the 6-foul limit, the foul-trouble curve **and** the period bonus tally, all normally (#034 I). **The possession forks on WHO committed, not on which site**: a **defensive** flagrant awards the FTs **and returns the ball** (the first FT path in the model that does not end the possession — #030 B's invariant, broken); an **offensive** one (only possible at the rebounding site) sends the **defense** to the line and flips the possession. `_2` is a flat **15%** of flagrants and **ejects the committer immediately** (#034 E/F) |
 | `FREE_THROW` | `MADE_SHOOTING` / `MISSED_SHOOTING` | Free throw from a shooting foul that **stopped** the shot — **2 per trip, or 3 if the stopped shot was a `THREE`** (§3.11 D, §3.12 C) |
 | `FREE_THROW` | `MADE_BONUS` / `MISSED_BONUS` | Free throw from a **bonus (penalty)** trip after a rebounding foul (2 per trip) (§3.11 D) |
 | `FREE_THROW` | `MADE_AND_ONE` / `MISSED_AND_ONE` | The single free throw riding a made basket (§3.11 D) |
 | `FREE_THROW` | `MADE_TECHNICAL` / `MISSED_TECHNICAL` | The single free throw from a technical (§3.14a). **The only FT source where nobody was fouled**, so the shooter is a **deterministic highest-`freeThrows` pick from the on-floor five** — *not* the `foulDrawing`-weighted draw the bonus uses (#032 G). Consequence to expect: the same player shoots essentially all of his team's technical FTs all game |
+| `FREE_THROW` | `MADE_FLAGRANT` / `MISSED_FLAGRANT` | ⏳ **DESIGNED, NOT YET BUILT** (§3.14b, #034). The **two** free throws from a flagrant, at any of the three sites. Shot by **the player who was fouled** — *not* §3.14a's best-shooter pick, whose premise (nobody was fouled) does not hold here (#034 D). A distinct source rather than reusing `SHOOTING` because the harness reads FT source off this suffix (#029 D), so reuse would inflate a real source's share on the very line §3.14b is judged by — and it would be factually wrong at the rebounding site, which is not a shooting foul at all |
 | `REBOUND` | `OFFENSIVE` | Offensive rebound; ball stays with the shooting team for a second-chance possession |
 | `REBOUND` | `DEFENSIVE` | Defensive rebound; possession ends, ball goes to the other team |
 | `REBOUND` | `OUT_OF_BOUNDS_OFFENSE` | Missed shot left the court, offense retains → second chance; **no rebounder** (`primary_player` null) (§3.8) |
@@ -461,7 +472,10 @@ fouled team to the line.
 (`GameData.countsTowardBonus`). Every other foul kind still counts, and the exclusion
 is written explicitly rather than left incidental — because the consequence is
 permanent: **any future foul type must now consciously decide whether it counts.**
-§3.14b's flagrant is the immediate next case, and it **does** count.
+§3.14b's flagrant is the immediate next case, and it **does** count — **so §3.14b
+adds nothing here, and #034 I requires that non-change be pinned by a test rather than
+left to inspection**, since "we changed nothing" and "we forgot" are otherwise
+indistinguishable.
 
 **⚠ The exclusion lives in TWO places, and they must agree.** `GameData.isInBonus` is
 the engine's derivation; `CalibrationHarness` computes its **own** per-team-period
@@ -668,8 +682,19 @@ into season totals).
   in the #023 F mould — no stored flag, permanent because the counter only grows
   (#032 F). Nothing announces it in the event log; it is reconstructible by counting a
   player's `TECHNICAL_FOUL` events. Expect it to be **rare** (~0.014 per team-game,
-  roughly one per team per season). §3.14b's flagrant-2 is the case that genuinely
-  cannot be derived this way and will force the stored-state question.
+  roughly one per team per season).
+  **§3.14b adds a SECOND ejection cause, and it is derived too** (`decisions.md`
+  #034 F, design pass 2026-08 — ~~"§3.14b's flagrant-2 is the case that genuinely
+  cannot be derived this way and will force the stored-state question"~~). A
+  **flagrant-2 ejects immediately**, so there is no threshold to remember and
+  `flagrantTwos >= 1` is a monotonic counter exactly like the other two. **No stored
+  flag, no #023 F exception** — the prediction carried by #031 H and #032 F is
+  **retired**, on the general finding that *every* disqualification in this model is
+  absorbing and monotonic, which is the shape #023 F's derivation was built for.
+  Consequence for a consumer: "was this player ejected, and why" is now a **two-cause**
+  question (`TECHNICAL_FOUL` count vs. the limit, **or** any `FLAGRANT_FOUL_2`) — which
+  is the strongest argument yet for the single `EJECTION` event #033's follow-up
+  anticipated, if one is ever wanted.
 
 - **`minutes` is real as of §3.5 (decisions.md #023, Decision A).** The engine has
   no game clock (#021), so minutes are a **derived possession-share projection**,

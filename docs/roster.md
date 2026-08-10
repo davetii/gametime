@@ -194,6 +194,21 @@ The four live consumers:
   so an ejected player is forced off and never selected again. Like every other
   consumer here it is **transient — no write-back to `player_team`**: an ejection
   lasts the game, not the season.
+- ⏳ **Flagrant fouls & their ejections** (§3.14b, decisions.md #034 — **designed, not
+  yet built**) — **this one needs no committer pool at all**, which is the cleanest
+  contrast with the technical above. A flagrant rides a foul that **already happened**,
+  so the committer was picked by the possession's own machinery (`pickDefender`, or the
+  rebounding foul's `foulProne`-weighted draw) before the flagrant question is even
+  asked. This domain contributes nothing beyond the on-floor five it already supplies.
+  A **flagrant-2** ejects immediately and extends the **same** `isDisqualified` filter
+  to a third cause — so from this domain's point of view nothing changes: a disqualified
+  player is forced off, replaced from the **full** bench, and never selected again,
+  whatever disqualified him. **Also transient — no write-back to `player_team`.**
+  Expect roughly **0.024 per team-game** (~double §3.14a's technical ejections), so this
+  is the first sub-phase where the hard tier is exercised at a rate worth noticing.
+  ⚠ **A flagrant IS a personal foul** (#034 I), so unlike a technical it also feeds the
+  six-foul limit and §3.13's foul-trouble bench rule above — a player can foul out on
+  one, or be sat for accumulating one, with no extra code.
 
 ## Not yet built
 

@@ -29,10 +29,15 @@ into a graveyard.
 
 - **Raise `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` from 3 → 5 (realism of long
   second-chance scrambles).** The cap bounds the second-chance `while(true)` loop in
-  `PossessionEngine` — after N offense retentions (offensive rebound + §3.7
-  offense-recovered block + §3.8 OOB-offense, all sharing the one cap) the next miss
-  is *forced* to a possession-ending outcome so the loop terminates. It sits at a
-  **§3.3-era calibrated 3**. The realism argument for a higher value is real: a
+  `PossessionEngine` — after N offense retentions the next miss is *forced* to a
+  possession-ending outcome so the loop terminates. It sits at a **§3.3-era calibrated
+  3**. **⚠ The number of paths sharing that one cap keeps growing, which raises this
+  idea's blast radius every time:** the offensive rebound (§3.3), §3.7's
+  offense-recovered block, §3.8's OOB-offense, §3.10's defensive rebounding foul, and —
+  once §3.14b lands (`decisions.md` #034 B) — **the flagrant retention, making five**.
+  So a 3→5 change now moves five channels at once, not three. (#034's follow-up also
+  notes the constant's **name is stale** — it bounds four non-rebound paths — and that a
+  **sixth** path is the signal to restructure the loop rather than keep extending it.) The realism argument for a higher value is real: a
   genuine scramble *can* produce a long chain of tip/put-back attempts — rare, but
   possible — and a hard wall at 3 makes it impossible rather than merely unlikely.
   **Why it's parked, not done:** the cap is not just a rare-tail guard — it fires on
@@ -60,23 +65,31 @@ into a graveyard.
   promoted as §3.13; renumbered when foul-outs moved ahead of it by user call; split
   by decisions.md #032 A on the finding that the two share nothing but the word
   "foul")* — see roadmap.md's Possession-fidelity section. **§3.14a SHIPPED 2026-08
-  (#032 A–J + implementation note); §3.14b still needs its own design pass, which
-  becomes #034.** This is planned work, not a parked idea. Three notes from the reasoning that
+  (#032 A–J + implementation note); §3.14b's DESIGN PASS is DONE (#034 A–J, 2026-08) and
+  it is EXECUTE-READY** — the build plan is in todo.md. This is planned work, not a
+  parked idea. Three notes from the reasoning that
   kept it here, **corrected against what the design pass actually found**:
-  - **FTs *plus* retained possession** — still the hard part, and still unbuilt. It
-    belongs entirely to **§3.14b**: a technical turned out to leave the possession
-    **completely unchanged** (#032 D), which is why it went first.
+  - **FTs *plus* retained possession** — belongs entirely to **§3.14b**: a technical
+    turned out to leave the possession **completely unchanged** (#032 D), which is why
+    it went first. **Now designed (#034 B) and much cheaper than predicted**: the
+    second-chance `while(true)` loop already *is* the "same team, run it again"
+    machine, so retention is the same `offensiveRebounds++; continue;` §3.7/§3.8/§3.10
+    use, under the same cap — five lines, not a new mechanism. Still unbuilt.
   - **A chosen FT shooter** — resolved as a **deterministic highest-`freeThrows`
     on-the-floor pick**, a second rule beside the untouched `foulDrawing`-weighted
     draw (#032 G).
-  - **The ejection needing stored state** — **this prediction was half wrong, and the
-    correction is the design pass's most useful finding.** It holds for a
-    **flagrant-2** (a severity grade with no counter behind it → §3.14b, argued via
-    the #028 D pattern), but **not** for the two-technical case, which is
-    `technicalFouls >= 2` — a monotonic counter, so #023 F's derive-don't-store
-    discipline applies **unchanged** (#032 F). Either way it extends §3.13's
-    hard/forced tier via `eligible(...)` rather than adding a parallel mechanism
-    (#031 H).
+  - **The ejection needing stored state** — **the prediction was wrong OUTRIGHT, and
+    saying so is the most useful thing these two design passes produced.** §3.14a found
+    it false for the two-technical case (`technicalFouls >= 2`, a monotonic counter, so
+    #023 F applies unchanged — #032 F) but still expected it to hold for a flagrant-2.
+    **§3.14b found it false there too** (#034 F): a flagrant-2 **ejects immediately**, so
+    there is no threshold to remember and `flagrantTwos >= 1` is monotonic just like the
+    other two. **No stored flag anywhere; the #028 D-pattern argument was never needed.**
+    The general finding: **every disqualification in this model is absorbing and
+    monotonic**, which is precisely the shape #023 F's derivation was built for — so the
+    exception should not be predicted again without a mechanic that is genuinely
+    *non*-monotonic (the `inFoulTrouble` test, #031 E). All three causes extend §3.13's
+    hard/forced tier via `eligible(...)` rather than adding a parallel mechanism (#031 H).
 
   **Fights/altercations remain PARKED** and are in neither §3.14a nor §3.14b — they
   still want a temperament trigger that does not exist, and #032 C **declined to

@@ -49,6 +49,17 @@ planned features), see [ideas.md](ideas.md).
       sub-phase, do not tune** — §3.13's lever is measured *saturated* (a ~3× stronger sit
       curve moves the number by nothing), so closing that gap needs a new mechanic (the
       benched-player timer + #031 C's period-awareness), which is outside what §3.16 does.
+      **Two more UNSOURCED rare-event rates joined the list at §3.14** *(added 2026-08)*:
+      **technicals** (~0.6–0.8 league-wide / ~0.3–0.4 per team — user-supplied, #032 J,
+      shipped at 0.367) and **flagrants** (~0.25–0.40 league-wide / ~0.16 per team —
+      #034 G/H, designed). **Both are `ballpark`s, not targets** — nothing is tuned toward
+      them, each constant is set from the real-world figure directly — so sourcing them is
+      cheaper than the five: a wrong figure means a wrong constant, not a mis-tuned engine.
+      ⚠ **But they are the least verifiable rows to check even once sourced**: technicals
+      resolve at 11.8%/5.3% relative sd (1 seed / 5 seeds) and **flagrants at 17.4%/7.8%,
+      the coarsest in the table**. A sourced figure within ~15% of the landing is not
+      distinguishable from the current one at any seed count we run — so **do not spend
+      effort re-tuning either against a new source unless it moves by more than that.**
       **Why it matters now:** three consecutive passes (§3.10/§3.11/§3.12) have declined
       the same `BASE_*` trim because it cost more calibrated FG% than the points miss was
       worth. That is evidence the target is wrong, but nobody can *act* on it until the
@@ -70,6 +81,16 @@ planned features), see [ideas.md](ideas.md).
       is exactly what profiles are for. **Validation gate:** §3.15 must reproduce
       **§3.14b's** shipped landing *exactly* before any §3.16 number is read off it (the
       check that validated the §3.11 harness against §3.10's numbers).
+      ⚠ **That gate got harder to satisfy at §3.14b, and the reason is worth knowing
+      before designing §3.15** (`decisions.md` #034, Status block): §3.14b's severity roll
+      is drawn **per foul, and its flagrant-2 sub-roll only on a hit** — a deliberate
+      exception to the unconditional-draw discipline §3.13/§3.14a follow, permissible
+      because it is nested inside an already-conditional branch. So "reproduce the landing
+      exactly" means reproducing a stream whose **draw count varies with how many fouls a
+      game happened to produce**. A profile mechanism that changes the *order* constants
+      are read in is still safe (they are read before the rolls); one that changes **how
+      many** draws a possession takes is not — and it would surface as a total
+      reproduction failure rather than a subtle drift, which is the good outcome.
       **A third pass has now paid the cost:** §3.12 ran its `PERIMETER` sweep, its
       `THREE` verification, its `BASE_*` exchange-rate measurement, and a
       multipliers-zeroed triage baseline **all by hand** — editing constants and

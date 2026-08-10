@@ -189,6 +189,47 @@ It tallies **all** `FOUL` events, so as of §3.14a it includes technicals: §3.1
 and §3.14a's ~19.4 differ by the technicals, **not** by any change in personal fouls.
 Subtract the technicals line to compare.
 
+## Flagrants — DESIGNED, not yet built: the row lands with §3.14b's execution
+
+**§3.14b's design pass** (`decisions.md` **#034 G/H**) resolved the rate but the row is
+**deliberately not in the table yet** — per this file's own rule, a row and its
+`CalibrationHarness` `(target ~N)` string land in the **same change**, and that change is
+§3.14b's execution. Recorded here so the design is not lost between sessions:
+
+**A `ballpark`, not a TARGET**, for exactly §3.14a's reason: nothing is tuned toward it,
+`FLAGRANT_FOULS_PER_TEAM_GAME` (≈ **0.16**, from a ~0.25–0.40 league-wide figure) is set
+from the real-world number directly. **UNSOURCED**, like every row here — §3.16's job (1).
+
+**It will be the COARSEST row in this file — 5 seeds is a hard floor, and even then it
+only confirms an order of magnitude:**
+
+| Sample | Events | Relative sd |
+|---|---|---|
+| 1 seed (102 games) | ~33 | **17.4%** |
+| 5 seeds | ~166 | **7.8%** |
+
+Compare technicals (11.8% / 5.3%). **A single-seed reading is useless, and even the
+5-seed mean cannot resolve a 10% tuning move.**
+
+**⚠ Its divisor is EMERGENT, which technicals' is not** (#034 G). §3.14a divides a
+game-level constant by a **nominal, config-derived** check count; §3.14b divides by the
+**measured personal-foul rate**. So **§3.16 — or any pass that moves the foul rate —
+moves flagrants too**, without anyone touching `FLAGRANT_FOULS_PER_TEAM_GAME`.
+Directionally correct (more fouls, more chances for one to be excessive), but it means
+the constant is **not a standalone dial** and a flagrant drift may be a foul-rate signal.
+
+**The §3.14b points budget is +0.43/team/game** across two channels (FTs +0.24 gross,
+retention +0.19 upper bound), **deliberately over-estimated** — the FT channel is largely
+offset because the underlying foul already awarded 2–3 FTs. Sub-noise against ±1.5, so
+**#032 I's inverted stop condition applies again**: measurable §3.4 movement at 5 seeds is
+a **bug** (double-awarded FTs, an uncapped retention loop, or a bonus-tally leak), not a
+calibration result. **But retention is a channel §3.14a did not have**, and #028 is the
+precedent — §3.10 priced its bonus FTs and found retained possessions were the bigger
+channel. **Do NOT re-center points/FG% here** either way; §3.16 owns the contested pair.
+
+**⚠ `Fouls / team / game` will include flagrants too**, on top of §3.14a's technicals.
+Subtract **both** lines to compare against §3.13's 19.0.
+
 ---
 
 ## ⚠️ NOTHING IN THIS TABLE IS SOURCED YET — and that is §3.16's job (1)

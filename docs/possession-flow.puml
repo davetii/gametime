@@ -1,5 +1,14 @@
 @startuml possession-flow
-title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals)
+' ⚠ RENDERING: this diagram is ~9,600px tall as of §3.14b, which is PAST
+' PlantUML's default 4096px ceiling — `plantuml -tpng` SILENTLY TRUNCATES it
+' to the top ~43% with no warning. Always render with:
+'
+'   plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng docs/possession-flow.puml
+'
+' `plantuml -checkonly` is unaffected (it parses, it does not lay out), so a
+' green checkonly does NOT tell you the PNG is complete. Verify the rendered
+' height if you add a partition.
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals,\n§3.14b flagrants)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -55,8 +64,9 @@ partition "RotationState — between-possession sub (§3.5, §3.13, §3.14a)" {
     end note
   else (no)
   endif
-  :**hard** — force off any fouled-out player OR ejected player
-  //getFouls() >= FOUL_OUT_LIMIT// // || isEjected()//
+  :**hard** — force off any fouled-out OR ejected player
+  //isFouledOut() || isEjected() || isEjectedForFlagrant()//
+  //(fouls >= 6 · technicalFouls >= 2 · flagrantTwos >= 1)//
   → sub from full roster;
   :**soft** — foul-trouble sub (§3.13)
   //P = base(fouls) × subAggressiveness × value × roster//
@@ -69,9 +79,18 @@ partition "RotationState — between-possession sub (§3.5, §3.13, §3.14a)" {
     (#031 H). **§3.14a's ejection extends the HARD tier via
     the `eligible(...)` filter — NOT a fourth removal path.**
     It stays **DERIVED** (//technicalFouls >= 2//, a monotonic
-    counter — #023 F applies unchanged, #032 F). The genuine
-    stored-state exception is **§3.14b's flagrant-2**, which
-    is a severity grade with no counter behind it.
+    counter — #023 F applies unchanged, #032 F).
+    **§3.14b adds a THIRD cause to the SAME predicate**
+    (//flagrantTwos >= 1//) — still not a fourth path, and
+    still **DERIVED**. #031 H / #032 F predicted a flagrant-2
+    would finally force stored state; **it does not** (#034 F):
+    a flagrant-2 ejects IMMEDIATELY, so there is no threshold
+    to remember and the counter is monotonic like the other
+    two. **Every disqualification here is absorbing — which
+    is exactly the shape #023 F's derivation was built for.
+    The stored-state prediction is RETIRED, not deferred.**
+    Flagrant ejections land ~0.024/team/game — roughly DOUBLE
+    §3.14a's 0.014, so this tier is finally exercised.
     **Consumes THREE RNG draws** — §3.13's sit roll, §3.14a's
     technical roll, and §3.14a's committer draw, ALL taken
     unconditionally at fixed points so the stream never forks
@@ -158,6 +177,38 @@ partition "FoulResolver" {
       the shot mix FG% is computed over (§3.12 E).
     end note
 
+    if (**§3.14b — FLAGRANT?**\n//P = FLAGRANT_FOULS_PER_TEAM_GAME ÷ personal fouls//\n//layered ON TOP of the foul — no rate re-partitioned//) then (yes)
+      :FOUL — FLAGRANT_FOUL_1 or _2
+      //15% severity sub-roll (#034 E) — flat, no causal input//
+      charge committer //recordFoul()// — a PERSONAL foul (I)
+      on _2: //recordFlagrantTwo()// → EJECTED;
+      :FREE_THROW ×**2** — *_FLAGRANT (new source)
+      the FOULED player shoots (D)
+      **REPLACES the 2/3 FTs above — does NOT add** (C);
+      note right
+        **§3.14b (#034 A/B/C) — THE POSSESSION-RETENTION FORK,
+        and the first FT path in this engine that does NOT end
+        the possession** (breaking #030 B's invariant).
+        A defensive flagrant returns the ball: the offense
+        **RE-ENTERS the second-chance loop** — the SAME
+        ``offensiveRebounds++; continue;`` §3.7/§3.8/§3.10 use,
+        under the SAME MAX_OFFENSIVE_REBOUNDS cap (B). No new
+        mechanism: the loop already IS "same team, run it again".
+        This site is **always defensive**, so it always retains.
+        ⚠ **The terminator below is NOT "possession over"** — it is where
+        this branch leaves the diagram to re-enter the loop at ShotSelector.
+        Activity-diagram syntax cannot draw an edge back into the enclosing
+        ``repeat`` from inside a partition, so retention is shown as the
+        labelled step above rather than as a drawn arrow. **Every other
+        ``stop`` on this page really does end the possession; these three
+        flagrant ones do not.**
+      end note
+      :→ **OFFENSE RETAINS** → ``offensiveRebounds++; continue;``
+      re-enter the second-chance loop at ShotSelector (B)
+      //(unless the cap is already reached — then the possession ends,//
+      //the FTs having been awarded either way, exactly as §3.10 degrades)//;
+      stop
+    endif
     repeat
       if (free throw made?\n//freeThrows skill//) then (yes)
         :FREE_THROW — MADE_SHOOTING (source-tagged §3.11 D)
@@ -174,6 +225,10 @@ partition "FoulResolver" {
       A stopped THREE = **3** FTs; it never fired before only
       because THREE wasn't a contact type. No new FreeThrowSource:
       these are SHOOTING FTs, there are simply three of them.
+      **§3.14b (#034 C): if this foul turned FLAGRANT the count
+      becomes a flat 2 — so a flagrant stopped THREE awards FEWER
+      FTs than the ordinary foul it upgraded. Correct by rule,
+      counter-intuitive, and NOT to be "fixed" into 3 + 2.**
     end note
     stop
   endif
@@ -275,6 +330,30 @@ partition "ShotResolver" {
           team-periods in the penalty.
         end note
         if (and-1?\n//shooter foulDrawing vs defender discipline//\n//× foulMultiplier(shotType) §3.12 B — same table//\n//× defensivePressure; AND_ONE_SENSITIVITY (C)//\n//× fatigueFactor per player §3.5//) then (yes)
+          if (**§3.14b — FLAGRANT?**\n//same shared roll (#034 A)//) then (yes)
+            :FOUL — FLAGRANT_FOUL_1 or _2
+            //15% severity sub-roll//; charge defender //recordFoul()//
+            on _2: //recordFlagrantTwo()// → EJECTED;
+            :FREE_THROW ×**2** — *_FLAGRANT
+            the SHOOTER shoots (he was fouled, D)
+            **2, not the and-1's 1 — replaces, doesn't add** (C);
+            :**BASKET COUNTS + 2 FTs + OFFENSE RETAINS**
+            → ``offensiveRebounds++; continue;`` (B)
+            //(cap reached ⇒ possession ends, FTs still awarded)//
+            **the ``stop`` below means "re-enters the loop", NOT "over"**;
+            note right
+              **THE CASE THAT MOST VISIBLY BREAKS #030 B** (#034 C).
+              THREE scoring channels on ONE possession — the made FG,
+              two free throws, AND the ball back. No other path in
+              this engine produces that, it looks exactly like a
+              double-count bug in a play-by-play, and **it is the
+              rule**. #029 B's "the and-1 NEVER forks the possession —
+              the make already ended it" is **superseded for the
+              FLAGRANT case only**; the ordinary and-1 below is
+              completely unchanged.
+            end note
+            stop
+          endif
           :FOUL — AND_ONE
           charge defender foul (feeds foul-outs + §3.10 tally)
           committing_team_id = defTeamId (reuses #028 D column);
@@ -319,6 +398,37 @@ partition "Rebounding foul (§3.10 — decisions.md #028)" {
       **DERIVED from the FOUL events, never stored** — no teamFouls
       field, no reset logic (the #023-F / #013 / #015 discipline).
     end note
+    if (**§3.14b — FLAGRANT?**\n//same shared roll (#034 A) — the ONLY site that//\n//can be committed by the OFFENSE (#028 A2, ~22%)//) then (yes)
+      :FOUL — FLAGRANT_FOUL_1 or _2
+      //15% severity sub-roll//; charge committer //recordFoul()//
+      on _2: //recordFlagrantTwo()// → EJECTED;
+      note right
+        **The bonus is NOT consulted on a flagrant** — 2 FTs by
+        rule, in the penalty or not (the #029 B shape). But the
+        flagrant **DOES count toward the period tally** for the
+        NEXT foul (#034 I): unlike §3.14a's technical it is a
+        personal foul, so ``countsTowardBonus`` excludes it
+        **not at all** and neither ``GameData.isInBonus`` nor
+        the harness's independent tally changes.
+        ⚠ **That non-change is deliberate, not accidental** —
+        the exclusion lives in TWO derivations (#032's follow-up).
+      end note
+      if (DEFENSE committed? //~78%//) then (yes)
+        :FREE_THROW ×2 — *_FLAGRANT
+        the fouled OFFENSIVE player shoots
+        (//foulDrawing//-weighted, #028 B — D)
+        → **offense RETAINS** → ``continue`` (B/C)
+        //(cap reached ⇒ possession ends, FTs still awarded)//
+        **the ``stop`` below means "re-enters the loop", NOT "over"**;
+        stop
+      else (no — OFFENSE committed, ~22%)
+        :FREE_THROW ×2 — *_FLAGRANT
+        the fouled DEFENSIVE player shoots
+        → **possession FLIPS to the defense** (C)
+        → possession over for the offense;
+        stop
+      endif
+    endif
     if (committing team in the bonus?\n//count(FOUL by team, period) >= 5//) then (yes)
       :FREE_THROW ×2 — *_BONUS (source-tagged §3.11 D)
       the FOULED team shoots (foulDrawing-weighted shooter)
@@ -375,6 +485,17 @@ partition "MissedShotResolver (§3.8 — #026) — wraps ReboundResolver (§3.3)
 repeat while (off rebounds < MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION?) is (yes) not (no)
 
 :cap reached → next miss forced to DEFENSIVE rebound;
+note right
+  **The loop has FIVE re-entry paths as of §3.14b** (#034 B):
+  offensive rebound (§3.3) · block recovery (§3.7) · OOB-offense
+  (§3.8) · rebounding foul (§3.10) · **flagrant retention (§3.14b)**.
+  ALL of them count against the ONE cap. **A sixth is the signal
+  to restructure this loop** (the #030 clamp-trigger spirit).
+  NB **MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION now bounds FOUR
+  non-rebound paths** and its name is stale — a rename is a free
+  cleanup for whichever pass next touches it. Do NOT change its
+  VALUE (3→5 is a parked idea needing its own recalibration pass).
+end note
 stop
 
 legend bottom left
@@ -533,6 +654,57 @@ legend bottom left
   0.60 foul-outs/team/game vs. a ~0.1–0.25 ballpark, of which 0.425
   predates this pass (measured with both new multipliers zeroed).
   Triaged separately per G → **§3.13**, ahead of flagrants.
+
+  **§3.14b flagrant fouls** (decisions.md #034) — **the three
+  FLAGRANT? forks above.** A severity roll **LAYERED ON TOP** of a
+  foul that already happened, at **all three** existing foul sites
+  (stopped shot · and-1 · rebounding foul) — the §3.7/§3.10/§3.11
+  "carve" shape inverted: nothing is re-partitioned, so **no
+  existing foul rate moves by construction** (A). ONE shared roll,
+  ONE constant — the sites differ in what the foul WAS, not in how
+  likely it was excessive, and three rates would be unreadable at
+  ~33 events/run.
+  **THE STRUCTURAL CRUX (B):** a flagrant awards FTs **and returns
+  the ball** — the first FT path that does not end the possession,
+  breaking #030 B's invariant. It is expressed as **the same
+  ``offensiveRebounds++; continue;``** the offensive rebound has
+  used since §3.3, under the **same cap**: the loop already IS the
+  "same team, run it again" machine, so the crux is five lines, not
+  a new mechanism. The cap is a runaway-possession guard, not a
+  rebounding rule — exempting the rarest path from the only bound
+  would be backwards.
+  **The fork is decided by WHO COMMITTED, not by which site** (C):
+  defensive ⇒ offense retains (the stopped-shot and and-1 sites are
+  ALWAYS defensive); offensive ⇒ 2 FTs to the defense and the ball
+  flips (only the rebounding site can produce it, ~22%).
+  **FTs REPLACE the underlying award, never add** (C) — flat 2,
+  shot by the player who was FOULED (D — §3.14a's best-shooter rule
+  is NOT reused; its premise is that nobody was fouled).
+  **Flagrant-1 vs -2 is a flat 15% sub-roll** (E), causally inert
+  — the committer was already chosen, so foulProne has had its say.
+  A flagrant-2 **ejects immediately**, extending isDisqualified to
+  a THIRD cause, still DERIVED (F — see the rotation note).
+  **A flagrant IS a personal foul** (I): recordFoul(), feeds the
+  6-foul limit, §3.13's sit curve AND the period bonus tally —
+  §3.14a's counter split does NOT apply here.
+  Rate ~**0.16/team/game** (~0.25–0.40 league-wide), stored
+  game-level and divided by the **emergent foul rate** — so §3.16
+  moves flagrants without touching the constant (G). Floor-free
+  via clampRareProbability (#032 H's FIFTH site); PROB_FLOOR is
+  ~2.4× the rate — decisive, but thinner than §3.14a's >10×.
+  Budgeted **+0.43 pts/team/game** over TWO channels (FTs +0.24
+  gross, retention +0.19 upper bound), deliberately OVER-estimated
+  — the FT channel is largely offset (the underlying foul already
+  awarded 2–3). Sub-noise vs ±1.5, so **#032 I's stop condition
+  INVERTS again: measurable aggregate movement is a BUG** — most
+  likely double-awarded FTs, an uncapped loop, or a bonus-tally
+  leak. But retention is a channel §3.14a did not have, and #028
+  is the precedent (its retained possessions outweighed its FTs).
+  **Judge at 5 SEEDS ONLY — the coarsest row in calibration.md**
+  (17.4% relative sd at 102 games, 7.8% at 5 seeds).
+  **This is the LAST new mechanic in Phase 3** — §3.15 (profiles)
+  and §3.16 (recalibration) add no branch, so this diagram is
+  structurally complete.
 endlegend
 
 @enduml

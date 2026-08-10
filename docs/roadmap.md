@@ -491,26 +491,38 @@ re-running the loop and re-agreeing the numbers, not a red build.
       unconditional, for the same fixed-point reason). #032 B2's "~0.0035" per-check rate
       is corrected to **~0.00175** — both rotations advance on every possession, so a team
       gets ~200 checks, not ~100. 512 tests green; `sim` **99.2%** line coverage; gate green._
-- [ ] **§3.14b — Flagrant fouls** *(**NEXT UP — needs its own DESIGN PASS**, which becomes
-      `decisions.md` **#034**; the open questions are in [todo.md](todo.md). Its
-      prerequisite is met: **§3.14a shipped 2026-08**, so the ejection seam it builds on
-      exists.)*. **The structural half, and it inherits every hard question.** A flagrant
-      awards free throws **and returns the ball to the offense** — a retention path no
-      current model has, breaking #030 B's invariant that **every existing FT path ends
-      the possession**. It is an *additional* roll on top of an existing foul (no change
-      to the foul roll itself), always **two** FTs, and it **does** count toward the
-      6-foul limit. **This is where the genuine #023 F exception lands**: a flagrant-2 is
-      a **severity grade with no counter behind it**, so unlike §3.14a's two-technical
-      case it is **not derivable** and needs real stored state — argued explicitly via the
-      **#028 D** pattern, not inherited (#032 F). It extends the **same** hard-tier seam
-      §3.14a built — now the shared `RotationState.isDisqualified(p)` predicate behind
-      `eligible(...)` (#031 H) — **not** a fourth removal path. Note the
-      rotation step already **consumes RNG** (§3.13, three draws as of §3.14a), so
-      neither half re-argues that.
-      Rate ~0.25–0.40/game league-wide; **coarser to measure than technicals** (~33 events
-      at 102 games, 17.4% relative sd — 5 seeds minimum). Budgeted at **+0.43
-      points/team/game**, still sub-noise, but **retention is a second channel and must be
-      re-priced rather than assumed**.
+- [ ] **§3.14b — Flagrant fouls** *(**DESIGN PASS DONE 2026-08 — resolved as
+      `decisions.md` #034 A–J; EXECUTE-READY.** The build plan is in [todo.md](todo.md),
+      and the three new possession branches are already drawn into
+      `possession-flow.puml`. Prerequisite met: §3.14a shipped 2026-08.)*.
+      **The structural half — and the design pass found that only ONE of its two
+      predicted hard problems is real.** A flagrant is an *additional* severity roll on a
+      foul that already happened (no change to any existing foul roll), always **two**
+      FTs that **replace** the underlying award, and it **does** count toward the 6-foul
+      limit and the period bonus tally (#034 A/C/I). It rides **all three** existing foul
+      sites; only the rebounding site can be committed by the offense, which is what
+      produces the possession-flipping case.
+      **The retention fork is real but cheap (#034 B):** a flagrant awards FTs **and
+      returns the ball**, breaking #030 B's invariant that every existing FT path ends
+      the possession — **but the second-chance `while (true)` loop already is the "same
+      team, run it again" machine**, so retention is the same `offensiveRebounds++;
+      continue;` §3.7/§3.8/§3.10 use, **under the same cap**. Five lines, not a new
+      mechanism.
+      **The stored-state exception is NOT real, and the prediction is RETIRED (#034 F).**
+      #031 H and #032 F both held that a flagrant-2 is "a severity grade with no counter
+      behind it" and would finally force #023 F's exception. It doesn't: a flagrant-2
+      ejects **immediately**, so there is no threshold to remember and `flagrantTwos >= 1`
+      is a monotonic counter exactly like `fouls >= 6`. It stays **derived**, extending
+      the shared `RotationState.isDisqualified(p)` predicate behind `eligible(...)`
+      (#031 H) to a third cause — **not** a fourth removal path. **Every disqualification
+      in the model is absorbing and monotonic**, which is the shape #023 F's derivation
+      was built for.
+      Rate ~0.25–0.40/game league-wide (~0.16/team); **the coarsest row in
+      calibration.md** (~33 events at 102 games, 17.4% relative sd — 5 seeds minimum).
+      Budgeted at **+0.43 points/team/game** across two channels, deliberately
+      over-estimated and still sub-noise, so **#032 I's inverted stop condition applies
+      again** — measurable aggregate movement is a bug, not a calibration result.
+      **The last new mechanic in Phase 3**: §3.15 and §3.16 add no possession branch.
 - [ ] **§3.15 — `SimConfig` profiles** *(needs its own design pass — user call 2026-08 to
       promote this from a backlog chore to a numbered phase)*. Load the tunable constants
       from **named, swappable profiles** instead of compile-time constants, so tuning
