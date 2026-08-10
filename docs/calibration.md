@@ -37,7 +37,8 @@ target, reported for visibility.
 | Fouls | ballpark | ~19–20 | 19.0 | ✅ (was 16.8 pre-§3.12) |
 | **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.39** | ⚠️ the target IS the landing — see below |
 | Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.00 / 0.52 / 0.39 | the real diagnostic for foul-outs |
-| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | *(§3.14a, not yet built)* | ⚠️ **judge at 5 SEEDS ONLY** — see below |
+| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.367** | ⚠️ **judge at 5 SEEDS ONLY** — see below |
+| **Ejections** | *(no target — an outcome)* | — | **0.014** | §3.14a; ~1 per team per season |
 | Fouled-three rate | ballpark | **~2% of 3PA** | 3.0% | ✅ anchor on the RATE, not the count |
 | 3-FT trips | ballpark | ~0.3–0.6 *here* | 0.59 | ✅ (real NBA ~0.7 off ~35 3PA; we shoot ~20) |
 | And-1s | ballpark | ~4–6% of made FG | 1.88 (4.6%) | ✅ (#029 E) |
@@ -157,10 +158,36 @@ landing sits a few percent off the constant **by design** — a fast-paced game 
 takes more rotation checks and draws more technicals. **Do not back-solve the constant
 against that gap**; it is behavior, not error.
 
+**§3.14a landed at 0.367** (5-seed mean, seeds 1000–5000) against
+`TECHNICAL_FOULS_PER_TEAM_GAME = 0.35` — **~5% high, which is exactly the
+nominal-vs-actual gap above**, and the reason that gap was documented before the pass
+ran. Per-seed spread was 0.338–0.392, consistent with the 11.8% single-seed sd
+predicted. **The constant was not adjusted, and should not be.**
+
+**Note the per-check probability is ~0.00175, not the "~0.0035" #032 B2 states.** That
+estimate assumed ~100 rotation checks per team per game; the real count is ~**200**,
+because both rotations advance on every possession (a team is checked on its defensive
+possessions too). The constant in this table is unaffected — only the derived figure in
+#032's prose was wrong. It also means `PROB_FLOOR` is **>10×** the per-check rate rather
+than #032 H's stated ~6×, so the floor-free clamp requirement is stronger than argued.
+
 **The §3.14a points budget is +0.26/team/game — below the ±1.5 per-seed noise band.**
 So the §3.4 aggregates are an **invariant** for that pass, not a target to re-center:
 measurable movement means the technical counter leaked into `getFouls()` or the bonus
-tally (#032 E/I), which is a bug.
+tally (#032 E/I), which is a bug. **It held** — points moved +0.5 (117.0 → 117.5,
+inside the band), the penalty rate stayed flat at **51.2%** (§3.13: 51.3%), and
+foul-outs stayed inside their own seed spread. Nothing was re-centered.
+
+**Ejections are an OUTCOME of the rate, not a target.** They landed at **0.014/team/game**
+— roughly one per team per season. #032 F predicted 0.00 ("one every several simulated
+seasons") and was an order of magnitude pessimistic; the arithmetic (0.367 spread over 5
+players, P(a player reaches 2) ≈ 0.0026 × 5) matches the observation. Far too rare to
+tune against either way — the rule is pinned by forced-counter unit tests.
+
+**⚠ The harness's `Fouls / team / game` line is no longer comparable across §3.13.**
+It tallies **all** `FOUL` events, so as of §3.14a it includes technicals: §3.13's 19.0
+and §3.14a's ~19.4 differ by the technicals, **not** by any change in personal fouls.
+Subtract the technicals line to compare.
 
 ---
 

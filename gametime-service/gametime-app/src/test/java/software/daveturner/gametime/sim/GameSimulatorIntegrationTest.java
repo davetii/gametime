@@ -420,18 +420,69 @@ class GameSimulatorIntegrationTest {
     void everyReboundingFoulIncrementsAPlayerFoulCount() {
         // The rebounding foul feeds the per-player fouls counter (foul-outs, #023 F)
         // exactly like a shooting foul — no new box-score counter (#028 scope).
+        //
+        // §3.14a (#032 E): TECHNICAL_FOUL events are EXCLUDED from this reconciliation,
+        // and that exclusion is the point rather than an inconvenience. A technical
+        // emits a FOUL event (so the event log and committingTeamId stay uniform) but
+        // is counted on a SEPARATE PlayerGameState.technicalFouls counter and never
+        // touches getFouls() — because it does not count toward the six-foul limit.
+        // So the identity is "box-score fouls == PERSONAL foul events", and a
+        // technical leaking back into getFouls() would show up here as the failure it
+        // should be.
         SimResult result = simulator.simulate("CHI", "NY", 7L, 40);
         List<GameEventEntity> events = gameEventRepo
                 .findByGameIdOrderBySequenceAsc(result.getGameId());
         List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
 
-        long foulEvents = events.stream()
+        long personalFoulEvents = events.stream()
                 .filter(e -> e.getPlayType() == PlayType.FOUL)
                 .filter(e -> e.getPrimaryPlayerId() != null)
+                .filter(e -> !GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome()))
                 .count();
         int boxFouls = boxScores.stream().mapToInt(b -> b.getFouls() == null ? 0 : b.getFouls()).sum();
-        assertEquals(foulEvents, boxFouls,
-                "Box-score fouls must reconcile with FOUL events (both kinds)");
+        assertEquals(personalFoulEvents, boxFouls,
+                "Box-score fouls must reconcile with PERSONAL FOUL events "
+                        + "(technicals are counted separately — #032 E)");
+    }
+
+    /**
+     * §3.14a (#032 E, surfaced by #033): the technicals counter reaches the PERSISTED
+     * box score, and reconciles exactly with the TECHNICAL_FOUL events — the same
+     * events-are-the-source-of-truth check (#020) the personal-foul column gets.
+     *
+     * <p>This is the assertion that catches the sim → entity write being dropped: the
+     * field is nullable and every other layer would still compile and pass without it.
+     */
+    @Test
+    void technicalFoulsArePersistedOnTheBoxScoreAndReconcileWithTheEvents() {
+        SimResult result = simulator.simulate("CHI", "NY", 7L, 40);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        long technicalEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.FOUL)
+                .filter(e -> GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome()))
+                .count();
+        assertTrue(technicalEvents > 0,
+                "A 40-possession game must produce at least one technical");
+
+        int boxTechnicals = boxScores.stream()
+                .mapToInt(b -> b.getTechnicalFouls() == null ? 0 : b.getTechnicalFouls())
+                .sum();
+        assertEquals(technicalEvents, boxTechnicals,
+                "Persisted technicalFouls must reconcile with TECHNICAL_FOUL events");
+
+        // …and the two counters stay independent on the persisted row, which is the
+        // whole point of #032 E: a technical must never have inflated `fouls`.
+        long personalFoulEvents = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.FOUL)
+                .filter(e -> e.getPrimaryPlayerId() != null)
+                .filter(e -> !GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome()))
+                .count();
+        int boxFouls = boxScores.stream()
+                .mapToInt(b -> b.getFouls() == null ? 0 : b.getFouls()).sum();
+        assertEquals(personalFoulEvents, boxFouls);
     }
 
     private int pointsFromEntity(GameEventEntity e) {

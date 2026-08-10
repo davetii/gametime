@@ -40,9 +40,18 @@ partition "RotationState — between-possession sub (§3.5, §3.13, §3.14a)" {
       have no engine consequence. foulProne is nearly flat (sd 1.22),
       so the draw is near-uniform — accepted, because the RATE is a
       fixed constant and the weighting moves no aggregate.
-      **No PROB_FLOOR** (H): the floor (0.02) is ~6× the per-check
-      rate (~0.0035) — it would inflate technicals ~6-fold. Routed
-      through the shared floor-free clamp helper this pass adds.
+      **No PROB_FLOOR** (H): the floor (0.02) is more than **10×**
+      the per-check rate (**~0.00175**) — it would inflate technicals
+      by that factor. Routed through the shared floor-free clamp
+      helper (`clampRareProbability`) this pass added.
+      //Execution correction: #032 B2 estimated the per-check rate at//
+      //~0.0035 off ~100 checks per team-game. The true count is ~200 —//
+      //BOTH rotations advance on EVERY possession — so the rate is half//
+      //that. The game-level constant (0.35) is unchanged.//
+      //The roll and committer draw live in RotationState; the EVENT and//
+      //the FT are emitted by PossessionEngine, which owns GameData, the//
+      //team ids, the period and the sequence. advancePossession returns//
+      //the committer.//
     end note
   else (no)
   endif
@@ -63,11 +72,17 @@ partition "RotationState — between-possession sub (§3.5, §3.13, §3.14a)" {
     counter — #023 F applies unchanged, #032 F). The genuine
     stored-state exception is **§3.14b's flagrant-2**, which
     is a severity grade with no counter behind it.
-    **Emits events only for §3.14a's technical, and consumes
-    TWO RNG draws** — §3.13's sit roll and §3.14a's technical
-    roll, both taken unconditionally at fixed points so the
-    stream never forks on rotation state
-    (decisions.md #031, revising #023 C's RNG-free sub).
+    **Consumes THREE RNG draws** — §3.13's sit roll, §3.14a's
+    technical roll, and §3.14a's committer draw, ALL taken
+    unconditionally at fixed points so the stream never forks
+    on rotation state (decisions.md #031, revising #023 C's
+    RNG-free sub). The committer draw is drawn even on the
+    ~99.8% of calls that don't need it, precisely to keep the
+    count state-independent. //(Execution: THREE, not the TWO//
+    //the design pass drew — the committer draw was made//
+    //unconditional for the same fixed-point reason.)//
+    The step itself emits no events: it RETURNS the technical's
+    committer and PossessionEngine emits the FOUL + free throw.
     The soft rule protects the BEST players MORE — the
     deliberate inverse of the fatigue rule's starter
     tolerance. Sticky sit: return is EARNED via the

@@ -75,8 +75,19 @@ scales rebounding fouls (and so a team's bonus exposure), and §3.11 scales
 and-1s. That is the intended pressure/breakdown trade-off compounding — an
 aggressive scheme forces more turnovers *and* concedes more fouls — but it
 means **a `defensiveScheme` change now moves more of the box score than any other
-coach attribute**, and §3.12 (all-shot-type contact fouls) will widen it again.
+coach attribute**, and §3.12 (all-shot-type contact fouls) widened it again.
 Worth watching in calibration: the effects multiply rather than add.
+
+**§3.14a broke the streak deliberately, and that is worth recording as a precedent.**
+Technical fouls are the first foul-adjacent sub-phase that does **not** scale by
+`defensiveScheme` — or by any coach attribute at all. The rate is a flat constant with
+no causal input whatsoever (decisions.md #032 B): a technical is behavioral, not a
+by-product of defensive pressure, so scaling it by an aggression knob would assert a
+causal link the real event does not have. **The five coach attributes stand unchanged
+at five** — §3.14a adds none and reads none. The honest cost, accepted: a coach's
+temperament has no influence on his team's technicals, which is a real fidelity
+ceiling that no tuning can lift (it needs the game-situation awareness the rotation
+step does not have).
 
 **Deferred until a consumer is live:**
 

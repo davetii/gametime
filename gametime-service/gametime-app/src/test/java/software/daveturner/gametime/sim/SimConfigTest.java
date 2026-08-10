@@ -329,4 +329,83 @@ class SimConfigTest {
         assertEquals(config.rosterProtectionFactor(false, 1),
                 config.rosterProtectionFactor(false, null), 1e-9);
     }
+
+    // ---------- §3.14a: the technical rate + the shared clamp (#032 B2/H) ----------
+
+    /**
+     * #032 B2: the constant is the per-team-per-GAME rate; the engine rolls a
+     * per-CHECK probability derived from it. The two must not be confused — the
+     * derived value is ~200× smaller.
+     */
+    @Test
+    void technicalFoulProbabilityDividesTheGameRateByTheNominalCheckCount() {
+        int nominalChecks = SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD * SimConfig.PERIODS * 2;
+        assertEquals(SimConfig.TECHNICAL_FOULS_PER_TEAM_GAME / nominalChecks,
+                config.technicalFoulProbability(), 1e-12);
+        // ~0.00175, NOT #032 B2's stated ~0.0035: that estimate assumed ~100 checks
+        // per team per game, but PossessionEngine.simulate advances BOTH rotations on
+        // EVERY possession, so a team is checked ~200 times (its defensive
+        // possessions included). The harness landing on the configured rate is the
+        // empirical confirmation — a divisor of 100 would have doubled technicals.
+        assertEquals(0.00175, config.technicalFoulProbability(), 1e-5,
+                "The per-check probability lands around 0.00175");
+        assertEquals(200, nominalChecks,
+                "Both teams advance on every possession — 200 checks, not 100");
+    }
+
+    /**
+     * #032 H, quantitatively: PROB_FLOOR is ~6× the technical rate, so routing it
+     * through the NORMAL clamp would inflate technicals ~6-fold and make the constant
+     * tunable only upward. This pins the reason the floor-free helper exists.
+     */
+    @Test
+    void theProbabilityFloorWouldSwampTheTechnicalRate() {
+        double perCheck = config.technicalFoulProbability();
+        assertTrue(SimConfig.PROB_FLOOR > perCheck * 10,
+                "PROB_FLOOR (" + SimConfig.PROB_FLOOR + ") must dwarf the technical rate ("
+                        + perCheck + ") — that is why clampRareProbability exists");
+        assertEquals(SimConfig.PROB_FLOOR, config.clampProbability(perCheck), 1e-12,
+                "The normal clamp WOULD floor it — the failure #032 H avoids");
+        assertEquals(perCheck, config.clampRareProbability(perCheck), 1e-12,
+                "The rare clamp leaves it alone");
+    }
+
+    /** #032 H: the shared floor-free clamp — no floor, normal ceiling, never negative. */
+    @Test
+    void clampRareProbabilityIsFloorFreeButStillCeilinged() {
+        assertEquals(0.0, config.clampRareProbability(0.0), 1e-12);
+        assertEquals(0.0, config.clampRareProbability(-0.5), 1e-12,
+                "Never negative");
+        assertEquals(0.0001, config.clampRareProbability(0.0001), 1e-12,
+                "A rate far below PROB_FLOOR survives untouched");
+        assertEquals(SimConfig.PROB_CEILING, config.clampRareProbability(1.5), 1e-12);
+    }
+
+    /**
+     * #032 H: the consolidation is BEHAVIOR-NEUTRAL. The three pre-existing
+     * floor-free sites hand-rolled max(0.0, min(PROB_CEILING, p)); routing them
+     * through the helper must reproduce that expression exactly.
+     */
+    @Test
+    void theSharedClampReproducesTheHandRolledExpressionItReplaced() {
+        for (double p : new double[]{-1.0, 0.0, 0.001, 0.02, 0.5, 0.97, 1.0, 2.0}) {
+            assertEquals(Math.max(0.0, Math.min(SimConfig.PROB_CEILING, p)),
+                    config.clampRareProbability(p), 1e-12,
+                    "clampRareProbability must match the expression it consolidated, p=" + p);
+        }
+    }
+
+    /** #032 F: two technicals is the ejection limit, and it is not the foul-out limit. */
+    @Test
+    void technicalEjectionLimitIsTwoAndSeparateFromTheFoulOutLimit() {
+        assertEquals(2, SimConfig.TECHNICAL_EJECTION_LIMIT);
+        assertNotEquals(SimConfig.FOUL_OUT_LIMIT, SimConfig.TECHNICAL_EJECTION_LIMIT);
+    }
+
+    /** #030 C's lesson applied: a technical is ONE free throw, not two. */
+    @Test
+    void aTechnicalIsExactlyOneFreeThrow() {
+        assertEquals(1, SimConfig.TECHNICAL_FREE_THROWS);
+        assertNotEquals(SimConfig.FREE_THROWS_PER_FOUL, SimConfig.TECHNICAL_FREE_THROWS);
+    }
 }

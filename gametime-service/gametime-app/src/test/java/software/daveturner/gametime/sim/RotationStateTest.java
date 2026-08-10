@@ -649,6 +649,14 @@ class RotationStateTest {
     void foulTroubleSubTakesExactlyOneUnconditionalDrawPerCall() {
         // Step 4 / #031: the draw must be taken at a fixed point regardless of whether
         // any candidate exists, or the seed stream forks on rotation state.
+        //
+        // §3.14a (#032 B) RE-BASELINED THE COUNT from one draw to THREE — the
+        // foul-trouble roll, the technical roll, and the technical committer draw.
+        // The count is what moved; the INVARIANT this test exists for did not, and
+        // it is the second assertion: the number of draws must not depend on rotation
+        // state. The committer draw is taken unconditionally (even though it is used
+        // on ~0.35% of calls) precisely so that stays true — a conditional draw would
+        // fork the stream on the roll's own outcome.
         CountingRng noCandidates = new CountingRng();
         RotationState quiet = rotation(squad(4), CoachModifiers.neutral());
         quiet.advancePossession(noCandidates);
@@ -659,7 +667,9 @@ class RotationStateTest {
         CountingRng withCandidate = new CountingRng();
         busy.advancePossession(withCandidate);
 
-        assertEquals(1, noCandidates.draws, "one draw even with nobody in foul trouble");
+        assertEquals(3, noCandidates.draws,
+                "three unconditional draws even with nobody in foul trouble "
+                        + "(foul-trouble roll + technical roll + committer draw)");
         assertEquals(withCandidate.draws, noCandidates.draws,
                 "the draw count must not depend on rotation state");
     }
@@ -687,5 +697,230 @@ class RotationStateTest {
         c.setRotationDepth(rotationDepth);
         c.setSubstitutionAggressiveness(subAggressiveness);
         return CoachModifiers.from(c, config);
+    }
+
+    // ---------- §3.14a: technical fouls + ejections (decisions.md #032 B/C/F) ----------
+
+    /**
+     * A generator that replays a fixed script of nextDouble() values, so the three
+     * unconditional draws {@code advancePossession} takes can be driven
+     * independently: [0] foul-trouble roll, [1] technical roll, [2] committer draw.
+     * Values past the end repeat the last entry.
+     */
+    private static RandomGenerator scriptedRng(double... values) {
+        return new RandomGenerator() {
+            private int i;
+
+            @Override
+            public double nextDouble() {
+                double v = values[Math.min(i, values.length - 1)];
+                i++;
+                return v;
+            }
+
+            @Override
+            public long nextLong() {
+                return 0L;
+            }
+        };
+    }
+
+    /** No foul-trouble sub, technical roll FIRES, committer draw at {@code pick}. */
+    private static RandomGenerator technicalFires(double pick) {
+        return scriptedRng(1.0, 0.0, pick);
+    }
+
+    @Test
+    void aTechnicalIsNotRolledWhenTheRollMissesAndTheReturnIsNull() {
+        RotationState r = rotation(squad(4), CoachModifiers.neutral());
+        // roll 1.0 is far above the ~0.0035 per-check probability.
+        assertNull(r.advancePossession(rng()),
+                "No technical on a missed roll — the overwhelmingly common case");
+    }
+
+    @Test
+    void aTechnicalOnAHitReturnsAnOnFloorCommitterAndChargesTheSeparateCounter() {
+        List<PlayerGameState> squad = squad(4);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+
+        PlayerGameState committer = r.advancePossession(technicalFires(0.0));
+
+        assertNotNull(committer, "A fired roll must yield a committer");
+        assertTrue(squad.subList(0, 5).contains(committer),
+                "The committer is drawn from the ON-FLOOR five, never the bench (#032 C)");
+        assertEquals(1, committer.getTechnicalFouls());
+    }
+
+    /**
+     * #032 E — THE counter-split test, and the one the inverted stop condition is
+     * watching. A technical must not leak into anything the six-foul machinery reads.
+     */
+    @Test
+    void aTechnicalDoesNotTouchPersonalFoulsFoulOutOrFoulTrouble() {
+        List<PlayerGameState> squad = squad(4);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+
+        PlayerGameState committer = r.advancePossession(technicalFires(0.0));
+
+        assertEquals(0, committer.getFouls(),
+                "getFouls() must keep meaning PERSONAL fouls only (#032 E)");
+        assertEquals(0, committer.foulTroubleLevel(),
+                "A technical must not raise the §3.13 foul-trouble level");
+        assertFalse(committer.isFouledOut(),
+                "A technical must not push a player toward the 6-foul limit");
+    }
+
+    /**
+     * #032 C: the bench is excluded from the committer pool — a measurement-bias
+     * call, not a realism one. Swept across the whole committer-draw range so the
+     * assertion covers every branch of the weighted selection, not one lucky roll.
+     */
+    @Test
+    void theTechnicalCommitterIsNeverABenchPlayer() {
+        for (int i = 0; i <= 20; i++) {
+            List<PlayerGameState> squad = squad(6);
+            RotationState r = rotation(squad, CoachModifiers.neutral());
+            PlayerGameState committer = r.advancePossession(technicalFires(i / 20.0));
+            assertNotNull(committer);
+            assertTrue(r.onFloor().contains(committer),
+                    "Every technical lands on a player who is actually playing");
+        }
+    }
+
+    /**
+     * #032 C: the draw is {@code foulProne}-weighted. With one player at a far higher
+     * foulProne than the rest, the top of the cumulative range must reach him — this
+     * asserts the weighting is wired up at all, NOT that it is strong (it is
+     * deliberately near-uniform, and that is accepted).
+     */
+    @Test
+    void theTechnicalCommitterDrawIsFoulProneWeighted() {
+        List<PlayerGameState> squad = new ArrayList<>();
+        // Four low-foulProne starters and one very high one.
+        for (int i = 1; i <= 4; i++) {
+            squad.add(TestPlayerFactory.create("S" + i, "T", 10.0, 10.0, 10.0, 10.0,
+                    10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, /*foulProne*/ 1.0));
+        }
+        squad.add(TestPlayerFactory.create("HOT", "T", 10.0, 10.0, 10.0, 10.0, 10.0,
+                10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, /*foulProne*/ 96.0));
+        for (int i = 1; i <= 3; i++) {
+            squad.add(TestPlayerFactory.create("B" + i, "T", 10.0));
+        }
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+
+        // The four low players hold 4/100 of the weight, so anything above 0.04
+        // must select HOT. Sample just above that boundary.
+        PlayerGameState committer = r.advancePossession(technicalFires(0.5));
+        assertEquals("HOT", committer.getPlayerId(),
+                "A far higher foulProne must dominate the weighted draw");
+
+        // ...and the low-weight head of the range still reaches a low player, so no
+        // one is exempt by construction (#032 H).
+        RotationState r2 = rotation(squad(4), CoachModifiers.neutral());
+        assertNotNull(r2.advancePossession(technicalFires(0.0)));
+    }
+
+    // ---------- §3.14a: the ejection extends eligible(...) (#032 F, #031 H) ----------
+
+    /**
+     * #032 F: the ejection is DERIVED from the counter — no stored flag. Forced
+     * directly, because the event essentially never occurs naturally.
+     */
+    @Test
+    void twoTechnicalsEjectAPlayerAndTheEjectionIsDerived() {
+        PlayerGameState p = player("S1", LineupRole.STARTER, null, 10, 10);
+        assertFalse(p.isEjected());
+        p.recordTechnicalFoul();
+        assertFalse(p.isEjected(), "One technical is not an ejection");
+        p.recordTechnicalFoul();
+        assertTrue(p.isEjected(), "Two technicals is an automatic ejection");
+        assertEquals(0, p.getFouls(), "...and still no personal fouls");
+    }
+
+    /**
+     * #031 H / #032 F: an ejected player is forced off by the HARD tier — the same
+     * path a foul-out uses — not by a fourth removal path.
+     */
+    @Test
+    void anEjectedOnFloorPlayerIsForcedOffAndReplacedFromTheBench() {
+        List<PlayerGameState> squad = squad(4);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+        PlayerGameState starter = squad.get(0);
+        eject(starter);
+
+        r.advancePossession(rng());
+
+        assertFalse(r.onFloor().contains(starter), "An ejected player must leave the floor");
+        assertEquals(5, r.onFloor().size(), "The floor stays at exactly five");
+    }
+
+    /** #032 F: an ejected BENCH player is never selected as a replacement. */
+    @Test
+    void anEjectedBenchPlayerIsNotEligibleToComeIn() {
+        List<PlayerGameState> squad = squad(2);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+        PlayerGameState bench1 = squad.get(5);
+        PlayerGameState bench2 = squad.get(6);
+        eject(bench1);
+        // Force a hard sub by fouling out a starter.
+        foul(squad.get(0), SimConfig.FOUL_OUT_LIMIT);
+
+        r.advancePossession(rng());
+
+        assertFalse(r.onFloor().contains(bench1),
+                "An ejected bench player must not be picked as a replacement");
+        assertTrue(r.onFloor().contains(bench2),
+                "...the next eligible bench player comes in instead");
+    }
+
+    /**
+     * #023 F / #032 F: the never-below-5 last resort still holds when ejections and
+     * foul-outs together exhaust the bench — the degenerate case. Nobody eligible
+     * anywhere means a disqualified player stays on rather than the floor dropping.
+     */
+    @Test
+    void onFloorStaysAtFiveWhenEjectionsAndFoulOutsExhaustTheBench() {
+        List<PlayerGameState> squad = squad(2);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+        // Every bench player unavailable: one ejected, one fouled out.
+        eject(squad.get(5));
+        foul(squad.get(6), SimConfig.FOUL_OUT_LIMIT);
+        // And two of the on-floor five disqualified, one by each cause.
+        eject(squad.get(0));
+        foul(squad.get(1), SimConfig.FOUL_OUT_LIMIT);
+
+        r.advancePossession(rng());
+
+        assertEquals(5, r.onFloor().size(),
+                "The never-below-5 invariant survives ejections (#023 F)");
+    }
+
+    /**
+     * The degenerate guard in the committer draw: if every on-floor player has
+     * non-positive {@code foulProne} there is no weight to draw against, so the
+     * technical is dropped rather than pinned on an arbitrary player. Unreachable
+     * with real skills (which are ≥ 1) — asserted so the guard is not silently
+     * wrong if a future fixture or calculator ever produces a zero.
+     */
+    @Test
+    void aTechnicalIsDroppedWhenNoOnFloorPlayerHasAnyFoulProneWeight() {
+        List<PlayerGameState> squad = new ArrayList<>();
+        for (int i = 1; i <= 8; i++) {
+            squad.add(TestPlayerFactory.create("P" + i, "T", 10.0, 10.0, 10.0, 10.0,
+                    10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, /*foulProne*/ 0.0));
+        }
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+
+        assertNull(r.advancePossession(technicalFires(0.5)),
+                "With zero total weight the technical is dropped, not misattributed");
+        for (PlayerGameState p : squad) {
+            assertEquals(0, p.getTechnicalFouls(), "…and nobody is charged");
+        }
+    }
+
+    private static void eject(PlayerGameState p) {
+        for (int i = 0; i < SimConfig.TECHNICAL_EJECTION_LIMIT; i++) {
+            p.recordTechnicalFoul();
+        }
     }
 }

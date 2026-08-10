@@ -60,13 +60,33 @@ public class PossessionEngine {
                 // Both teams are on the floor for every possession (one offense,
                 // one defense), so both rotations advance once per possession —
                 // drain the on-floor five's energy, recover the benched, force off
-                // fouled-out players, run the §3.13 foul-trouble sub, run fatigue
-                // subs. Emits no events, but as of §3.13 it DOES consume RNG: one
-                // draw per call, unconditional (decisions.md #031, revising #023 C).
-                // Ordering (home then away, then resolve) is fixed so the seed-pinned
-                // stream stays reproducible.
-                home.rotation().advancePossession(rng);
-                away.rotation().advancePossession(rng);
+                // fouled-out and (§3.14a) ejected players, run the §3.13 foul-trouble
+                // sub, run fatigue subs. As of §3.13 it consumes RNG, and as of
+                // §3.14a that is THREE unconditional draws per call (decisions.md
+                // #031 revising #023 C; #032 B). Ordering (home then away, then
+                // resolve) is fixed so the seed-pinned stream stays reproducible.
+                //
+                // §3.14a (#032 B/D): the step now also rolls each team's TECHNICAL
+                // foul and returns the committer, because a technical is the one foul
+                // with no contest to hang off — it belongs to the team, not to the
+                // possession. The rotation cannot emit the event itself (it has no
+                // GameData, team ids, period or sequence), so the plumbing lands
+                // here. The possession is UNCHANGED either way: this fires BETWEEN
+                // possessions, so there is nothing to fork — not even when the team
+                // that commits it is the one about to go on offense.
+                PlayerGameState homeTechnical = home.rotation().advancePossession(rng);
+                PlayerGameState awayTechnical = away.rotation().advancePossession(rng);
+
+                // Both teams can independently draw one in the same possession, so
+                // both are resolved, home first (the fixed ordering above).
+                if (homeTechnical != null) {
+                    sequence = awardTechnicalFoul(data, homeTechnical, home, away,
+                            offense.teamId(), defense.teamId(), period, sequence, rng);
+                }
+                if (awayTechnical != null) {
+                    sequence = awardTechnicalFoul(data, awayTechnical, away, home,
+                            offense.teamId(), defense.teamId(), period, sequence, rng);
+                }
 
                 sequence = resolvePossession(data, offense, defense,
                         period, sequence, rng);
@@ -392,10 +412,92 @@ public class PossessionEngine {
     }
 
     /**
+     * §3.14a (decisions.md #032 D/E/G): emit the technical foul and its single free
+     * throw. Called between possessions, from {@link #simulate}, once per team that
+     * drew one on this rotation check.
+     *
+     * <p><b>The possession is untouched.</b> Unlike every other foul path in this
+     * class there is no fork here — no retention, no switch, no second-chance
+     * {@code continue}. A technical is assessed on a team, play resumes from the
+     * point of interruption, and because the roll fires between possessions there is
+     * literally nothing to fork (#032 D). {@code offTeamId}/{@code defTeamId} are the
+     * upcoming possession's orientation, carried only so the event log keeps its
+     * uniform shape.
+     *
+     * <p><b>{@code committingTeamId} is populated</b> like every other {@code FOUL}
+     * event (#028 D), so the column stays uniform — even though {@link
+     * GameData#isInBonus} deliberately EXCLUDES this outcome from the penalty tally
+     * (#032 E).
+     *
+     * <p>The committer already wore the technical inside the rotation step (that is
+     * where the counter lives, feeding the derived {@link
+     * PlayerGameState#isEjected()}); this method does not re-charge it.
+     *
+     * @param committer      the player who committed it (drawn on the floor by
+     *                       {@code foulProne}, #032 C)
+     * @param committingTeam the team he plays for
+     * @param shootingTeam   the OTHER team, which shoots the free throw
+     * @return the next free sequence number
+     */
+    int awardTechnicalFoul(GameData data, PlayerGameState committer,
+                           TeamContext committingTeam, TeamContext shootingTeam,
+                           String offTeamId, String defTeamId,
+                           int period, int sequence, RandomGenerator rng) {
+        data.addEvent(offTeamId, defTeamId, period, sequence,
+                PlayType.FOUL, GameData.TECHNICAL_FOUL_OUTCOME, committer.getPlayerId(),
+                null, committingTeam.teamId());
+        sequence++;
+
+        PlayerGameState shooter = pickTechnicalFreeThrowShooter(shootingTeam.onFloor());
+        return awardFreeThrows(data, shooter, shootingTeam.teamId(),
+                offTeamId, defTeamId, period, sequence,
+                SimConfig.TECHNICAL_FREE_THROWS, FreeThrowSource.TECHNICAL, rng);
+    }
+
+    /**
+     * §3.14a (decisions.md #032 G): who shoots a technical free throw — the
+     * <b>highest {@code freeThrows} skill among the on-floor five, deterministically</b>.
+     *
+     * <p><b>This is a SECOND rule beside {@link #pickFreeThrowShooter}, which stays
+     * untouched, and the two must never be merged.</b> That one weights by {@code
+     * foulDrawing} because it models who <i>gets fouled</i> off the ball (#028 B).
+     * <b>Nobody is fouled on a technical</b> — the offended team simply <i>chooses</i>
+     * its best shooter. Merging them would get one of the two rules wrong: bonus FTs
+     * would go to the best shooter (wrong — the player who was fouled shoots), or
+     * technical FTs would be weighted by {@code foulDrawing} (wrong — nobody was
+     * fouled).
+     *
+     * <p><b>Two consequences that look like bugs and are not.</b> First, this
+     * consumes <b>no RNG</b> — a small determinism win, and why it takes no {@link
+     * RandomGenerator}. Second, and far more visible: <b>the same player shoots
+     * essentially every technical free throw for his team all game</b>, changing only
+     * when the lineup changes. That reads oddly in a box score and looks like a stuck
+     * selection. It is exactly what the real rule produces — teams do send their best
+     * shooter every single time — and it is intended. <b>Do not "fix" it into a
+     * weighted draw.</b>
+     *
+     * <p>Ties break on list order (the on-floor five's stable ordering), keeping the
+     * pick reproducible.
+     */
+    PlayerGameState pickTechnicalFreeThrowShooter(List<PlayerGameState> players) {
+        PlayerGameState best = players.get(0);
+        for (PlayerGameState p : players) {
+            if (p.getFreeThrows() > best.getFreeThrows()) {
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    /**
      * §3.10 (decisions.md #028 B): pick who shoots the bonus free throws from the
      * fouled five — weighted by {@code foulDrawing}, so the players who live at the
      * line are the ones fouled off the ball. (A shooting foul has no such choice:
      * the shooter shoots.) Mirrors the skill-weighted draw pattern used throughout.
+     *
+     * <p><b>§3.14a deliberately did NOT touch this</b> and added {@link
+     * #pickTechnicalFreeThrowShooter} beside it instead (#032 G) — two different real
+     * rules, two functions.
      */
     PlayerGameState pickFreeThrowShooter(List<PlayerGameState> players, RandomGenerator rng) {
         double totalWeight = 0;

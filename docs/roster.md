@@ -155,7 +155,7 @@ and `rotationOrder` becomes the bench queue order `RotationState` draws from.
 > "how good is this player" must use a skill composite (§3.13's
 > `PlayerGameState.valueComposite()`), not a position in this list.
 
-The three live consumers:
+The four live consumers:
 
 - **Minutes & fatigue** (§3.5, decisions.md #023) — the lineup this domain owns
   (`STARTER` set + `rotationOrder` bench queue) drives the engine's dynamic
@@ -182,6 +182,18 @@ The three live consumers:
   field and is not — do not "fix" it into agreement.
   Like the fatigue rule, it draws only within `rotationDepth` and **never writes
   back to `player_team`**; and it can never bring a fouled-out player back.
+- **Technical fouls & ejections** (§3.14a, decisions.md #032) — the **on-floor five**
+  is the committer pool for a technical: the draw is `foulProne`-weighted over
+  whoever this domain's lineup currently has playing, and **the bench is excluded**.
+  That is a *measurement* call, not a realism one (#032 C): the bench pool is ~10
+  against the floor's 5, so ~2/3 of technicals would land on players who are not
+  playing and whose ejections have no engine consequence. **The accepted fidelity
+  loss: bench and coach technicals are not modelled** — a coach is not a
+  `PlayerGameState` at all. Two technicals ejects a player, which extends the same
+  hard-tier disqualification filter as a foul-out (`RotationState.isDisqualified`),
+  so an ejected player is forced off and never selected again. Like every other
+  consumer here it is **transient — no write-back to `player_team`**: an ejection
+  lasts the game, not the season.
 
 ## Not yet built
 

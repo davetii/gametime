@@ -523,6 +523,44 @@ public class SimConfig {
     // A margin, in energy points — NOT a probability and NOT a multiplier.
     public static final double FOUL_TROUBLE_FRESHNESS_MARGIN = 1.0;
 
+    // --- Technical fouls (§3.14a, decisions.md #032 B2/E/F) ---
+    //
+    // ⚠ THIS IS A PER-TEAM-PER-GAME RATE, NOT A PER-CHECK PROBABILITY. It sits in a
+    // file where nearly every double is a probability, so read it as what it is: the
+    // number of technical fouls one team is expected to commit in one game. The
+    // per-check probability the engine actually rolls is ~0.00175 and is DERIVED, by
+    // technicalFoulProbability() below (which also explains why that is half the
+    // ~0.0035 #032 B2 estimated).
+    //
+    // Stored this way deliberately (#032 B2): 0.00175 has no intuitive meaning, cannot
+    // be sanity-checked by eye, is not comparable to anything in calibration.md, and
+    // would silently drift if DEFAULT_POSSESSIONS_PER_PERIOD or PERIODS ever moved.
+    // 0.35 is the number a tuner reasons about.
+    //
+    // Set from the user's real-world figure of 0.6–0.8 technicals per GAME
+    // league-wide, i.e. ~0.3–0.4 per TEAM per game. UNSOURCED, like every row in
+    // calibration.md — §3.16's job (1) owns verifying it.
+    //
+    // A ballpark, NOT a target (#032 J): nothing in the engine is tuned toward it —
+    // the constant is set from the real-world figure directly, so the harness line is
+    // a correctness check that the roll fires at the rate configured, not a
+    // calibration objective. Judge it at 5 SEEDS ONLY (11.8% relative sd at 102
+    // games; 5.3% at 5 seeds).
+    public static final double TECHNICAL_FOULS_PER_TEAM_GAME = 0.35;
+
+    // Two technicals in one game is an automatic ejection (#032 F). A monotonic
+    // counter exactly like FOUL_OUT_LIMIT, which is why PlayerGameState.isEjected()
+    // is a DERIVED predicate with no stored flag — #023 F's discipline applies
+    // unchanged. (The stored-state exception belongs to §3.14b's flagrant-2, which
+    // is a severity grade with no counter behind it.)
+    public static final int TECHNICAL_EJECTION_LIMIT = 2;
+
+    // A technical is exactly ONE free throw (FREE_THROWS_PER_FOUL is 2,
+    // AND_ONE_FREE_THROWS is 1). Named separately rather than sharing AND_ONE's
+    // constant: the two are 1 for unrelated reasons, and §3.12 already showed what
+    // happens when one count is assumed to follow another (#030 C).
+    public static final int TECHNICAL_FREE_THROWS = 1;
+
     // Base probability that a made field goal is assisted, at an average passing
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
     // much the supporting cast's passing deviates from average. Tuned in §3.4
@@ -654,8 +692,9 @@ public class SimConfig {
      *
      * <p>Deliberately NOT run through {@link #clampProbability} — its {@link
      * #PROB_FLOOR} would give a 0-foul player a 2% chance of being benched every
-     * check (~100 per game), which is the opposite of the intent. This is the third
-     * floor-free site in the package; see #030's clamp-helper follow-up.
+     * check (~100 per game), which is the opposite of the intent. It uses {@link
+     * #clampRareProbability} instead; §3.14a (#032 H) consolidated this, the third
+     * floor-free site, with the other three, closing #030's clamp-helper follow-up.
      */
     public double foulTroubleSitProbability(int foulCount, double subAggressivenessFactor,
                                             double valueComposite, boolean starter,
@@ -671,7 +710,7 @@ public class SimConfig {
                 + FOUL_TROUBLE_VALUE_SENSITIVITY * (valueComposite - SCALE_AVG) / SCALE_AVG;
         double p = base * subAggressivenessFactor * Math.max(0.0, valueFactor)
                 * rosterProtectionFactor(starter, rotationOrder);
-        return Math.max(0.0, Math.min(PROB_CEILING, p));
+        return clampRareProbability(p);
     }
 
     /**
@@ -712,21 +751,104 @@ public class SimConfig {
     }
 
     /**
+     * §3.14a (decisions.md #032 H): clamp a probability to [0, {@link
+     * #PROB_CEILING}] — the <b>floor-free</b> sibling of {@link #clampProbability},
+     * and the single owner of an expression that had been hand-rolled character-for-
+     * character at four independent sites.
+     *
+     * <p><b>Why the {@link #PROB_FLOOR} must not apply to a rare event.</b> The
+     * global floor (0.02) exists so a skill mismatch can never make a <i>normal</i>
+     * outcome impossible. Applied to a deliberately-rare carve it does the opposite:
+     * it becomes a floor the base rate cannot go below, so the constant is tunable
+     * only UPWARD and a "turn it down" recalibration silently does nothing. The
+     * margin is not subtle — §3.14a's per-check technical probability is ~0.00175, so
+     * {@link #PROB_FLOOR} is more than <b>10×</b> the rate itself and flooring would
+     * inflate technicals by that factor. (#032 H estimated ~6× off the design's
+     * ~0.0035; the true per-check rate is half that, so the margin is wider still —
+     * see {@link #technicalFoulProbability}.) It also destroys the true off-switch a
+     * 0.0 multiplier gives {@link FoulResolver#isFoul} (#030 A1).
+     *
+     * <p><b>The four sites this consolidates</b> (#030 set the trigger — two is a
+     * coincidence, a third is the signal; §3.13 added the third and §3.14a the
+     * fourth): {@link #rareEventProbability} (§3.10), {@link
+     * #foulTroubleSitProbability} (§3.13), {@link FoulResolver#isFoul}'s floor-free
+     * multiply (§3.12), and {@link #technicalFoulProbability} (§3.14a). The
+     * consolidation is <b>behavior-neutral</b> — no number moves, no recalibration —
+     * and the proof is that §3.10's and §3.13's existing tests pass unchanged. A
+     * fifth floor-free site now costs one call, not a fourth copy.
+     *
+     * <p>It is fine — intended, even — that a floor-free rate can leave some players
+     * effectively never committing the event. No floor should manufacture a minimum.
+     */
+    public double clampRareProbability(double p) {
+        return Math.max(0.0, Math.min(PROB_CEILING, p));
+    }
+
+    /**
+     * §3.14a (decisions.md #032 B/B2): the probability that <b>this team commits a
+     * technical foul on this rotation check</b> — {@link
+     * #TECHNICAL_FOULS_PER_TEAM_GAME} divided down by the nominal number of checks in
+     * a game. Expect <b>~0.00175</b>.
+     *
+     * <p><b>Note that figure corrects #032 B2's "~0.0035".</b> That estimate assumed
+     * ~100 checks per team per game — one per possession the team plays. The actual
+     * count is <b>~200</b>: {@link PossessionEngine#simulate} advances BOTH teams'
+     * rotations on EVERY possession, so a team is checked on its defensive
+     * possessions too. The divisor below is the true call count, which is what makes
+     * the harness land on the configured rate; using 100 would have doubled
+     * technicals to ~0.7 per team per game. The design's arithmetic slipped, not its
+     * intent — the constant it reasons about is unchanged.
+     *
+     * <p><b>There is no contest here, and that is a positive design claim rather than
+     * a simplification (#032 B).</b> Every other foul in the engine hangs off a
+     * contest — a defender is drawn, skills are contested, a foul falls out. A
+     * technical has no contest to hang off: it is not caused by the shot, the
+     * matchup, or the rebound. So this method takes <b>no skills, no coach factor,
+     * and no game situation</b> — a blowout, a rivalry and a walkover all produce
+     * technicals at the same rate. {@code foulProne} weights only WHICH of the
+     * on-floor five wears it (#032 C), never whether one happens.
+     *
+     * <p><b>The divisor is NOMINAL, not actual, and the gap is deliberate.</b> The
+     * real possession count is pace-scaled per game ({@link
+     * PossessionEngine#simulate} blends both coaches' {@code paceMultiplier}) and
+     * overtime adds more, so a fast-paced game takes more checks and draws
+     * <b>slightly more</b> technicals than the constant nominally says. That is
+     * correct behavior — a longer game has more opportunity — but it means the
+     * constant reads as "technicals per team per game <i>at nominal pace</i>", and
+     * <b>a harness landing a few percent off the constant is NOT a bug and NOT
+     * drift.</b> Recorded because the alternative reading — treating the miss as a
+     * calibration error and back-solving the constant — would chase noise.
+     *
+     * <p>Clamped through {@link #clampRareProbability}: the {@link #PROB_FLOOR}
+     * (0.02) is more than <b>ten times</b> this rate and would inflate it by that
+     * factor, making the constant tunable only upward (#032 H).
+     *
+     * <p>The ×2 in the divisor is the correction above: {@code advancePossession}
+     * runs once per team per possession and both teams advance on every possession,
+     * so a team gets {@code possessionsPerPeriod × PERIODS × 2} checks in a nominal
+     * game.
+     */
+    public double technicalFoulProbability() {
+        int nominalChecks = DEFAULT_POSSESSIONS_PER_PERIOD * PERIODS * 2;
+        return clampRareProbability(TECHNICAL_FOULS_PER_TEAM_GAME / nominalChecks);
+    }
+
+    /**
      * §3.10 (decisions.md #028 C): the probability of a deliberately-RARE carved-off
      * event, contested in the usual avg-10 form but clamped WITHOUT the {@link
-     * #PROB_FLOOR}. The global floor (0.02) exists so a skill mismatch can never make
-     * a normal outcome impossible; applied to a rare carve it does the opposite —
-     * it becomes a FLOOR the base rate cannot go below, so the constant is only
-     * tunable upward and a "turn it down" recalibration silently does nothing.
-     * {@link #REBOUND_FOUL_BASE} sits at ~0.03, close enough to 0.02 for that to
-     * bite. This is the same class of problem {@link #BLOCK_SENSITIVITY} solved for
-     * §3.7 — a global constant tuned for common events being wrong for a rare one.
-     * Floored at 0 (never negative) and ceilinged normally.
+     * #PROB_FLOOR} — see {@link #clampRareProbability} for why the floor is wrong
+     * here. {@link #REBOUND_FOUL_BASE} sits at ~0.03, close enough to 0.02 for the
+     * floor to bite. This is the same class of problem {@link #BLOCK_SENSITIVITY}
+     * solved for §3.7 — a global constant tuned for common events being wrong for a
+     * rare one.
+     *
+     * <p>§3.14a (#032 H) routed the hand-rolled clamp here through the shared
+     * helper. Behavior-neutral: the expression is identical.
      */
     public double rareEventProbability(double base, double drivingSkill,
                                        double opposingSkill, double sensitivity) {
         double p = base + sensitivity * (drivingSkill - opposingSkill) / SCALE_AVG;
-        return Math.max(0.0, Math.min(PROB_CEILING, p));
+        return clampRareProbability(p);
     }
 
     public double contestProbability(double base, double offenseSkill, double defenseSkill) {

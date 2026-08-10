@@ -460,9 +460,8 @@ re-running the loop and re-agreeing the numbers, not a red build.
 > never-retro-edited text of #030 and #031, so a full renumber would leave live
 > references meaning two different phases. Hence the `a`/`b` suffix.
 
-- [ ] **§3.14a — Technical fouls** *(design RESOLVED as `decisions.md` #032 A–J; the
-      **execute-ready plan is in [todo.md](todo.md)** — build it from there, not from this
-      bullet)*. A non-contact, **behavioral** penalty the engine has no path for: today
+- [x] **§3.14a — Technical fouls** *(SHIPPED — `decisions.md` **#032 A–J** + its
+      implementation note)*. A non-contact, **behavioral** penalty the engine has no path for: today
       *every* foul is a by-product of a contest (`pickDefender` → `isFoul`), so a foul
       not caused by the possession cannot be expressed. **Deliberately random — no causal
       model at all** (#032 B), rolled per team in `RotationState.advancePossession(rng)`
@@ -474,15 +473,28 @@ re-running the loop and re-agreeing the numbers, not a red build.
       tally (#032 E), so §3.13's calibrated foul-outs and penalty rate must not move.
       **The ejection stays DERIVED** — `technicalFouls >= 2` is a monotonic counter, so
       #023 F applies unchanged and the predicted stored-state exception **does not arise
-      here** (#032 F); it extends `eligible(...)` per #031 H, and will read **0.00 on the
-      harness for most seeds**, which is a correct result, not a failure. **Also folds in
-      #030's clamp-helper consolidation at its fourth site** (#032 H). Budgeted at
-      **+0.26 points/team/game — below the ±1.5 noise floor**, so the stop condition
-      **inverts**: measurable movement in the §3.4 aggregates is a **bug**, not a landing
-      (#032 I).
-- [ ] **§3.14b — Flagrant fouls** *(needs its own DESIGN PASS — the open questions are in
-      [todo.md](todo.md); §3.14a must ship first, since §3.14b builds on its ejection
-      seam)*. **The structural half, and it inherits every hard question.** A flagrant
+      here** (#032 F); it extends `eligible(...)` per #031 H. **Also folds in
+      #030's clamp-helper consolidation at its fourth site** (#032 H) — that trigger is
+      now **retired**; a fifth floor-free site costs one call, not a fourth copy.
+      _Shipped (decisions.md #032 + implementation note): technicals **0.367/team/game**
+      (5-seed mean) against the 0.35 configured — the ~5% gap is #032 B2's nominal-vs-actual
+      pace effect, not drift. **The inverted stop condition (#032 I) held: the §3.4
+      aggregates did not move measurably** — points 117.5 (§3.13: 117.0), FG% 46.6%
+      (46.6%), 3P% 37.0% (36.6%), assists 26.8 (26.7), turnovers 13.5 (13.8), all inside
+      the ±1.5 band. The two leak detectors are clean: **penalty rate flat at 51.2%**
+      (51.3%) and foul-outs 0.409 inside their own seed spread. **Ejections landed at
+      0.014/team/game, not the predicted 0.00** — ~one per team per season; #032 F's
+      estimate was an order of magnitude pessimistic, the mechanism is correct.
+      Two divergences: a new `FreeThrowSource.TECHNICAL` (the harness reads FT source off
+      the outcome suffix, so reuse would corrupt the instrument §3.14a is judged by), and
+      **three** RNG draws per `advancePossession` rather than two (the committer draw is
+      unconditional, for the same fixed-point reason). #032 B2's "~0.0035" per-check rate
+      is corrected to **~0.00175** — both rotations advance on every possession, so a team
+      gets ~200 checks, not ~100. 512 tests green; `sim` **99.2%** line coverage; gate green._
+- [ ] **§3.14b — Flagrant fouls** *(**NEXT UP — needs its own DESIGN PASS**, which becomes
+      `decisions.md` **#034**; the open questions are in [todo.md](todo.md). Its
+      prerequisite is met: **§3.14a shipped 2026-08**, so the ejection seam it builds on
+      exists.)*. **The structural half, and it inherits every hard question.** A flagrant
       awards free throws **and returns the ball to the offense** — a retention path no
       current model has, breaking #030 B's invariant that **every existing FT path ends
       the possession**. It is an *additional* roll on top of an existing foul (no change
@@ -490,9 +502,11 @@ re-running the loop and re-agreeing the numbers, not a red build.
       6-foul limit. **This is where the genuine #023 F exception lands**: a flagrant-2 is
       a **severity grade with no counter behind it**, so unlike §3.14a's two-technical
       case it is **not derivable** and needs real stored state — argued explicitly via the
-      **#028 D** pattern, not inherited (#032 F). It extends the **same** `eligible(...)`
-      hard-tier seam §3.14a builds (#031 H) — **not** a fourth removal path. Note the
-      rotation step already **consumes RNG** (§3.13), so neither half re-argues that.
+      **#028 D** pattern, not inherited (#032 F). It extends the **same** hard-tier seam
+      §3.14a built — now the shared `RotationState.isDisqualified(p)` predicate behind
+      `eligible(...)` (#031 H) — **not** a fourth removal path. Note the
+      rotation step already **consumes RNG** (§3.13, three draws as of §3.14a), so
+      neither half re-argues that.
       Rate ~0.25–0.40/game league-wide; **coarser to measure than technicals** (~33 events
       at 102 games, 17.4% relative sd — 5 seeds minimum). Budgeted at **+0.43
       points/team/game**, still sub-noise, but **retention is a second channel and must be

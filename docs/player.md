@@ -229,6 +229,19 @@ post-make foul roll on the same `foulDrawing`-vs-`foulProne` wiring (#029).
 §3.12 extends the stopped-shot foul to **all four shot types** with a per-type
 multiplier, on the same `foulDrawing`-vs-`foulProne` contest (#030).
 
+**§3.14a is the exception that proves the pattern: a foul with NO skill contest at
+all.** Every foul above is a by-product of a contest — a defender is drawn, two skills
+are contested, a foul falls out. A **technical** is behavioral, so it hangs off
+nothing: its *rate* is a flat constant with **no player, coach, or game-situation
+input whatsoever** (#032 B), and `foulProne` weights only **which** of the on-floor
+five wears it. That weighting is knowingly weak — `foulProne` is nearly flat (sd
+**1.22** against a ~9.66 mean), so the draw is close to uniform — and it is
+**affordable precisely because the rate is causally inert**. The raw `aggression` /
+`composure` / `ego` **attributes** were deliberately *not* threaded in: the engine
+consumes **skills**, and `foulProne` already **is** that composite by construction
+(see its row above). A raw-attribute path would be a second route to an influence
+already flowing (#013/#015).
+
 **§3.13 wires skills to something new in kind — a *rotation* decision rather than
 a possession outcome** (#031). The foul-trouble bench rule scales the chance a
 coach sits a player by that player's **value to the team**, a *derived composite*
@@ -283,6 +296,6 @@ the engine (the rotation step, `RotationState.advancePossession()`):
 | Fatigue sub | `currentEnergy` vs a coach-scaled threshold; starters tolerate MORE | ✅ §3.5 |
 | Foul-out (forced off) | none — a derived predicate over the foul counter | ✅ §3.5 |
 | **Foul-trouble sub** | the **value composite** (individualDefense, rimProtection, defenseRebound + the five offense skills) × foul count × coach × roster slot; better players benched **sooner** | ✅ §3.13 |
-| **Technical foul** | **none for the RATE** — deliberately random, no causal model (#032 B); `foulProne` weights only **who** commits it, over the on-floor five (#032 C) | 🔜 §3.14a |
-| **Technical FT shooter** | `freeThrows` — a **deterministic** highest-on-the-floor pick, *not* the `foulDrawing`-weighted draw bonus FTs use (#032 G) | 🔜 §3.14a |
-| **Ejection (forced off)** | none — a **derived** predicate over the separate technical counter (`technicalFouls >= 2`), exactly as the foul-out is (#032 F) | 🔜 §3.14a |
+| **Technical foul** | **none for the RATE** — deliberately random, no causal model (#032 B); `foulProne` weights only **who** commits it, over the on-floor five (#032 C) | ✅ §3.14a |
+| **Technical FT shooter** | `freeThrows` — a **deterministic** highest-on-the-floor pick, *not* the `foulDrawing`-weighted draw bonus FTs use (#032 G) | ✅ §3.14a |
+| **Ejection (forced off)** | none — a **derived** predicate over the separate technical counter (`technicalFouls >= 2`), exactly as the foul-out is (#032 F) | ✅ §3.14a |

@@ -97,6 +97,7 @@ class GameMapperTest {
         e.setBlocks(1);
         e.setTurnovers(4);
         e.setFouls(5);
+        e.setTechnicalFouls(2);
         e.setMinutes(34);
         e.setFieldGoalsAttempted(18);
         e.setFieldGoalsMade(9);
@@ -116,6 +117,8 @@ class GameMapperTest {
         assertEquals(1, bs.getBlocks());
         assertEquals(4, bs.getTurnovers());
         assertEquals(5, bs.getFouls());
+        // §3.14a (#032 E): technicals map SEPARATELY from personal fouls.
+        assertEquals(2, bs.getTechnicalFouls());
         assertEquals(34, bs.getMinutes());
         assertEquals(18, bs.getFieldGoalsAttempted());
         assertEquals(9, bs.getFieldGoalsMade());

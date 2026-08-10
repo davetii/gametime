@@ -1647,10 +1647,15 @@ class PossessionEngineTest {
                 "A long game must produce shooting-foul FTs");
         assertTrue(sources.contains(FreeThrowSource.AND_ONE.name()),
                 "A long game must produce and-1 FTs");
-        assertTrue(FreeThrowSource.SHOOTING.name().equals("SHOOTING")
-                        && sources.stream().allMatch(s -> s.equals("SHOOTING")
-                        || s.equals("BONUS") || s.equals("AND_ONE")),
-                "Every FT source must be one of the three known sources: " + sources);
+        // §3.14a (#032 G) added a FOURTH source: TECHNICAL. Enumerated off the enum
+        // rather than re-listing the names, so a future source cannot make this
+        // assertion silently stale the way the hardcoded triple just did.
+        Set<String> known = Arrays.stream(FreeThrowSource.values())
+                .map(FreeThrowSource::name)
+                .collect(java.util.stream.Collectors.toSet());
+        assertTrue(known.containsAll(sources),
+                "Every FT source must be a known FreeThrowSource: " + sources
+                        + " (known: " + known + ")");
     }
 
     @Test
@@ -1759,4 +1764,187 @@ class PossessionEngineTest {
         return 0;
     }
 
+    // ---------- §3.14a: the technical FT shooter rule (decisions.md #032 G) ----------
+
+    /** A five whose free-throw skills ascend, so the "best" pick is unambiguous. */
+    private List<PlayerGameState> fiveWithFreeThrowSkills(String teamId, double... fts) {
+        List<PlayerGameState> players = new ArrayList<>();
+        for (int i = 0; i < fts.length; i++) {
+            players.add(TestPlayerFactory.create(teamId + "-p" + i, teamId,
+                    10.0, 10.0, 10.0, 10.0, 10.0, 10.0, /*freeThrows*/ fts[i],
+                    /*foulDrawing*/ 20.0 - fts[i], 10.0, 10.0, 10.0, 10.0, 10.0));
+        }
+        return players;
+    }
+
+    /**
+     * #032 G: a technical FT goes to the best free-throw shooter on the floor,
+     * chosen DETERMINISTICALLY — the offended team picks, nobody was fouled.
+     */
+    @Test
+    void theTechnicalFreeThrowShooterIsTheBestFreeThrowShooterOnTheFloor() {
+        List<PlayerGameState> five = fiveWithFreeThrowSkills("H", 4.0, 9.0, 18.0, 7.0, 2.0);
+        assertEquals("H-p2", engine.pickTechnicalFreeThrowShooter(five).getPlayerId());
+    }
+
+    /**
+     * #032 G: it consumes NO RNG and is stable across calls — the same player shoots
+     * every technical FT for his team until the lineup changes. That looks like a
+     * stuck selection in a box score and is exactly the real rule.
+     */
+    @Test
+    void theTechnicalFreeThrowShooterPickIsDeterministicAndConsumesNoRng() {
+        List<PlayerGameState> five = fiveWithFreeThrowSkills("H", 4.0, 9.0, 18.0, 7.0, 2.0);
+        PlayerGameState first = engine.pickTechnicalFreeThrowShooter(five);
+        for (int i = 0; i < 20; i++) {
+            assertSame(first, engine.pickTechnicalFreeThrowShooter(five),
+                    "The pick must not vary — no RNG is involved (#032 G)");
+        }
+    }
+
+    /**
+     * #032 G, the merge this pass explicitly REFUSED: the bonus-FT draw still weights
+     * by foulDrawing and must NOT have become a best-shooter pick. The fixture's
+     * foulDrawing runs opposite to freeThrows, so if the two rules had been merged
+     * the bonus draw could never reach the low-freeThrows/high-foulDrawing players.
+     */
+    @Test
+    void pickFreeThrowShooterIsUnchangedAndStillFoulDrawingWeighted() {
+        List<PlayerGameState> five = fiveWithFreeThrowSkills("H", 4.0, 9.0, 18.0, 7.0, 2.0);
+        Set<String> picked = new HashSet<>();
+        RandomGenerator rng = rng(99L);
+        for (int i = 0; i < 400; i++) {
+            picked.add(engine.pickFreeThrowShooter(five, rng).getPlayerId());
+        }
+        assertTrue(picked.size() > 1,
+                "The bonus draw is a WEIGHTED DRAW, not a deterministic max");
+        assertTrue(picked.contains("H-p4"),
+                "The worst free-throw shooter (but highest foulDrawing) must still be "
+                        + "reachable — the bonus rule models being FOULED, not shooting skill");
+    }
+
+    // ---------- §3.14a: the technical event + free throw (#032 D/E) ----------
+
+    /**
+     * #032 D/E: the emitted event's shape — a FOUL PlayType with the TECHNICAL_FOUL
+     * outcome, the committer named, committingTeamId populated (#028 D), and exactly
+     * ONE free throw scoring for the OTHER team.
+     */
+    @Test
+    void awardTechnicalFoulEmitsTheFoulAndExactlyOneFreeThrowForTheOtherTeam() {
+        List<PlayerGameState> home = teamOf5("H", 10.0);
+        List<PlayerGameState> away = fiveWithFreeThrowSkills("A", 4.0, 9.0, 18.0, 7.0, 2.0);
+        TeamContext homeCtx = ctx("H", home, CoachModifiers.neutral());
+        TeamContext awayCtx = ctx("A", away, CoachModifiers.neutral());
+        GameData data = new GameData();
+        data.setHomeTeamId("H");
+        data.setAwayTeamId("A");
+        PlayerGameState committer = home.get(0);
+
+        int next = engine.awardTechnicalFoul(data, committer, homeCtx, awayCtx,
+                "H", "A", 1, 1, rng(5L));
+
+        List<GameData.EventRecord> fouls = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL).toList();
+        assertEquals(1, fouls.size());
+        assertEquals(GameData.TECHNICAL_FOUL_OUTCOME, fouls.get(0).outcome());
+        assertEquals(committer.getPlayerId(), fouls.get(0).primaryPlayerId());
+        assertEquals("H", fouls.get(0).committingTeamId(),
+                "committingTeamId is populated like every other FOUL event (#028 D)");
+
+        List<GameData.EventRecord> fts = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW).toList();
+        assertEquals(SimConfig.TECHNICAL_FREE_THROWS, fts.size(),
+                "A technical is exactly ONE free throw");
+        assertEquals("A-p2", fts.get(0).primaryPlayerId(),
+                "The OTHER team's best free-throw shooter takes it");
+        assertTrue(fts.get(0).outcome().endsWith(FreeThrowSource.TECHNICAL.name()),
+                "The FT is self-describing as a TECHNICAL (#029 D)");
+        assertEquals(3, next, "sequence advances past the foul and its one FT");
+    }
+
+    /**
+     * #032 E: the emitted technical must not put its own team in the penalty, even
+     * repeated past the bonus threshold. The engine-level counterpart of
+     * GameDataTest's unit assertion.
+     */
+    @Test
+    void repeatedTechnicalsNeverPutTheCommittingTeamInTheBonus() {
+        List<PlayerGameState> home = teamOf5("H", 10.0);
+        List<PlayerGameState> away = teamOf5("A", 10.0);
+        TeamContext homeCtx = ctx("H", home, CoachModifiers.neutral());
+        TeamContext awayCtx = ctx("A", away, CoachModifiers.neutral());
+        GameData data = new GameData();
+        data.setHomeTeamId("H");
+        data.setAwayTeamId("A");
+
+        int seq = 1;
+        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD + 2; i++) {
+            seq = engine.awardTechnicalFoul(data, home.get(0), homeCtx, awayCtx,
+                    "H", "A", 1, seq, rng(7L));
+        }
+        assertFalse(data.isInBonus("H", 1),
+                "Technicals must never reach the penalty tally (#032 E)");
+        assertEquals(0, data.periodFoulCount("H", 1));
+    }
+
+    /**
+     * #032 D: the possession is UNCHANGED. Over a full simulation, no technical event
+     * may ever sit between a possession's shot and its resolution in a way that
+     * changes the count — the simplest observable form of that is that technicals add
+     * FOUL/FREE_THROW events only, and every FT they add reconciles into the score.
+     */
+    @Test
+    void technicalFreeThrowsReconcileIntoTheScore() {
+        List<PlayerGameState> home = teamOf5("H", 12.0);
+        List<PlayerGameState> away = teamOf5("A", 12.0);
+        GameData data = simulate(home, away, "H", "A", 200, rng(31L));
+
+        long technicals = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL)
+                .filter(e -> GameData.TECHNICAL_FOUL_OUTCOME.equals(e.outcome()))
+                .count();
+        assertTrue(technicals > 0, "A 200-possession game must produce some technicals");
+
+        long technicalFts = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW)
+                .filter(e -> e.outcome().endsWith(FreeThrowSource.TECHNICAL.name()))
+                .count();
+        assertEquals(technicals * SimConfig.TECHNICAL_FREE_THROWS, technicalFts,
+                "Exactly one technical FT per technical foul");
+
+        int eventPoints = data.getEvents().stream().mapToInt(this::pointsFromEvent).sum();
+        assertEquals(data.getHomeScore() + data.getAwayScore(), eventPoints,
+                "FT/points reconciliation stays automatic — awardFreeThrows is reused verbatim");
+    }
+
+    /**
+     * #032 E, at the engine level: across a whole simulation the box-score-facing
+     * personal foul counter must never absorb a technical. This is the leak the
+     * inverted stop condition (#032 I) is watching for.
+     */
+    @Test
+    void technicalsNeverLeakIntoThePersonalFoulCounters() {
+        List<PlayerGameState> home = teamOf5("H", 12.0);
+        List<PlayerGameState> away = teamOf5("A", 12.0);
+        GameData data = simulate(home, away, "H", "A", 200, rng(31L));
+
+        long personalFoulEvents = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL)
+                .filter(e -> !GameData.TECHNICAL_FOUL_OUTCOME.equals(e.outcome()))
+                .count();
+        int recordedFouls = 0;
+        int recordedTechnicals = 0;
+        for (PlayerGameState p : home) {
+            recordedFouls += p.getFouls();
+            recordedTechnicals += p.getTechnicalFouls();
+        }
+        for (PlayerGameState p : away) {
+            recordedFouls += p.getFouls();
+            recordedTechnicals += p.getTechnicalFouls();
+        }
+        assertEquals(personalFoulEvents, recordedFouls,
+                "getFouls() counts PERSONAL fouls and nothing else (#032 E)");
+        assertTrue(recordedTechnicals > 0, "…and technicals are counted, just separately");
+    }
 }

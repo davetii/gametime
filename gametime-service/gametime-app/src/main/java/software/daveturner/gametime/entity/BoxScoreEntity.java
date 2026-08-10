@@ -44,8 +44,16 @@ public class BoxScoreEntity {
     @Column(name = "turnovers")
     private Integer turnovers;
 
+    /** PERSONAL fouls only — technicals are counted separately below (#032 E). */
     @Column(name = "fouls")
     private Integer fouls;
+
+    /**
+     * §3.14a (decisions.md #032 E): technical fouls, kept apart from {@link #fouls}
+     * because a technical does not count toward the six-foul disqualification.
+     */
+    @Column(name = "technical_fouls")
+    private Integer technicalFouls;
 
     @Column(name = "minutes")
     private Integer minutes;

@@ -85,7 +85,29 @@ public class RotationState {
      *   <li><b>soft/preference</b> — {@link #runFoulTroubleSub} (§3.13, #031 B)</li>
      *   <li><b>fatigue</b> — {@link #runFatigueSubs()} (§3.5 Decisions C/D)</li>
      * </ol>
-     * §3.14's ejections extend tier 1, not a fourth path (#031 H).
+     * §3.14a's ejections extend tier 1, not a fourth path (#031 H) — an ejected
+     * player is filtered by {@link #eligible} exactly as a fouled-out one is, and
+     * {@link #replaceFouledOut()} forces him off.
+     *
+     * <p><b>§3.14a (decisions.md #032 B) added a second responsibility: the technical
+     * foul roll.</b> This is the engine's only "things that happen to a TEAM, not to
+     * a possession" seam, and a technical is the one foul with no contest to hang off
+     * — it is not caused by the shot, the matchup, or the rebound. Rolling it inside
+     * the possession flow would make it inherit a {@code pickDefender} draw that has
+     * nothing to do with it, manufacturing a causal link the real event does not
+     * have. On a hit this returns the committer; the caller ({@link
+     * PossessionEngine#simulate}) owns emitting the event and awarding the free
+     * throw, because those need {@link GameData}, the team ids, the period and the
+     * sequence — none of which belong in a rotation.
+     *
+     * <p><b>The possession is UNCHANGED (#032 D).</b> The roll fires BETWEEN
+     * possessions, so there is nothing to fork — no retention, no switch, not even
+     * when the offense commits it. §3.14a adds no branch to the possession path at
+     * all, which is exactly what made it the cheap half of the §3.14 split.
+     *
+     * @return the on-floor player who committed a technical this call, or {@code
+     *         null} (overwhelmingly the common case — the per-check probability is
+     *         ~0.0035).
      *
      * <p><b>This step CONSUMES RNG (§3.13), which REVISES #023 C.</b> That decision
      * made substitution deterministic and RNG-free on purpose ("subs are a coaching
@@ -95,12 +117,18 @@ public class RotationState {
      * <i>judgement</i> — two coaches facing an identical 4-foul situation genuinely
      * make different calls. <b>An RNG draw here is not a bug against #023 C.</b>
      *
-     * <p>The draw is taken <b>unconditionally, at a fixed point</b> — before any
+     * <p><b>BOTH draws are taken unconditionally, at a fixed point</b> — before any
      * candidate is examined — so the seed stream advances identically regardless of
      * rotation state. A conditional draw would fork the stream on which players
-     * happen to be in foul trouble and make the shift unreproducible.
+     * happen to be in foul trouble (or on whether a technical fired) and make the
+     * shift unreproducible. §3.14a takes <b>both</b> of its draws beside §3.13's for
+     * exactly that reason — the technical roll AND the committer draw, the latter
+     * even though it is used only on a hit (~0.35% of calls). Drawing it
+     * unconditionally costs one {@code nextDouble()} and buys a flat, state-
+     * independent draw count. Note this changes the count per call from <b>one to
+     * three</b>, which re-baselines any seed-pinned stream expectation.
      */
-    public void advancePossession(RandomGenerator rng) {
+    public PlayerGameState advancePossession(RandomGenerator rng) {
         for (PlayerGameState p : onFloor) {
             p.drainForPossession();
         }
@@ -108,9 +136,84 @@ public class RotationState {
             p.recoverForPossession();
         }
         double foulTroubleRoll = rng.nextDouble();
+        double technicalRoll = rng.nextDouble();
+        double committerRoll = rng.nextDouble();
+        PlayerGameState technicalCommitter =
+                resolveTechnicalFoul(technicalRoll, committerRoll);
         replaceFouledOut();
         runFoulTroubleSub(foulTroubleRoll);
         runFatigueSubs();
+        return technicalCommitter;
+    }
+
+    /**
+     * §3.14a (decisions.md #032 B/C): did this team commit a technical this check,
+     * and if so, who wore it?
+     *
+     * <p>The RATE is a flat constant with <b>no causal input whatsoever</b> — no
+     * player skill, no coach attribute, no game situation (#032 B). Only WHO commits
+     * it is skill-weighted, by a {@code foulProne}-weighted draw over the <b>on-floor
+     * five</b>, mirroring the weighted-selection shape used throughout ({@link
+     * ShotSelector#pickDefender}, {@link FoulResolver#pickCommitter}).
+     *
+     * <p><b>The bench is excluded, and the reason is measurement bias rather than
+     * realism (#032 C).</b> In reality a technical can be called on a benched player
+     * or a coach. But the bench pool is ~10 against the floor's 5, so ~2/3 of
+     * technicals would land on players who are not playing and whose ejections have
+     * <b>no engine consequence</b> — a benched ejected player is simply never
+     * selected again. The rate budget would be spent mostly where nothing observable
+     * happens. The accepted fidelity loss, stated plainly: <b>bench and coach
+     * technicals are not modelled.</b>
+     *
+     * <p><b>Expect the committer draw to look near-uniform, and do not "improve"
+     * it.</b> {@code foulProne} is nearly flat (sd 1.22 against a ~9.66 mean, #031
+     * A), so a high-{@code foulProne} player is only ~2× likelier than a low one, not
+     * 10×. That weak signal is <b>affordable precisely because #032 B made the rate
+     * causally inert</b>: the weighting moves no aggregate, no calibrated number, and
+     * nothing observable at the 33–71 events a harness run produces. The raw
+     * {@code aggression}/{@code composure}/{@code ego} <i>attributes</i> were
+     * deliberately NOT threaded in — the engine consumes skills, and {@code
+     * foulProne} already IS that composite by construction (player.md:122:
+     * "Aggression and reckless energy raise it; composure and awareness lower it").
+     *
+     * <p><b>No clamp on the committer draw</b> — it is a weighted selection, not a
+     * probability. Every on-floor player with non-zero {@code foulProne} keeps a
+     * non-zero chance; no player is exempt by construction (#032 H).
+     */
+    private PlayerGameState resolveTechnicalFoul(double roll, double committerRoll) {
+        if (roll >= config.technicalFoulProbability()) {
+            return null;
+        }
+        PlayerGameState committer = pickTechnicalCommitter(committerRoll);
+        if (committer == null) {
+            return null;
+        }
+        committer.recordTechnicalFoul();
+        return committer;
+    }
+
+    /**
+     * §3.14a (#032 C): the {@code foulProne}-weighted draw over the on-floor five.
+     * Takes the caller's pre-drawn roll in [0, 1) (the fixed-point discipline above)
+     * and scales it across the weight total. Returns null only in the degenerate case
+     * where every on-floor player has non-positive {@code foulProne} — unreachable
+     * with real skills, which are ≥ 1.
+     */
+    private PlayerGameState pickTechnicalCommitter(double committerRoll) {
+        double totalWeight = 0;
+        for (PlayerGameState p : onFloor) {
+            totalWeight += Math.max(0.0, p.getFoulProne());
+        }
+        if (totalWeight <= 0.0) {
+            return null;
+        }
+        double roll = committerRoll * totalWeight;
+        double cumulative = 0;
+        for (PlayerGameState p : onFloor) {
+            cumulative += Math.max(0.0, p.getFoulProne());
+            if (roll < cumulative) return p;
+        }
+        return onFloor.get(onFloor.size() - 1);
     }
 
     /**
@@ -188,7 +291,12 @@ public class RotationState {
     private PlayerGameState mostFoulTroubledCandidate() {
         PlayerGameState candidate = null;
         for (PlayerGameState p : onFloor) {
-            if (p.isFouledOut()
+            // §3.14a: a disqualified player is not a SOFT-sub candidate. In practice
+            // the hard tier has already forced him off, so this only bites in the
+            // never-below-5 case — where the soft rule would find no replacement
+            // either. Asked through the shared predicate so the two tiers cannot
+            // drift apart on what "disqualified" means.
+            if (isDisqualified(p)
                     || SimConfig.FOUL_TROUBLE_SIT_PROBABILITY[p.foulTroubleLevel()] <= 0.0) {
                 continue;
             }
@@ -203,15 +311,22 @@ public class RotationState {
     }
 
     /**
-     * Force off every on-floor player who has fouled out (Decision F), replacing
-     * each from the <b>full</b> bench (not just the rotationDepth window) with the
-     * freshest non-fouled-out player. If no eligible replacement exists, the
-     * fouled-out player stays on — the never-below-5 last resort.
+     * The <b>hard/forced</b> tier: force off every on-floor player who has fouled out
+     * (§3.5 Decision F) or — since §3.14a (#032 F) — been ejected on two technicals,
+     * replacing each from the <b>full</b> bench (not just the rotationDepth window)
+     * with the freshest eligible player. If no eligible replacement exists, the
+     * disqualified player stays on — the never-below-5 last resort (#023 F), which
+     * ejections do not weaken.
+     *
+     * <p>The method keeps its name: an ejection is the same forced removal under a
+     * second cause, and #031 H ruled out a fourth removal path for exactly that
+     * reason. Both causes are derived predicates over monotonic counters, so nothing
+     * here needs to know which one fired.
      */
     private void replaceFouledOut() {
         for (int i = 0; i < onFloor.size(); i++) {
             PlayerGameState p = onFloor.get(i);
-            if (!p.isFouledOut()) {
+            if (!isDisqualified(p)) {
                 continue;
             }
             PlayerGameState replacement = freshestEligibleBench(bench());
@@ -260,15 +375,32 @@ public class RotationState {
         return candidate;
     }
 
-    /** Bench players eligible to be on the floor: not fouled out. */
+    /**
+     * Players eligible to be on the floor: not fouled out and — since §3.14a
+     * (decisions.md #032 F, #031 H) — not ejected.
+     *
+     * <p><b>This is the single filter every candidate pool passes through</b>, which
+     * is precisely why an ejection extends it rather than adding a fourth removal
+     * path: disqualification is disqualification, whatever produced it, and both
+     * predicates are derived over monotonic counters (#023 F).
+     */
     private List<PlayerGameState> eligible(List<PlayerGameState> pool) {
         List<PlayerGameState> eligible = new ArrayList<>();
         for (PlayerGameState p : pool) {
-            if (!p.isFouledOut()) {
+            if (!isDisqualified(p)) {
                 eligible.add(p);
             }
         }
         return eligible;
+    }
+
+    /**
+     * §3.14a (#032 F): the hard/forced tier's disqualification predicate — fouled out
+     * (§3.5 F) or ejected on two technicals (§3.14a). One question with two causes,
+     * asked identically by {@link #eligible} and {@link #replaceFouledOut()}.
+     */
+    private boolean isDisqualified(PlayerGameState p) {
+        return p.isFouledOut() || p.isEjected();
     }
 
     /**

@@ -62,6 +62,14 @@ public class PlayerGameState {
     private int steals;
     private int blocks;
     private int fouls;
+    // §3.14a (decisions.md #032 E): technicals are counted SEPARATELY and do NOT
+    // feed the 6-foul disqualification — that is the NBA rule, and keeping them
+    // apart is what preserves `fouls` meaning exactly "personal fouls" for
+    // isFouledOut(), foulTroubleLevel() and the §3.10 penalty derivation. Merging
+    // the two counters would have silently pushed players toward foul-outs and into
+    // §3.13's foul-trouble bench curve, moving two calibrated numbers (foul-outs
+    // ~0.39 and the 4/5/6 distribution) for an unrelated cause.
+    private int technicalFouls;
     private int offensiveRebounds;
     private int defensiveRebounds;
     private int assists;
@@ -140,6 +148,35 @@ public class PlayerGameState {
      */
     public boolean isFouledOut() {
         return fouls >= SimConfig.FOUL_OUT_LIMIT;
+    }
+
+    /**
+     * §3.14a (decisions.md #032 F): this player has been <b>ejected</b> — two
+     * technical fouls in one game is an automatic ejection. Like {@link
+     * #isFouledOut()} this is a <b>derived predicate over a monotonic counter</b>,
+     * with no stored flag: #023 F's derive-don't-store discipline applies here
+     * unchanged, and permanence is free because {@code technicalFouls} only grows.
+     *
+     * <p><b>This is the finding that shaped §3.14a.</b> #031 H, roadmap.md and
+     * todo.md all predicted §3.14 would need real stored state, on the reasoning that
+     * "an ejection is not derivable from a counter the way {@code fouls >= 6} is."
+     * That is true of a <b>flagrant-2</b> — a severity grade with no counter behind
+     * it — and <b>false of the two-technical case</b>, which is structurally
+     * identical to the foul-out. So the #023 F exception was NOT taken here; it moves
+     * to §3.14b, where the flagrant-2 genuinely forces it.
+     *
+     * <p>{@link RotationState#eligible} filters on {@code isFouledOut() ||
+     * isEjected()} — one filter, the <b>hard/forced</b> tier, not a fourth removal
+     * path (#031 H).
+     *
+     * <p><b>Expect this to fire essentially never.</b> At ~0.35 technicals per
+     * team-game spread over five players, two on the same player in one game is on
+     * the order of one occurrence every several simulated seasons. The harness
+     * reading 0.00 ejections is a <b>correct result, not a failure</b> — which is why
+     * the tests force the counter directly rather than waiting for the event.
+     */
+    public boolean isEjected() {
+        return technicalFouls >= SimConfig.TECHNICAL_EJECTION_LIMIT;
     }
 
     /**
@@ -280,7 +317,15 @@ public class PlayerGameState {
     public int getTurnovers() { return turnovers; }
     public int getSteals() { return steals; }
     public int getBlocks() { return blocks; }
+    /** Personal fouls ONLY — technicals are counted by {@link #getTechnicalFouls()}. */
     public int getFouls() { return fouls; }
+    /**
+     * §3.14a (#032 E): technical fouls, kept apart from {@link #getFouls()} because a
+     * technical does not count toward the six-foul disqualification. Not surfaced on
+     * the box score or the API — no consumer yet (#014/#017); additive when one
+     * appears, exactly like {@code committing_team_id}'s parked state.
+     */
+    public int getTechnicalFouls() { return technicalFouls; }
     public int getOffensiveRebounds() { return offensiveRebounds; }
     public int getDefensiveRebounds() { return defensiveRebounds; }
     public int getAssists() { return assists; }
@@ -298,6 +343,13 @@ public class PlayerGameState {
     // maps to BoxScore.blocks (replacing the setBlocks(0) hardcode).
     public void recordBlock() { blocks++; }
     public void recordFoul() { fouls++; }
+    /**
+     * §3.14a (#032 E): charge a TECHNICAL foul. Deliberately NOT {@code recordFoul()}
+     * — a technical does not count toward the six-foul limit, so it must not touch
+     * the {@code fouls} counter that {@link #isFouledOut()}, {@link
+     * #foulTroubleLevel()} and §3.10's penalty derivation all read.
+     */
+    public void recordTechnicalFoul() { technicalFouls++; }
     public void recordOffensiveRebound() { offensiveRebounds++; }
     public void recordDefensiveRebound() { defensiveRebounds++; }
     public void recordAssist() { assists++; }

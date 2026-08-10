@@ -666,6 +666,17 @@ components:
           type: integer
           format: int32
         fouls:
+          description: >-
+            Personal fouls only. Technicals are counted separately in
+            technicalFouls (#032 E) — a technical does not count toward the
+            six-foul disqualification.
+          type: integer
+          format: int32
+        technicalFouls:
+          description: >-
+            Technical fouls (§3.14a, decisions.md #032 E). Separate from fouls
+            because a technical does not feed the six-foul limit or the period
+            bonus tally. Two in a game is an automatic ejection.
           type: integer
           format: int32
         minutes:

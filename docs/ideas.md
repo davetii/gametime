@@ -59,9 +59,9 @@ into a graveyard.
   to §3.14, then SPLIT into §3.14a (technicals) + §3.14b (flagrants)** — *(originally
   promoted as §3.13; renumbered when foul-outs moved ahead of it by user call; split
   by decisions.md #032 A on the finding that the two share nothing but the word
-  "foul")* — see roadmap.md's Possession-fidelity section. **§3.14a's design is
-  RESOLVED (#032 A–J) and execute-ready in todo.md; §3.14b still needs its own design
-  pass.** This is planned work, not a parked idea. Three notes from the reasoning that
+  "foul")* — see roadmap.md's Possession-fidelity section. **§3.14a SHIPPED 2026-08
+  (#032 A–J + implementation note); §3.14b still needs its own design pass, which
+  becomes #034.** This is planned work, not a parked idea. Three notes from the reasoning that
   kept it here, **corrected against what the design pass actually found**:
   - **FTs *plus* retained possession** — still the hard part, and still unbuilt. It
     belongs entirely to **§3.14b**: a technical turned out to leave the possession
@@ -85,8 +85,9 @@ into a graveyard.
   genuine open alternative, blocked on the #014/#017 "no attribute ahead of its
   consumer" discipline. Note these are **rare events** whose value is play-by-play
   texture + the occasional star ejection, not aggregate fidelity — confirmed by
-  measurement: §3.14a costs **+0.26 points/team/game against a ±1.5 noise band**, so
-  it earns **no** recalibration pass the way §3.10/§3.11 did (#032 I).
+  measurement: §3.14a was budgeted at **+0.26 points/team/game against a ±1.5 noise
+  band** and landed inside it, so it earned **no** recalibration pass the way
+  §3.10/§3.11 did (#032 I).
 
 - **Strategic substitutions as a category — the engine now has exactly two, and
   §3.13 shipped the second.** Noticed during §3.13's design pass (user observation):
@@ -99,7 +100,7 @@ into a graveyard.
   | Fatigue | ✅ §3.5 | reactive |
   | Foul-out | ✅ §3.5 | rule, forced |
   | **Foul trouble** | **✅ §3.13 (#031)** | **strategic — the first** |
-  | Ejection | §3.14a (technicals) / §3.14b (flagrant-2) | rule, forced |
+  | Ejection | **✅ §3.14a (technicals, #032 F)** / §3.14b (flagrant-2) | rule, forced |
   | Matchup / going small | ✗ | strategic |
   | Riding a hot hand | ✗ | strategic |
   | Closing lineup / garbage time | ✗ | strategic |

@@ -210,6 +210,7 @@ public class EntityMapper {
         bs.setBlocks(e.getBlocks());
         bs.setTurnovers(e.getTurnovers());
         bs.setFouls(e.getFouls());
+        bs.setTechnicalFouls(e.getTechnicalFouls());
         bs.setMinutes(e.getMinutes());
         bs.setFieldGoalsAttempted(e.getFieldGoalsAttempted());
         bs.setFieldGoalsMade(e.getFieldGoalsMade());

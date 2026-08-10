@@ -61,9 +61,14 @@ public class FoulResolver {
         // rare per-type carve is the case it was never meant for. The unmultiplied
         // DRIVE/POST path is unaffected — at mult 1.0 the value is far above the
         // floor, so drive/post stay bit-identical to §3.11 (A2).
+        //
+        // §3.14a (#032 H): the hand-rolled clamp here now runs through the shared
+        // SimConfig.clampRareProbability — the fourth site consolidated onto one
+        // owner. Behavior-neutral: the added max(0.0, ...) can never bind, since
+        // both factors above are non-negative.
         double contested = defensivePressure * config.contestProbability(
                 SimConfig.BASE_NO_BASKET_FOUL, foulDrawing, effectiveDefense);
-        double prob = Math.min(SimConfig.PROB_CEILING,
+        double prob = config.clampRareProbability(
                 config.foulMultiplier(shotType) * contested);
         return rng.nextDouble() < prob;
     }

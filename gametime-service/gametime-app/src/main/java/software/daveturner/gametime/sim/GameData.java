@@ -6,6 +6,21 @@ import java.util.*;
 
 public class GameData {
 
+    /**
+     * §3.14a (decisions.md #032 D/E): the {@code outcome} string for a technical
+     * foul, on the existing {@link PlayType#FOUL} — a technical is a KIND of foul, so
+     * no new {@code PlayType} (the #025 F / #026 E / #028 D reuse discipline), and
+     * free text since #020 means no migration. Mirrors the established {@code
+     * SHOOTING_FOUL} / {@code REBOUNDING_FOUL_*} / {@code AND_ONE} vocabulary and
+     * collides with nothing in the §3.8/§3.9/§3.10 strings (#027 D).
+     *
+     * <p>It lives HERE rather than on {@link PossessionEngine} (which emits it)
+     * because this class is the one that must recognise it: it is the single outcome
+     * excluded from the penalty tally below, and a literal on both sides of that
+     * agreement is exactly how the two would drift apart.
+     */
+    public static final String TECHNICAL_FOUL_OUTCOME = "TECHNICAL_FOUL";
+
     private final List<EventRecord> events = new ArrayList<>();
     private int homeScore;
     private int awayScore;
@@ -64,9 +79,21 @@ public class GameData {
      * threshold) itself awards the bonus free throws. "In the bonus" means the
      * count HAS reached the limit, not exceeded it.
      *
-     * <p>Both foul kinds count toward one unified tally (#028 A1): {@code
-     * SHOOTING_FOUL} and the two-sided {@code REBOUNDING_FOUL_*} alike, grouped by
-     * the {@code committingTeamId} field they all carry.
+     * <p>The <b>personal</b> foul kinds count toward one unified tally (#028 A1):
+     * {@code SHOOTING_FOUL} and the two-sided {@code REBOUNDING_FOUL_*} alike,
+     * grouped by the {@code committingTeamId} field they all carry.
+     *
+     * <p><b>§3.14a (#032 E) gave this its FIRST outcome-aware exclusion:</b> a {@link
+     * #TECHNICAL_FOUL_OUTCOME} does <b>not</b> count toward the penalty, because a
+     * technical does not put a team in the bonus. So #028 A1's "one unified
+     * derivation over all {@code FOUL} events, not split per foul type" <b>no longer
+     * holds literally</b>, and the exclusion is written explicitly rather than left
+     * incidental.
+     *
+     * <p><b>Consequence for every future foul type: it must now consciously decide
+     * whether it counts.</b> §3.14b's flagrant is the immediate next case — and it
+     * <b>does</b> count (unlike a technical, a flagrant is a personal foul and also
+     * feeds the six-foul limit).
      */
     public boolean isInBonus(String teamId, int period) {
         return periodFoulCount(teamId, period) >= SimConfig.BONUS_FOULS_PER_PERIOD;
@@ -76,17 +103,29 @@ public class GameData {
      * §3.10: how many fouls {@code teamId} has committed in {@code period}, read
      * from the FOUL event log (the substrate behind {@link #isInBonus}). Exposed
      * for the calibration harness's team-fouls line and for tests.
+     *
+     * <p>§3.14a (#032 E): counts PERSONAL fouls only — technicals are excluded, see
+     * {@link #isInBonus}.
      */
     public int periodFoulCount(String teamId, int period) {
         int count = 0;
         for (EventRecord e : events) {
             if (e.playType() == PlayType.FOUL
                     && e.period() == period
-                    && teamId.equals(e.committingTeamId())) {
+                    && teamId.equals(e.committingTeamId())
+                    && countsTowardBonus(e)) {
                 count++;
             }
         }
         return count;
+    }
+
+    /**
+     * §3.14a (#032 E): does this {@code FOUL} event count toward its team's period
+     * penalty tally? Everything does except a technical.
+     */
+    private static boolean countsTowardBonus(EventRecord e) {
+        return !TECHNICAL_FOUL_OUTCOME.equals(e.outcome());
     }
     public int getHomeScore() { return homeScore; }
     public int getAwayScore() { return awayScore; }

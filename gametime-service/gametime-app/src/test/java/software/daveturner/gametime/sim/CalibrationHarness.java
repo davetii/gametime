@@ -19,7 +19,9 @@ import java.util.Set;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * §3.4 calibration harness (decisions.md #022, Decision D = D1). Simulates N games
@@ -219,6 +221,38 @@ class CalibrationHarness {
         // defense-lean hold?), and how many FREE_THROW events came from a bonus
         // rebounding foul rather than a shooting foul (the actual scoring lift).
         accumulateFoulsAndFreeThrows(events, agg);
+        accumulateEjections(events, agg);
+    }
+
+    /**
+     * §3.14a (#032 F/J): count EJECTIONS — players who drew {@link
+     * SimConfig#TECHNICAL_EJECTION_LIMIT} technicals in this game.
+     *
+     * <p>Derived from the event log rather than from the box score, because the
+     * {@code technicalFouls} counter is deliberately not surfaced on {@code BoxScore}
+     * (no consumer yet — #014/#017). The events are the source of truth anyway (#020).
+     *
+     * <p><b>Expect this to read 0.00, and that is a CORRECT result rather than a
+     * failure.</b> At ~0.35 technicals per team-game spread over five players, two on
+     * the same player in one game is on the order of one occurrence every several
+     * simulated seasons. The rule's correctness rests on the forced-counter unit
+     * tests, not on this line; the line exists so that if the rate is ever raised —
+     * or §3.14b's flagrant-2 ejections arrive — the seam is already instrumented.
+     */
+    private void accumulateEjections(List<GameEventEntity> events, Agg agg) {
+        Map<String, Integer> technicalsByPlayer = new HashMap<>();
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() == PlayType.FOUL
+                    && GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome())
+                    && e.getPrimaryPlayerId() != null) {
+                technicalsByPlayer.merge(e.getPrimaryPlayerId(), 1, Integer::sum);
+            }
+        }
+        for (int count : technicalsByPlayer.values()) {
+            if (count >= SimConfig.TECHNICAL_EJECTION_LIMIT) {
+                agg.ejections++;
+            }
+        }
     }
 
     /**
@@ -258,7 +292,18 @@ class CalibrationHarness {
                 agg.madeFieldGoals++;
             } else if (e.getPlayType() == PlayType.FOUL) {
                 agg.foulsByOutcome.merge(String.valueOf(e.getOutcome()), 1L, Long::sum);
-                if (e.getCommittingTeamId() != null) {
+                // §3.14a (#032 E/J): a TECHNICAL_FOUL carries committingTeamId like
+                // every other FOUL event (#028 D), but it does NOT put a team in the
+                // penalty — so it must be excluded from the per-team-period tally
+                // here exactly as GameData.isInBonus excludes it. Counting it would
+                // make the harness's own bonus-rate line disagree with the engine's
+                // penalty derivation, i.e. an instrument wrong in the direction of
+                // the change it is measuring.
+                boolean technical = GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome());
+                if (technical) {
+                    agg.technicalFouls++;
+                }
+                if (e.getCommittingTeamId() != null && !technical) {
                     foulsByTeamPeriod.merge(
                             e.getCommittingTeamId() + "#" + e.getPeriod(), 1, Integer::sum);
                 }
@@ -445,6 +490,21 @@ class CalibrationHarness {
         // Counted over players who actually appeared (minutes > 0).
         long playersPlayed, foulOuts, playersWithFourFouls, playersWithFiveFouls;
 
+        // §3.14a (#032 J): the technicals instrument. THIS LINE IS LOAD-BEARING, not
+        // decorative. §3.14a's points cost (+0.26/team/game) sits far BELOW the ±1.5
+        // per-seed noise band, so the §3.4 aggregates physically cannot distinguish
+        // "the technical roll is correct" from "the technical roll never fires" —
+        // absence of movement is consistent with both. This count is the only thing
+        // that tells them apart, which is why it was built before the rate was
+        // confirmed rather than after.
+        //
+        // JUDGE IT AT 5 SEEDS ONLY (#032 J, computed before the rate was chosen): at
+        // 102 games a 0.7/game league rate yields ~71 events, relative sd 11.8%; at 5
+        // seeds ~357 events, 5.3%. A single-seed reading CANNOT resolve it.
+        long technicalFouls;
+        // Expect 0.00 — see accumulateEjections. A correct result, not a failure.
+        long ejections;
+
         // §3.12 (#030 E): the two foul channels broken down by shot type, so the
         // aggregate cannot hide WHICH multiplier is wrong. Stopped shots emit no
         // SHOT event, so they are classified by their FT run (3 ⇒ a fouled THREE).
@@ -586,7 +646,15 @@ class CalibrationHarness {
                         andOnesByShotType.getOrDefault(t.name(), 0L) / tg);
             }
             System.out.println("   (per team / game)");
-            System.out.printf("  Fouls / team / game:     %.2f   (plausible ~19-20; §3.11 measured 16.8)%n",
+            // §3.14a: this is a tally over ALL FOUL events, so as of §3.14a it
+            // INCLUDES technicals (~0.37/team/game) — §3.13 measured 19.0 here on
+            // personal fouls alone, and the same engine now prints ~19.4. That step
+            // is the new event type entering an event-log total, NOT a rise in
+            // personal fouls: getFouls() is untouched (#032 E), which the box-score
+            // reconciliation in GameSimulatorIntegrationTest pins. Subtract the
+            // technicals line below to compare against §3.11/§3.13's figures.
+            System.out.printf("  Fouls / team / game:     %.2f   (ALL foul events incl."
+                            + " §3.14a technicals; plausible ~19-20; §3.11 measured 16.8)%n",
                     totalFouls / tg);
             // §3.12's genuinely NEW instrument (#030 G): the foul-out mechanism has
             // been live since §3.5 but its rate has NEVER been observed. The
@@ -599,6 +667,31 @@ class CalibrationHarness {
                             + "   (of %.1f who played)%n",
                     playersWithFourFouls / tg, playersWithFiveFouls / tg, foulOuts / tg,
                     playersPlayed / tg);
+
+            // §3.14a (decisions.md #032 J). A BALLPARK, not a TARGET — nothing in the
+            // engine is tuned toward it: SimConfig.TECHNICAL_FOULS_PER_TEAM_GAME is
+            // set from the real-world figure directly, so this line is a CORRECTNESS
+            // CHECK that the roll fires at the rate configured, not a calibration
+            // objective. calibration.md carries the row and owns the number.
+            //
+            // Two things that look wrong and are not:
+            //  (1) A few percent BELOW the configured 0.35 is EXPECTED, not drift.
+            //      The per-check probability divides by a NOMINAL possession count
+            //      while the real count is pace-scaled and OT-extended (#032 B2) —
+            //      the direction depends on the seeds' pace mix. Do NOT back-solve
+            //      the constant against this line; that is chasing noise.
+            //  (2) Ejections read 0.00 (#032 F). Two technicals on one player in one
+            //      game is ~one occurrence every several simulated seasons. The rule
+            //      is right; the event is rare. It is asserted by forced-counter unit
+            //      tests, not here.
+            System.out.println("--- Technical fouls (§3.14a) ---");
+            System.out.printf("  Technicals / team / game:%.3f  (ballpark ~0.3-0.4 per team /"
+                            + " ~0.6-0.8 league-wide; NOT a target — see calibration.md."
+                            + " JUDGE AT 5 SEEDS ONLY)%n",
+                    technicalFouls / tg);
+            System.out.printf("  Ejections / team / game: %.3f  (expect 0.00 — 2 technicals on one"
+                            + " player is ~1 per several seasons; #032 F)%n",
+                    ejections / tg);
 
             System.out.println("========================================================");
             System.out.println();

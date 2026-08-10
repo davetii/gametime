@@ -161,4 +161,45 @@ class GameDataTest {
         data.addEvent("H", "A", 1, 1, PlayType.FOUL, "SHOOTING_FOUL", "p1");
         assertEquals(0, data.periodFoulCount("H", 1));
     }
+
+    // ---------- §3.14a: technicals are excluded from the bonus (#032 E) ----------
+
+    /**
+     * #032 E — #028 A1's FIRST outcome-aware exclusion. A technical does not put a
+     * team in the penalty, so it must not reach the period tally at all.
+     */
+    @Test
+    void technicalFoulsDoNotCountTowardThePeriodFoulTally() {
+        GameData data = new GameData();
+        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD; i++) {
+            data.addEvent("H", "A", 1, i, PlayType.FOUL,
+                    GameData.TECHNICAL_FOUL_OUTCOME, "p1", null, "H");
+        }
+        assertEquals(0, data.periodFoulCount("H", 1),
+                "Technicals are excluded from the personal-foul tally (#032 E)");
+        assertFalse(data.isInBonus("H", 1),
+                "A team cannot be put in the penalty by technicals alone");
+    }
+
+    /**
+     * The exclusion must be surgical: technicals interleaved with real fouls neither
+     * add to nor subtract from the tally the penalty is derived from.
+     */
+    @Test
+    void technicalsDoNotDisturbTheBonusThresholdReachedByPersonalFouls() {
+        GameData data = new GameData();
+        int seq = 0;
+        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD - 1; i++) {
+            data.addEvent("H", "A", 1, seq++, PlayType.FOUL, "SHOOTING_FOUL", "p1", null, "H");
+            data.addEvent("H", "A", 1, seq++, PlayType.FOUL,
+                    GameData.TECHNICAL_FOUL_OUTCOME, "p2", null, "H");
+        }
+        assertFalse(data.isInBonus("H", 1),
+                "One personal foul short of the limit — the technicals must not close the gap");
+
+        data.addEvent("H", "A", 1, seq, PlayType.FOUL, "SHOOTING_FOUL", "p1", null, "H");
+        assertTrue(data.isInBonus("H", 1),
+                "The Nth PERSONAL foul still puts the team in the penalty");
+        assertEquals(SimConfig.BONUS_FOULS_PER_PERIOD, data.periodFoulCount("H", 1));
+    }
 }
