@@ -155,7 +155,7 @@ and `rotationOrder` becomes the bench queue order `RotationState` draws from.
 > "how good is this player" must use a skill composite (§3.13's
 > `PlayerGameState.valueComposite()`), not a position in this list.
 
-The three live consumers:
+The four live consumers:
 
 - **Minutes & fatigue** (§3.5, decisions.md #023) — the lineup this domain owns
   (`STARTER` set + `rotationOrder` bench queue) drives the engine's dynamic
@@ -182,6 +182,35 @@ The three live consumers:
   field and is not — do not "fix" it into agreement.
   Like the fatigue rule, it draws only within `rotationDepth` and **never writes
   back to `player_team`**; and it can never bring a fouled-out player back.
+- **Technical fouls & ejections** (§3.14a, decisions.md #032) — the **on-floor five**
+  is the committer pool for a technical: the draw is `foulProne`-weighted over
+  whoever this domain's lineup currently has playing, and **the bench is excluded**.
+  That is a *measurement* call, not a realism one (#032 C): the bench pool is ~10
+  against the floor's 5, so ~2/3 of technicals would land on players who are not
+  playing and whose ejections have no engine consequence. **The accepted fidelity
+  loss: bench and coach technicals are not modelled** — a coach is not a
+  `PlayerGameState` at all. Two technicals ejects a player, which extends the same
+  hard-tier disqualification filter as a foul-out (`RotationState.isDisqualified`),
+  so an ejected player is forced off and never selected again. Like every other
+  consumer here it is **transient — no write-back to `player_team`**: an ejection
+  lasts the game, not the season.
+- **Flagrant fouls & their ejections** (§3.14b, decisions.md #034) — **this one needs
+  no committer pool at all**, which is the cleanest
+  contrast with the technical above. A flagrant rides a foul that **already happened**,
+  so the committer was picked by the possession's own machinery (`pickDefender`, or the
+  rebounding foul's `foulProne`-weighted draw) before the flagrant question is even
+  asked. This domain contributes nothing beyond the on-floor five it already supplies.
+  A **flagrant-2** ejects immediately and extends the **same** `isDisqualified` filter
+  to a third cause — so from this domain's point of view nothing changes: a disqualified
+  player is forced off, replaced from the **full** bench, and never selected again,
+  whatever disqualified him. **Also transient — no write-back to `player_team`.**
+  **Measured at 0.023 flagrant-2s per team-game** (against #034 F's predicted ~0.024),
+  taking total ejections to **0.027** — roughly double §3.14a's 0.014 alone. So this is
+  the sub-phase where the hard tier stopped being dead-but-correct code and started
+  being exercised at a rate worth noticing.
+  ⚠ **A flagrant IS a personal foul** (#034 I), so unlike a technical it also feeds the
+  six-foul limit and §3.13's foul-trouble bench rule above — a player can foul out on
+  one, or be sat for accumulating one, with no extra code.
 
 ## Not yet built
 

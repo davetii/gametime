@@ -37,6 +37,10 @@ target, reported for visibility.
 | Fouls | ballpark | ~19–20 | 19.0 | ✅ (was 16.8 pre-§3.12) |
 | **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.39** | ⚠️ the target IS the landing — see below |
 | Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.00 / 0.52 / 0.39 | the real diagnostic for foul-outs |
+| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.367** | ⚠️ **judge at 5 SEEDS ONLY** — see below |
+| **Flagrants** | ballpark (**UNSOURCED**) | **~0.13–0.20** (~0.25–0.40 league-wide) | **0.148** | ⚠️ **the COARSEST row here — 5 SEEDS ONLY** — see below |
+| Flagrant-2s | *(no target — a 15% share)* | — | **0.023** | §3.14b; the ejection driver |
+| **Ejections** | *(no target — an outcome)* | — | **0.027** | §3.14b; BOTH causes (§3.14a alone was 0.014) |
 | Fouled-three rate | ballpark | **~2% of 3PA** | 3.0% | ✅ anchor on the RATE, not the count |
 | 3-FT trips | ballpark | ~0.3–0.6 *here* | 0.59 | ✅ (real NBA ~0.7 off ~35 3PA; we shoot ~20) |
 | And-1s | ballpark | ~4–6% of made FG | 1.88 (4.6%) | ✅ (#029 E) |
@@ -131,6 +135,119 @@ player; it deliberately did **not** flatten the concentration. **The foul rate
 itself is NOT implicated** (19.0/team/game is inside its own ballpark), and neither
 the defender weighting nor `foulProne` may be touched to fix this.
 
+## Technicals — a ballpark on purpose, and the one row a single seed CANNOT resolve
+
+Added by **§3.14a** (`decisions.md` #032 J). Two things make this row different from
+every other one:
+
+**It is a `ballpark`, not a TARGET, and deliberately so.** Nothing in the engine is
+*tuned toward* it — `SimConfig.TECHNICAL_FOULS_PER_TEAM_GAME` is set **directly from**
+the real-world figure (#032 B2), so the harness line is a **correctness check that the
+constant is wired right**, not a calibration objective. A TARGET, by this file's own
+rule, is a number a phase has deliberately tuned against. This one has nothing to tune.
+
+**Judge it at 5 seeds only — this is not the usual "prefer the mean" advice, it is a
+hard floor.** Computed before the rate was designed (#032 J):
+
+| Sample | Events | Relative sd |
+|---|---|---|
+| 1 seed (102 games) | ~71 | **11.8%** |
+| 5 seeds | ~357 | **5.3%** |
+
+A single-seed reading **cannot resolve** the rate. And per #032 B2 the constant's
+divisor is the **nominal** possession count while the real one is pace-scaled, so the
+landing sits a few percent off the constant **by design** — a fast-paced game genuinely
+takes more rotation checks and draws more technicals. **Do not back-solve the constant
+against that gap**; it is behavior, not error.
+
+**§3.14a landed at 0.367** (5-seed mean, seeds 1000–5000) against
+`TECHNICAL_FOULS_PER_TEAM_GAME = 0.35` — **~5% high, which is exactly the
+nominal-vs-actual gap above**, and the reason that gap was documented before the pass
+ran. Per-seed spread was 0.338–0.392, consistent with the 11.8% single-seed sd
+predicted. **The constant was not adjusted, and should not be.**
+
+**Note the per-check probability is ~0.00175, not the "~0.0035" #032 B2 states.** That
+estimate assumed ~100 rotation checks per team per game; the real count is ~**200**,
+because both rotations advance on every possession (a team is checked on its defensive
+possessions too). The constant in this table is unaffected — only the derived figure in
+#032's prose was wrong. It also means `PROB_FLOOR` is **>10×** the per-check rate rather
+than #032 H's stated ~6×, so the floor-free clamp requirement is stronger than argued.
+
+**The §3.14a points budget is +0.26/team/game — below the ±1.5 per-seed noise band.**
+So the §3.4 aggregates are an **invariant** for that pass, not a target to re-center:
+measurable movement means the technical counter leaked into `getFouls()` or the bonus
+tally (#032 E/I), which is a bug. **It held** — points moved +0.5 (117.0 → 117.5,
+inside the band), the penalty rate stayed flat at **51.2%** (§3.13: 51.3%), and
+foul-outs stayed inside their own seed spread. Nothing was re-centered.
+
+**Ejections are an OUTCOME of the rate, not a target.** They landed at **0.014/team/game**
+— roughly one per team per season. #032 F predicted 0.00 ("one every several simulated
+seasons") and was an order of magnitude pessimistic; the arithmetic (0.367 spread over 5
+players, P(a player reaches 2) ≈ 0.0026 × 5) matches the observation. Far too rare to
+tune against either way — the rule is pinned by forced-counter unit tests.
+
+**⚠ The harness's `Fouls / team / game` line is no longer comparable across §3.13.**
+It tallies **all** `FOUL` events, so as of §3.14a it includes technicals: §3.13's 19.0
+and §3.14a's ~19.4 differ by the technicals, **not** by any change in personal fouls.
+Subtract the technicals line to compare.
+
+## Flagrants — the coarsest row in this file (§3.14b, SHIPPED)
+
+Added by **§3.14b** (`decisions.md` **#034 G/H**), landed 2026-08.
+
+**A `ballpark`, not a TARGET**, for exactly §3.14a's reason: nothing is tuned toward it,
+`FLAGRANT_FOULS_PER_TEAM_GAME` (= **0.16**, from a ~0.25–0.40 league-wide figure) is set
+from the real-world number directly. **UNSOURCED**, like every row here — §3.16's job (1).
+
+**§3.14b landed at 0.148** (5-seed mean, seeds 1000–5000) against the 0.16 configured,
+with a per-seed spread of **0.123–0.186**. That spread is itself the argument below: at
+17.4% single-seed relative sd, seed 4000's 0.186 and seed 1000's 0.123 are the **same
+rate**, and either one alone would badly misinform a tuning decision. **The constant was
+not adjusted, and should not be** on a reading this coarse.
+
+**It IS the coarsest row in this file — 5 seeds is a hard floor, and even then it
+only confirms an order of magnitude:**
+
+| Sample | Events | Relative sd |
+|---|---|---|
+| 1 seed (102 games) | ~33 | **17.4%** |
+| 5 seeds | ~166 | **7.8%** |
+
+Compare technicals (11.8% / 5.3%). **A single-seed reading is useless, and even the
+5-seed mean cannot resolve a 10% tuning move.**
+
+**⚠ Its divisor is EMERGENT, which technicals' is not** (#034 G). §3.14a divides a
+game-level constant by a **nominal, config-derived** check count; §3.14b divides by the
+**measured personal-foul rate**. So **§3.16 — or any pass that moves the foul rate —
+moves flagrants too**, without anyone touching `FLAGRANT_FOULS_PER_TEAM_GAME`.
+Directionally correct (more fouls, more chances for one to be excessive), but it means
+the constant is **not a standalone dial** and a flagrant drift may be a foul-rate signal.
+
+**The §3.14b points budget was +0.43/team/game** across two channels (FTs +0.24 gross,
+retention +0.19 upper bound), **deliberately over-estimated** — the FT channel is largely
+offset because the underlying foul already awarded 2–3 FTs. Sub-noise against ±1.5, so
+**#032 I's inverted stop condition applied again**: measurable §3.4 movement at 5 seeds
+would be a **bug** (double-awarded FTs, an uncapped retention loop, or a bonus-tally
+leak), not a calibration result. **It held** — points moved **+0.76** (117.5 → 118.3,
+inside the band and between the budget and §3.14a's own budget-vs-landing precedent), the
+penalty rate stayed flat at **51.9%** (§3.14a: 51.2%), and foul-outs landed 0.358 inside
+their seed spread. All three bug signatures are additionally pinned by tests rather than
+inferred from the aggregates. Nothing was re-centered; **§3.16 owns the contested pair.**
+
+**Ejections are an OUTCOME here too, and §3.14b is where they became observable.** They
+landed at **0.027/team/game** against #034 F's predicted ~0.024 — roughly **double**
+§3.14a's 0.014, since a flagrant-2 ejects on the *first* one where a technical needs two.
+The harness reports **both causes on one line** (#034 H: an ejection is an ejection; the
+cause is recoverable from the event log). Still far too rare to tune against — the rule is
+pinned by forced-counter unit tests.
+
+**⚠ `Fouls / team / game` does NOT include flagrants — a correction to what this section
+predicted before execution.** A flagrant **replaces** the underlying foul's event rather
+than adding one (it upgrades a `SHOOTING_FOUL` / `AND_ONE` / `REBOUNDING_FOUL_*` into a
+`FLAGRANT_FOUL_*`), so it contributes **nothing** to that total — measured 19.35 against
+§3.14a's ~19.4. This is the opposite of §3.14a's technical, which is a genuinely new
+event. **So subtract only the technicals line** to compare against §3.13's 19.0.
+
 ---
 
 ## ⚠️ NOTHING IN THIS TABLE IS SOURCED YET — and that is §3.16's job (1)
@@ -141,7 +258,9 @@ verified that is where the NBA is." §3.16 is explicitly **two jobs in sequence*
 
 1. **Source the true constraints** — the [backlog.md](backlog.md) research chore.
    In scope: **points, FG%** (the CONTESTED pair), **foul-outs** (soft, added by
-   §3.13), and the load-bearing ballparks (fouls ~19–20, blocks ~5).
+   §3.13), **technicals** (ballpark, added by §3.14a — the ~0.6–0.8 league figure is
+   user-supplied and unverified), and the load-bearing ballparks (fouls ~19–20,
+   blocks ~5).
 2. **Re-solve the constants** against whatever those turn out to be.
 
 **The escalation rule (roadmap.md §3.16) — sourcing a number does not make it

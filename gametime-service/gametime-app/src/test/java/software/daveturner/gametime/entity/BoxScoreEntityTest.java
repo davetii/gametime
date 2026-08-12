@@ -40,6 +40,7 @@ class BoxScoreEntityTest {
         b.setBlocks(3);
         b.setTurnovers(2);
         b.setFouls(4);
+        b.setTechnicalFouls(1);
         b.setMinutes(34);
         b.setFieldGoalsAttempted(18);
         b.setFieldGoalsMade(9);
@@ -59,6 +60,7 @@ class BoxScoreEntityTest {
         assertEquals(3, b.getBlocks());
         assertEquals(2, b.getTurnovers());
         assertEquals(4, b.getFouls());
+        assertEquals(1, b.getTechnicalFouls());
         assertEquals(34, b.getMinutes());
         assertEquals(18, b.getFieldGoalsAttempted());
         assertEquals(9, b.getFieldGoalsMade());

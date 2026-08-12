@@ -29,7 +29,42 @@ public enum FreeThrowSource {
     /** A bonus (penalty) trip from a rebounding foul once in the penalty (§3.10). */
     BONUS("BONUS"),
     /** The bonus free throw riding a made basket (§3.11 — always exactly one). */
-    AND_ONE("AND_ONE");
+    AND_ONE("AND_ONE"),
+    /**
+     * §3.14a (decisions.md #032 G): the single free throw awarded for a TECHNICAL
+     * foul — the one source where <b>nobody was fouled</b>, so the offended team
+     * chooses its best shooter rather than the fouled player shooting.
+     *
+     * <p>#032's Status block said "no new {@code FreeThrowSource}", leaving the
+     * choice open at execution between reusing a value and letting the outcome
+     * string carry it. <b>A new value was added, and the reason is the harness.</b>
+     * The FT-source line reads the source straight off this suffix (#029 D), so
+     * reusing {@code SHOOTING} or {@code BONUS} would silently inflate a real
+     * source's share on the very instrument §3.14a is judged by, and emitting an
+     * untagged outcome would bucket every technical FT as {@code UNKNOWN} — the
+     * self-check #029 D built this enum to provide. The constraint the Status block
+     * was protecting (no schema change, no migration) is untouched: the source is
+     * free text folded into {@code outcome} since #020, and this enum is internal to
+     * the {@code sim} package.
+     */
+    TECHNICAL("TECHNICAL"),
+    /**
+     * §3.14b (decisions.md #034): the <b>two</b> free throws awarded for a FLAGRANT
+     * foul — flat, at all three foul sites, <b>replacing</b> whatever the underlying
+     * foul would have awarded rather than adding to it (#034 C).
+     *
+     * <p><b>A new value rather than a reuse, on §3.14a's argument restated.</b> The
+     * harness reads FT source straight off this suffix (#029 D), so folding flagrant
+     * FTs into {@code SHOOTING} would silently inflate a real source's share <b>on the
+     * very line §3.14b is judged by</b>. It would also be factually wrong at the
+     * rebounding site, which is not a shooting foul at all.
+     *
+     * <p><b>The grade rides the FOUL event's outcome suffix</b> ({@code
+     * FLAGRANT_FOUL_1} / {@code _2}), not this enum — a flagrant-1 and a flagrant-2
+     * both award exactly two free throws (#034 E), so splitting the source by grade
+     * would carry a distinction the free throws themselves do not have.
+     */
+    FLAGRANT("FLAGRANT");
 
     private final String suffix;
 

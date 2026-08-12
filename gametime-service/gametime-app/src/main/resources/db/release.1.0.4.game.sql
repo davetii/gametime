@@ -137,6 +137,28 @@ alter table gametime.game_event
     foreign key (committing_team_id)
     REFERENCES gametime.team (id);
 
+-- changeset 1.04.4 failOnError:true splitStatements:true
+
+-- §3.14a (decisions.md #032 E, surfaced by #033): technical fouls, counted
+-- SEPARATELY from the `fouls` column above. A technical does not count toward the
+-- six-foul disqualification, so PlayerGameState keeps two counters and `fouls`
+-- keeps meaning exactly "personal fouls" for isFouledOut(), foulTroubleLevel()
+-- and the §3.10 penalty derivation. Merging them would have silently moved two
+-- §3.13-calibrated numbers (foul-outs ~0.39 and the 4/5/6 distribution).
+--
+-- Surfaced here for PARITY (#033): the other eleven per-player accumulators on
+-- PlayerGameState are all already persisted on this table, so leaving this one out
+-- makes the box score inconsistent rather than lean. The information was already
+-- queryable from the event log (FOUL events with outcome = 'TECHNICAL_FOUL'), so
+-- this column is a denormalized convenience on the end-of-game snapshot, not a new
+-- fact — the events stay the source of truth (#020).
+--
+-- Nullable to match every other stat column on this table (the entity uses Integer,
+-- and EntityMapper/GameSimulator null-guard accordingly). Plain column add, no
+-- Postgres-specific syntax, so no dbms gate.
+alter table gametime.box_score
+    add column technical_fouls SMALLINT;
+
 -- changeset 1.04.1-triggers failOnError:true splitStatements:true dbms:postgresql
 
 CREATE TRIGGER on_new_row_game BEFORE INSERT ON gametime.game FOR EACH ROW EXECUTE FUNCTION gametime.on_new_row();

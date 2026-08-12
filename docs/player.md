@@ -229,6 +229,31 @@ post-make foul roll on the same `foulDrawing`-vs-`foulProne` wiring (#029).
 §3.12 extends the stopped-shot foul to **all four shot types** with a per-type
 multiplier, on the same `foulDrawing`-vs-`foulProne` contest (#030).
 
+**§3.14a is the exception that proves the pattern: a foul with NO skill contest at
+all.** Every foul above is a by-product of a contest — a defender is drawn, two skills
+are contested, a foul falls out. A **technical** is behavioral, so it hangs off
+nothing: its *rate* is a flat constant with **no player, coach, or game-situation
+input whatsoever** (#032 B), and `foulProne` weights only **which** of the on-floor
+five wears it. That weighting is knowingly weak — `foulProne` is nearly flat (sd
+**1.22** against a ~9.66 mean), so the draw is close to uniform — and it is
+**affordable precisely because the rate is causally inert**. The raw `aggression` /
+`composure` / `ego` **attributes** were deliberately *not* threaded in: the engine
+consumes **skills**, and `foulProne` already **is** that composite by construction
+(see its row above). A raw-attribute path would be a second route to an influence
+already flowing (#013/#015).
+
+**§3.14b's flagrant (#034) is the SECOND skill-free
+mechanic, and for a subtly different reason worth distinguishing.** A technical has no
+contest because it is behavioral — nothing in the possession caused it. A **flagrant
+does** ride a real contest, but by the time it is graded **that contest has already
+resolved**: the committer was picked by `pickDefender` or the `foulProne`-weighted
+rebounding-foul draw, so **`foulProne` has already had its say**. Weighting the severity
+grade by it again would apply one signal twice (#034 E). The engine also has no way to
+tell excessive contact from ordinary contact, so a skill input there would be
+manufactured. **Net: a disciplined veteran and a reckless rookie are equally likely to
+commit a flagrant-2 *given* a flagrant** — a real fidelity ceiling, accepted knowingly,
+the same one #032 B accepted for technicals.
+
 **§3.13 wires skills to something new in kind — a *rotation* decision rather than
 a possession outcome** (#031). The foul-trouble bench rule scales the chance a
 coach sits a player by that player's **value to the team**, a *derived composite*
@@ -268,6 +293,7 @@ the engine does read.
 | Foul on attempt? | foulDrawing vs foulProne — all four shot types since §3.12, each with its own multiplier | ✅ §3.2/§3.4/§3.12 |
 | And-1 (foul on a MADE shot)? | foulDrawing vs foulProne again — a **second, post-make** roll on its own thin rate; made DRIVE/POST only until §3.12 | ✅ §3.11 |
 | Rebounding foul? | foulDrawing vs foulProne (two-sided — either team can commit; `foulProne` also weights *who* commits it) | ✅ §3.10 |
+| **Was that foul FLAGRANT?** | **NONE — no skill, coach or situation input at all** (#034 A/E). A flat rate on **any** of the three fouls above, and a flat 15% severity sub-roll for flagrant-2. `foulProne` had its say **already**, in picking the committer — grading him again would apply one signal twice | ✅ §3.14b |
 | Free throws | freeThrows; clutch (late game) | ✅ §3.2 (clutch ⬜) |
 | Rebound | offenseRebound / defenseRebound | ✅ §3.3 |
 | Turnover / steal | ballSecurity vs stealing (gate); §3.9 cause draw leans `SHOT_CLOCK_VIOLATION` on `acumen`↓ + defending `defensiveScheme`↑ and `OFFENSIVE_FOUL`/`BAD_PASS` on `teamOffense`↓ | ✅ §3.2/§3.9 |
@@ -283,3 +309,6 @@ the engine (the rotation step, `RotationState.advancePossession()`):
 | Fatigue sub | `currentEnergy` vs a coach-scaled threshold; starters tolerate MORE | ✅ §3.5 |
 | Foul-out (forced off) | none — a derived predicate over the foul counter | ✅ §3.5 |
 | **Foul-trouble sub** | the **value composite** (individualDefense, rimProtection, defenseRebound + the five offense skills) × foul count × coach × roster slot; better players benched **sooner** | ✅ §3.13 |
+| **Technical foul** | **none for the RATE** — deliberately random, no causal model (#032 B); `foulProne` weights only **who** commits it, over the on-floor five (#032 C) | ✅ §3.14a |
+| **Technical FT shooter** | `freeThrows` — a **deterministic** highest-on-the-floor pick, *not* the `foulDrawing`-weighted draw bonus FTs use (#032 G) | ✅ §3.14a |
+| **Ejection (forced off)** | none — a **derived** predicate over the separate technical counter (`technicalFouls >= 2`), exactly as the foul-out is (#032 F). §3.14b added a **second cause** (`flagrantTwos >= 1`), also derived — see below | ✅ §3.14a + §3.14b |

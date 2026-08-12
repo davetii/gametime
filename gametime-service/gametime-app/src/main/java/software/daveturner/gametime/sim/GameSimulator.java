@@ -114,6 +114,10 @@ public class GameSimulator {
             bs.setBlocks(p.getBlocks());
             bs.setTurnovers(p.getTurnovers());
             bs.setFouls(p.getFouls());
+            // §3.14a (#032 E): the twelfth accumulator, written alongside the other
+            // eleven. Separate from fouls — a technical does not feed the six-foul
+            // limit (the split is the whole point of #032 E).
+            bs.setTechnicalFouls(p.getTechnicalFouls());
             // §3.5 (Decision A): minutes are a possession-share projection. The
             // team is 5-on-the-floor every possession, so team on-floor possessions
             // sum to 5 × (team possessions); a player's minutes are their share of

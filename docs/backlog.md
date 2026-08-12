@@ -49,6 +49,17 @@ planned features), see [ideas.md](ideas.md).
       sub-phase, do not tune** — §3.13's lever is measured *saturated* (a ~3× stronger sit
       curve moves the number by nothing), so closing that gap needs a new mechanic (the
       benched-player timer + #031 C's period-awareness), which is outside what §3.16 does.
+      **Two more UNSOURCED rare-event rates joined the list at §3.14** *(added 2026-08)*:
+      **technicals** (~0.6–0.8 league-wide / ~0.3–0.4 per team — user-supplied, #032 J,
+      shipped at 0.367) and **flagrants** (~0.25–0.40 league-wide / ~0.16 per team —
+      #034 G/H, shipped at 0.148). **Both are `ballpark`s, not targets** — nothing is tuned toward
+      them, each constant is set from the real-world figure directly — so sourcing them is
+      cheaper than the five: a wrong figure means a wrong constant, not a mis-tuned engine.
+      ⚠ **But they are the least verifiable rows to check even once sourced**: technicals
+      resolve at 11.8%/5.3% relative sd (1 seed / 5 seeds) and **flagrants at 17.4%/7.8%,
+      the coarsest in the table**. A sourced figure within ~15% of the landing is not
+      distinguishable from the current one at any seed count we run — so **do not spend
+      effort re-tuning either against a new source unless it moves by more than that.**
       **Why it matters now:** three consecutive passes (§3.10/§3.11/§3.12) have declined
       the same `BASE_*` trim because it cost more calibrated FG% than the points miss was
       worth. That is evidence the target is wrong, but nobody can *act* on it until the
@@ -68,8 +79,27 @@ planned features), see [ideas.md](ideas.md).
       fidelity arc (§3.13 foul trouble, §3.14 flagrants) but **before §3.16**, the
       recalibration — which is the largest multi-config sweep the project will run and
       is exactly what profiles are for. **Validation gate:** §3.15 must reproduce
-      §3.14's shipped landing *exactly* before any §3.16 number is read off it (the
-      check that validated the §3.11 harness against §3.10's numbers).
+      **§3.14b's** shipped landing *exactly* before any §3.16 number is read off it (the
+      check that validated the §3.11 harness against §3.10's numbers). **That landing is
+      now on the board** (5-seed mean, seeds 1000–5000): flagrants **0.148**, points
+      **118.3**, FG% **46.9%**, 3P% **36.7%**, assists **27.1**, TO **13.6**, penalty rate
+      **51.9%**, foul-outs **0.358**, ejections **0.027**.
+      ⚠ **One §3.14b constant is NOT a tunable and must not be profiled as one:**
+      `PERSONAL_FOULS_PER_TEAM_GAME` (19.0) is a **measured** assumption about the
+      engine's current foul rate, used as the divisor that turns the game-level flagrant
+      rate into a per-foul probability (#034 G). A profile that varies it independently of
+      the actual foul rate silently breaks the flagrant rate. If §3.15 groups constants by
+      "what a tuner may vary", this one sits outside that set.
+      ⚠ **That gate got harder to satisfy at §3.14b, and the reason is worth knowing
+      before designing §3.15** (`decisions.md` #034, Status block): §3.14b's severity roll
+      is drawn **per foul, and its flagrant-2 sub-roll only on a hit** — a deliberate
+      exception to the unconditional-draw discipline §3.13/§3.14a follow, permissible
+      because it is nested inside an already-conditional branch. So "reproduce the landing
+      exactly" means reproducing a stream whose **draw count varies with how many fouls a
+      game happened to produce**. A profile mechanism that changes the *order* constants
+      are read in is still safe (they are read before the rolls); one that changes **how
+      many** draws a possession takes is not — and it would surface as a total
+      reproduction failure rather than a subtle drift, which is the good outcome.
       **A third pass has now paid the cost:** §3.12 ran its `PERIMETER` sweep, its
       `THREE` verification, its `BASE_*` exchange-rate measurement, and a
       multipliers-zeroed triage baseline **all by hand** — editing constants and
@@ -100,16 +130,24 @@ planned features), see [ideas.md](ideas.md).
       a consumer, not this chore (see the "not to be confused with" note below) — but
       the tuning design shouldn't paint it out.
       **The single-location goal is already met and should not be disturbed:** all
-      **75** tunable constants live in `SimConfig.java`, with **zero** defined
-      anywhere else in the `sim` package (re-verified 2026-08 post-§3.13, which added
-      six foul-trouble constants). That invariant has held from §3.2 through §3.13 —
-      protect it. What's missing is not a *location* but a
+      **83** tunable constants live in `SimConfig.java`, with **zero** defined
+      anywhere else in the `sim` package (re-verified 2026-08 post-§3.14b, which added
+      five flagrant constants; §3.13 added six foul-trouble ones). That invariant has
+      held from §3.2 through §3.14b — protect it. *(The only other `public static
+      final` in the package is `GameData.TECHNICAL_FOUL_OUTCOME` — an event-vocabulary
+      **string**, not a tunable, and §3.14b's two `FLAGRANT_FOUL_*` outcome strings sit
+      on `PossessionEngine` for the same reason. Event vocabulary is not profilable and
+      is out of scope.)* ⚠ **They are `public static final`
+      and read STATICALLY** from the engine, the resolvers and the tests — while
+      `SimConfig` is *also* already a Spring bean injected in 17 places for its 20
+      instance methods. **That split is the real design problem** (todo.md's Q2), not
+      the file format. What's missing is not a *location* but a
       **workflow**: every calibration change (a `BASE_*` trim, a foul multiplier)
       currently costs an edit + rebuild + re-run, which is real friction in a pass
       that sweeps several values across several seeds.
       **The open design question**, when this is picked up, is whether a profile is
-      a **full replacement** (each file carries all 65 constants — self-contained and
-      unambiguous, but 65 lines to change one knob, and a new constant must be added
+      a **full replacement** (each file carries all 83 constants — self-contained and
+      unambiguous, but 83 lines to change one knob, and a new constant must be added
       to every file) or an **override layer** (the Java constants stay the defaults;
       a profile lists only its deltas — far more readable as an experiment, "this
       profile is baseline except `FOUL_MULT_THREE`", at the cost that a profile alone
@@ -149,7 +187,26 @@ planned features), see [ideas.md](ideas.md).
       but building for the second audience now would be fabricating ahead of a
       consumer (#014/#017).
 
-- [ ] **Condense `decisions.md` — UNBLOCKED (§3.11 shipped 2026-08).** The file is 443
+- [ ] **Condense `decisions.md` — NOW A GATE ON STARTING PHASE 4 (user call, 2026-08).**
+      **This entry is the plan; no design pass is needed.** It is scheduled as
+      **Phase 4 pre-work** — after §3.16, before Phase 4 — and roadmap.md carries the
+      gate (deliberately *not* numbered §3.17: every §3.x is an engine mechanic and
+      §3.14b was the last of them). Two reasons for that exact slot: **§3.16 is the
+      heaviest consumer of this file**, so compressing before it risks cutting what it
+      needs; and **Phase 4 is when the second reader arrives** — a stats/consumer phase
+      whose "can I add a column?" question is a `#014`/`#017`/`#020` one-liner buried
+      under the engine reasoning.
+      ⚠ **RE-MEASURED 2026-08 after §3.14b — the figures below are STALE and the trend
+      accelerated:** the file is now **811 lines / 369k chars**, `#001`–`#020` still
+      average ~1.3k, and the **fourteen** §3.x engine entries average **24.5k** — a
+      ~19× gap, and **92% of the file**. The five largest were all written *after* this
+      entry was filed: **#030 (53k), #031 (47k), #032 (44k), #034 (44k), #029 (26k)**.
+      This entry predicted "#030 will beat #029"; it beat it **twofold**. Two more are
+      still to come (#035 for §3.15, #036 for §3.16) — the `project-docs` skill now
+      carries a **proportionality rule** (~15–20k per entry, implementation note ≲6k,
+      added 2026-08) so they do not re-grow at the same rate, but they will still need
+      compressing here.
+      *(Historical, as filed:)* The file is 443
       lines / **~170k chars** and has become hard to track. The cause is a size split,
       not entry count: `#001`–`#020` (platform/domain/schema/roster/API) average **~1.3k**
       chars each, while the nine §3.x engine design passes `#021`+ average **~16k** — a
@@ -188,10 +245,16 @@ planned features), see [ideas.md](ideas.md).
       split was tried 2026-07 and reverted — user wants one file; the split also moved
       volume around without reducing it). Never renumber; `#NNN` refs are cited from
       prose *and* Java comments (e.g. `decisions.md #026 E` in `MissedShotResolverTest`),
-      and they cite the number, not a path. Update the `project-docs` skill in the same
-      pass — it still says "append at the bottom, never renumber" with **no size
-      guidance** (re-checked 2026-08), so entries will re-grow the same way; add the
-      "keep implementation notes proportionate" rule there.
+      and they cite the number, not a path. ~~Update the `project-docs` skill in the
+      same pass — it still says "append at the bottom, never renumber" with **no size
+      guidance**~~ — **DONE AHEAD OF THE PASS (2026-08)**, deliberately, because
+      waiting would have let #035 and #036 re-grow at the 44k trend and enlarged this
+      chore by ~90k before it ever ran. The skill now carries a per-entry budget
+      (~15–20k, implementation note ≲6k), names the three sections that bloat
+      (Alternatives / Trade-off / the implementation note) and the three things that
+      must never be compressed away (the crux, the final constants, the traps), and
+      the "Before you finish" checklist now checks size. **What remains for this pass is
+      the compression itself** plus the index table + principles preamble above.
       **That prediction has now been tested and held**: `#029`'s implementation note was
       written under the unchanged skill and came out the largest in the file. Compressing
       the history without fixing the skill that generates it just resets the clock — treat
@@ -247,6 +310,44 @@ planned features), see [ideas.md](ideas.md).
       still on target"; this asks "is the harness measuring what it says it is." The
       tolerance-band gate is reconsidered at §3.12's close-out; this is worth doing
       **before** §3.12's recalibration, since that pass steers off a 115.9 baseline.
+- [ ] **Clear the 5 open Dependabot alerts — all in `gametime-frontend`, none in the
+      Maven service.** *(Surfaced 2026-08 on a `git push`; GitHub reports them against
+      the default branch. Filed here rather than in a phase: it is dependency hygiene,
+      not product work.)*
+      **The whole set is npm dev/build tooling and every one is a TRANSITIVE dependency
+      — `package.json` declares none of them directly.** Measured 2026-08 against
+      `main`'s `package-lock.json`:
+
+      | Sev | Package | Locked | Fixed in | Advisory |
+      |---|---|---|---|---|
+      | high | `vite` | 8.0.14 | **8.0.16** | `server.fs.deny` bypass on Windows alternate paths (GHSA-fx2h-pf6j-xcff) |
+      | high | `postcss` | 8.5.15 | **8.5.18** | path traversal via `sourceMappingURL` auto-loading (GHSA-r28c-9q8g-f849) |
+      | high | `brace-expansion` | 5.0.6 | **5.0.7** | DoS via exponential-time expansion (GHSA-3jxr-9vmj-r5cp) |
+      | med | `vite` (`launch-editor`) | 8.0.14 | **8.0.16** | NTLMv2 hash disclosure via UNC paths on Windows (GHSA-v6wh-96g9-6wx3) |
+      | low | `@babel/core` | 7.29.0 | **7.29.6** | arbitrary file read via `sourceMappingURL` (GHSA-4x5r-pxfx-6jf8) |
+
+      **This is very likely a lockfile refresh, not a manifest change** — each locked
+      version is exactly one patch behind its fix, and the only one declared in
+      `package.json` (`vite`, `^8.0.12`) already permits `8.0.16`. So `npm audit fix`
+      (or `npm update`) plus a `npm run build` + `npm run lint` check is the probable
+      whole job. **Verify that before assuming it** — a transitive bump can still be
+      pinned by an intermediate package.
+      **Real severity here is lower than "3 high" suggests, and that is worth stating so
+      nobody either panics or dismisses it.** All five are **build-time / dev-server**
+      tooling, two of the highs are **Windows-specific** (this project builds on
+      darwin), and the frontend is **not yet deployed** — CLAUDE.md still describes it as
+      a "future React frontend" and **Phase 7** owns it (a scaffold exists from an
+      `initial front end application` commit, but nothing builds or ships from it as part
+      of the service). There is no running service exposed by any of these today. **But it is cheap to clear and it will otherwise sit in the
+      repo's security tab flagging every push**, so the cost of leaving it is the
+      alert-fatigue cost of a permanently non-green signal.
+      ⚠ **Do not fold this into an engine PR.** It touches no Java, no `SimConfig`, and
+      nothing the `CalibrationHarness` measures — a lockfile bump riding a phase branch
+      would make the phase's "reproduces the landing exactly" claim harder to read, for
+      no benefit. Its own small PR.
+      **Worth deciding at the same time**: whether to enable Dependabot *version* updates
+      (not just security alerts) for `gametime-frontend`, so a dormant frontend does not
+      accumulate a fresh batch of these before Phase 7 ever starts.
 - [ ] Evaluate Testcontainers as an alternative to H2 for integration tests.
 - [ ] Separate test seed data from production seed. Today both the `local`
       (Postgres) and test (H2) profiles load the *same* Liquibase changelog
