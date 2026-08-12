@@ -310,6 +310,44 @@ planned features), see [ideas.md](ideas.md).
       still on target"; this asks "is the harness measuring what it says it is." The
       tolerance-band gate is reconsidered at §3.12's close-out; this is worth doing
       **before** §3.12's recalibration, since that pass steers off a 115.9 baseline.
+- [ ] **Clear the 5 open Dependabot alerts — all in `gametime-frontend`, none in the
+      Maven service.** *(Surfaced 2026-08 on a `git push`; GitHub reports them against
+      the default branch. Filed here rather than in a phase: it is dependency hygiene,
+      not product work.)*
+      **The whole set is npm dev/build tooling and every one is a TRANSITIVE dependency
+      — `package.json` declares none of them directly.** Measured 2026-08 against
+      `main`'s `package-lock.json`:
+
+      | Sev | Package | Locked | Fixed in | Advisory |
+      |---|---|---|---|---|
+      | high | `vite` | 8.0.14 | **8.0.16** | `server.fs.deny` bypass on Windows alternate paths (GHSA-fx2h-pf6j-xcff) |
+      | high | `postcss` | 8.5.15 | **8.5.18** | path traversal via `sourceMappingURL` auto-loading (GHSA-r28c-9q8g-f849) |
+      | high | `brace-expansion` | 5.0.6 | **5.0.7** | DoS via exponential-time expansion (GHSA-3jxr-9vmj-r5cp) |
+      | med | `vite` (`launch-editor`) | 8.0.14 | **8.0.16** | NTLMv2 hash disclosure via UNC paths on Windows (GHSA-v6wh-96g9-6wx3) |
+      | low | `@babel/core` | 7.29.0 | **7.29.6** | arbitrary file read via `sourceMappingURL` (GHSA-4x5r-pxfx-6jf8) |
+
+      **This is very likely a lockfile refresh, not a manifest change** — each locked
+      version is exactly one patch behind its fix, and the only one declared in
+      `package.json` (`vite`, `^8.0.12`) already permits `8.0.16`. So `npm audit fix`
+      (or `npm update`) plus a `npm run build` + `npm run lint` check is the probable
+      whole job. **Verify that before assuming it** — a transitive bump can still be
+      pinned by an intermediate package.
+      **Real severity here is lower than "3 high" suggests, and that is worth stating so
+      nobody either panics or dismisses it.** All five are **build-time / dev-server**
+      tooling, two of the highs are **Windows-specific** (this project builds on
+      darwin), and the frontend is **not yet deployed** — CLAUDE.md still describes it as
+      a "future React frontend" and **Phase 7** owns it (a scaffold exists from an
+      `initial front end application` commit, but nothing builds or ships from it as part
+      of the service). There is no running service exposed by any of these today. **But it is cheap to clear and it will otherwise sit in the
+      repo's security tab flagging every push**, so the cost of leaving it is the
+      alert-fatigue cost of a permanently non-green signal.
+      ⚠ **Do not fold this into an engine PR.** It touches no Java, no `SimConfig`, and
+      nothing the `CalibrationHarness` measures — a lockfile bump riding a phase branch
+      would make the phase's "reproduces the landing exactly" claim harder to read, for
+      no benefit. Its own small PR.
+      **Worth deciding at the same time**: whether to enable Dependabot *version* updates
+      (not just security alerts) for `gametime-frontend`, so a dormant frontend does not
+      accumulate a fresh batch of these before Phase 7 ever starts.
 - [ ] Evaluate Testcontainers as an alternative to H2 for integration tests.
 - [ ] Separate test seed data from production seed. Today both the `local`
       (Postgres) and test (H2) profiles load the *same* Liquibase changelog
