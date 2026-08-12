@@ -653,6 +653,44 @@ numbered sub-phases here rather than reopening a catch-all deferred bucket.)_
 
 ---
 
+### Phase 3 → Phase 4 gate: the documentation condense pass
+
+**Deliberately NOT numbered `§3.17`** (user call, 2026-08). Every `§3.x` in this
+section is an **engine mechanic**, and §3.14b is on record as *the last new mechanic
+in Phase 3* (#034) — numbering a docs pass alongside them would imply the possession
+arc continues and would contradict that. It is **Phase 4 pre-work**: an explicit exit
+criterion on Phase 3, not an optional chore that slides.
+
+- [ ] **Condense `decisions.md` before Phase 4 starts.** The plan already exists — it
+      is [backlog.md](backlog.md)'s parked "Condense `decisions.md`" entry, which
+      carries the what-to-compress / what-to-keep split, the one-file and never-renumber
+      constraints, and the index-plus-preamble idea. **No design pass needed**; that
+      entry *is* the plan. Re-measure before starting — its figures are stale.
+      **The trend is the argument, and it has accelerated sharply.** When that entry was
+      filed the file was ~170k chars with §3.x entries averaging ~16k. Measured
+      2026-08 after §3.14b: **369k chars**, and the fourteen engine entries average
+      **24.5k** — **92% of the file**. The five largest were all written *after* the
+      entry was filed (#030 53k, #031 47k, #032 44k, #034 44k, #029 26k); it predicted
+      "#030 will beat #029" and #030 beat it twofold.
+      **Why it waits for §3.16 rather than running now** — the same gate reasoning the
+      backlog entry used for §3.11, one arc later: **§3.16 is the single heaviest
+      consumer of this file.** It will reach for #028's wrong-way-lever finding, #030's
+      exchange-rate measurements, #031's saturation result and #034's emergent-divisor
+      coupling. Compressing first risks cutting exactly what it needs while nobody yet
+      knows which. After §3.16, §3.7–§3.16 is a closed arc that goes historical at once
+      and the cross-refs actually reached for are **known rather than guessed**.
+      **Why it must not slide past Phase 4's start**: Phase 4 is a stats/consumer phase
+      whose reader wants "can I add a column?" — a `#014`/`#017`/`#020` one-liner — and
+      would otherwise scroll past 343k of engine reasoning to find it. That is the exact
+      two-readers-one-file problem the backlog entry describes, and Phase 4 is when the
+      second reader arrives.
+      ⚠ **Two more oversized entries are still to come** (#035 for §3.15, #036 for
+      §3.16). The `project-docs` skill now carries a proportionality rule (added 2026-08)
+      so they do not re-grow at the 44k trend — but they will still need compressing
+      here.
+
+---
+
 ## Phase 4 — Statistics & Box Scores
 
 **Goal**: Track, aggregate, and expose stats.

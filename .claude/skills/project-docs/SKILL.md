@@ -60,6 +60,28 @@ STOLEN-share calls were made).
 Append at the bottom (before the `*Template for new entries:*` block), never
 renumber. Two entry shapes exist:
 
+> **⚠ KEEP ENTRIES PROPORTIONATE — this guidance was missing until 2026-08, and the
+> file grew accordingly.** Measured after §3.14b: `decisions.md` is **369k chars**, and
+> **92% of it is fourteen §3.x engine entries averaging 24.5k each** against
+> `#001`–`#020`'s ~1.3k. Every successive design pass produced a bigger entry than the
+> last (#030 53k, #031 47k, #032 44k, #034 44k). A condense pass is now a **gate on
+> starting Phase 4** (roadmap.md) — do not make its job harder.
+>
+> **Budget a full design-pass entry at ~15–20k chars.** Past that, you are almost
+> certainly restating. The three sections that bloat, in order:
+> - **Alternatives considered** — one clause per rejected fork with its reason. Do not
+>   re-argue options nobody will reopen.
+> - **Trade-off** — the honest cost, once. Not a restatement of the decision prose.
+> - **The implementation note** — the worst offender, because it is written when the
+>   work is freshest and read *once*, right after execution. Keep it to divergences,
+>   resolved open-at-execution items, final constants, the landing, and any trap worth
+>   not rediscovering. A note over ~6k chars is a signal, not an achievement.
+>
+> **What must never be compressed away**, now or in a condense pass: each entry's crux
+> decision, its final constants, and the *traps* (a measured wrong-way lever, a clamp
+> that silently floors a rare rate, an emergent coupling). Those are what later phases
+> actually reach for.
+
 **Minimal** (small/early decisions, #001–#010 style):
 ```
 ### NNN — Short title
@@ -159,6 +181,9 @@ missing consumer), the same "ahead of a consumer" discipline the decisions use.
 - The note lives in the right file (routing table above); nothing phase-surviving
   left only in todo.md.
 - Rationale / Trade-off / Alternatives keyed to the Decisions; crux bolded.
+- **Entry size checked against the ~15–20k budget** (implementation note ≲6k). If it
+  is over, cut restatement from Alternatives / Trade-off / the note — never the crux,
+  the final constants, or a trap. A condense pass gates Phase 4; do not add to its job.
 - If a design pass: no production code, execute-ready plan left in todo.md.
 - If execution: implementation note on #NNN, roadmap bullet flipped to `[x]`.
 - **`possession-flow.puml` reflects reality** if the change touched the possession

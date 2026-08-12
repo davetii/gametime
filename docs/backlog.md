@@ -187,7 +187,26 @@ planned features), see [ideas.md](ideas.md).
       but building for the second audience now would be fabricating ahead of a
       consumer (#014/#017).
 
-- [ ] **Condense `decisions.md` — UNBLOCKED (§3.11 shipped 2026-08).** The file is 443
+- [ ] **Condense `decisions.md` — NOW A GATE ON STARTING PHASE 4 (user call, 2026-08).**
+      **This entry is the plan; no design pass is needed.** It is scheduled as
+      **Phase 4 pre-work** — after §3.16, before Phase 4 — and roadmap.md carries the
+      gate (deliberately *not* numbered §3.17: every §3.x is an engine mechanic and
+      §3.14b was the last of them). Two reasons for that exact slot: **§3.16 is the
+      heaviest consumer of this file**, so compressing before it risks cutting what it
+      needs; and **Phase 4 is when the second reader arrives** — a stats/consumer phase
+      whose "can I add a column?" question is a `#014`/`#017`/`#020` one-liner buried
+      under the engine reasoning.
+      ⚠ **RE-MEASURED 2026-08 after §3.14b — the figures below are STALE and the trend
+      accelerated:** the file is now **811 lines / 369k chars**, `#001`–`#020` still
+      average ~1.3k, and the **fourteen** §3.x engine entries average **24.5k** — a
+      ~19× gap, and **92% of the file**. The five largest were all written *after* this
+      entry was filed: **#030 (53k), #031 (47k), #032 (44k), #034 (44k), #029 (26k)**.
+      This entry predicted "#030 will beat #029"; it beat it **twofold**. Two more are
+      still to come (#035 for §3.15, #036 for §3.16) — the `project-docs` skill now
+      carries a **proportionality rule** (~15–20k per entry, implementation note ≲6k,
+      added 2026-08) so they do not re-grow at the same rate, but they will still need
+      compressing here.
+      *(Historical, as filed:)* The file is 443
       lines / **~170k chars** and has become hard to track. The cause is a size split,
       not entry count: `#001`–`#020` (platform/domain/schema/roster/API) average **~1.3k**
       chars each, while the nine §3.x engine design passes `#021`+ average **~16k** — a
@@ -226,10 +245,16 @@ planned features), see [ideas.md](ideas.md).
       split was tried 2026-07 and reverted — user wants one file; the split also moved
       volume around without reducing it). Never renumber; `#NNN` refs are cited from
       prose *and* Java comments (e.g. `decisions.md #026 E` in `MissedShotResolverTest`),
-      and they cite the number, not a path. Update the `project-docs` skill in the same
-      pass — it still says "append at the bottom, never renumber" with **no size
-      guidance** (re-checked 2026-08), so entries will re-grow the same way; add the
-      "keep implementation notes proportionate" rule there.
+      and they cite the number, not a path. ~~Update the `project-docs` skill in the
+      same pass — it still says "append at the bottom, never renumber" with **no size
+      guidance**~~ — **DONE AHEAD OF THE PASS (2026-08)**, deliberately, because
+      waiting would have let #035 and #036 re-grow at the 44k trend and enlarged this
+      chore by ~90k before it ever ran. The skill now carries a per-entry budget
+      (~15–20k, implementation note ≲6k), names the three sections that bloat
+      (Alternatives / Trade-off / the implementation note) and the three things that
+      must never be compressed away (the crux, the final constants, the traps), and
+      the "Before you finish" checklist now checks size. **What remains for this pass is
+      the compression itself** plus the index table + principles preamble above.
       **That prediction has now been tested and held**: `#029`'s implementation note was
       written under the unchanged skill and came out the largest in the file. Compressing
       the history without fixing the skill that generates it just resets the clock — treat

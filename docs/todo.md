@@ -289,7 +289,13 @@ out so this file can be rewritten each phase without losing it:
 - **Calibration targets** → [calibration.md](calibration.md), **the source of truth**.
   Update it *and* the `CalibrationHarness` `(target ~N)` strings together.
 - **Infra/tooling/data-hygiene chores** (Testcontainers, seed-data split, star tuning,
-  the `decisions.md` condense pass, harness self-verification) → [backlog.md](backlog.md).
+  harness self-verification) → [backlog.md](backlog.md).
+- **The `decisions.md` condense pass** → still planned in [backlog.md](backlog.md), but
+  **now scheduled**: it is a **gate on starting Phase 4**, run after §3.16 (roadmap.md's
+  "Phase 3 → Phase 4 gate"). Deliberately not numbered §3.17 — every §3.x is an engine
+  mechanic and §3.14b was the last. The file is **369k chars, 92% of it fourteen engine
+  entries**; `project-docs` now caps new entries at ~15–20k so #035/#036 do not enlarge
+  the job.
 - **Untriaged future-improvement ideas** → [ideas.md](ideas.md). *(Includes the parked
   cap 3→5 tuning idea — do NOT touch `MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION` without its
   own recalibration pass.)*
