@@ -614,4 +614,81 @@ class FoulResolverTest {
         }
         return hits / (double) trials;
     }
+
+    // ---------- §3.14b: the flagrant severity roll (decisions.md #034 A/E) ----------
+
+    /**
+     * #034 A/G: the realized flagrant rate over many trials lands on the configured
+     * per-foul probability — the roll is a plain rate check, with no contest.
+     */
+    @Test
+    void theFlagrantRollFiresAtTheConfiguredPerFoulRate() {
+        RandomGenerator r = rng(7);
+        int trials = 200_000;
+        int hits = 0;
+        for (int i = 0; i < trials; i++) {
+            if (resolver.isFlagrant(r)) hits++;
+        }
+        double observed = hits / (double) trials;
+        assertEquals(config.flagrantFoulProbability(), observed, 0.001,
+                "The flagrant roll must realize the configured ~0.0084 per-foul rate");
+    }
+
+    /**
+     * #034 E: the severity sub-roll realizes the flat 15% conditional share — the
+     * fraction of flagrants that are flagrant-2.
+     */
+    @Test
+    void theSeverityRollFiresAtTheFlatFifteenPercentShare() {
+        RandomGenerator r = rng(11);
+        int trials = 100_000;
+        int hits = 0;
+        for (int i = 0; i < trials; i++) {
+            if (resolver.isFlagrantTwo(r)) hits++;
+        }
+        assertEquals(SimConfig.FLAGRANT_TWO_SHARE, hits / (double) trials, 0.005,
+                "~15% of flagrants are flagrant-2 (#034 E)");
+    }
+
+    /**
+     * #034 A/E, the design claim stated as a test: <b>neither roll takes any skill
+     * input</b>. The engine cannot distinguish excessive from ordinary contact, and
+     * foulProne has already had its say in who was selected as committer — so weighting
+     * the grade would apply one signal twice.
+     *
+     * <p>Asserted structurally (the methods take only a RandomGenerator) because the
+     * symmetry with §3.14a's foulProne-weighted committer draw (#032 C) is tempting and
+     * wrong: that weighted a SELECTION, this is a GRADE on a player already selected.
+     */
+    @Test
+    void neitherFlagrantRollTakesAnySkillInput() throws Exception {
+        assertArrayEquals(new Class<?>[] { RandomGenerator.class },
+                FoulResolver.class.getMethod("isFlagrant", RandomGenerator.class)
+                        .getParameterTypes(),
+                "isFlagrant must take no PlayerGameState — causally inert by design");
+        assertArrayEquals(new Class<?>[] { RandomGenerator.class },
+                FoulResolver.class.getMethod("isFlagrantTwo", RandomGenerator.class)
+                        .getParameterTypes(),
+                "isFlagrantTwo must take no PlayerGameState either");
+    }
+
+    /**
+     * #034 A: the flagrant is layered ON TOP of the existing foul rolls, so those rolls
+     * must be untouched — same rate, same inputs, same single draw. This pins the
+     * "no existing rate moves by construction" property that makes the pass free.
+     */
+    @Test
+    void theExistingFoulRollsAreUnchangedByTheFlagrantLayer() {
+        PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 10.0);
+        PlayerGameState defender = TestPlayerFactory.create("d1", "B", 10.0);
+        // One draw per isFoul call: two generators at the same seed must agree
+        // step-for-step, which they cannot if isFoul had started consuming a second.
+        RandomGenerator a = rng(3);
+        RandomGenerator b = rng(3);
+        for (int i = 0; i < 500; i++) {
+            assertEquals(resolver.isFoul(ShotType.DRIVE, shooter, defender, 1.0, a),
+                    resolver.isFoul(ShotType.DRIVE, shooter, defender, 1.0, b),
+                    "isFoul's RNG consumption must be unchanged by §3.14b");
+        }
+    }
 }

@@ -70,6 +70,11 @@ public class PlayerGameState {
     // §3.13's foul-trouble bench curve, moving two calibrated numbers (foul-outs
     // ~0.39 and the 4/5/6 distribution) for an unrelated cause.
     private int technicalFouls;
+    // §3.14b (decisions.md #034 F/I): FLAGRANT-2 fouls — the count of EJECTION
+    // CAUSES, not a parallel foul counter. The flagrant itself is already in `fouls`
+    // via recordFoul() (a flagrant IS a personal foul, unlike §3.14a's technical), so
+    // summing this with `fouls` DOUBLE-COUNTS — the #033 D trap in reverse.
+    private int flagrantTwos;
     private int offensiveRebounds;
     private int defensiveRebounds;
     private int assists;
@@ -160,14 +165,21 @@ public class PlayerGameState {
      * <p><b>This is the finding that shaped §3.14a.</b> #031 H, roadmap.md and
      * todo.md all predicted §3.14 would need real stored state, on the reasoning that
      * "an ejection is not derivable from a counter the way {@code fouls >= 6} is."
-     * That is true of a <b>flagrant-2</b> — a severity grade with no counter behind
-     * it — and <b>false of the two-technical case</b>, which is structurally
-     * identical to the foul-out. So the #023 F exception was NOT taken here; it moves
-     * to §3.14b, where the flagrant-2 genuinely forces it.
+     * That is <b>false of the two-technical case</b>, which is structurally identical
+     * to the foul-out, so the #023 F exception was NOT taken here.
+     *
+     * <p><b>§3.14b UPDATE — it was not taken there either, and this entry's original
+     * prediction was wrong.</b> §3.14a wrote that the exception "moves to §3.14b,
+     * where the flagrant-2 genuinely forces it", on the reasoning that a flagrant-2 is
+     * "a severity grade with no counter behind it". It has one: a flagrant-2 ejects
+     * <b>immediately</b>, so there is no accumulation threshold to remember and {@link
+     * #isEjectedForFlagrant()} derives from {@code flagrantTwos >= 1} exactly as this
+     * predicate derives from {@code technicalFouls >= 2} (#034 F). The prediction is
+     * <b>retired</b>, not deferred again.
      *
      * <p>{@link RotationState#eligible} filters on {@code isFouledOut() ||
-     * isEjected()} — one filter, the <b>hard/forced</b> tier, not a fourth removal
-     * path (#031 H).
+     * isEjected() || isEjectedForFlagrant()} — one filter, the <b>hard/forced</b>
+     * tier, not a fourth removal path (#031 H).
      *
      * <p><b>Expect this to fire essentially never.</b> At ~0.35 technicals per
      * team-game spread over five players, two on the same player in one game is on
@@ -177,6 +189,44 @@ public class PlayerGameState {
      */
     public boolean isEjected() {
         return technicalFouls >= SimConfig.TECHNICAL_EJECTION_LIMIT;
+    }
+
+    /**
+     * §3.14b (decisions.md #034 F): this player has been <b>ejected for a flagrant-2</b>
+     * — the third disqualification cause, and the third <b>derived predicate over a
+     * monotonic counter</b> in this class. No stored flag: #023 F's derive-don't-store
+     * discipline applies here unchanged.
+     *
+     * <p><b>This reverses three shipped documents, and the reversal is §3.14b's most
+     * useful finding.</b> #031 H, roadmap.md and {@link #isEjected()}'s own javadoc
+     * (following #032 F) all predicted that the flagrant-2 is where stored state
+     * finally becomes unavoidable, because it is "a severity grade with no counter
+     * behind it, so it is not derivable". <b>That is wrong.</b> A flagrant-2 ejects
+     * <b>immediately and permanently</b> — one is enough — so there is no accumulation
+     * threshold to remember, and the fact is captured by a counter that starts at 0 and
+     * only grows. The limit being 1 rather than 6 or 2 changes nothing about the shape.
+     *
+     * <p><b>The distinction from the {@code inFoulTrouble} flag #031 E refused</b>, and
+     * the test to apply if the exception is ever predicted again: that flag's underlying
+     * fact was <b>non-monotonic</b> (a foul-troubled player can be benched, recover,
+     * return, and be benched again), so it would have needed invalidation logic and
+     * would have drifted. A disqualification is the opposite — it is <b>absorbing</b>.
+     * Once true it stays true, so a counter can never disagree with a flag, which makes
+     * the flag nothing but a second thing to keep in sync (the #013/#015 duplicate-source
+     * trap). <b>Every disqualification this model has is that shape.</b>
+     *
+     * <p>Feeds {@link RotationState}'s {@code isDisqualified(...)} as a <b>third
+     * cause</b> behind the single {@code eligible(...)} filter — not a fourth removal
+     * path (#031 H, held for the third pass running).
+     *
+     * <p><b>Unlike {@link #isEjected()}, this one actually fires.</b> At ~0.16
+     * flagrants × 15% it lands around <b>0.024 per team per game</b> — roughly double
+     * §3.14a's measured 0.014 — so §3.14b is the pass where the hard tier is genuinely
+     * exercised. Still far too rare to tune against; the forced-counter unit tests
+     * remain the validation (#032 F's discipline).
+     */
+    public boolean isEjectedForFlagrant() {
+        return flagrantTwos >= SimConfig.FLAGRANT_EJECTION_LIMIT;
     }
 
     /**
@@ -321,11 +371,24 @@ public class PlayerGameState {
     public int getFouls() { return fouls; }
     /**
      * §3.14a (#032 E): technical fouls, kept apart from {@link #getFouls()} because a
-     * technical does not count toward the six-foul disqualification. Not surfaced on
-     * the box score or the API — no consumer yet (#014/#017); additive when one
-     * appears, exactly like {@code committing_team_id}'s parked state.
+     * technical does not count toward the six-foul disqualification. Surfaced on the
+     * box score and the API since #033, on a parity argument — the twelfth accumulator
+     * in a set whose other eleven were already exposed.
      */
     public int getTechnicalFouls() { return technicalFouls; }
+    /**
+     * §3.14b (#034 F/I): how many FLAGRANT-2 fouls this player has committed — i.e.
+     * whether he has been ejected for one, since the limit is 1.
+     *
+     * <p><b>NOT a foul counter, and NOT surfaced on the box score.</b> The flagrant
+     * itself is a personal foul and is already inside {@link #getFouls()} (Decision I),
+     * so this counts <b>ejection causes</b>; adding the two together double-counts.
+     * #033's parity argument deliberately does <b>not</b> reach here (#034 H): a
+     * flagrant is already a member of an exposed accumulator, so there is no missing
+     * member and no asymmetry to fix. The count stays queryable from the event log with
+     * one {@code WHERE} (#020), exactly as technicals were before #033.
+     */
+    public int getFlagrantTwos() { return flagrantTwos; }
     public int getOffensiveRebounds() { return offensiveRebounds; }
     public int getDefensiveRebounds() { return defensiveRebounds; }
     public int getAssists() { return assists; }
@@ -350,6 +413,18 @@ public class PlayerGameState {
      * #foulTroubleLevel()} and §3.10's penalty derivation all read.
      */
     public void recordTechnicalFoul() { technicalFouls++; }
+    /**
+     * §3.14b (#034 F/I): charge a FLAGRANT-2 — the ejection cause behind {@link
+     * #isEjectedForFlagrant()}.
+     *
+     * <p><b>This is called IN ADDITION to {@code recordFoul()}, never instead of it</b>
+     * — the exact opposite of {@link #recordTechnicalFoul()} above. A flagrant IS a
+     * personal foul (Decision I), so the committer wears it through the ordinary path
+     * and it feeds {@link #isFouledOut()}, {@link #foulTroubleLevel()} and §3.10's
+     * penalty derivation like any other foul. This counter exists only to make the
+     * ejection derivable; it is not a second foul tally.
+     */
+    public void recordFlagrantTwo() { flagrantTwos++; }
     public void recordOffensiveRebound() { offensiveRebounds++; }
     public void recordDefensiveRebound() { defensiveRebounds++; }
     public void recordAssist() { assists++; }

@@ -236,16 +236,26 @@ class CalibrationHarness {
      * failure.</b> At ~0.35 technicals per team-game spread over five players, two on
      * the same player in one game is on the order of one occurrence every several
      * simulated seasons. The rule's correctness rests on the forced-counter unit
-     * tests, not on this line; the line exists so that if the rate is ever raised —
-     * or §3.14b's flagrant-2 ejections arrive — the seam is already instrumented.
+     * tests, not on this line.
+     *
+     * <p><b>§3.14b (#034 F/H): flagrant-2 ejections join THIS line rather than starting
+     * a third</b> — an ejection is an ejection, and the cause is recoverable from the
+     * event log. Unlike the technical kind these actually fire: ~0.024 per team-game,
+     * roughly double §3.14a's measured 0.014, so the seam §3.14a instrumented for them
+     * is now genuinely exercised. (A flagrant-2 ejects on the FIRST one, so its
+     * threshold is {@link SimConfig#FLAGRANT_EJECTION_LIMIT} = 1 — no per-player tally
+     * is needed, each event is an ejection.)
      */
     private void accumulateEjections(List<GameEventEntity> events, Agg agg) {
         Map<String, Integer> technicalsByPlayer = new HashMap<>();
         for (GameEventEntity e : events) {
-            if (e.getPlayType() == PlayType.FOUL
-                    && GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome())
-                    && e.getPrimaryPlayerId() != null) {
+            if (e.getPlayType() != PlayType.FOUL || e.getPrimaryPlayerId() == null) {
+                continue;
+            }
+            if (GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome())) {
                 technicalsByPlayer.merge(e.getPrimaryPlayerId(), 1, Integer::sum);
+            } else if (PossessionEngine.FLAGRANT_FOUL_2_OUTCOME.equals(e.getOutcome())) {
+                agg.ejections++;
             }
         }
         for (int count : technicalsByPlayer.values()) {
@@ -302,6 +312,24 @@ class CalibrationHarness {
                 boolean technical = GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome());
                 if (technical) {
                     agg.technicalFouls++;
+                }
+                // §3.14b (#034 H/I): flagrants get their OWN tally, separate from
+                // §3.14a's technicals — the two mechanics share nothing but the word
+                // "foul" (#032 A) and cannot be judged at the same confidence.
+                //
+                // ⚠ NOTE WHAT IS *NOT* HERE, DELIBERATELY: a flagrant IS a personal
+                // foul (#034 I), so unlike the technical above it is NOT excluded from
+                // the per-team-period tally below. That non-change matters because the
+                // bonus exclusion lives in TWO independent derivations — this tally and
+                // GameData.isInBonus — and §3.14a's execution found that a foul type
+                // handled in one but not the other makes the instrument silently
+                // disagree with the engine. Both are unchanged here, and a test pins it.
+                if (PossessionEngine.FLAGRANT_FOUL_1_OUTCOME.equals(e.getOutcome())
+                        || PossessionEngine.FLAGRANT_FOUL_2_OUTCOME.equals(e.getOutcome())) {
+                    agg.flagrantFouls++;
+                    if (PossessionEngine.FLAGRANT_FOUL_2_OUTCOME.equals(e.getOutcome())) {
+                        agg.flagrantTwos++;
+                    }
                 }
                 if (e.getCommittingTeamId() != null && !technical) {
                     foulsByTeamPeriod.merge(
@@ -502,8 +530,27 @@ class CalibrationHarness {
         // 102 games a 0.7/game league rate yields ~71 events, relative sd 11.8%; at 5
         // seeds ~357 events, 5.3%. A single-seed reading CANNOT resolve it.
         long technicalFouls;
-        // Expect 0.00 — see accumulateEjections. A correct result, not a failure.
+        // Expect ~0.02 as of §3.14b — flagrant-2 ejections now join this line (#034 H).
+        // The technical kind still contributes ~0.00; see accumulateEjections.
         long ejections;
+
+        // §3.14b (#034 H): the flagrants instrument. LOAD-BEARING for the same reason
+        // the technicals line is — §3.14b's points cost (+0.43/team/game, deliberately
+        // over-estimated) sits far below the ±1.5 per-seed noise band, so the §3.4
+        // aggregates physically cannot distinguish "the flagrant roll is correct" from
+        // "the flagrant roll never fires". This count is the only thing that tells them
+        // apart.
+        //
+        // ⚠ JUDGE AT 5 SEEDS ONLY, and even then coarsely (#034 H, computed before the
+        // rate was chosen): at 102 games ~33 events, relative sd 17.4%; at 5 seeds ~166
+        // events, 7.8%. That is MATERIALLY coarser than the technicals line (11.8% /
+        // 5.3%) — THE COARSEST ROW IN calibration.md. A single-seed reading is useless,
+        // and even the 5-seed mean can only confirm the right order of magnitude, not a
+        // 10% tuning move.
+        long flagrantFouls;
+        // ~15% of the above (#034 E). Printed separately because it is the ejection
+        // driver; expect ~5 events per 102-game run, i.e. unresolvable on its own.
+        long flagrantTwos;
 
         // §3.12 (#030 E): the two foul channels broken down by shot type, so the
         // aggregate cannot hide WHICH multiplier is wrong. Stopped shots emit no
@@ -646,15 +693,25 @@ class CalibrationHarness {
                         andOnesByShotType.getOrDefault(t.name(), 0L) / tg);
             }
             System.out.println("   (per team / game)");
-            // §3.14a: this is a tally over ALL FOUL events, so as of §3.14a it
-            // INCLUDES technicals (~0.37/team/game) — §3.13 measured 19.0 here on
-            // personal fouls alone, and the same engine now prints ~19.4. That step
-            // is the new event type entering an event-log total, NOT a rise in
-            // personal fouls: getFouls() is untouched (#032 E), which the box-score
-            // reconciliation in GameSimulatorIntegrationTest pins. Subtract the
-            // technicals line below to compare against §3.11/§3.13's figures.
+            // ⚠ THIS IS A TALLY OVER ALL FOUL EVENTS, SO IT IS NOT COMPARABLE ACROSS
+            // PHASES WITHOUT SUBTRACTING. §3.13 measured 19.0 here on personal fouls
+            // alone; §3.14a added technicals (~0.37/team/game), taking the same engine
+            // to ~19.4; §3.14b now adds flagrants (~0.16) on top.
+            //
+            // The two additions differ in kind, and the difference matters when reading
+            // this line:
+            //  - a TECHNICAL is a new event that is NOT a personal foul (#032 E), so it
+            //    inflates this total without touching getFouls();
+            //  - a FLAGRANT *IS* a personal foul (#034 I) and rides a foul that already
+            //    happened — it REPLACES that foul's event rather than adding one, so it
+            //    does NOT inflate this total at all. It is counted in the flagrants
+            //    line below purely for visibility.
+            // So to compare against §3.11/§3.13's figures, subtract the technicals line
+            // only. getFouls() itself remains untouched by §3.14a, which the box-score
+            // reconciliation in GameSimulatorIntegrationTest pins.
             System.out.printf("  Fouls / team / game:     %.2f   (ALL foul events incl."
-                            + " §3.14a technicals; plausible ~19-20; §3.11 measured 16.8)%n",
+                            + " §3.14a technicals; flagrants REPLACE a foul event so add"
+                            + " nothing here; plausible ~19-20; §3.11 measured 16.8)%n",
                     totalFouls / tg);
             // §3.12's genuinely NEW instrument (#030 G): the foul-out mechanism has
             // been live since §3.5 but its rate has NEVER been observed. The
@@ -689,9 +746,38 @@ class CalibrationHarness {
                             + " ~0.6-0.8 league-wide; NOT a target — see calibration.md."
                             + " JUDGE AT 5 SEEDS ONLY)%n",
                     technicalFouls / tg);
-            System.out.printf("  Ejections / team / game: %.3f  (expect 0.00 — 2 technicals on one"
-                            + " player is ~1 per several seasons; #032 F)%n",
+            System.out.printf("  Ejections / team / game: %.3f  (BOTH causes since §3.14b:"
+                            + " 2 technicals (~0.00) + any flagrant-2 (~0.02); #032 F / #034 F)%n",
                     ejections / tg);
+
+            // §3.14b (decisions.md #034 H). ITS OWN SECTION, deliberately not shared
+            // with §3.14a's technicals above: the two mechanics share nothing but the
+            // word "foul" (#032 A), and they cannot even be judged at the same
+            // confidence — sharing a line would make neither readable.
+            //
+            // A BALLPARK, not a TARGET — nothing is tuned toward it:
+            // SimConfig.FLAGRANT_FOULS_PER_TEAM_GAME is set from the real-world figure
+            // directly, so this line is a CORRECTNESS CHECK that the roll fires at the
+            // rate configured, not a calibration objective. calibration.md owns the row.
+            //
+            // Three things that look wrong and are not:
+            //  (1) THE COARSEST LINE IN THE HARNESS. 17.4% relative sd at 102 games,
+            //      7.8% at 5 seeds. A single-seed reading CANNOT resolve it; do not
+            //      tune against one run, and do not read a 10% move as signal.
+            //  (2) The flagrant-2 sub-line is ~5 events per run. It is printed because
+            //      it drives the ejections above, NOT because it can be tuned.
+            //  (3) The rate is coupled to the EMERGENT foul rate (#034 G): flagrants
+            //      are derived by dividing by SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, a
+            //      MEASURED figure. §3.16 — or any pass that moves the foul rate —
+            //      moves this line without touching the flagrant constant.
+            System.out.println("--- Flagrant fouls (§3.14b) ---");
+            System.out.printf("  Flagrants / team / game: %.3f  (ballpark ~0.13-0.20 per team"
+                            + " / ~0.25-0.40 league-wide; NOT a target — see calibration.md."
+                            + " 5 SEEDS ONLY — the coarsest row there)%n",
+                    flagrantFouls / tg);
+            System.out.printf("  Flagrant-2s / team/game: %.3f  (~15%% of the above — the"
+                            + " ejection driver; ~5 events per run, NOT independently tunable)%n",
+                    flagrantTwos / tg);
 
             System.out.println("========================================================");
             System.out.println();

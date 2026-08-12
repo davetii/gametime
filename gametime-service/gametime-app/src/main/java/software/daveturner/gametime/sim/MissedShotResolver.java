@@ -61,7 +61,7 @@ public class MissedShotResolver {
     /**
      * Resolve the missed shot. When {@code capReached}, no offense-retained outcome
      * is returned (the second-chance loop is bounded by
-     * {@link SimConfig#MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION}).
+     * {@link SimConfig#MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION}).
      *
      * @param offense     the on-floor offensive five (rebounder pool)
      * @param defense     the on-floor defensive five (rebounder pool)

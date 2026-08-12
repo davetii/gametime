@@ -346,4 +346,78 @@ class PlayerGameStateTest {
         assertEquals(16.0, star.valueComposite(), 1e-9);
         assertEquals(7.0, role.valueComposite(), 1e-9);
     }
+
+    // ---------- §3.14b: the flagrant-2 counter + derived predicate (#034 F/I) ----------
+
+    /**
+     * #034 F: {@code isEjectedForFlagrant()} is a DERIVED predicate over a monotonic
+     * counter — the third of the same shape in this class, alongside {@code
+     * isFouledOut()} ({@code fouls >= 6}) and {@code isEjected()} ({@code
+     * technicalFouls >= 2}).
+     *
+     * <p>The counter is <b>absorbing</b>: once true it stays true, which is what makes a
+     * stored flag unnecessary. A flag could never disagree with the counter, so it would
+     * only be a second thing to keep in sync (#013/#015).
+     */
+    @Test
+    void isEjectedForFlagrantIsDerivedFromAMonotonicCounterAndIsAbsorbing() {
+        PlayerGameState p = TestPlayerFactory.create("p", "T", 10.0);
+        assertFalse(p.isEjectedForFlagrant());
+        assertEquals(0, p.getFlagrantTwos());
+
+        p.recordFlagrantTwo();
+        assertTrue(p.isEjectedForFlagrant(), "ONE flagrant-2 ejects (#034 E/F)");
+        assertEquals(1, p.getFlagrantTwos());
+
+        // Absorbing and monotonic: more of them cannot un-eject him.
+        p.recordFlagrantTwo();
+        assertTrue(p.isEjectedForFlagrant());
+        assertEquals(2, p.getFlagrantTwos());
+    }
+
+    /**
+     * #034 I: the three disqualification counters are INDEPENDENT. A flagrant-2 must not
+     * touch {@code fouls} (its call sites charge that separately, through the ordinary
+     * recordFoul() path) and must not touch {@code technicalFouls} — reusing the latter
+     * would make getTechnicalFouls() report flagrants, silently corrupting a stat that
+     * #033 surfaced on the box score.
+     */
+    @Test
+    void theFlagrantTwoCounterIsIndependentOfFoulsAndTechnicals() {
+        PlayerGameState p = TestPlayerFactory.create("p", "T", 10.0);
+        p.recordFlagrantTwo();
+
+        assertEquals(0, p.getFouls(),
+                "recordFlagrantTwo() counts an EJECTION CAUSE, not a foul — summing the "
+                        + "two would double-count (#033 D's trap in reverse)");
+        assertEquals(0, p.getTechnicalFouls(),
+                "…and never rides technicalFouls, which #033 exposed on the box score");
+        assertFalse(p.isFouledOut());
+        assertFalse(p.isEjected());
+        assertTrue(p.isEjectedForFlagrant(), "…only the flagrant predicate fires");
+    }
+
+    /**
+     * #034 I: a flagrant IS a personal foul, so when the call sites charge it normally
+     * it feeds the six-foul limit and the foul-trouble curve like any other. A player
+     * can therefore foul out ON a flagrant — automatic, requiring no code.
+     */
+    @Test
+    void aFlagrantChargedNormallyStillFeedsTheSixFoulLimitAndFoulTrouble() {
+        PlayerGameState p = TestPlayerFactory.create("p", "T", 10.0);
+        for (int i = 0; i < SimConfig.FOUL_OUT_LIMIT - 1; i++) {
+            p.recordFoul();
+        }
+        assertFalse(p.isFouledOut());
+        assertEquals(SimConfig.FOUL_OUT_LIMIT - 1, p.foulTroubleLevel());
+
+        // The sixth foul happens to be a flagrant-2: both effects apply.
+        p.recordFoul();
+        p.recordFlagrantTwo();
+
+        assertTrue(p.isFouledOut(), "A flagrant counts toward the six (#034 I)");
+        assertTrue(p.isEjectedForFlagrant(), "…and ejects on its own grade");
+        assertEquals(SimConfig.FOUL_OUT_LIMIT, p.getFouls(),
+                "…counted exactly once, not twice");
+    }
 }

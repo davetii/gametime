@@ -192,7 +192,7 @@ partition "FoulResolver" {
         A defensive flagrant returns the ball: the offense
         **RE-ENTERS the second-chance loop** — the SAME
         ``offensiveRebounds++; continue;`` §3.7/§3.8/§3.10 use,
-        under the SAME MAX_OFFENSIVE_REBOUNDS cap (B). No new
+        under the SAME MAX_OFFENSIVE_RETENTIONS cap (B). No new
         mechanism: the loop already IS "same team, run it again".
         This site is **always defensive**, so it always retains.
         ⚠ **The terminator below is NOT "possession over"** — it is where
@@ -482,7 +482,7 @@ partition "MissedShotResolver (§3.8 — #026) — wraps ReboundResolver (§3.3)
     stop
   endswitch
 }
-repeat while (off rebounds < MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION?) is (yes) not (no)
+repeat while (retentions < MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION?) is (yes) not (no)
 
 :cap reached → next miss forced to DEFENSIVE rebound;
 note right
@@ -491,10 +491,13 @@ note right
   (§3.8) · rebounding foul (§3.10) · **flagrant retention (§3.14b)**.
   ALL of them count against the ONE cap. **A sixth is the signal
   to restructure this loop** (the #030 clamp-trigger spirit).
-  NB **MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION now bounds FOUR
-  non-rebound paths** and its name is stale — a rename is a free
-  cleanup for whichever pass next touches it. Do NOT change its
-  VALUE (3→5 is a parked idea needing its own recalibration pass).
+  NB the cap bounds FOUR non-rebound paths, which is why it was
+  **RENAMED** MAX_OFFENSIVE_REBOUNDS → **MAX_OFFENSIVE_RETENTIONS**
+  _PER_POSSESSION (2026-08, post-§3.14b; the loop counter went
+  ``offensiveRebounds`` → ``offensiveRetentions`` with it). A pure
+  rename — the VALUE is unchanged at 3, and the 5-seed landing
+  reproduced byte-for-byte. Do NOT change the value (3→5 is a
+  parked idea needing its own recalibration pass — ideas.md).
 end note
 stop
 
@@ -555,7 +558,7 @@ legend bottom left
   rebounder and stays out of the rebound reconciliation (#026 E).
   Skill-weighted — the deliberate difference from §3.7's flat
   BlockResolver (#026 C). OOB-offense is a third offense-retention
-  path against the one MAX_OFFENSIVE_REBOUNDS cap. Sail-out is a
+  path against the one MAX_OFFENSIVE_RETENTIONS cap. Sail-out is a
   new outcome (fewer second chances) → VERIFIED harness-neutral
   (#026 D): OOB ~3/team/game, §3.4/§3.5 aggregates held.
 

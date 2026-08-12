@@ -47,7 +47,24 @@ public enum FreeThrowSource {
      * free text folded into {@code outcome} since #020, and this enum is internal to
      * the {@code sim} package.
      */
-    TECHNICAL("TECHNICAL");
+    TECHNICAL("TECHNICAL"),
+    /**
+     * §3.14b (decisions.md #034): the <b>two</b> free throws awarded for a FLAGRANT
+     * foul — flat, at all three foul sites, <b>replacing</b> whatever the underlying
+     * foul would have awarded rather than adding to it (#034 C).
+     *
+     * <p><b>A new value rather than a reuse, on §3.14a's argument restated.</b> The
+     * harness reads FT source straight off this suffix (#029 D), so folding flagrant
+     * FTs into {@code SHOOTING} would silently inflate a real source's share <b>on the
+     * very line §3.14b is judged by</b>. It would also be factually wrong at the
+     * rebounding site, which is not a shooting foul at all.
+     *
+     * <p><b>The grade rides the FOUL event's outcome suffix</b> ({@code
+     * FLAGRANT_FOUL_1} / {@code _2}), not this enum — a flagrant-1 and a flagrant-2
+     * both award exactly two free throws (#034 E), so splitting the source by grade
+     * would carry a distinction the free throws themselves do not have.
+     */
+    FLAGRANT("FLAGRANT");
 
     private final String suffix;
 

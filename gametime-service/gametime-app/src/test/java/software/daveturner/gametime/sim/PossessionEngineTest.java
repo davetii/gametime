@@ -390,7 +390,7 @@ class PossessionEngineTest {
     void offensiveReboundsCappedPerPossession() {
         // Force the offense to always rebound by making them elite offensive
         // rebounders vs hopeless defenders, and verify a single possession never
-        // emits more than MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION offensive rebounds.
+        // emits more than MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION offensive rebounds.
         List<PlayerGameState> offense = new ArrayList<>();
         List<PlayerGameState> defense = new ArrayList<>();
         for (int i = 1; i <= 5; i++) {
@@ -407,7 +407,7 @@ class PossessionEngineTest {
                     .filter(e -> e.playType() == PlayType.REBOUND
                             && e.outcome().equals("OFFENSIVE"))
                     .count();
-            assertTrue(offRebounds <= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION,
+            assertTrue(offRebounds <= SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION,
                     "Offensive rebounds per possession must be capped, got " + offRebounds
                             + " (seed " + seed + ")");
         }
@@ -919,7 +919,7 @@ class PossessionEngineTest {
     void blockSecondChancesRespectOffensiveReboundCap() {
         // Offense-recovered blocks bump the offensive-rebound counter (Decision E), so
         // BLOCKED events + OFFENSIVE rebounds sharing a possession must never let the
-        // offense retain more than MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION times. Verify
+        // offense retain more than MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION times. Verify
         // the possession always terminates (bounded event count) and the offensive
         // second-chance count is capped.
         for (long seed = 1; seed <= 300; seed++) {
@@ -936,7 +936,7 @@ class PossessionEngineTest {
             // Each retention re-enters the loop; the offense can never keep the ball
             // more than the cap allows, so a single possession is bounded well below a
             // runaway count. (Cap is 3; allow slack for the terminal non-retained shot.)
-            assertTrue(offensiveRetentions <= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION + 3,
+            assertTrue(offensiveRetentions <= SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION + 3,
                     "second chances (blocks + off rebounds) must stay bounded, got "
                             + offensiveRetentions + " (seed " + seed + ")");
         }
@@ -1086,7 +1086,7 @@ class PossessionEngineTest {
                     .count();
             // Each retention re-enters the loop; all three paths count against the one
             // cap, so a possession stays bounded well below a runaway count.
-            assertTrue(retentions <= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION + 3,
+            assertTrue(retentions <= SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION + 3,
                     "all retentions (blocks + off rebounds + OOB-offense) must stay bounded, got "
                             + retentions + " (seed " + seed + ")");
         }
@@ -1231,7 +1231,7 @@ class PossessionEngineTest {
     @Test
     void defensiveFoulAtTheSecondChanceCapEndsThePossessionInsteadOfRetaining() {
         // The cap still bounds the loop: a defensive foul under the bonus would
-        // normally retain, but not once MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION is hit.
+        // normally retain, but not once MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION is hit.
         GameData data = freshData();
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
@@ -1741,11 +1741,29 @@ class PossessionEngineTest {
      * draws. The fouled (scoring) team is the one that did NOT commit the foul;
      * {@code committingTeamId} (#028 D) is on the FOUL event, not on the
      * FREE_THROW, hence the caller threading the preceding foul's committer in.
+     *
+     * <p><b>§3.14b: the exception turned out to have THREE sources, not one, so the
+     * rule is now stated generally rather than enumerated per-suffix.</b> Two more
+     * free-throw kinds can be shot by the team that is NOT on offense:
+     * <ul>
+     *   <li>{@code _TECHNICAL} (§3.14a) — the OFFENDED team shoots, and it is emitted
+     *       between possessions, so whenever the offending team is the one on offense
+     *       the shooter is a defender. <b>Latent since §3.14a exactly as the bonus case
+     *       was latent since §3.10</b>: no seed had reached it until §3.14b's RNG shift
+     *       moved the draws, which is how it surfaced here.</li>
+     *   <li>{@code _FLAGRANT} (§3.14b) — an offense-committed rebounding foul that
+     *       turns flagrant sends the DEFENSE to the line (#034 C's flipping case).</li>
+     * </ul>
+     *
+     * <p>Enumerating suffixes would mean revisiting this helper for every future source
+     * that can be shot by the non-offense — three times in three phases is the signal to
+     * stop. <b>The actual rule is simply "the free throws score for whoever did NOT
+     * commit the foul"</b>, which is right for every source: on a {@code _SHOOTING} or
+     * {@code _AND_ONE} the committer is the defense, so it returns the offense, exactly
+     * as the old {@code offTeamId} default did.
      */
     private String scoringTeamId(GameData.EventRecord e, String lastFoulCommitter) {
-        if (e.playType() == PlayType.FREE_THROW
-                && String.valueOf(e.outcome()).endsWith("_BONUS")
-                && lastFoulCommitter != null) {
+        if (e.playType() == PlayType.FREE_THROW && lastFoulCommitter != null) {
             return lastFoulCommitter.equals(e.offTeamId()) ? e.defTeamId() : e.offTeamId();
         }
         return e.offTeamId();
@@ -1947,4 +1965,403 @@ class PossessionEngineTest {
                 "getFouls() counts PERSONAL fouls and nothing else (#032 E)");
         assertTrue(recordedTechnicals > 0, "…and technicals are counted, just separately");
     }
+
+    // ---------- §3.14b: flagrant fouls (decisions.md #034) ----------
+
+    /**
+     * A {@link RandomGenerator} whose {@code nextDouble()} returns a scripted sequence,
+     * then a fixed tail value. The only way to drive the flagrant fork deterministically:
+     * the rate is ~0.0084, so no practical seed search reaches a flagrant AND then the
+     * specific sub-case (cap reached, offense-committed, flagrant-2) a test needs.
+     *
+     * <p>Every other method delegates to a real seeded generator, so the machinery the
+     * engine runs between the scripted draws (skill-weighted picks, etc.) still behaves.
+     */
+    private static final class ScriptedRng implements RandomGenerator {
+        private final double[] script;
+        private final double tail;
+        private final RandomGenerator delegate =
+                RandomGeneratorFactory.of("L64X128MixRandom").create(12345L);
+        private int i;
+
+        ScriptedRng(double tail, double... script) {
+            this.script = script;
+            this.tail = tail;
+        }
+
+        @Override public double nextDouble() {
+            return i < script.length ? script[i++] : tail;
+        }
+        @Override public long nextLong() { return delegate.nextLong(); }
+        @Override public int nextInt() { return delegate.nextInt(); }
+        @Override public int nextInt(int bound) { return delegate.nextInt(bound); }
+    }
+
+    /**
+     * #034 C, the replace-don't-add guard at the STOPPED-SHOT site — the single likeliest
+     * bug in this pass, in its most counter-intuitive form.
+     *
+     * <p>A stopped THREE normally awards <b>3</b> free throws (#030 C). When that same
+     * foul turns flagrant the award is <b>2</b>, flat — <i>fewer</i> than the ordinary
+     * foul it upgraded. Correct by rule, and exactly the shape a future reader would
+     * "fix" into 3, or into 3 + 2 = 5.
+     */
+    @Test
+    void flagrantOnAStoppedThreeAwardsTwoFreeThrowsNotThreeAndNotFive() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        engine.awardFlagrant(data, defense.get(0), offense.get(0), "OFF", "OFF", "DEF",
+                1, 50, new ScriptedRng(0.99, /*not a flagrant-2*/ 0.99));
+
+        long freeThrows = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW).count();
+        assertEquals(2, freeThrows,
+                "A flagrant is a FLAT 2 FTs — it REPLACES the underlying award (3 on a "
+                        + "stopped THREE), it does not add to it (#034 C)");
+        assertEquals(SimConfig.FLAGRANT_FREE_THROWS, freeThrows);
+    }
+
+    /**
+     * #034 C at the AND-1 site: 2 free throws, not the and-1's 1, and not 1 + 2 = 3.
+     */
+    @Test
+    void flagrantAndOneAwardsTwoFreeThrowsNotOneAndNotThree() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        engine.awardFlagrant(data, defense.get(0), offense.get(0), "OFF", "OFF", "DEF",
+                1, 50, new ScriptedRng(0.99, 0.99));
+
+        long freeThrows = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW).count();
+        assertEquals(2, freeThrows,
+                "A flagrant and-1 is 2 FTs, replacing AND_ONE_FREE_THROWS (1) — not 1+2");
+        assertNotEquals(SimConfig.AND_ONE_FREE_THROWS, freeThrows);
+    }
+
+    /**
+     * #034 C/D/E/I: the emitted shape of a flagrant — the grade on the outcome, the
+     * committing team, the FOULED player shooting, and the FT source tag.
+     */
+    @Test
+    void flagrantEmitsTheGradedFoulAndTwoSourceTaggedFreeThrowsForTheFouledPlayer() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        PlayerGameState committer = defense.get(0);
+        PlayerGameState fouled = offense.get(2);
+
+        int next = engine.awardFlagrant(data, committer, fouled, "OFF", "OFF", "DEF",
+                1, 50, new ScriptedRng(0.99, 0.99));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        assertEquals(3, events.size(), "one FOUL + two FREE_THROWs");
+        assertEquals(53, next, "sequence advances past the FOUL and both FTs");
+
+        GameData.EventRecord foul = events.get(0);
+        assertEquals(PlayType.FOUL, foul.playType());
+        assertEquals(PossessionEngine.FLAGRANT_FOUL_1_OUTCOME, foul.outcome());
+        assertEquals(committer.getPlayerId(), foul.primaryPlayerId());
+        assertEquals("DEF", foul.committingTeamId(),
+                "committingTeamId is load-bearing on a flagrant (#034 C)");
+
+        for (GameData.EventRecord ft : events.subList(1, 3)) {
+            assertEquals(PlayType.FREE_THROW, ft.playType());
+            assertTrue(String.valueOf(ft.outcome()).endsWith("_FLAGRANT"),
+                    "FTs carry the new FLAGRANT source (#029 D's suffix), so the harness "
+                            + "cannot silently attribute them to a real source");
+            assertEquals(fouled.getPlayerId(), ft.primaryPlayerId(),
+                    "The player who WAS FOULED shoots (#034 D) — never the best shooter, "
+                            + "which is pickTechnicalFreeThrowShooter's rule (#032 G)");
+        }
+    }
+
+    /**
+     * #034 E/F: the severity sub-roll, and the ejection it drives. A flagrant-2 emits
+     * the {@code _2} outcome and charges {@code recordFlagrantTwo()}; a flagrant-1 does
+     * neither. Both award the same two free throws — the grade changes nothing else.
+     */
+    @Test
+    void flagrantTwoGradesTheOutcomeAndChargesTheEjectionCounterWhileFlagrantOneDoesNot() {
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        GameData two = freshData();
+        PlayerGameState ejected = defense.get(0);
+        // 0.0 < FLAGRANT_TWO_SHARE ⇒ a flagrant-2.
+        engine.awardFlagrant(two, ejected, offense.get(0), "OFF", "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99, 0.0));
+        assertEquals(PossessionEngine.FLAGRANT_FOUL_2_OUTCOME, two.getEvents().get(0).outcome());
+        assertEquals(1, ejected.getFlagrantTwos());
+        assertTrue(ejected.isEjectedForFlagrant(), "one flagrant-2 ejects immediately");
+
+        GameData one = freshData();
+        PlayerGameState stays = defense.get(1);
+        // 0.99 >= FLAGRANT_TWO_SHARE ⇒ a flagrant-1.
+        engine.awardFlagrant(one, stays, offense.get(0), "OFF", "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99, 0.99));
+        assertEquals(PossessionEngine.FLAGRANT_FOUL_1_OUTCOME, one.getEvents().get(0).outcome());
+        assertEquals(0, stays.getFlagrantTwos());
+        assertFalse(stays.isEjectedForFlagrant());
+
+        assertEquals(
+                two.getEvents().stream().filter(e -> e.playType() == PlayType.FREE_THROW).count(),
+                one.getEvents().stream().filter(e -> e.playType() == PlayType.FREE_THROW).count(),
+                "The grade changes NOTHING but the ejection — 2 FTs either way (#034 E)");
+    }
+
+    /**
+     * #034 I: a flagrant IS a personal foul, so the committer wears it through the
+     * ordinary {@code recordFoul()} path — and {@code flagrantTwos} is NOT a parallel
+     * foul counter (the #033 D double-count trap in reverse).
+     *
+     * <p>{@code awardFlagrant} deliberately does not charge the foul itself (every call
+     * site has already done so), which is what this asserts: the counters stay separate
+     * and the ejection counter never inflates the foul count.
+     */
+    @Test
+    void flagrantTwosCountEjectionCausesNotFoulsSoTheTwoCountersNeverDoubleCount() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        PlayerGameState committer = defense.get(0);
+
+        committer.recordFoul(); // what every call site does before rolling the flagrant
+        engine.awardFlagrant(data, committer, offense.get(0), "OFF", "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99, 0.0));
+
+        assertEquals(1, committer.getFouls(),
+                "The flagrant is ONE personal foul — recordFlagrantTwo() must not add a second");
+        assertEquals(1, committer.getFlagrantTwos(),
+                "…and the ejection cause is counted separately (#034 F/I)");
+        assertEquals(0, committer.getTechnicalFouls(),
+                "§3.14a's counter split does NOT apply to flagrants (#032 E vs #034 I)");
+    }
+
+    /**
+     * #034 I + #032's follow-up: <b>the bonus tally is UNCHANGED, asserted rather than
+     * left to inspection.</b> A flagrant is a personal foul, so unlike §3.14a's technical
+     * it COUNTS toward the penalty — meaning {@code countsTowardBonus} needs no new entry
+     * and {@code GameData.isInBonus} must treat it like any other foul.
+     *
+     * <p>This is pinned by a test because the exclusion lives in TWO independent
+     * derivations ({@code GameData.isInBonus} and the harness's own per-team-period
+     * tally), and "we changed nothing" is otherwise indistinguishable from "we forgot".
+     */
+    @Test
+    void flagrantFoulsCountTowardTheBonusTallyUnlikeTechnicals() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD - 1);
+        assertFalse(data.isInBonus("DEF", 1), "precondition: one short of the penalty");
+
+        engine.awardFlagrant(data, defense.get(0), offense.get(0), "OFF", "OFF", "DEF",
+                1, 50, new ScriptedRng(0.99, 0.99));
+
+        assertTrue(data.isInBonus("DEF", 1),
+                "A flagrant is a PERSONAL foul and must reach the penalty tally (#034 I) — "
+                        + "the opposite of §3.14a's TECHNICAL_FOUL exclusion (#032 E)");
+        assertEquals(SimConfig.BONUS_FOULS_PER_PERIOD,
+                data.periodFoulCount("DEF", 1),
+                "…counted exactly once, not twice");
+    }
+
+    /**
+     * #034 C: at the rebounding site — the ONLY two-sided one — a DEFENSIVE flagrant
+     * leaves the offense the ball, and the fouled OFFENSIVE player shoots.
+     */
+    @Test
+    void defensiveReboundingFlagrantRetainsForTheOffenseAndTheOffensivePlayerShoots() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        ReboundFoul foul = new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0));
+
+        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
+                data, foul, offense, defense, "OFF", "DEF", 1, 50,
+                /*capReached*/ false, new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+
+        assertTrue(result.offenseRetains(),
+                "A defensive flagrant returns the ball to the offense (#034 B/C)");
+        assertEquals(PossessionEngine.FLAGRANT_FOUL_1_OUTCOME,
+                data.getEvents().get(0).outcome(),
+                "…and REPLACES the REBOUNDING_FOUL_DEFENSE event, it does not add to it");
+        assertTrue(data.getEvents().stream()
+                        .filter(e -> e.playType() == PlayType.FREE_THROW)
+                        .allMatch(e -> e.primaryPlayerId().startsWith("OFF")),
+                "The fouled OFFENSIVE player shoots (#034 D)");
+    }
+
+    /**
+     * #034 C: the flipping case — the only one in the pass, and the reason the
+     * rebounding site is the only site that needs a fork at all. An OFFENSE-committed
+     * flagrant sends the DEFENSE to the line and ends the possession.
+     */
+    @Test
+    void offensiveReboundingFlagrantFlipsThePossessionAndTheDefensivePlayerShoots() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        ReboundFoul foul = new ReboundFoul(ReboundFoul.Side.OFFENSE, offense.get(0));
+
+        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
+                data, foul, offense, defense, "OFF", "DEF", 1, 50,
+                /*capReached*/ false, new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+
+        assertFalse(result.offenseRetains(), "An offensive flagrant flips the possession");
+        assertEquals("OFF", data.getEvents().get(0).committingTeamId(),
+                "committingTeamId is load-bearing here, not merely uniform (#028 D / #034 C)");
+        assertTrue(data.getEvents().stream()
+                        .filter(e -> e.playType() == PlayType.FREE_THROW)
+                        .allMatch(e -> e.primaryPlayerId().startsWith("DEF")),
+                "The fouled DEFENSIVE player shoots");
+    }
+
+    /**
+     * #034 B: <b>the cap is respected</b>, and it degrades exactly as §3.10's does — the
+     * free throws are still awarded, and only the retention is refused. This is the
+     * assertion that would catch an uncapped retention loop, one of the three named
+     * suspects if the §3.4 aggregates ever move (#034 J).
+     */
+    @Test
+    void aFlagrantAtTheRetentionCapStillAwardsFreeThrowsButEndsThePossession() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        ReboundFoul foul = new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0));
+
+        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
+                data, foul, offense, defense, "OFF", "DEF", 1, 50,
+                /*capReached*/ true, new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+
+        assertFalse(result.offenseRetains(),
+                "The flagrant retention is NOT exempt from "
+                        + "MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION (#034 B)");
+        assertEquals(2, data.getEvents().stream()
+                        .filter(e -> e.playType() == PlayType.FREE_THROW).count(),
+                "…but the FTs are still awarded — the §3.10 degradation shape");
+    }
+
+    /**
+     * #034 B, the whole-loop view: a flagrant at the stopped-shot site RE-ENTERS the
+     * second-chance loop rather than ending the possession — the first free-throw path
+     * in the engine that does not end it (#030 B's invariant, broken deliberately).
+     *
+     * <p>Driven through {@code resolvePossession} rather than a helper so the actual
+     * {@code continue} is exercised: a retained possession must produce a SECOND shot
+     * attempt after the free throws.
+     */
+    @Test
+    void aStoppedShotFlagrantReEntersTheLoopSoThePossessionContinuesAfterTheFreeThrows() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        // The draw order at the top of the loop: pickShooter, pickShotType,
+        // pickDefender (three weighted picks — 0.5 is a mid-list pick for each), then
+        // the turnover gate (0.99 = no turnover), the foul roll (0.0 = foul), the
+        // flagrant roll (0.0 = flagrant) and the severity sub-roll (0.99 = grade 1).
+        // The 0.5 tail then lets the retained possession play out normally.
+        resolvePossession(data, offense, defense, "OFF", "DEF", 1, 1,
+                new ScriptedRng(0.5, 0.5, 0.5, 0.5, 0.99, 0.0, 0.0, 0.99));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        assertEquals(PossessionEngine.FLAGRANT_FOUL_1_OUTCOME, events.get(0).outcome());
+        assertEquals(2, events.stream()
+                        .filter(e -> e.playType() == PlayType.FREE_THROW).count(),
+                "2 FTs, REPLACING the stopped shot's 2-or-3 (#034 C)");
+        assertTrue(events.stream().anyMatch(e -> e.playType() == PlayType.SHOT
+                        || e.playType() == PlayType.TURNOVER),
+                "The offense KEPT the ball: the possession ran another action after the "
+                        + "free throws, via the same offensiveRetentions++/continue §3.7/§3.8/"
+                        + "§3.10 use (#034 B)");
+    }
+
+    /**
+     * #034 B at the two SHOOTING sites: the retention respects
+     * {@code MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION} there too, degrading exactly as
+     * §3.10's does — the free throws are still awarded, only the retention is refused.
+     *
+     * <p>Reaching the cap needs the loop to retain three times first, so the script
+     * drives three flagrant stopped shots and then a fourth: the fourth must END the
+     * possession. Without this the cap-reached branch at these two sites is unreachable
+     * in practice (a flagrant is ~0.0084 per foul, so four in one possession never
+     * occurs naturally) — which is precisely why it is worth pinning.
+     */
+    @Test
+    void flagrantRetentionAtTheShootingSitesStopsAtTheSecondChanceCap() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        // Per loop iteration: 3 weighted picks, no-turnover, foul, flagrant, grade-1,
+        // then the two free-throw make rolls awardFreeThrows consumes (0.5 = made).
+        double[] iteration = { 0.5, 0.5, 0.5, 0.99, 0.0, 0.0, 0.99, 0.5, 0.5 };
+        double[] script = new double[iteration.length * 4];
+        for (int i = 0; i < 4; i++) {
+            System.arraycopy(iteration, 0, script, i * iteration.length, iteration.length);
+        }
+        resolvePossession(data, offense, defense, "OFF", "DEF", 1, 1,
+                new ScriptedRng(0.5, script));
+
+        long flagrants = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL).count();
+        assertEquals(SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION + 1, flagrants,
+                "The offense retains up to the cap and no further — the flagrant is NOT "
+                        + "exempt from MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION (#034 B)");
+        assertEquals(flagrants * SimConfig.FLAGRANT_FREE_THROWS,
+                data.getEvents().stream()
+                        .filter(e -> e.playType() == PlayType.FREE_THROW).count(),
+                "…and every one of them still awarded its two FTs, cap or no cap");
+    }
+
+    /**
+     * #034 B/C at the AND-1 site specifically: the flagrant and-1 retains, and it too
+     * stops at the cap. This is the three-scoring-channel case — made FG + 2 FTs + the
+     * ball back — so the assertion doubles as the guard that the basket is scored
+     * <b>once</b>, not re-scored by the flagrant path.
+     */
+    @Test
+    void flagrantAndOneRetainsScoresTheBasketOnceAndStopsAtTheCap() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        // Per iteration: 3 picks, no-turnover, no-foul, no-block, MADE, assist-roll
+        // (0.99 = unassisted), and-1 (0.0 = yes), flagrant (0.0), grade-1 (0.99),
+        // then the two FT make rolls.
+        double[] iteration = { 0.5, 0.5, 0.5, 0.99, 0.99, 0.99, 0.0, 0.99, 0.0, 0.0, 0.99, 0.5, 0.5 };
+        double[] script = new double[iteration.length * 4];
+        for (int i = 0; i < 4; i++) {
+            System.arraycopy(iteration, 0, script, i * iteration.length, iteration.length);
+        }
+        resolvePossession(data, offense, defense, "OFF", "DEF", 1, 1,
+                new ScriptedRng(0.5, script));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        long madeShots = events.stream()
+                .filter(e -> e.playType() == PlayType.SHOT)
+                .filter(e -> String.valueOf(e.outcome()).startsWith("MADE")).count();
+        long flagrants = events.stream()
+                .filter(e -> e.playType() == PlayType.FOUL)
+                .filter(e -> String.valueOf(e.outcome()).startsWith("FLAGRANT")).count();
+
+        assertEquals(SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION + 1, flagrants,
+                "The flagrant and-1 retains up to the cap and no further (#034 B)");
+        assertEquals(flagrants, madeShots,
+                "Each retained iteration scored EXACTLY ONE basket — the flagrant path "
+                        + "must not re-score the make it rides (#034 C)");
+        assertEquals(0, events.stream()
+                        .filter(e -> "AND_ONE".equals(e.outcome())).count(),
+                "…and the ordinary AND_ONE event never fires: the flagrant REPLACES it");
+        assertEquals(flagrants * SimConfig.FLAGRANT_FREE_THROWS,
+                events.stream().filter(e -> e.playType() == PlayType.FREE_THROW).count(),
+                "2 FTs each, NOT the and-1's 1 and not 1+2 (#034 C)");
+    }
+
 }

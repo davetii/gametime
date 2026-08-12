@@ -923,4 +923,116 @@ class RotationStateTest {
             p.recordTechnicalFoul();
         }
     }
+
+    // ---------- §3.14b: the flagrant-2 ejection, the THIRD cause (#034 F, #031 H) ----------
+
+    private static void ejectForFlagrant(PlayerGameState p) {
+        for (int i = 0; i < SimConfig.FLAGRANT_EJECTION_LIMIT; i++) {
+            p.recordFlagrantTwo();
+        }
+    }
+
+    /**
+     * #034 F: the flagrant-2 ejection is DERIVED from a monotonic counter — no stored
+     * flag — exactly like the foul-out and the two-technical ejection. Forced directly
+     * (#032 F's discipline) rather than waiting for the event, which fires ~0.024 times
+     * per team-game.
+     *
+     * <p>This is the assertion behind the finding that reverses #031 H / #032 F: the
+     * threshold being 1 rather than 6 or 2 changes nothing about the shape.
+     */
+    @Test
+    void oneFlagrantTwoEjectsAPlayerAndTheEjectionIsDerived() {
+        PlayerGameState p = player("S1", LineupRole.STARTER, null, 10, 10);
+        assertFalse(p.isEjectedForFlagrant());
+        p.recordFlagrantTwo();
+        assertTrue(p.isEjectedForFlagrant(),
+                "ONE flagrant-2 ejects immediately — there is no accumulation threshold "
+                        + "to remember, which is why no stored flag is needed (#034 F)");
+        assertEquals(0, p.getFouls(),
+                "…and recordFlagrantTwo() alone charges no personal foul — the call sites "
+                        + "do that separately, so the two counters never double-count (#034 I)");
+        assertFalse(p.isEjected(),
+                "…and it is NOT the technical ejection: reusing technicalFouls would "
+                        + "corrupt a surfaced box-score stat (#033)");
+    }
+
+    /**
+     * #031 H / #034 F: a flagrant-2 ejection is forced off by the SAME hard tier a
+     * foul-out and a technical ejection use — the third cause behind one
+     * {@code isDisqualified(...)}, not a fourth removal path.
+     */
+    @Test
+    void aFlagrantEjectedOnFloorPlayerIsForcedOffAndReplacedFromTheBench() {
+        List<PlayerGameState> squad = squad(4);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+        PlayerGameState starter = squad.get(0);
+        ejectForFlagrant(starter);
+
+        r.advancePossession(rng());
+
+        assertFalse(r.onFloor().contains(starter),
+                "A flagrant-2 ejection must leave the floor, via the same hard tier");
+        assertEquals(5, r.onFloor().size(), "The floor stays at exactly five");
+    }
+
+    /** #034 F: a flagrant-ejected BENCH player is never selected as a replacement. */
+    @Test
+    void aFlagrantEjectedBenchPlayerIsNotEligibleToComeIn() {
+        List<PlayerGameState> squad = squad(2);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+        PlayerGameState bench1 = squad.get(5);
+        PlayerGameState bench2 = squad.get(6);
+        ejectForFlagrant(bench1);
+        foul(squad.get(0), SimConfig.FOUL_OUT_LIMIT); // force a hard sub
+
+        r.advancePossession(rng());
+
+        assertFalse(r.onFloor().contains(bench1),
+                "eligible(...) must exclude the flagrant-ejected player too");
+        assertTrue(r.onFloor().contains(bench2),
+                "…the next eligible bench player comes in instead");
+    }
+
+    /**
+     * #023 F / #034 F: the never-below-5 last resort holds with ALL THREE
+     * disqualification causes in play at once — the degenerate case, now three-sided.
+     */
+    @Test
+    void onFloorStaysAtFiveWhenAllThreeDisqualificationCausesExhaustTheBench() {
+        List<PlayerGameState> squad = squad(2);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+        // Both bench players unavailable, by two different causes.
+        ejectForFlagrant(squad.get(5));
+        foul(squad.get(6), SimConfig.FOUL_OUT_LIMIT);
+        // And three of the on-floor five disqualified, one by EACH cause.
+        ejectForFlagrant(squad.get(0));
+        eject(squad.get(1));
+        foul(squad.get(2), SimConfig.FOUL_OUT_LIMIT);
+
+        r.advancePossession(rng());
+
+        assertEquals(5, r.onFloor().size(),
+                "The never-below-5 invariant survives all three causes (#023 F)");
+    }
+
+    /**
+     * #034 F: a flagrant-ejected player is not a SOFT foul-trouble sub candidate either
+     * — the third cause reaches {@code mostFoulTroubledCandidate()} through the same
+     * shared predicate, so the two tiers cannot drift apart on what "disqualified" means.
+     */
+    @Test
+    void aFlagrantEjectedPlayerIsNotASoftFoulTroubleSubCandidate() {
+        List<PlayerGameState> squad = squad(0); // no bench: the hard tier cannot replace
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+        PlayerGameState p = squad.get(0);
+        foul(p, SimConfig.FOUL_OUT_LIMIT - 1); // deep in foul trouble
+        ejectForFlagrant(p);
+
+        r.advancePossession(rng());
+
+        assertEquals(5, r.onFloor().size(),
+                "With no bench he stays on (never-below-5), and the soft rule must not "
+                        + "try to sit him either — both tiers ask isDisqualified(...)");
+    }
 }

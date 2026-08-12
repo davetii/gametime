@@ -89,7 +89,7 @@ temperament has no influence on his team's technicals, which is a real fidelity
 ceiling that no tuning can lift (it needs the game-situation awareness the rotation
 step does not have).
 
-**⏳ §3.14b (flagrants, designed as `decisions.md` #034, not yet built) reads no coach
+**§3.14b (flagrants, `decisions.md` #034) reads no coach
 attribute either — but it is NOT coach-independent, and the distinction matters.** The
 flagrant *severity roll* is a flat constant with no coach input (#034 A/E), exactly like
 §3.14a's. **But a flagrant only exists if a foul happened first, and all three fouls it

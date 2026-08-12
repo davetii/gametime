@@ -133,6 +133,67 @@ public class FoulResolver {
         return rng.nextDouble() < prob;
     }
 
+    /**
+     * §3.14b (decisions.md #034 A/E/G): was a foul that <b>already happened</b> a
+     * FLAGRANT? <b>One definition, three callers</b> — the stopped-shot site, the and-1
+     * site and the rebounding-foul site all ask this same question, and it must never
+     * become three copies.
+     *
+     * <p><b>This is LAYERED ON TOP of an outcome that is already fully resolved, not
+     * carved OUT of one</b>, and that inversion is what makes §3.14b free on every
+     * existing rate. §3.7's block, §3.10's rebounding foul and §3.11's and-1 each take
+     * a slice out of an outcome, re-partitioning it. This one is asked only after
+     * {@link #isFoul}, {@link #isAndOne} or {@link #resolveReboundFoul} has already
+     * returned a foul, so <b>nothing is re-partitioned and no existing rate moves by
+     * construction</b> (#034 A). {@code isFoul} / {@code isAndOne} /
+     * {@code resolveReboundFoul} keep their rates, their inputs and their RNG draws
+     * exactly as shipped.
+     *
+     * <p><b>⚠ NO SKILL INPUTS AT ALL — and unlike every other roll in this class, that
+     * is a positive design claim rather than a simplification (#034 E).</b> This takes
+     * no {@link PlayerGameState} because the engine cannot distinguish excessive
+     * contact from ordinary contact, so weighting it by {@code foulProne} would
+     * manufacture a signal the model does not have. More precisely: <b>{@code
+     * foulProne} has ALREADY had its say</b> — the committer was chosen before this
+     * roll fires ({@code pickDefender} at the shooting sites, {@code pickCommitter} at
+     * the rebounding site, both {@code foulProne}-weighted), so weighting the grade
+     * too would apply one signal twice. The symmetry with §3.14a's {@code foulProne}
+     * committer draw (#032 C) is tempting and <b>wrong</b>: that weighted a
+     * <i>selection</i>, this is a <i>grade</i> on a player already selected.
+     *
+     * <p><b>Determinism:</b> this adds one {@code nextDouble()} <b>per FOUL</b>, not
+     * per possession. A deliberate exception to §3.14a's unconditional-draw discipline,
+     * permissible because the draw is nested <i>inside</i> an already-conditional
+     * branch (the foul), so it cannot fork the stream on rotation state the way #031's
+     * would have — it forks only on the foul's own outcome, which the stream has
+     * already forked on.
+     */
+    public boolean isFlagrant(RandomGenerator rng) {
+        return rng.nextDouble() < config.flagrantFoulProbability();
+    }
+
+    /**
+     * §3.14b (decisions.md #034 E): given a flagrant, was it a <b>FLAGRANT-2</b> — the
+     * grade that ejects the committer immediately? A flat {@link
+     * SimConfig#FLAGRANT_TWO_SHARE} conditional sub-roll, taken <b>only on a hit</b>
+     * from {@link #isFlagrant}.
+     *
+     * <p><b>One mechanic with a severity sub-roll, not two independently-rated
+     * mechanics.</b> A separately-tuned flagrant-2 <i>rate</i> was rejected on
+     * measurability: at ~33 flagrants per 102-game harness run a flagrant-2 line is ~5
+     * events, unresolvable at any seed count, so the second constant would be a knob
+     * nobody could ever read. A conditional share says the thing actually known —
+     * <i>what fraction of flagrants are severe</i> — and inherits the parent rate's
+     * resolvability.
+     *
+     * <p><b>The grade changes NOTHING but the ejection</b> (#034 C/E): two free throws
+     * either way, the same possession fork, the same personal foul. Causally inert for
+     * the same reason {@link #isFlagrant} is — see its javadoc.
+     */
+    public boolean isFlagrantTwo(RandomGenerator rng) {
+        return rng.nextDouble() < SimConfig.FLAGRANT_TWO_SHARE;
+    }
+
     public boolean isFreeThrowMade(PlayerGameState shooter, RandomGenerator rng) {
         double prob = config.freeThrowProbability(shooter.getFreeThrows());
         return rng.nextDouble() < prob;

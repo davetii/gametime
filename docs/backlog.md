@@ -52,7 +52,7 @@ planned features), see [ideas.md](ideas.md).
       **Two more UNSOURCED rare-event rates joined the list at §3.14** *(added 2026-08)*:
       **technicals** (~0.6–0.8 league-wide / ~0.3–0.4 per team — user-supplied, #032 J,
       shipped at 0.367) and **flagrants** (~0.25–0.40 league-wide / ~0.16 per team —
-      #034 G/H, designed). **Both are `ballpark`s, not targets** — nothing is tuned toward
+      #034 G/H, shipped at 0.148). **Both are `ballpark`s, not targets** — nothing is tuned toward
       them, each constant is set from the real-world figure directly — so sourcing them is
       cheaper than the five: a wrong figure means a wrong constant, not a mis-tuned engine.
       ⚠ **But they are the least verifiable rows to check even once sourced**: technicals
@@ -80,7 +80,16 @@ planned features), see [ideas.md](ideas.md).
       recalibration — which is the largest multi-config sweep the project will run and
       is exactly what profiles are for. **Validation gate:** §3.15 must reproduce
       **§3.14b's** shipped landing *exactly* before any §3.16 number is read off it (the
-      check that validated the §3.11 harness against §3.10's numbers).
+      check that validated the §3.11 harness against §3.10's numbers). **That landing is
+      now on the board** (5-seed mean, seeds 1000–5000): flagrants **0.148**, points
+      **118.3**, FG% **46.9%**, 3P% **36.7%**, assists **27.1**, TO **13.6**, penalty rate
+      **51.9%**, foul-outs **0.358**, ejections **0.027**.
+      ⚠ **One §3.14b constant is NOT a tunable and must not be profiled as one:**
+      `PERSONAL_FOULS_PER_TEAM_GAME` (19.0) is a **measured** assumption about the
+      engine's current foul rate, used as the divisor that turns the game-level flagrant
+      rate into a per-foul probability (#034 G). A profile that varies it independently of
+      the actual foul rate silently breaks the flagrant rate. If §3.15 groups constants by
+      "what a tuner may vary", this one sits outside that set.
       ⚠ **That gate got harder to satisfy at §3.14b, and the reason is worth knowing
       before designing §3.15** (`decisions.md` #034, Status block): §3.14b's severity roll
       is drawn **per foul, and its flagrant-2 sub-roll only on a hit** — a deliberate
@@ -121,16 +130,24 @@ planned features), see [ideas.md](ideas.md).
       a consumer, not this chore (see the "not to be confused with" note below) — but
       the tuning design shouldn't paint it out.
       **The single-location goal is already met and should not be disturbed:** all
-      **75** tunable constants live in `SimConfig.java`, with **zero** defined
-      anywhere else in the `sim` package (re-verified 2026-08 post-§3.13, which added
-      six foul-trouble constants). That invariant has held from §3.2 through §3.13 —
-      protect it. What's missing is not a *location* but a
+      **83** tunable constants live in `SimConfig.java`, with **zero** defined
+      anywhere else in the `sim` package (re-verified 2026-08 post-§3.14b, which added
+      five flagrant constants; §3.13 added six foul-trouble ones). That invariant has
+      held from §3.2 through §3.14b — protect it. *(The only other `public static
+      final` in the package is `GameData.TECHNICAL_FOUL_OUTCOME` — an event-vocabulary
+      **string**, not a tunable, and §3.14b's two `FLAGRANT_FOUL_*` outcome strings sit
+      on `PossessionEngine` for the same reason. Event vocabulary is not profilable and
+      is out of scope.)* ⚠ **They are `public static final`
+      and read STATICALLY** from the engine, the resolvers and the tests — while
+      `SimConfig` is *also* already a Spring bean injected in 17 places for its 20
+      instance methods. **That split is the real design problem** (todo.md's Q2), not
+      the file format. What's missing is not a *location* but a
       **workflow**: every calibration change (a `BASE_*` trim, a foul multiplier)
       currently costs an edit + rebuild + re-run, which is real friction in a pass
       that sweeps several values across several seeds.
       **The open design question**, when this is picked up, is whether a profile is
-      a **full replacement** (each file carries all 65 constants — self-contained and
-      unambiguous, but 65 lines to change one knob, and a new constant must be added
+      a **full replacement** (each file carries all 83 constants — self-contained and
+      unambiguous, but 83 lines to change one knob, and a new constant must be added
       to every file) or an **override layer** (the Java constants stay the defaults;
       a profile lists only its deltas — far more readable as an experiment, "this
       profile is baseline except `FOUL_MULT_THREE`", at the cost that a profile alone

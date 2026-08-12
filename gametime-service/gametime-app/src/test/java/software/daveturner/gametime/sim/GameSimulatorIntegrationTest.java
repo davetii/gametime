@@ -452,10 +452,19 @@ class GameSimulatorIntegrationTest {
      *
      * <p>This is the assertion that catches the sim → entity write being dropped: the
      * field is nullable and every other layer would still compile and pass without it.
+     *
+     * <p><b>§3.14b re-baselined the SEED, 7 → 9, and nothing else.</b> The {@code > 0}
+     * line below is a <b>precondition</b> that keeps the reconciliation from passing
+     * vacuously, not an invariant about technicals — and §3.14b's flagrant roll consumes
+     * one extra draw per foul, so the seed-7 stream no longer happens to produce one.
+     * Seed 9 was chosen by <b>measuring</b> which seeds still yield technicals here (it
+     * yields three, so the precondition has margin), not by weakening the assertion to
+     * {@code >= 0}. The reconciliation identity itself is unchanged and is what the test
+     * is actually for.
      */
     @Test
     void technicalFoulsArePersistedOnTheBoxScoreAndReconcileWithTheEvents() {
-        SimResult result = simulator.simulate("CHI", "NY", 7L, 40);
+        SimResult result = simulator.simulate("CHI", "NY", 9L, 40);
         List<GameEventEntity> events = gameEventRepo
                 .findByGameIdOrderBySequenceAsc(result.getGameId());
         List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
@@ -496,4 +505,5 @@ class GameSimulatorIntegrationTest {
         }
         return 0;
     }
+
 }

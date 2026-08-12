@@ -9,6 +9,29 @@ import java.util.random.RandomGenerator;
 @Component
 public class PossessionEngine {
 
+    /**
+     * §3.14b (decisions.md #034): the {@code outcome} strings for the two flagrant
+     * grades, on the existing {@link PlayType#FOUL} — a flagrant is a KIND of foul, so
+     * no new {@code PlayType} (the #025 F / #026 E / #028 D / #032 reuse discipline),
+     * and free text since #020 means no migration. They mirror the established {@code
+     * SHOOTING_FOUL} / {@code REBOUNDING_FOUL_*} / {@code AND_ONE} / {@code
+     * TECHNICAL_FOUL} vocabulary and collide with nothing in the §3.8/§3.9/§3.10
+     * strings (the #027 D discipline).
+     *
+     * <p><b>They live HERE rather than on {@link GameData}, and the contrast with
+     * {@link GameData#TECHNICAL_FOUL_OUTCOME} is deliberate.</b> That constant sits on
+     * {@code GameData} because that class must <i>recognise</i> it — it is the one
+     * outcome excluded from the penalty tally, and a literal on both sides of that
+     * agreement is how the two would drift apart. <b>A flagrant COUNTS toward the
+     * bonus</b> (#034 I), so {@code GameData} needs no entry for it and these belong
+     * with the class that emits them.
+     *
+     * <p>The grade rides the outcome suffix rather than a separate field, so nothing
+     * else carries it.
+     */
+    static final String FLAGRANT_FOUL_1_OUTCOME = "FLAGRANT_FOUL_1";
+    static final String FLAGRANT_FOUL_2_OUTCOME = "FLAGRANT_FOUL_2";
+
     private final ShotSelector shotSelector;
     private final ShotResolver shotResolver;
     private final TurnoverResolver turnoverResolver;
@@ -120,10 +143,20 @@ public class PossessionEngine {
         double oppTeamDefense = averageTeamDefense(defense);
 
         // The offense keeps the ball as long as it grabs offensive rebounds, up
-        // to MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION. Each attempt runs the full
+        // to MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION. Each attempt runs the full
         // flow (turnover → foul → shot); a missed shot rolls a rebound (§3.3).
-        int offensiveRebounds = 0;
+        int offensiveRetentions = 0;
         while (true) {
+            // Is the second-chance loop full? Hoisted here at §3.14b (#034 B): it was
+            // computed identically at the block-recovery branch and again at the
+            // rebound phase, and the flagrant sites need it EARLIER than either (the
+            // stopped-shot fork is above both). One definition serving all four
+            // retention paths — a pure move, no behavior change: `offensiveRetentions`
+            // is only ever incremented immediately before a `continue`, so its value
+            // at the top of an iteration is what both original sites read.
+            boolean capReached =
+                    offensiveRetentions >= SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION;
+
             PlayerGameState shooter = shotSelector.pickShooter(offense, rng);
             ShotType shotType = shotSelector.pickShotType(shooter, shotMixLean, rng);
             PlayerGameState defender = shotSelector.pickDefender(defense, rng);
@@ -153,6 +186,25 @@ public class PossessionEngine {
             // a stopped THREE is 3 FTs, everything else 2 (#030 C).
             if (foulResolver.isFoul(shotType, shooter, defender, defensivePressure, rng)) {
                 defender.recordFoul();
+
+                // §3.14b (#034 A/B/C): the severity roll, layered ON TOP of the foul
+                // above — which has already been charged and is unchanged either way.
+                // This site is ALWAYS defensive (a shooting foul is on the defender),
+                // so a flagrant here ALWAYS retains for the offense.
+                //
+                // ⚠ The 2 FTs REPLACE shotType.freeThrowsIfFouled(), they do NOT add to
+                // it (#034 C): a flagrant stopped THREE awards 2, not 3 and not 5. The
+                // ordinary award below is in the `else` path and never runs on a hit.
+                if (foulResolver.isFlagrant(rng)) {
+                    sequence = awardFlagrant(data, defender, shooter, offTeamId,
+                            offTeamId, defTeamId, period, sequence, rng);
+                    if (!capReached) {
+                        offensiveRetentions++;
+                        continue; // the offense keeps the ball (#034 B)
+                    }
+                    return sequence; // cap full: FTs awarded, possession ends (§3.10's shape)
+                }
+
                 // §3.10 (#028 D): a shooting foul's committer is always the
                 // DEFENDER, but the column is populated here too so the penalty
                 // derivation reads ONE uniform field across all FOUL events.
@@ -191,10 +243,8 @@ public class PossessionEngine {
                 // and respecting the same cap — it SKIPS ReboundResolver (recovery is
                 // already decided). Defense-recovered ends the possession.
                 BlockRecovery recovery = blockResolver.resolveRecovery(rng);
-                boolean capReached =
-                        offensiveRebounds >= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION;
                 if (recovery.offenseRetains() && !capReached) {
-                    offensiveRebounds++;
+                    offensiveRetentions++;
                     continue;
                 }
                 return sequence;
@@ -243,11 +293,39 @@ public class PossessionEngine {
                 // awardAndOne.
                 if (foulResolver.isAndOne(shotType, shooter, defender,
                         defensivePressure, rng)) {
+                    // §3.14b (#034 A/B/C): the same severity roll, layered on the and-1
+                    // foul. Rolled HERE rather than inside awardAndOne because this is
+                    // where `offensiveRetentions` and the `continue` are — awardAndOne
+                    // returns only a sequence, and its javadoc correctly says it never
+                    // forks a possession. Widening it to return a retention flag would
+                    // put a possession fork inside a method documented not to have one.
+                    //
+                    // ⚠ THIS IS THE CASE THAT MOST VISIBLY BREAKS #030 B: the basket
+                    // COUNTS (already recorded above — do NOT re-score it), 2 free
+                    // throws are awarded, AND the offense keeps the ball. Three scoring
+                    // channels on one possession, which no path in this engine has ever
+                    // produced. It is the rule. #029 B's "the and-1 never forks the
+                    // possession" is superseded FOR THE FLAGRANT CASE ONLY — the
+                    // ordinary and-1 below is completely unchanged. Do not "fix" this.
+                    //
+                    // ⚠ 2 FTs, NOT AND_ONE_FREE_THROWS (1) — replaces, doesn't add.
+                    if (foulResolver.isFlagrant(rng)) {
+                        defender.recordFoul();
+                        sequence = awardFlagrant(data, defender, shooter, offTeamId,
+                                offTeamId, defTeamId, period, sequence, rng);
+                        if (!capReached) {
+                            offensiveRetentions++;
+                            continue; // the offense keeps the ball (#034 B)
+                        }
+                        return sequence; // cap full: FTs awarded, possession ends
+                    }
                     sequence = awardAndOne(data, shooter, defender, offTeamId, defTeamId,
                             period, sequence, rng);
                 }
-                // The and-1 never forks the possession — the make already ended it
-                // (#029 B); the FT is simply tacked on before the ball changes hands.
+                // The ordinary and-1 never forks the possession — the make already
+                // ended it (#029 B); the FT is simply tacked on before the ball changes
+                // hands. (§3.14b's flagrant and-1 above is the one exception, and it
+                // returns/continues before reaching here.)
                 return sequence;
             }
 
@@ -255,9 +333,6 @@ public class PossessionEngine {
             data.addEvent(offTeamId, defTeamId, period, sequence,
                     PlayType.SHOT, outcome, shooter.getPlayerId());
             sequence++;
-
-            boolean capReached =
-                    offensiveRebounds >= SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION;
 
             // 4a. Rebounding foul (§3.10, decisions.md #028 A2/C) — carved off the
             // TOP of the rebound phase, exactly as §3.7 carves the block off the top
@@ -273,7 +348,7 @@ public class PossessionEngine {
                         capReached, rng);
                 sequence = result.sequence();
                 if (result.offenseRetains()) {
-                    offensiveRebounds++;
+                    offensiveRetentions++;
                     continue; // second-chance possession (defense fouled, no bonus)
                 }
                 return sequence;
@@ -291,7 +366,7 @@ public class PossessionEngine {
             sequence++;
 
             if (miss.outcome().offenseRetains()) {
-                offensiveRebounds++;
+                offensiveRetentions++;
                 continue; // second-chance possession (offensive rebound OR OOB-offense)
             }
             return sequence; // possession over (defensive rebound OR OOB-defense)
@@ -332,6 +407,15 @@ public class PossessionEngine {
      *
      * <p>Bonus free throws reuse {@link #awardFreeThrows} verbatim — the same block
      * the shooting foul uses — so FT/points reconciliation is automatic (#028 B).
+     *
+     * <p><b>§3.14b (#034 A/C): the flagrant fork is taken FIRST and short-circuits all
+     * of the above.</b> On a flagrant the bonus is never consulted (two free throws by
+     * rule, in the penalty or not) and the {@code REBOUNDING_FOUL_*} event is replaced
+     * by a {@code FLAGRANT_FOUL_*} one — the award <b>replaces</b>, it does not add.
+     * The possession fork is unchanged in shape: the defense committing leaves the
+     * offense the ball (cap permitting), the offense committing flips it. This is the
+     * <b>only</b> site of the three that can be committed by the offense, so it is the
+     * only source of the flipping case.
      */
     ReboundFoulResult resolveReboundFoul(GameData data, ReboundFoul foul,
                                          List<PlayerGameState> offense,
@@ -345,6 +429,29 @@ public class PossessionEngine {
         // The committing player wears the foul exactly as a shooting-foul defender
         // does — it feeds the per-player foul-out predicate (#023 F).
         foul.committer().recordFoul();
+
+        // §3.14b (#034 A/C/D): the severity roll, layered on the foul just charged.
+        // THIS IS THE ONLY TWO-SIDED SITE — the only one that can be committed by the
+        // OFFENSE (#028 A2's over-the-back, ~22% as measured), which makes it the sole
+        // source of the possession-FLIPPING case. `committingTeamId` is load-bearing
+        // here rather than merely uniform (#028 D): the fork depends on which side
+        // committed. The FOULED player shoots either way, drawn from the fouled five by
+        // the existing foulDrawing-weighted pickFreeThrowShooter (#028 B).
+        //
+        // ⚠ The bonus is NOT consulted (2 FTs by rule, in the penalty or not), and the
+        // ordinary bonus branch below never runs on a hit — replaces, doesn't add.
+        if (foulResolver.isFlagrant(rng)) {
+            List<PlayerGameState> fouledFive = offenseCommitted ? defense : offense;
+            String fouledTeamId = offenseCommitted ? defTeamId : offTeamId;
+            PlayerGameState freeThrowShooter = pickFreeThrowShooter(fouledFive, rng);
+            sequence = awardFlagrant(data, foul.committer(), freeThrowShooter,
+                    fouledTeamId, offTeamId, defTeamId, period, sequence, rng);
+            // Defense committed → the offense retains (while the loop has room).
+            // Offense committed → the possession flips, exactly as an ordinary
+            // offensive foul ends it.
+            return new ReboundFoulResult(sequence, !offenseCommitted && !capReached);
+        }
+
         data.addEvent(offTeamId, defTeamId, period, sequence,
                 PlayType.FOUL, foul.side().outcome(), foul.committer().getPlayerId(),
                 null, committingTeamId);
@@ -369,6 +476,74 @@ public class PossessionEngine {
         // ball, and only while the second-chance loop has room.
         boolean offenseRetains = !offenseCommitted && !capReached;
         return new ReboundFoulResult(sequence, offenseRetains);
+    }
+
+    /**
+     * §3.14b (decisions.md #034 C/D/E): emit a FLAGRANT foul — the severity sub-roll,
+     * the {@code FOUL} event carrying the grade, and the flat <b>two</b> free throws.
+     * Shared verbatim by all three foul sites.
+     *
+     * <p><b>⚠ THE TWO FREE THROWS REPLACE THE UNDERLYING FOUL'S AWARD — THEY DO NOT
+     * ADD TO IT (#034 C).</b> A flagrant stopped THREE is <b>2</b> FTs, not 3 and not
+     * 5; a flagrant and-1 is <b>2</b>, not 1 + 2. Every caller must therefore skip its
+     * ordinary award entirely rather than calling this in addition to it. The count is
+     * passed as a <b>literal</b> and deliberately not derived: #030 C derives it from
+     * {@link ShotType} and #029 B fixes it per situation, so a builder has two live
+     * precedents for deriving it — and deriving it is precisely how the count would
+     * silently graduate. A stopped flagrant three consequently awards <i>fewer</i> free
+     * throws than the ordinary foul it upgraded: correct by rule, counter-intuitive,
+     * and not to be "fixed".
+     *
+     * <p><b>The severity sub-roll is taken here</b> (#034 E) so all three sites share
+     * one definition. On a flagrant-2 the committer also takes {@link
+     * PlayerGameState#recordFlagrantTwo()}, which ejects him immediately through the
+     * derived {@link PlayerGameState#isEjectedForFlagrant()} — the third cause behind
+     * {@code RotationState}'s single {@code isDisqualified(...)} filter, not a fourth
+     * removal path (#031 H).
+     *
+     * <p><b>The committer's personal foul is charged by the CALLER, not here</b>, and
+     * that is deliberate: two of the three sites have already charged it by the time
+     * they roll the flagrant (the stopped-shot defender, the rebounding-foul committer),
+     * so charging it here would double it. A flagrant IS a personal foul (#034 I) — it
+     * goes through the ordinary {@code recordFoul()} and feeds the six-foul limit,
+     * {@code foulTroubleLevel()} and the period bonus tally, with <b>none</b> of
+     * §3.14a's counter split (#032 E). {@code flagrantTwos} counts ejection causes, not
+     * fouls.
+     *
+     * <p><b>The bonus is NOT consulted</b> — two free throws by rule, in the penalty or
+     * not (the #029 B shape). The flagrant nevertheless counts toward the period tally
+     * for the NEXT foul, automatically, because {@link GameData#isInBonus} excludes
+     * only {@link GameData#TECHNICAL_FOUL_OUTCOME}.
+     *
+     * <p><b>This method does NOT fork the possession</b> — it returns only a sequence.
+     * The retention fork lives at each call site, where {@code offensiveRetentions} and
+     * the loop's {@code continue} are (#034 B).
+     *
+     * @param committer      the player who committed it — already charged {@code
+     *                       recordFoul()} by the caller
+     * @param freeThrowShooter the player who WAS FOULED, who shoots (#034 D) — never
+     *                       {@link #pickTechnicalFreeThrowShooter}, whose premise is
+     *                       that nobody was fouled (#032 G)
+     * @param shootingTeamId the team the free throws score for — the fouled player's
+     *                       team, which at the rebounding site may be the DEFENSE
+     * @return the next free sequence number
+     */
+    int awardFlagrant(GameData data, PlayerGameState committer,
+                      PlayerGameState freeThrowShooter, String shootingTeamId,
+                      String offTeamId, String defTeamId, int period, int sequence,
+                      RandomGenerator rng) {
+        boolean flagrantTwo = foulResolver.isFlagrantTwo(rng);
+        if (flagrantTwo) {
+            committer.recordFlagrantTwo();
+        }
+        data.addEvent(offTeamId, defTeamId, period, sequence, PlayType.FOUL,
+                flagrantTwo ? FLAGRANT_FOUL_2_OUTCOME : FLAGRANT_FOUL_1_OUTCOME,
+                committer.getPlayerId(), null, committer.getTeamId());
+        sequence++;
+
+        return awardFreeThrows(data, freeThrowShooter, shootingTeamId,
+                offTeamId, defTeamId, period, sequence,
+                SimConfig.FLAGRANT_FREE_THROWS, FreeThrowSource.FLAGRANT, rng);
     }
 
     /**

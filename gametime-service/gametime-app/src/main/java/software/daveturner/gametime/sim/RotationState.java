@@ -312,16 +312,16 @@ public class RotationState {
 
     /**
      * The <b>hard/forced</b> tier: force off every on-floor player who has fouled out
-     * (§3.5 Decision F) or — since §3.14a (#032 F) — been ejected on two technicals,
-     * replacing each from the <b>full</b> bench (not just the rotationDepth window)
-     * with the freshest eligible player. If no eligible replacement exists, the
-     * disqualified player stays on — the never-below-5 last resort (#023 F), which
-     * ejections do not weaken.
+     * (§3.5 Decision F), been ejected on two technicals (§3.14a, #032 F) or — since
+     * §3.14b (#034 F) — been ejected on a flagrant-2, replacing each from the
+     * <b>full</b> bench (not just the rotationDepth window) with the freshest eligible
+     * player. If no eligible replacement exists, the disqualified player stays on —
+     * the never-below-5 last resort (#023 F), which ejections do not weaken.
      *
      * <p>The method keeps its name: an ejection is the same forced removal under a
-     * second cause, and #031 H ruled out a fourth removal path for exactly that
-     * reason. Both causes are derived predicates over monotonic counters, so nothing
-     * here needs to know which one fired.
+     * further cause, and #031 H ruled out a separate removal path for exactly that
+     * reason. All three causes are derived predicates over monotonic counters, so
+     * nothing here needs to know which one fired.
      */
     private void replaceFouledOut() {
         for (int i = 0; i < onFloor.size(); i++) {
@@ -376,12 +376,12 @@ public class RotationState {
     }
 
     /**
-     * Players eligible to be on the floor: not fouled out and — since §3.14a
-     * (decisions.md #032 F, #031 H) — not ejected.
+     * Players eligible to be on the floor: not fouled out, not ejected on technicals
+     * (§3.14a, #032 F) and — since §3.14b (#034 F) — not ejected on a flagrant-2.
      *
      * <p><b>This is the single filter every candidate pool passes through</b>, which
-     * is precisely why an ejection extends it rather than adding a fourth removal
-     * path: disqualification is disqualification, whatever produced it, and both
+     * is precisely why each new ejection cause extends it rather than adding a removal
+     * path: disqualification is disqualification, whatever produced it, and all three
      * predicates are derived over monotonic counters (#023 F).
      */
     private List<PlayerGameState> eligible(List<PlayerGameState> pool) {
@@ -395,12 +395,24 @@ public class RotationState {
     }
 
     /**
-     * §3.14a (#032 F): the hard/forced tier's disqualification predicate — fouled out
-     * (§3.5 F) or ejected on two technicals (§3.14a). One question with two causes,
-     * asked identically by {@link #eligible} and {@link #replaceFouledOut()}.
+     * §3.14a (#032 F) / §3.14b (#034 F): the hard/forced tier's disqualification
+     * predicate — fouled out (§3.5 F), ejected on two technicals (§3.14a), or ejected
+     * on a flagrant-2 (§3.14b). One question with <b>three</b> causes, asked
+     * identically by {@link #eligible} and {@link #replaceFouledOut()}.
+     *
+     * <p><b>Extending this predicate is the WHOLE of §3.14b's rotation change — one
+     * line, and NOT a fourth removal path</b> (#031 H, now held for the third pass
+     * running). All three causes are derived predicates over monotonic counters
+     * (#023 F), so nothing downstream needs to know which one fired.
+     *
+     * <p><b>§3.14b is the pass where this tier is finally EXERCISED.</b> §3.14a's
+     * ejections measure ~0.014 per team-game — essentially never. Flagrant ejections
+     * land around <b>0.024</b> (~0.16 flagrants × the 15% severity share), roughly
+     * double that, so the forced substitution below now actually runs from time to
+     * time rather than being dead-but-correct code.
      */
     private boolean isDisqualified(PlayerGameState p) {
-        return p.isFouledOut() || p.isEjected();
+        return p.isFouledOut() || p.isEjected() || p.isEjectedForFlagrant();
     }
 
     /**

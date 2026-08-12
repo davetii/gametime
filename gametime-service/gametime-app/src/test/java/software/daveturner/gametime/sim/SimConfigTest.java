@@ -408,4 +408,90 @@ class SimConfigTest {
         assertEquals(1, SimConfig.TECHNICAL_FREE_THROWS);
         assertNotEquals(SimConfig.FREE_THROWS_PER_FOUL, SimConfig.TECHNICAL_FREE_THROWS);
     }
+
+    // ---------- §3.14b: the flagrant rate + its emergent divisor (#034 E/G) ----------
+
+    /**
+     * #034 G: the constant is the per-team-per-GAME rate, divided down by the
+     * PERSONAL-FOUL rate because the roll fires per FOUL, not per possession or per
+     * check. ~0.16 / 19.0 ≈ 0.0084.
+     */
+    @Test
+    void flagrantFoulProbabilityDividesTheGameRateByThePersonalFoulRate() {
+        assertEquals(SimConfig.FLAGRANT_FOULS_PER_TEAM_GAME
+                        / SimConfig.PERSONAL_FOULS_PER_TEAM_GAME,
+                config.flagrantFoulProbability(), 1e-12);
+        assertEquals(0.0084, config.flagrantFoulProbability(), 1e-4,
+                "The per-foul probability lands around 0.0084");
+    }
+
+    /**
+     * #034 G, the honest cost: unlike the technical rate's NOMINAL, config-derived
+     * divisor, this one is a MEASURED quantity — an assumption about the engine's
+     * current behavior. It is a named constant precisely so §3.16 can grep for it when
+     * it invalidates it.
+     */
+    @Test
+    void theFlagrantDivisorIsTheMeasuredPersonalFoulRateNotAConfiguredCount() {
+        assertEquals(19.0, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
+                "§3.14a measured ~19.4 fouls/team/game over ALL foul events, minus its "
+                        + "0.367 technicals — i.e. §3.13's 19.0 personal fouls");
+        // The contrast that makes the coupling worth stating: the technical divisor is
+        // derived from constants, so it moves only when a constant moves. This one does
+        // not appear in any other formula — moving the foul rate moves flagrants
+        // silently, which is exactly what #034 G records.
+        int technicalDivisor =
+                SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD * SimConfig.PERIODS * 2;
+        assertNotEquals((double) technicalDivisor, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME,
+                "The two rates divide by different KINDS of quantity (#034 G)");
+    }
+
+    /**
+     * #034 G, quantitatively: the floor argument still holds but is THINNER than
+     * §3.14a's — PROB_FLOOR is ~2.4× the flagrant rate, against >10× for technicals.
+     * Decisive, but argued rather than assumed, and worth pinning because a future rate
+     * increase could erode it.
+     */
+    @Test
+    void theProbabilityFloorWouldStillSwampTheFlagrantRateButByALesserMargin() {
+        double perFoul = config.flagrantFoulProbability();
+        assertTrue(SimConfig.PROB_FLOOR > perFoul * 2,
+                "PROB_FLOOR must still dwarf the flagrant rate");
+        assertTrue(SimConfig.PROB_FLOOR < perFoul * 10,
+                "…but by a THINNER margin than the technical rate's >10× (#034 G) — if "
+                        + "this fails the floor-free choice has become obvious again, and "
+                        + "the javadoc's caveat can be relaxed");
+        assertEquals(SimConfig.PROB_FLOOR, config.clampProbability(perFoul), 1e-12,
+                "The normal clamp WOULD floor it — a 2.4× inflation, the #028 trap");
+        assertEquals(perFoul, config.clampRareProbability(perFoul), 1e-12,
+                "The rare clamp (#032 H's FIFTH site) leaves it alone");
+    }
+
+    /**
+     * #034 E: the severity share is a flat CONDITIONAL share, not a clamped probability
+     * — it needs no clamp, and it is not a second independently-tunable rate.
+     */
+    @Test
+    void theFlagrantTwoShareIsAFlatConditionalShare() {
+        assertEquals(0.15, SimConfig.FLAGRANT_TWO_SHARE, 1e-12);
+        assertTrue(SimConfig.FLAGRANT_TWO_SHARE > SimConfig.PROB_FLOOR,
+                "It is a share of an already-rare parent event, far above the floor — "
+                        + "no clamp is involved at all (#034 E)");
+    }
+
+    /**
+     * #034 C/E/F: the flagrant counts. Two free throws flat (REPLACING the underlying
+     * award, never adding), and ONE flagrant-2 ejects.
+     */
+    @Test
+    void aFlagrantIsTwoFreeThrowsAndOneFlagrantTwoEjects() {
+        assertEquals(2, SimConfig.FLAGRANT_FREE_THROWS,
+                "Flat 2 at every site and for both grades (#034 C)");
+        assertNotEquals(SimConfig.AND_ONE_FREE_THROWS, SimConfig.FLAGRANT_FREE_THROWS,
+                "A flagrant and-1 is 2, not the and-1's 1 — replaces, doesn't add");
+        assertEquals(1, SimConfig.FLAGRANT_EJECTION_LIMIT,
+                "One flagrant-2 is enough — which is WHY the predicate stays derived");
+        assertTrue(SimConfig.FLAGRANT_EJECTION_LIMIT < SimConfig.TECHNICAL_EJECTION_LIMIT,
+                "…a lower threshold than the technical ejection, same monotonic shape");
+    }
 }

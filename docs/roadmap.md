@@ -82,7 +82,7 @@ _Shipped: `ReboundResolver` @Component in the `sim` package (logistic-contest
 `PossessionEngine.resolvePossession()` now resolves a rebound after every missed
 shot: a `DEFENSIVE` rebound ends the possession, an `OFFENSIVE` rebound runs a
 second-chance possession through the full flow (turnover → foul → shot), capped
-at `SimConfig.MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` (a loop, not recursion).
+at `SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION` (a loop, not recursion).
 `PlayType.REBOUND` is now live (outcomes `OFFENSIVE`/`DEFENSIVE`); box-score
 offensive/defensive rebound counts are real (no longer hardcoded 0). Coach/
 chemistry modifiers (§3.4), fatigue (§3.5), blocks, and team box-out are
@@ -248,7 +248,7 @@ re-running the loop and re-agreeing the numbers, not a red build.
       no rebounder** (E, `primary_player` null) and is **excluded** from the rebound
       reconciliation (which exact-matches `OFFENSIVE`/`DEFENSIVE`). **OOB-offense is a
       third offense-retention path** (with the offensive rebound + §3.7 block
-      recovery) against the one `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` cap (value
+      recovery) against the one `MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION` cap (value
       unchanged at 3); the resolver takes `capReached` and never returns a retained
       outcome when capped. **No schema change** (`outcome` free text, #020).
       **Landed free (Decision D verified, not assumed):** the `CalibrationHarness`
@@ -491,10 +491,8 @@ re-running the loop and re-agreeing the numbers, not a red build.
       unconditional, for the same fixed-point reason). #032 B2's "~0.0035" per-check rate
       is corrected to **~0.00175** — both rotations advance on every possession, so a team
       gets ~200 checks, not ~100. 512 tests green; `sim` **99.2%** line coverage; gate green._
-- [ ] **§3.14b — Flagrant fouls** *(**DESIGN PASS DONE 2026-08 — resolved as
-      `decisions.md` #034 A–J; EXECUTE-READY.** The build plan is in [todo.md](todo.md),
-      and the three new possession branches are already drawn into
-      `possession-flow.puml`. Prerequisite met: §3.14a shipped 2026-08.)*.
+- [x] **§3.14b — Flagrant fouls** *(SHIPPED — `decisions.md` **#034 A–J** + its
+      implementation note)*.
       **The structural half — and the design pass found that only ONE of its two
       predicted hard problems is real.** A flagrant is an *additional* severity roll on a
       foul that already happened (no change to any existing foul roll), always **two**
@@ -523,6 +521,29 @@ re-running the loop and re-agreeing the numbers, not a red build.
       over-estimated and still sub-noise, so **#032 I's inverted stop condition applies
       again** — measurable aggregate movement is a bug, not a calibration result.
       **The last new mechanic in Phase 3**: §3.15 and §3.16 add no possession branch.
+      _Shipped (decisions.md #034 + implementation note): **no design divergence** — A–J
+      shipped as written. Flagrants **0.148/team/game** (5-seed mean) against the 0.16
+      configured, inside the 7.8% relative sd this line resolves at; flagrant-2s 0.023 and
+      **ejections 0.027**, against #034 F's predicted ~0.024 — **roughly double §3.14a's
+      0.014, so the hard tier is finally exercised**. **The inverted stop condition (#034 J)
+      held**: points 118.3 (§3.14a: 117.5), FG% 46.9% (46.6%), 3P% 36.7% (37.0%), assists
+      27.1 (26.8), turnovers 13.6 (13.5) — **+0.76 points**, inside the ±1.5 band and
+      between J's over-estimated +0.43 budget and §3.14a's own budget-vs-landing precedent.
+      **None of J's three bug signatures present**: FT/points reconciliation exact, the
+      retention loop stops at the cap (asserted at all three sites), penalty rate flat at
+      **51.9%** (51.2%) with a test pinning that `isInBonus` counts a flagrant; foul-outs
+      0.358, untouched. **The #023 F stored-state exception was refused a THIRD time and
+      the prediction is retired** — `flagrantTwos >= 1` behind the shared `isDisqualified`,
+      no flag, no fourth removal path. Three execution findings: a flagrant **replaces**
+      the underlying foul's EVENT (so `Fouls / team / game` does **not** rise — 19.35 vs
+      ~19.4 — unlike §3.14a's technical, and the harness caveat was corrected); `capReached`
+      hoisted to the loop top, removing a pre-existing duplicate pair; and a **latent §3.14a
+      bug in `PossessionEngineTest.scoringTeamId`** surfaced by the RNG shift — a
+      `MADE_TECHNICAL` FT shot by a defender was attributed to the wrong team, fixed by
+      replacing the suffix list with the actual rule ("scores for whoever did not commit
+      the foul"). One seed re-baselined by re-derivation (7L → 9L, a non-vacuity
+      precondition); `RotationStateTest` needed none, as #034 A predicted. **542 tests
+      green** (from 513); `sim` **99.2%** line coverage; gate green._
 - [ ] **§3.15 — `SimConfig` profiles** *(needs its own design pass — user call 2026-08 to
       promote this from a backlog chore to a numbered phase)*. Load the tunable constants
       from **named, swappable profiles** instead of compile-time constants, so tuning
@@ -531,8 +552,21 @@ re-running the loop and re-agreeing the numbers, not a red build.
       remembered it). Composes with the instrument that already exists: a
       `-DcalibrationProfile=<name>` beside the existing `-DcalibrationSeed=NNNN` yields the
       full **profile × seed matrix** — exactly the sweep §3.11 ran by hand ("3-config ×
-      5-seed") and §3.12 ran again for the foul multipliers. **That hand-run sweep is the
-      consumer**; the full reasoning, the open shape question (full-replacement vs.
+      5-seed") and §3.12 ran again for the foul multipliers.
+      **The GOAL, stated by the user (2026-08): author several named profiles for
+      different LEAGUE STYLES — a 1990s low-pace/high-foul style, a modern three-heavy
+      style, plus the shipped baseline — run the harness against each, and compare the
+      generated stat lines between them.** That is a stronger consumer argument than the
+      hand-run sweep below (an ongoing workflow rather than a past one-off), and it stays
+      **inside** the developer-facing fence: harness only, no API, no persistence.
+      **Profiles are flat PROPERTIES FILES** (user call — the format is settled; what a
+      file *contains*, all 83 values or only deltas, is still open).
+      ⚠ It also sharpens two design questions: an era profile must be allowed to vary
+      things a naive reading would fence off as immutable "rules" (pace, foul rates), and
+      **a 1990s profile misses every calibration.md target by design** — so what a
+      "target" means off-baseline needs deciding, without straying into §3.16's job of
+      sourcing the baseline ones. Both are open questions in [todo.md](todo.md).
+      The full reasoning, the open shape question (full-replacement vs.
       **override-layer** profiles — the override shape looks better), and the caveat that
       `SimConfig`'s javadoc carries tuning *history* worth not separating from the knobs,
       are all in [backlog.md](backlog.md)'s parked entry — **read it before the design

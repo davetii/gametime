@@ -229,9 +229,27 @@ public class SimConfig {
     // Base offensive-rebound rate at an average-vs-average contest (NBA ~25–28%).
     // Tuned empirically in §3.4. Rebound contests reuse the global SENSITIVITY.
     public static final double BASE_OFFENSIVE_REBOUND = 0.27;
-    // Cap on offensive rebounds per possession to bound the second-chance loop;
-    // after the cap, a missed shot is forced to a defensive rebound.
-    public static final int MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION = 3;
+    // The ONLY bound on PossessionEngine.resolvePossession's second-chance
+    // `while (true)` loop: how many times the offense may keep the ball and run the
+    // flow again within one possession. Once reached, the retaining path is refused
+    // and the possession ends (a missed shot is forced to a defensive rebound; a
+    // §3.14b flagrant still awards its free throws, then ends it).
+    //
+    // ⚠ RENAMED from MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION (2026-08, post-§3.14b) —
+    // a pure rename, the value is UNCHANGED at its §3.3-era calibrated 3. The old
+    // name described only the original §3.3 path, but FIVE paths now count against
+    // this cap and FOUR of them are not rebounds: §3.7 block recovery, §3.8
+    // OOB-offense, §3.10's rebounding foul and §3.14b's flagrant retention. Every one
+    // of them is a RETENTION — the offense kept the ball — which is the word the rest
+    // of the engine already uses (BlockRecovery/MissedShotOutcome/ReboundFoulResult
+    // all expose offenseRetains()). The local counter in resolvePossession was
+    // renamed to `offensiveRetentions` in the same change; PlayerGameState's
+    // `offensiveRebounds` is the BOX-SCORE STAT and is deliberately untouched.
+    //
+    // Raising it 3 → 5 is a SEPARATE, parked tuning idea (ideas.md): it fires on the
+    // common path, so it would add offensive rebounds, shot attempts and points across
+    // every game and needs its own recalibration pass. Do not change the value here.
+    public static final int MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION = 3;
 
     // --- Missed-shot out of bounds (§3.8, decisions.md #026) ---
     // A missed shot resolves to one of FOUR outcomes in a single draw (Decision A):
@@ -561,6 +579,71 @@ public class SimConfig {
     // happens when one count is assumed to follow another (#030 C).
     public static final int TECHNICAL_FREE_THROWS = 1;
 
+    // --- Flagrant fouls (§3.14b, decisions.md #034 A/E/G) ---
+    //
+    // ⚠ THIS IS A PER-TEAM-PER-GAME RATE, NOT A PER-FOUL PROBABILITY — the same
+    // shape as TECHNICAL_FOULS_PER_TEAM_GAME above, and read the same way: the
+    // number of flagrant fouls one team is expected to commit in one game. The
+    // per-foul probability the engine actually rolls is ~0.0084 and is DERIVED, by
+    // flagrantFoulProbability() below.
+    //
+    // Stored this way deliberately (#032 B2's argument, #034 G): 0.0084 has no
+    // intuitive meaning, cannot be sanity-checked by eye, and is not comparable to
+    // anything in calibration.md. 0.16 is the number a tuner reasons about.
+    //
+    // Back-solved from the real-world figure of ~0.25-0.40 flagrants per GAME
+    // league-wide, i.e. ~0.13-0.20 per TEAM per game. UNSOURCED, like every row in
+    // calibration.md — §3.16's job (1) owns verifying it.
+    //
+    // A ballpark, NOT a target (#034 H): nothing in the engine is tuned toward it —
+    // the constant is set from the real-world figure directly, so the harness line is
+    // a correctness check that the roll fires at the rate configured, not a
+    // calibration objective. JUDGE IT AT 5 SEEDS ONLY — at 102 games this is ~33
+    // events (relative sd 17.4%) and at 5 seeds ~166 (7.8%), the COARSEST row in
+    // calibration.md. A single-seed reading is useless.
+    public static final double FLAGRANT_FOULS_PER_TEAM_GAME = 0.16;
+
+    // What fraction of flagrants are FLAGRANT-2 — the grade that ejects immediately
+    // (#034 E). A flat CONDITIONAL SHARE, rolled only once a flagrant has already
+    // happened, with no causal input: the engine cannot distinguish excessive from
+    // ordinary contact, and foulProne has already had its say in who was selected as
+    // the committer.
+    //
+    // ⚠ NOT a probability in the clamped sense — it is a share of an already-rare
+    // parent event, so it needs NO clamp (neither clampProbability nor
+    // clampRareProbability). It inherits the parent rate's resolvability rather than
+    // having its own: a separately-tuned flagrant-2 RATE was rejected because ~5
+    // events per 102-game run cannot be resolved at any seed count (#034 E).
+    public static final double FLAGRANT_TWO_SHARE = 0.15;
+
+    // ONE flagrant-2 is an automatic ejection (#034 E/F). Named rather than inlined as
+    // `>= 1` so the third disqualification threshold reads identically to the other two
+    // (FOUL_OUT_LIMIT = 6, TECHNICAL_EJECTION_LIMIT = 2) — the shape is the point:
+    // PlayerGameState.isEjectedForFlagrant() is a DERIVED predicate over a monotonic
+    // counter, and a limit of 1 changes nothing about that. It is what makes the
+    // stored-state exception predicted by #031 H / #032 F unnecessary a second time.
+    public static final int FLAGRANT_EJECTION_LIMIT = 1;
+
+    // A flagrant is exactly TWO free throws, at every site and for both grades (#034
+    // C/E). Named separately rather than sharing FREE_THROWS_PER_FOUL (also 2): the
+    // two are 2 for unrelated reasons, and §3.12 already showed what happens when one
+    // count is assumed to follow another (#030 C) — the same argument that gave
+    // TECHNICAL_FREE_THROWS its own name.
+    //
+    // ⚠ THIS REPLACES THE UNDERLYING FOUL'S AWARD, IT DOES NOT ADD TO IT. A flagrant
+    // stopped THREE is 2 FTs (not 3, not 5); a flagrant and-1 is 2 (not 1 + 2). See
+    // PossessionEngine.awardFlagrant.
+    public static final int FLAGRANT_FREE_THROWS = 2;
+
+    // The divisor for flagrantFoulProbability() — personal fouls per team per game.
+    //
+    // ⚠ A NAMED CONSTANT, NOT A MAGIC NUMBER, because it is an ASSUMPTION ABOUT THE
+    // ENGINE'S CURRENT BEHAVIOR rather than a rule: it must be greppable when §3.16
+    // invalidates it. Measured, not configured — §3.14a's harness landing of ~19.4
+    // `Fouls / team / game` MINUS its 0.367 technicals (that line tallies ALL FOUL
+    // events), i.e. the personal-foul rate alone, which §3.13 measured at 19.0.
+    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 19.0;
+
     // Base probability that a made field goal is assisted, at an average passing
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
     // much the supporting cast's passing deviates from average. Tuned in §3.4
@@ -831,6 +914,44 @@ public class SimConfig {
     public double technicalFoulProbability() {
         int nominalChecks = DEFAULT_POSSESSIONS_PER_PERIOD * PERIODS * 2;
         return clampRareProbability(TECHNICAL_FOULS_PER_TEAM_GAME / nominalChecks);
+    }
+
+    /**
+     * §3.14b (decisions.md #034 A/G): the probability that <b>a foul that has already
+     * happened was a FLAGRANT</b> — {@link #FLAGRANT_FOULS_PER_TEAM_GAME} divided down
+     * by the personal-foul rate. Expect <b>~0.0084</b> (0.16 / 19.0).
+     *
+     * <p><b>This is a severity roll layered ON TOP of an existing foul, not a foul
+     * rate.</b> It is asked only after {@link FoulResolver#isFoul}, {@link
+     * FoulResolver#isAndOne} or {@link FoulResolver#resolveReboundFoul} has already
+     * returned a foul, so nothing is re-partitioned and <b>no existing rate moves by
+     * construction</b> (#034 A). That is why the divisor is the FOUL count and not a
+     * possession count: the roll fires per foul, so any other divisor would misstate
+     * the relationship and break the moment the foul rate moved.
+     *
+     * <p><b>⚠ THE DIVISOR IS EMERGENT, AND THAT IS THIS CONSTANT'S HONEST COST (#034
+     * G).</b> {@link #technicalFoulProbability}'s divisor is NOMINAL — derived from
+     * config ({@code DEFAULT_POSSESSIONS_PER_PERIOD × PERIODS × 2}), so it moves only
+     * when a constant moves. This one is different in kind: {@link
+     * #PERSONAL_FOULS_PER_TEAM_GAME} is a <b>measured</b> quantity, an assumption about
+     * what the engine currently does. <b>So §3.16 — or any pass that moves the foul
+     * rate — moves the flagrant rate too, without touching {@link
+     * #FLAGRANT_FOULS_PER_TEAM_GAME}.</b> Directionally that is correct (more fouls,
+     * more chances for one to be excessive), but it means this constant is <b>not a
+     * standalone dial</b>, and the coupling must be stated rather than discovered.
+     *
+     * <p><b>Clamped through {@link #clampRareProbability}</b> — #032 H's <b>fifth</b>
+     * site, one call rather than a fifth hand-rolled copy. The floor argument holds but
+     * is <b>thinner than §3.14a's</b> and so is argued rather than assumed: {@link
+     * #PROB_FLOOR} (0.02) is ~<b>2.4×</b> this rate, against the >10× margin the
+     * technical rate enjoys. Still decisive — flooring would inflate flagrants by 2.4×
+     * and make the constant tunable only upward (the #028 trap) — but a future rate
+     * increase could bring it near territory where the floor-free choice stops being
+     * obviously right.
+     */
+    public double flagrantFoulProbability() {
+        return clampRareProbability(
+                FLAGRANT_FOULS_PER_TEAM_GAME / PERSONAL_FOULS_PER_TEAM_GAME);
     }
 
     /**

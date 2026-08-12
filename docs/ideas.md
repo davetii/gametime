@@ -34,10 +34,11 @@ into a graveyard.
   3**. **⚠ The number of paths sharing that one cap keeps growing, which raises this
   idea's blast radius every time:** the offensive rebound (§3.3), §3.7's
   offense-recovered block, §3.8's OOB-offense, §3.10's defensive rebounding foul, and —
-  once §3.14b lands (`decisions.md` #034 B) — **the flagrant retention, making five**.
-  So a 3→5 change now moves five channels at once, not three. (#034's follow-up also
-  notes the constant's **name is stale** — it bounds four non-rebound paths — and that a
-  **sixth** path is the signal to restructure the loop rather than keep extending it.) The realism argument for a higher value is real: a
+  since §3.14b shipped (`decisions.md` #034 B) — **the flagrant retention, making five**.
+  So a 3→5 change now moves five channels at once, not three. (**The constant was
+  renamed `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` → `MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION`
+  in 2026-08** — a pure rename, value untouched at 3; that and the loop's growing
+  re-entry count are a separate, behavior-free concern in its own entry below.) The realism argument for a higher value is real: a
   genuine scramble *can* produce a long chain of tip/put-back attempts — rare, but
   possible — and a hard wall at 3 makes it impossible rather than merely unlikely.
   **Why it's parked, not done:** the cap is not just a rare-tail guard — it fires on
@@ -60,21 +61,66 @@ into a graveyard.
   have declined the same trim. Do **not** stack this idea on top of an unresolved
   target question: it waits for §3.16, which owns both.
 
+- **Restructure `resolvePossession`'s second-chance loop — a BEHAVIOR-FREE cleanup,
+  deliberately separate from the 3→5 tuning idea above.** *(The rename half of this
+  entry is already done — see below.)* *(Raised 2026-08 after §3.14b, from reading `possession-flow.puml`: the
+  diagram is a faithful 1:1 mirror of the engine — 16 branches against
+  `resolvePossession`'s 17, 4 loops against its 5 `continue`s — so what looks like
+  diagram complexity is the method reporting its own.)* **Two distinct pieces — the
+  cheap one is DONE, the real one stays parked:**
+  - ~~**Rename the cap.**~~ **✅ DONE 2026-08**, immediately after being raised, since it
+    was mechanical and fully covered by the existing retention tests.
+    `MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION` → **`MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION`**,
+    with the loop counter `offensiveRebounds` → `offensiveRetentions` in the same change.
+    The constant was never dead or mis-valued — it is the *only* bound on the
+    `while(true)` loop and 3 is the §3.3-era calibrated number — **only the NAME was
+    wrong**: of the five paths it bounds, four are not rebounds (§3.7 block recovery,
+    §3.8 OOB-offense, §3.10's rebounding foul, §3.14b's flagrant retention). "Retention"
+    is the word the rest of the engine already uses (`BlockRecovery.offenseRetains()`,
+    `MissedShotOutcome.offenseRetains()`, `ReboundFoulResult.offenseRetains()`).
+    **Verified behavior-free**: 542 tests green and the 5-seed calibration landing
+    reproduced **byte-for-byte** (118.26 pts / 46.94% FG / 0.148 flagrants / 9.74 off
+    reb — every per-seed value identical), so §3.15's validation gate is undisturbed.
+    `PlayerGameState.offensiveRebounds` is the **box-score stat** — a different thing,
+    deliberately untouched. *Rejected names:* `MAX_SECOND_CHANCE_POSSESSIONS` ("second
+    chance" means offensive-rebound possessions in basketball usage, smuggling the same
+    bias back in; it also undercounts, since a cap of 3 allows four attempts) and
+    `MAX_LOOP_REENTRIES_PER_POSSESSION` (accurate but names the `while(true)`
+    implementation rather than the domain fact — the old name's one virtue was being
+    domain language, so the fix should keep that and just make it true). **Pairs naturally with the 3→5
+    idea if that ever runs** — but must not wait for it, since that one is blocked on
+    a contested target and this one changes no number at all.
+  - **The loop restructure is the real item, and #034 B named its trigger: a SIXTH
+    re-entry path.** Today there are five (offensive rebound §3.3, block recovery §3.7,
+    OOB-offense §3.8, rebounding foul §3.10, flagrant §3.14b), each an
+    `offensiveRebounds++; continue;` at a different depth in one long method. That the
+    count grew every phase while nothing was ever removed is the signal — the same
+    shape as #030's clamp-helper trigger (two sites is coincidence, a third is the
+    signal). **Why it is parked rather than done now:** the loop is *correct*, every
+    retention path is tested, and a restructure would touch shipped §3.7/§3.8/§3.10
+    lines for zero behavior change — exactly the kind of churn that makes a future
+    bisect harder. **What would make it real:** a sixth path, or a phase that needs to
+    add one. **Explicitly NOT a §3.15 or §3.16 job** — §3.15 is a config refactor whose
+    validation gate is reproducing §3.14b's landing byte-for-byte, and §3.16 is a
+    recalibration; a control-flow restructure riding either would blur what moved a
+    number. If promoted it wants its own small pass with the existing retention tests
+    as the safety net.
+
 - ~~**Flagrant / technical fouls, and altercations (fights).**~~ **PROMOTED (2026-08)
   to §3.14, then SPLIT into §3.14a (technicals) + §3.14b (flagrants)** — *(originally
   promoted as §3.13; renumbered when foul-outs moved ahead of it by user call; split
   by decisions.md #032 A on the finding that the two share nothing but the word
-  "foul")* — see roadmap.md's Possession-fidelity section. **§3.14a SHIPPED 2026-08
-  (#032 A–J + implementation note); §3.14b's DESIGN PASS is DONE (#034 A–J, 2026-08) and
-  it is EXECUTE-READY** — the build plan is in todo.md. This is planned work, not a
-  parked idea. Three notes from the reasoning that
-  kept it here, **corrected against what the design pass actually found**:
+  "foul")* — see roadmap.md's Possession-fidelity section. **BOTH HALVES ARE NOW
+  SHIPPED (2026-08): §3.14a as #032 A–J and §3.14b as #034 A–J, each with its
+  implementation note.** This is completed work, not a parked idea. Three notes from the
+  reasoning that kept it here, **corrected against what the two passes actually found**:
   - **FTs *plus* retained possession** — belongs entirely to **§3.14b**: a technical
     turned out to leave the possession **completely unchanged** (#032 D), which is why
     it went first. **Now designed (#034 B) and much cheaper than predicted**: the
     second-chance `while(true)` loop already *is* the "same team, run it again"
     machine, so retention is the same `offensiveRebounds++; continue;` §3.7/§3.8/§3.10
-    use, under the same cap — five lines, not a new mechanism. Still unbuilt.
+    use, under the same cap — five lines, not a new mechanism. **Built exactly that way**,
+    at all three foul sites.
   - **A chosen FT shooter** — resolved as a **deterministic highest-`freeThrows`
     on-the-floor pick**, a second rule beside the untouched `foulDrawing`-weighted
     draw (#032 G).
