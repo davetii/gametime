@@ -105,9 +105,22 @@ planned features), see [ideas.md](ideas.md).
       multipliers-zeroed triage baseline **all by hand** — editing constants and
       rebuilding between every reading, ~28 harness runs. That is the evidence.
 
+- [x] **DESIGN PASS DONE → `decisions.md` #035 (A–I); execute-ready plan in
+      [todo.md](todo.md).** *(2026-08.)* **The text below is the design-pass INPUT and is
+      now historical** — read #035 for what was actually decided. Where the two differ,
+      #035 wins. **Three things below were resolved differently or more sharply than the
+      entry anticipated:** (1) the entry frames this as a *file-format* problem; the real
+      obstacle was that `static final` primitives are **compile-time inlined into every
+      caller** (JLS §4.12.4), so the constants had to become **instance state** — 323 call
+      sites, #035 B; (2) the shape is **override-layer** as the entry leaned, but over
+      **58 profilable constants**, with only rules + model machinery + the measured
+      `PERSONAL_FOULS_PER_TEAM_GAME` left static (#035 C); (3) the doc-drift generator
+      below was decided **OUT** and remains a separate chore (#035 H).
+
 - [ ] **Load the `SimConfig` constants from flat properties files, as SWAPPABLE
       PROFILES the harness can be run against.** *(User direction, 2026-08 —
-      **now roadmap.md §3.15**, see above. The text below is the design-pass input.)*
+      **now roadmap.md §3.15**, see above. The text below is the design-pass input,
+      superseded by #035 — see the entry immediately above.)*
       **The profile framing is the point, and it is a bigger win than "avoid a
       rebuild".** It turns tuning from *sequential edits* (change a constant,
       rebuild, run, write the number down, change it again — the previous config now
@@ -187,6 +200,23 @@ planned features), see [ideas.md](ideas.md).
       but building for the second audience now would be fabricating ahead of a
       consumer (#014/#017).
 
+- [ ] **A constants-reference table GENERATED FROM SOURCE, so docs link rather than
+      restate.** *(Split out of the profiles entry above at §3.15's design pass, 2026-08 —
+      **explicitly decided OUT of §3.15** by `decisions.md` #035 H, deliberately rather
+      than by omission, so it needs a home of its own.)*
+      **The problem:** constant values are restated by hand across `todo.md`,
+      `decisions.md` and `possession-flow.puml` — the §3.12 design pass alone had to update
+      a single changed multiplier in **five places**. A generated table would make that
+      drift structurally impossible.
+      **Why it was kept out of §3.15:** the profile shape does not make it nearly free, and
+      folding a doc-generation tool into a pass gated on **byte-for-byte reproduction**
+      adds surface for no gate-relevant benefit. **Independent; can land any time.**
+      ⚠ **Re-scope it after §3.15 ships.** #035 F's *effective-config dump* (the harness
+      printing every profilable constant with its value and origin) serves the cheaper half
+      of this need from the runtime side, and #035 C splits the constants into two declared
+      groups — both change what a generated table should contain, so measure what is
+      actually still restated by hand before building it.
+
 - [ ] **Condense `decisions.md` — NOW A GATE ON STARTING PHASE 4 (user call, 2026-08).**
       **This entry is the plan; no design pass is needed.** It is scheduled as
       **Phase 4 pre-work** — after §3.16, before Phase 4 — and roadmap.md carries the
@@ -196,16 +226,19 @@ planned features), see [ideas.md](ideas.md).
       needs; and **Phase 4 is when the second reader arrives** — a stats/consumer phase
       whose "can I add a column?" question is a `#014`/`#017`/`#020` one-liner buried
       under the engine reasoning.
-      ⚠ **RE-MEASURED 2026-08 after §3.14b — the figures below are STALE and the trend
-      accelerated:** the file is now **811 lines / 369k chars**, `#001`–`#020` still
-      average ~1.3k, and the **fourteen** §3.x engine entries average **24.5k** — a
-      ~19× gap, and **92% of the file**. The five largest were all written *after* this
-      entry was filed: **#030 (53k), #031 (47k), #032 (44k), #034 (44k), #029 (26k)**.
-      This entry predicted "#030 will beat #029"; it beat it **twofold**. Two more are
-      still to come (#035 for §3.15, #036 for §3.16) — the `project-docs` skill now
-      carries a **proportionality rule** (~15–20k per entry, implementation note ≲6k,
-      added 2026-08) so they do not re-grow at the same rate, but they will still need
-      compressing here.
+      ⚠ **RE-MEASURED 2026-08 after §3.15's design pass — the figures below are STALE:**
+      the file is now **872 lines / 392k chars**, `#001`–`#020` still average ~1.3k, and
+      the **fifteen** §3.x engine entries average **24.4k** — a ~19× gap, and **93% of the
+      file**. The five largest were all written *after* this entry was filed: **#030
+      (53k), #031 (47k), #032 (44k), #034 (44k), #029 (26k)**. This entry predicted "#030
+      will beat #029"; it beat it **twofold**.
+      **✅ THE SIZE CAP IS WORKING, on its first test:** the `project-docs` proportionality
+      rule (~15–20k per entry, implementation note ≲6k, added 2026-08 ahead of this pass)
+      produced **#035 at 22.3k** — over budget, but **half the 44k trend** of the four
+      entries before it, and the overage is two specification tables (the static/profilable
+      split and the non-bean-reader map) rather than restated prose. **One more to come**
+      (#036 for §3.16). Both will still need compressing here, but the job did not grow at
+      the rate this entry feared.
       *(Historical, as filed:)* The file is 443
       lines / **~170k chars** and has become hard to track. The cause is a size split,
       not entry count: `#001`–`#020` (platform/domain/schema/roster/API) average **~1.3k**

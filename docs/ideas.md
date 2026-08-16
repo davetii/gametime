@@ -45,8 +45,10 @@ into a graveyard.
   the common path, so raising it lets more second-chance possessions run to
   completion, adding **offensive rebounds, shot attempts, and points** across *every*
   game (not only the rare 8-tip possession). That moves the harness aggregates
-  (currently on-target 112 pts / 47% FG / ~11 off reb), so 3→5 needs its **own
-  recalibration pass** (re-center shot base rates for the added points). Deliberately
+  (§3.14b landing: **118.3 pts / 46.9% FG / 9.74 off reb**, with points and FG% both
+  **CONTESTED** — [calibration.md](calibration.md) is the source of truth), so 3→5
+  needs its **own recalibration pass** (re-center shot base rates for the added
+  points). Deliberately
   **not folded into §3.8** so the OOB change is verified against a known-good
   baseline (one moving knob at a time — the §3.7 lesson). Also note the loop-
   termination *guarantee* is independent of the value (it holds at 3, 5, or 50); only
@@ -60,6 +62,13 @@ into a graveyard.
   ([calibration.md](calibration.md) is the source of truth). Three consecutive passes
   have declined the same trim. Do **not** stack this idea on top of an unresolved
   target question: it waits for §3.16, which owns both.
+  **⚠ Note (2026-08, §3.15 design): the cap is PROFILABLE from §3.15, and that does NOT
+  unpark this idea** (`decisions.md` #035 C). Excluding it from the profilable set was
+  argued and rejected: **the fence protects the BASELINE value, and a profile cannot
+  touch the baseline** — nothing is tuned against a non-baseline profile, and higher
+  offensive-rebound rates are a genuine 1990s trait, so an era profile setting the cap
+  is legitimate and needs no recalibration pass. **Raising the shipped default from 3
+  still does**, exactly as described above.
 
 - **Restructure `resolvePossession`'s second-chance loop — a BEHAVIOR-FREE cleanup,
   deliberately separate from the 3→5 tuning idea above.** *(The rename half of this

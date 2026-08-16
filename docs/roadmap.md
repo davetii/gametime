@@ -544,47 +544,52 @@ re-running the loop and re-agreeing the numbers, not a red build.
       the foul"). One seed re-baselined by re-derivation (7L → 9L, a non-vacuity
       precondition); `RotationStateTest` needed none, as #034 A predicted. **542 tests
       green** (from 513); `sim` **99.2%** line coverage; gate green._
-- [ ] **§3.15 — `SimConfig` profiles** *(needs its own design pass — user call 2026-08 to
-      promote this from a backlog chore to a numbered phase)*. Load the tunable constants
-      from **named, swappable profiles** instead of compile-time constants, so tuning
-      becomes **comparable experiments** rather than sequential edits (change a constant,
-      rebuild, run, write the number down — the previous config gone unless someone
-      remembered it). Composes with the instrument that already exists: a
-      `-DcalibrationProfile=<name>` beside the existing `-DcalibrationSeed=NNNN` yields the
-      full **profile × seed matrix** — exactly the sweep §3.11 ran by hand ("3-config ×
-      5-seed") and §3.12 ran again for the foul multipliers.
+- [ ] **§3.15 — `SimConfig` profiles** *(**design pass DONE — resolved as `decisions.md`
+      #035 A–I**; the execute-ready plan is in [todo.md](todo.md). Promoted from a backlog
+      chore to a numbered phase by user call, 2026-08.)* Load the tunable constants from
+      **named, swappable profiles** instead of compile-time constants, so tuning becomes
+      **comparable experiments** rather than sequential edits (change a constant, rebuild,
+      run, write the number down — the previous config gone unless someone remembered it).
       **The GOAL, stated by the user (2026-08): author several named profiles for
       different LEAGUE STYLES — a 1990s low-pace/high-foul style, a modern three-heavy
       style, plus the shipped baseline — run the harness against each, and compare the
-      generated stat lines between them.** That is a stronger consumer argument than the
-      hand-run sweep below (an ongoing workflow rather than a past one-off), and it stays
-      **inside** the developer-facing fence: harness only, no API, no persistence.
-      **Profiles are flat PROPERTIES FILES** (user call — the format is settled; what a
-      file *contains*, all 83 values or only deltas, is still open).
-      ⚠ It also sharpens two design questions: an era profile must be allowed to vary
-      things a naive reading would fence off as immutable "rules" (pace, foul rates), and
-      **a 1990s profile misses every calibration.md target by design** — so what a
-      "target" means off-baseline needs deciding, without straying into §3.16's job of
-      sourcing the baseline ones. Both are open questions in [todo.md](todo.md).
-      The full reasoning, the open shape question (full-replacement vs.
-      **override-layer** profiles — the override shape looks better), and the caveat that
-      `SimConfig`'s javadoc carries tuning *history* worth not separating from the knobs,
-      are all in [backlog.md](backlog.md)'s parked entry — **read it before the design
-      pass; it is the starting point, not a resolved plan.**
-      **Scope fence (user call):** §3.15 is the **developer-facing substrate** — engine +
-      harness, no schema, no OpenAPI, consistent with every §3.x sub-phase since §3.10. The
-      **player-facing** side (selectable **eras** — 1990s low-pace/high-foul vs. modern
-      three-heavy — plus difficulty and custom rules) is the natural follow-on and needs an
-      API surface, persistence of which profile a league runs, and a rule about what a
-      profile may legally contain: that is **Phase 4+**, noted here so the substrate's
-      design does not paint it out.
+      generated stat lines between them.**
+      **THE RESOLVED SHAPE (#035):** **58 of the 83 constants become INSTANCE state on the
+      existing `SimConfig` bean**, loaded from flat properties profiles carrying **only
+      deltas** (an override layer, #035 A); **25 stay `public static final`** — 9 rules,
+      15 model-machinery sensitivities, and `PERSONAL_FOULS_PER_TEAM_GAME` (#034 G's
+      measured assumption). The invariant reads off the source: **`static final` means a
+      rule or the shape of the model, not a knob.** An unknown or non-profilable key is a
+      **startup failure** (#035 D). The harness takes `-DcalibrationProfile=<name>` beside
+      the existing `-DcalibrationSeed=NNNN`, **one profile per invocation** (#035 F), and
+      prints an **effective-config block** naming every constant's origin.
+      ⚠ **Why instance and not `static` non-final — the finding that sized the pass
+      (#035 B):** a `public static final` primitive initialized from a literal is a JLS
+      §4.12.4 *constant variable*, so **javac inlines it into every caller's bytecode** and
+      `SimConfig` is never read at runtime. A properties file cannot override such a field,
+      and a `static final` "compatibility alias" kept so tests compile would be baked into
+      each test class at *its* compile time — a test could assert 0.3375 while the engine
+      ran 0.31, silently. **This is also why §3.11's `-DandOneBaseOverride=0` flag did
+      nothing.** Instance rather than static-mutable because a profile must eventually be a
+      **per-simulation** input in a concurrent Spring app. **Blast radius: 323 call sites —
+      84 main, 239 test.**
+      **Scope fence:** §3.15 is **engine + harness — no schema, no OpenAPI, no
+      persistence**. The instance conversion **unblocks** per-game profiles in the running
+      app (the user's stated destination) but deliberately does not build them: that needs
+      persistence of which profile a game/league ran plus an API surface, and is
+      **Phase 4+** (#014/#017 — build the substrate, stop there).
+      ⚠ **Calibration targets are BASELINE-ONLY (#035 I)** — an era profile is *supposed*
+      to miss them, so off-baseline the harness suppresses the target strings and prints
+      **deltas against §3.14b's landing** instead. §3.15 must not invent a second target
+      set; §3.16 owns target *sourcing*.
       **Timing**: placed after the fidelity arc per backlog.md's "do NOT do this mid-arc"
       note — changing how constants load *while* actively tuning them forfeits exact
       reproducibility of a prior landing. Placed *before* §3.16 deliberately: the
       recalibration is the largest multi-config sweep the project will run, and this is the
       tool for it. **Validation gate**: §3.15 must reproduce **§3.14b's** shipped landing
-      **exactly** before any §3.16 number is read off it — the same check that validated the
-      §3.11 harness against §3.10's numbers.
+      **exactly — per-seed, on the BASELINE profile** — before any §3.16 number is read off
+      it (the same check that validated the §3.11 harness against §3.10's numbers). An era
+      profile producing different numbers is the goal working, not a failure.
 - [ ] **§3.16 — Recalibration against verified targets** *(needs its own design pass; the
       LAST Phase-3 sub-phase, and a different KIND of pass — it adds no mechanic, it
       re-solves numbers)*. **This is a second §3.4, not a fidelity sub-phase.** See
@@ -666,12 +671,13 @@ criterion on Phase 3, not an optional chore that slides.
       carries the what-to-compress / what-to-keep split, the one-file and never-renumber
       constraints, and the index-plus-preamble idea. **No design pass needed**; that
       entry *is* the plan. Re-measure before starting — its figures are stale.
-      **The trend is the argument, and it has accelerated sharply.** When that entry was
-      filed the file was ~170k chars with §3.x entries averaging ~16k. Measured
-      2026-08 after §3.14b: **369k chars**, and the fourteen engine entries average
-      **24.5k** — **92% of the file**. The five largest were all written *after* the
-      entry was filed (#030 53k, #031 47k, #032 44k, #034 44k, #029 26k); it predicted
-      "#030 will beat #029" and #030 beat it twofold.
+      **The trend is the argument.** When that entry was filed the file was ~170k chars
+      with §3.x entries averaging ~16k. Measured 2026-08 after §3.15's design pass:
+      **392k chars**, and the fifteen engine entries average **24.4k** — **93% of the
+      file**. The five largest were all written *after* the entry was filed (#030 53k,
+      #031 47k, #032 44k, #034 44k, #029 26k); it predicted "#030 will beat #029" and
+      #030 beat it twofold. **The trend has now been arrested**: the `project-docs` size
+      cap, added ahead of §3.15, produced **#035 at 22.3k** — half the preceding four.
       **Why it waits for §3.16 rather than running now** — the same gate reasoning the
       backlog entry used for §3.11, one arc later: **§3.16 is the single heaviest
       consumer of this file.** It will reach for #028's wrong-way-lever finding, #030's
@@ -681,7 +687,7 @@ criterion on Phase 3, not an optional chore that slides.
       and the cross-refs actually reached for are **known rather than guessed**.
       **Why it must not slide past Phase 4's start**: Phase 4 is a stats/consumer phase
       whose reader wants "can I add a column?" — a `#014`/`#017`/`#020` one-liner — and
-      would otherwise scroll past 343k of engine reasoning to find it. That is the exact
+      would otherwise scroll past 366k of engine reasoning to find it. That is the exact
       two-readers-one-file problem the backlog entry describes, and Phase 4 is when the
       second reader arrives.
       ⚠ **Two more oversized entries are still to come** (#035 for §3.15, #036 for

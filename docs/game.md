@@ -593,6 +593,20 @@ surface, and housing a rule there invites someone to tune it. It rides #029 D's
 already-parameterized per-situation FT count, so this was a call-site change, not new
 plumbing.
 
+> **§3.15 generalizes this argument into a structural rule** (`decisions.md` #035 C —
+> design resolved, not yet built). Profiles make `SimConfig`'s tuning surface literal:
+> **58 of the 83 constants become instance state loadable from a profile, and 25 stay
+> `public static final`** — 9 rules, 15 model-machinery sensitivities, and the measured
+> `PERSONAL_FOULS_PER_TEAM_GAME`. The invariant reads straight off the source: **`static
+> final` means it is a rule or the shape of the model, not a knob.** So this section's
+> instinct — keep a rule off the tuning surface — becomes enforced rather than advisory:
+> a profile naming a non-profilable key **fails at startup** (#035 D).
+> ⚠ **Note the FT counts landed on the static side**, so `FREE_THROWS_PER_FOUL`,
+> `AND_ONE_FREE_THROWS`, `TECHNICAL_FREE_THROWS` and `FLAGRANT_FREE_THROWS` are not
+> profilable — consistent with housing the fouled-three count on the enum. Some things
+> that *read* like rules are profilable, though, because they genuinely vary by era:
+> `BONUS_FOULS_PER_PERIOD` and `FOUL_OUT_LIMIT` are both on the profilable side.
+
 **An and-1 stays exactly ONE free throw for every shot type, a made three included** —
 a made 3 plus a foul is 3 points and 1 FT, not 3. Only the *stopped*-shot count
 graduates. (These two counts sitting side by side is the easy wrong turn in this
