@@ -595,12 +595,16 @@ plumbing.
 
 > **§3.15 generalizes this argument into a structural rule** (`decisions.md` #035 C —
 > design resolved, not yet built). Profiles make `SimConfig`'s tuning surface literal:
-> **58 of the 83 constants become instance state loadable from a profile, and 25 stay
-> `public static final`** — 9 rules, 15 model-machinery sensitivities, and the measured
+> **57 of the 83 constants become instance state loadable from a profile, and 26 stay
+> `public static final`** — 9 rules, 16 model-machinery entries (the sensitivities plus
+> the two **scale definitions**, `SCALE_AVG` and `MAX_ENERGY`), and the measured
 > `PERSONAL_FOULS_PER_TEAM_GAME`. The invariant reads straight off the source: **`static
 > final` means it is a rule or the shape of the model, not a knob.** So this section's
-> instinct — keep a rule off the tuning surface — becomes enforced rather than advisory:
-> a profile naming a non-profilable key **fails at startup** (#035 D).
+> instinct — keep a rule off the tuning surface — becomes **structural**: a non-profilable
+> constant has no property key at all, so a profile simply cannot reach it. *(A stray
+> `sim.free-throws-per-foul` in a profile is ignored by Spring rather than rejected —
+> §3.15 takes no unknown-key check, #035 D — and shows up as a no-op in the harness's
+> effective-config dump.)*
 > ⚠ **Note the FT counts landed on the static side**, so `FREE_THROWS_PER_FOUL`,
 > `AND_ONE_FREE_THROWS`, `TECHNICAL_FREE_THROWS` and `FLAGRANT_FREE_THROWS` are not
 > profilable — consistent with housing the fouled-three count on the enum. Some things
@@ -779,8 +783,11 @@ Spec lives in `gametime-api/yml/gametime.yaml`; the hand-written delegate is
   above). No `teamId` (#020).
 - **`SimulateGameRequest`**: `homeTeamId` (required), `awayTeamId` (required),
   **`seed`** (optional `int64`). **No `possessionsPerPeriod`** — pace is not exposed
-  (#024 C); the endpoint always uses `SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD`, and
-  per-game tempo variety comes from the coach `pace` attribute (#022 A).
+  (#024 C); the endpoint always uses the configured default, and per-game tempo variety
+  comes from the coach `pace` attribute (#022 A). *(§3.15 makes that default a
+  **profilable** value — `sim.default-possessions-per-period`, read from the active
+  profile rather than `SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD` — so the deployment's
+  era sets league pace while the request still cannot. #024 C's call is unchanged.)*
 
 ### Seed — optional in, and PERSISTED *(#024 B, revises #021 A)*
 

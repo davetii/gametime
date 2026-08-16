@@ -15,9 +15,9 @@ section** — not here (todo.md is current-phase-only). §3.7–§3.13, **§3.14
 > #035 (Decisions A–I).** The execution plan is below. Do not re-litigate A–I; add an
 > implementation note to #035 recording any divergence, and flip the roadmap bullet.
 >
-> **The shape, in one line:** **58 of the 83 constants become INSTANCE state on the
-> existing `SimConfig` bean**, loaded from flat properties profiles that carry only
-> deltas; **25 stay `public static final`** (9 rules + 15 model machinery +
+> **The shape, in one line:** **57 of the 83 constants become INSTANCE state on the
+> existing `SimConfig` bean**, bound by Spring from `application-baseline.properties` carrying
+> ALL 57 (era profiles are deltas on top of it); **26 stay `public static final`** (9 rules + 16 model machinery +
 > `PERSONAL_FOULS_PER_TEAM_GAME`). The invariant reads off the source: **`static final`
 > means it is a rule or the shape of the model, not a knob.**
 >
@@ -97,33 +97,43 @@ gate failure points at the conversion rather than at a profile value.
 ---
 
 **Step 1 — split `SimConfig`'s constants into the two declared groups (#035 C)**
-- [ ] Keep `public static final` for the **25**: **rules (9)** — `PERIODS`,
+- [ ] Keep `public static final` for the **26**: **rules (9)** — `PERIODS`,
       `MINUTES_PER_PERIOD`, `OT_MINUTES`, `FREE_THROWS_PER_FOUL`,
       `AND_ONE_FREE_THROWS`, `TECHNICAL_FREE_THROWS`, `FLAGRANT_FREE_THROWS`,
-      `TECHNICAL_EJECTION_LIMIT`, `FLAGRANT_EJECTION_LIMIT`; **machinery (15)** —
-      `SCALE_AVG`, `PROB_FLOOR`, `PROB_CEILING`, `SENSITIVITY`, `FT_SENSITIVITY`,
-      `BLOCK_SENSITIVITY`, `REBOUND_FOUL_SENSITIVITY`, `AND_ONE_SENSITIVITY`,
-      `TO_CAUSE_SENSITIVITY`, `COACH_SENSITIVITY`, `ASSIST_SENSITIVITY`,
-      `ACUMEN_SENSITIVITY`, `TEAM_EFFICIENCY_SENSITIVITY`,
+      `TECHNICAL_EJECTION_LIMIT`, `FLAGRANT_EJECTION_LIMIT`; **machinery (16)** —
+      `SCALE_AVG`, **`MAX_ENERGY`**, `PROB_FLOOR`, `PROB_CEILING`, `SENSITIVITY`,
+      `FT_SENSITIVITY`, `BLOCK_SENSITIVITY`, `REBOUND_FOUL_SENSITIVITY`,
+      `AND_ONE_SENSITIVITY`, `TO_CAUSE_SENSITIVITY`, `COACH_SENSITIVITY`,
+      `ASSIST_SENSITIVITY`, `ACUMEN_SENSITIVITY`, `TEAM_EFFICIENCY_SENSITIVITY`,
       `ENDURANCE_DRAIN_SENSITIVITY`, `FOUL_TROUBLE_VALUE_SENSITIVITY`; **measured (1)**
       — `PERSONAL_FOULS_PER_TEAM_GAME`.
-- [ ] Convert the other **58** to `private final` instance fields + public accessors.
+      ⚠ **`SCALE_AVG` and `MAX_ENERGY` are the two SCALE DEFINITIONS** — each is the
+      denominator giving its family meaning, not a knob. Raising `MAX_ENERGY` looks
+      like "more stamina" but silently rescales the drain and the sub threshold, which
+      are expressed in units of it (#035 C).
+- [ ] Convert the other **57** to `private final` instance fields + public accessors.
       **Naming assumption**: `BASE_THREE` → `config.baseThree()` (open-at-execution).
 - [ ] Group each set under an explicit banner comment naming the rule
       (`static final` = rule or model machinery), and give each profilable constant its
       property key in the javadoc.
 - [ ] **Move NO javadoc** (#035 A) — the tuning history stays attached to its constant.
-- [ ] Add a no-arg constructor / `baseline()` factory yielding the shipped values, so
-      `new SimConfig()` keeps working for the 10 test files that use it.
+- [ ] ⚠ **The instance fields take NO initializers** (#035 A) — `private final double
+      baseThree;`, not `= 0.3375`. The values move to `application-baseline.properties` and exist
+      in exactly one place. Add a loader-backed **`SimConfig.baseline()`** factory; the
+      ~10 test files doing `new SimConfig()` switch to it (Step 3).
 
 **Step 2 — convert the 84 main-code call sites (#035 B)**
 - [ ] The 9 readers that already hold `config`: `SimConfig.X` → `config.x()`.
 - [ ] Thread `SimConfig` into **`MissedShotResolver`** (constructor injection beside
       the existing `ReboundResolver`), **`GameData`**, and **`GametimeServiceImp`**.
-- [ ] Thread `SimConfig` into **`PlayerGameState`** — 17 reads. **Assumption: a field
-      set via the constructor**, since the reads are spread across instance methods.
-      **Measure the 9 construction sites first**; if a field proves awkward, passing it
-      per-call is the fallback (open-at-execution in #035).
+- [ ] Thread `SimConfig` into **`PlayerGameState`** — **only 6 of its 17 reads are
+      profilable** (`FOUL_OUT_LIMIT` ×2, `ENERGY_DRAIN_PER_POSSESSION`,
+      `ENERGY_RECOVERY_PER_POSSESSION`, `FATIGUE_MAX_PENALTY`, `MIN_DRAIN_SCALE`); the
+      other 11 are `SCALE_AVG` ×5, `MAX_ENERGY` ×3 and the two ejection limits, all
+      **static — leave them alone**. ✅ **None of the 6 is in the constructor**, so there
+      is no field-initialization ordering problem (`this.currentEnergy =
+      SimConfig.MAX_ENERGY` at line 107 stays exactly as-is). **Assumption: a field set
+      via the constructor**; measure the 9 construction sites first.
 - [ ] ⚠ **Change no value, no rounding, and no order of evaluation.** This step is
       pure provenance.
 
@@ -150,44 +160,69 @@ gate failure points at the conversion rather than at a profile value.
       conversion bug — a mistyped default or a changed evaluation order — and is far
       cheaper to find now than after profiles exist to blame.
 
-**Step 5 — the profile loader (#035 A/D)**
-- [ ] Load a flat `.properties` profile by name; **absent keys keep the Java default**
-      (override layer, not full replacement).
-- [ ] **STRICT VALIDATION — an unknown or non-profilable key is a STARTUP FAILURE**
-      naming the offending key. A profile naming `sim.personalFoulsPerTeamGame`, or a
-      typo, **must fail loudly, not warn** (#035 D). This is what replaces the
-      compile-time key safety the conversion gives up.
-- [ ] Decide the key convention (`sim.baseThree` lower-camel is the assumption) and the
-      profile-file location on the classpath.
-- [ ] **`FOUL_TROUBLE_SIT_PROBABILITY` needs a list convention** (comma-separated vs.
-      indexed keys) **plus length-7 validation** — the one constant needing bespoke
-      parsing.
-- [ ] Test the error paths (unknown key, non-profilable key, malformed number, wrong
-      array length) — this is where the coverage risk is.
+**Step 5 — bind `SimConfig` from properties via Spring (#035 A/D)**
+- [ ] Annotate `SimConfig` **`@ConfigurationProperties(prefix = "sim")`** + **`@Validated`**.
+      **No custom loader and no new flag** — Spring's binder does the reading and the
+      type conversion, and profile *composition* does the selecting.
+- [ ] ⚠ **Completeness is STRUCTURAL, not a hand-written check** — the fields have no
+      initializers (Step 1), so a constant missing from `application-baseline.properties`
+      has no value and Spring fails the context at startup naming the property.
+- [ ] Add `@Validated` constraints: rates in `[0,1]`, counts positive, and
+      **`FOUL_TROUBLE_SIT_PROBABILITY` exactly length 7**.
+- [ ] Add a test asserting **every profilable field appears in
+      `application-baseline.properties`** — the guard against someone adding a field with
+      a `= 0.0` initializer out of habit and silently reintroducing a second source of
+      truth.
+- [ ] Keys are **kebab-case** (`sim.base-no-basket-foul`) — Spring's recommended format,
+      bound to the camelCase field by relaxed binding. **Stated in the file header, NOT
+      enforced in code**: relaxed binding accepts camel/underscore too and applies them
+      correctly, so a non-kebab key is a style inconsistency, not a wrong run (#035 A).
+- [ ] ⚠ **No unknown-key rejecter** (#035 D) — Spring ignores unrecognized properties, and
+      hand-enumerating the legal set would restore the duplication A removed. A stray
+      `sim.personal-fouls-per-team-game` simply does nothing, visible in Step 7's dump.
+- [ ] `FOUL_TROUBLE_SIT_PROBABILITY` binds as a list — comma-separated on one line is the
+      assumption (Spring handles it natively).
 
-**Step 6 — the three profile files (#035 C)**
-- [ ] `baseline` — **empty, or explicitly carrying nothing**: the Java defaults *are*
-      the baseline. It must be selectable by name so a run can state what it ran.
-- [ ] `1990s` — low-pace / high-foul / post-heavy. Natural knobs:
-      `defaultPossessionsPerPeriod` ↓, `baseThree` ↓, `basePost`/`baseDrive` ↑,
-      `baseNoBasketFoul` ↑, `foulMult*` ↑, `baseOffensiveRebound` ↑,
-      `reboundFoulBase` ↑, `baseTurnover` ↑.
-- [ ] `modern` — three-heavy: `baseThree` ↑, `basePerimeter` ↑, `basePost` ↓,
-      pace ↑.
-- [ ] ⚠ **These values are ILLUSTRATIVE, not calibrated.** Nothing is tuned against a
-      non-baseline profile and no target applies to one (#035 I). Do not spend a
-      calibration cycle on them.
-- [ ] ⚠ **No profile may set `personalFoulsPerTeamGame`** — Step 5's validator must
-      reject it (#034 G).
+**Step 6 — the two profile files (#035 A)**
+- [ ] **`application-baseline.properties`** — **ALL 57 values, grouped in seven sections by
+      what the knob does**: pace/game structure (2), shooting (5), fouls & free throws (9),
+      rebounding & loose balls (16), turnovers (10), fatigue & rotation (12), rare
+      events (3). Each value gets a **1–2 line pointer comment** — the trap, the units
+      warning, the `#NNN` — with the full prose staying on the Java accessor javadoc.
+      The header states **what is NOT in the file** (the 26 static rules/machinery).
+      ⚠ **Transcribe the values EXACTLY from the current Java initializers** — it is the gate.
+- [ ] **`application-nineties.properties`** — deltas only; Spring's **later-wins** order
+      applies them over baseline. ⚠ **Baseline must ALWAYS be in the list** —
+      `test,nineties` alone leaves ~50 properties unbound and fails the context at
+      startup. Correct: `local,baseline` (modern) or `local,baseline,nineties` (90s).
+      ⚠ **Order is positional, not semantic**: `local,nineties,baseline` puts baseline
+      last, so it wins and the era file silently does nothing (Step 7's dump catches it).
+      **Never stack two ERA profiles.** Low-pace / high-foul / post-heavy:
+      `sim.default-possessions-per-period` ↓, `sim.base-three` ↓,
+      `sim.base-post`/`sim.base-drive` ↑, `sim.base-no-basket-foul` ↑, `sim.foul-mult-*` ↑,
+      `sim.base-offensive-rebound` ↑, `sim.rebound-foul-base` ↑, `sim.base-turnover` ↑.
+- [ ] ⚠ **These files hold `sim.*` keys ONLY.** Nothing structurally stops an era file
+      setting `spring.datasource.*` — that is discipline, and it is the one guard the
+      rejected custom loader would have given (#035 A).
+- [ ] ⚠ **NO `modern.properties`** — baseline IS the modern-calibrated config, so a third
+      file would be a near-duplicate. The real modern *hypothesis* worth a file is the
+      **3PA-volume gap** (engine ~20/team/game vs the NBA's ~35, #030's follow-up).
+- [ ] ⚠ **`nineties`' values are ILLUSTRATIVE, not calibrated.** Nothing is tuned against
+      a non-baseline profile and no target applies to one (#035 I).
+- [ ] Set `spring.profiles.active=local,baseline` in `application.properties`. ⚠ **The
+      tests have no `@ActiveProfiles`** and inherit that value, so every `@SpringBootTest`
+      will load baseline — intended, but verify the context still starts.
 
-**Step 7 — the harness: profile flag, effective-config dump, baseline-only targets**
-- [ ] `-DcalibrationProfile=<name>`, **defaulting to `baseline`** so every existing
-      invocation keeps working unchanged (#035 F).
-- [ ] Report header names the active profile.
-- [ ] **Effective-config block**: every profilable constant, its value, and its origin
-      (`profile` / `default`). ⚠ **This is load-bearing, not decoration** — it is what
-      makes the override shape safe (#035 A) and it partially closes backlog.md's
-      harness-self-verification chore.
+**Step 7 — the harness: effective-config dump, baseline-only targets**
+- [ ] Profile selection is the ordinary **`-Dspring.profiles.active=test,baseline,nineties`**
+      beside the existing `-DcalibrationSeed=NNNN`; the default `test,baseline` keeps every
+      current invocation working unchanged (#035 F). **No `-DcalibrationProfile` flag.**
+      ⚠ **Baseline stays in the list** — an era file is deltas, not a replacement.
+- [ ] Report header names the **active profile list**.
+- [ ] **Effective-config block**: every profilable constant and its value. ⚠ **Load-bearing,
+      not decoration** — it makes a run self-describing (#035 A), partially closes
+      backlog.md's harness-self-verification chore, and is **the only thing that catches a
+      mis-ordered profile list** (baseline last ⇒ the era file silently does nothing).
 - [ ] **Baseline runs print the `(target ~N)` strings exactly as today.**
 - [ ] **Non-baseline runs SUPPRESS the target strings** and print a delta against
       §3.14b's landing instead — `Points / team / game: 101.4 (baseline 118.3, −16.9)`
@@ -198,8 +233,8 @@ gate failure points at the conversion rather than at a profile value.
 
 **Step 8 — close out**
 - [ ] Re-run the 5-seed baseline; confirm the Step 4 landing still holds.
-- [ ] Run `1990s` and `modern` once each — a smoke check that they load, validate and
-      produce *different* numbers. **Different is correct; do not tune them.**
+- [ ] Run `nineties` once — a smoke check that it loads, validates and produces
+      *different* numbers. **Different is correct; do not tune it.**
 - [ ] Implementation note on `#035` (**≲6k chars**): divergences, the resolved
       open-at-execution items (key convention, accessor naming, the array parse, the
       `PlayerGameState` shape), and the baseline landing **with its profile name beside
@@ -222,8 +257,8 @@ property, a units error — and surfaces as total failure rather than subtle dri
 
 ### Open at execution (constrained calls left to the builder)
 
-- Property-key spelling convention (`sim.baseThree` lower-camel assumed).
-- Accessor naming for the 58 (`config.baseThree()` assumed).
+- Accessor naming for the 57 (`config.baseThree()` assumed). **Key format is settled: kebab-case** (#035 A).
+- Accessor naming for the 57 (`config.baseThree()` assumed).
 - The `FOUL_TROUBLE_SIT_PROBABILITY` list convention + length-7 validation.
 - Where the loader reads profile files from on the test classpath.
 - **Whether `PlayerGameState` takes a `SimConfig` field or is passed one per call** —
@@ -308,6 +343,7 @@ not add "done" entries (those are the `#NNN` entry's job).
 
 - `CalibrationHarness` is disabled by default and lives in the `sim` test sources; run
   it with `-Dcalibration=true -DcalibrationSeed=NNNN`. **Re-run after any `SimConfig`
-  change.** From §3.15 it also takes `-DcalibrationProfile=<name>` (#035 F).
+  change.** From §3.15 the sim profile is selected by the ordinary Spring profile list —
+  `-Dspring.profiles.active=test,nineties` (#035 F).
 - **Do NOT touch `MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION`'s baseline value** without its
   own recalibration pass (#034 B) — though §3.15 makes it *profilable* (#035 C).

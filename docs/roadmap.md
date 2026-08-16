@@ -554,13 +554,17 @@ re-running the loop and re-agreeing the numbers, not a red build.
       different LEAGUE STYLES — a 1990s low-pace/high-foul style, a modern three-heavy
       style, plus the shipped baseline — run the harness against each, and compare the
       generated stat lines between them.**
-      **THE RESOLVED SHAPE (#035):** **58 of the 83 constants become INSTANCE state on the
+      **THE RESOLVED SHAPE (#035):** **57 of the 83 constants become INSTANCE state on the
       existing `SimConfig` bean**, loaded from flat properties profiles carrying **only
-      deltas** (an override layer, #035 A); **25 stay `public static final`** — 9 rules,
-      15 model-machinery sensitivities, and `PERSONAL_FOULS_PER_TEAM_GAME` (#034 G's
+      deltas** (#035 A); **26 stay `public static final`** — 9 rules,
+      16 model-machinery entries (the sensitivities plus the two **scale definitions**,
+      `SCALE_AVG` and `MAX_ENERGY`), and `PERSONAL_FOULS_PER_TEAM_GAME` (#034 G's
       measured assumption). The invariant reads off the source: **`static final` means a
       rule or the shape of the model, not a knob.** An unknown or non-profilable key is a
-      **startup failure** (#035 D). The harness takes `-DcalibrationProfile=<name>` beside
+      **startup failure** (#035 D). Profiles are ordinary **Spring** profiles composed with the
+      existing infrastructure ones (`local,baseline` / `test,nineties`), bound by
+      `@ConfigurationProperties(prefix="sim")` — no custom loader. The harness selects one with
+      `-Dspring.profiles.active=` beside
       the existing `-DcalibrationSeed=NNNN`, **one profile per invocation** (#035 F), and
       prints an **effective-config block** naming every constant's origin.
       ⚠ **Why instance and not `static` non-final — the finding that sized the pass
