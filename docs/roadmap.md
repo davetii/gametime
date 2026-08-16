@@ -180,7 +180,7 @@ cycle (the simulator needed a team lookup that lived on the top-level service), 
 both sides depend on — an acyclic, one-way graph, no `@Lazy`. Touched packages land
 at 99–100% line coverage._
 
-### Possession-fidelity completion (§3.7–§3.16) — before Phase 4
+### Possession-fidelity completion (§3.7–§3.18) — before Phase 4
 
 Real-basketball events the §3.2/§3.3 engine does **not** model yet. Originally
 parked as "§3.x deferred sim-fidelity details," now **promoted to numbered
@@ -456,9 +456,12 @@ re-running the loop and re-agreeing the numbers, not a red build.
 > one resolver would assert a shared mechanism that does not exist, and would tune two
 > independent rate sources at once — the trap **#029 A2** split §3.11/§3.12 to avoid,
 > with the same ordering: **the self-contained half first, the structural half second.**
-> **§3.15 and §3.16 do NOT renumber** — §3.16 is named in the shipped,
-> never-retro-edited text of #030 and #031, so a full renumber would leave live
-> references meaning two different phases. Hence the `a`/`b` suffix.
+> **§3.14 used the `a`/`b` suffix** rather than renumbering, because §3.16 is named in
+> the shipped, never-retro-edited text of #030 and #031.
+> ⚠ **§3.16 WAS RESEQUENCED ANYWAY in 2026-08 (`decisions.md` #036 F, user call).**
+> **Every "§3.16" in #030, #031, #032, #034 and #035 means RECALIBRATION, which is now
+> §3.18.** ~43 references across those entries, ~120 across all docs. They are shipped
+> and not retro-edited; #036 F is the recorded mapping.
 
 - [x] **§3.14a — Technical fouls** *(SHIPPED — `decisions.md` **#032 A–J** + its
       implementation note)*. A non-contact, **behavioral** penalty the engine has no path for: today
@@ -520,7 +523,9 @@ re-running the loop and re-agreeing the numbers, not a red build.
       Budgeted at **+0.43 points/team/game** across two channels, deliberately
       over-estimated and still sub-noise, so **#032 I's inverted stop condition applies
       again** — measurable aggregate movement is a bug, not a calibration result.
-      **The last new mechanic in Phase 3**: §3.15 and §3.16 add no possession branch.
+      **Was billed as the last new mechanic in Phase 3** — ⚠ **AMENDED by #036 G**:
+      §3.15 (profiles) and §3.18 (recalibration) still add no possession branch, but
+      **§3.16 does**, so `possession-flow.puml` is **not** structurally complete.
       _Shipped (decisions.md #034 + implementation note): **no design divergence** — A–J
       shipped as written. Flagrants **0.148/team/game** (5-seed mean) against the 0.16
       configured, inside the 7.8% relative sd this line resolves at; flagrant-2s 0.023 and
@@ -612,68 +617,60 @@ re-running the loop and re-agreeing the numbers, not a red build.
       **exactly — per-seed, on the BASELINE profile** — before any §3.16 number is read off
       it (the same check that validated the §3.11 harness against §3.10's numbers). An era
       profile producing different numbers is the goal working, not a failure.
-- [ ] **§3.16 — Recalibration against verified targets** *(needs its own design pass; the
-      LAST Phase-3 sub-phase, and a different KIND of pass — it adds no mechanic, it
-      re-solves numbers)*. **This is a second §3.4, not a fidelity sub-phase.** See
-      [calibration.md](calibration.md) for the live statement of the problem.
-      **GOALS — what §3.16 is for, in four lines:**
-      1. **Establish what the engine's numbers should actually BE** — replace every
-         unsourced target with a sourced one (job 1, the backlog chore).
-      2. **Re-solve the engine's constants against those sourced targets** (job 2), which
-         for points/FG% specifically means finding a lever that separates **efficiency from
-         volume**, because the one existing lever moves both the same way.
-      3. **Leave `calibration.md` a fully-sourced table** — every row `TARGET` with a named
-         source and season, or explicitly marked `observed`/`ballpark` on purpose.
-      4. **Route out what it cannot reach** — apply the escalation rule below rather than
-         forcing an unreachable number into this pass.
-      **NON-goals**: adding any mechanic, changing fidelity, or re-opening settled realism
-      calls (`FOUL_MULT_*` #030 G, `pickDefender`'s weighting #031 A).
-      **The finding that creates it (§3.12, 2026-08):** the §3.4 targets for **points
-      (~112)** and **FG% (~47%)** were set from unsourced estimates and have never been
-      revisited; current figures suggest **points ~114–117** and **FG% ~47–48**, which would
-      make both targets too LOW. Against those ranges §3.12 landed **117.0 pts / 46.4% FG** —
-      points ~1–2 high, FG% ~0.6–1.6 **low**.
-      **Why one knob cannot fix it, which is the whole reason this needs its own pass:** the
-      only lever that moves points is the shot `BASE_*` rates, and it moves points and FG%
-      **the same direction** (measured on §3.12's numbers: **~0.50% FG% per 1.0 point**). So
-      points want a trim and FG% wants a raise, and no setting of that one lever satisfies
-      both. Identifying a lever that separates **efficiency from volume** (pace/possession
-      count, or shot mix) **is** the design pass.
-      **§3.16 IS TWO JOBS, AND THEY ARE SEQUENCED — this is the frame for the whole pass.**
-      **(1) Source the true constraints**, then **(2) re-solve the numbers against whatever
-      they turn out to be.** Job (1) is not engine work and is the prerequisite: every number
-      on both sides of this — §3.4's originals and the figures now contesting them — is
-      unsourced. It is a research chore filed in [backlog.md](backlog.md) and can happen any
-      time, independent of §3.13–§3.15. **The constraints §3.16 owns sourcing:**
-      - **Points (~112)** and **FG% (~47%)** — the CONTESTED pair, the reason this pass exists.
-      - **Foul-outs (~0.39)** — promoted to a **soft** TARGET by §3.13 (#031 H) because a
-        phase tuned against it, *not* because it became sourced. Both competing figures are
-        unsourced (0.11 from #030 G, 0.15–0.25 from a search).
-      - Anything else in [calibration.md](calibration.md) still marked `ballpark` that a pass
-        has since steered by — fouls/team/game (~19–20) is the next most load-bearing.
-      **⚠️ THE ESCALATION RULE — a sourced constraint does not automatically become §3.16
-      work.** §3.16 can re-solve any number reachable by turning an **existing knob**. If
-      sourcing reveals a gap that no existing knob can close, that is a **new mechanic** and
-      therefore a **new sub-phase**, not something to force into this pass. **Foul-outs are
-      the live example and the reason this rule is written down:** §3.13 measured its lever
-      **saturated** — a ~3× stronger sit curve produces ~60% more substitutions and moves the
-      number by *nothing* (0.377 → 0.382), because #031 D's earned return puts the player
-      back into the same over-dispersed defender draw. So:
-      - sourced ≈ **0.35–0.45** ⇒ **no work** — update the target, the "miss" was a bad target;
-      - sourced ≈ **0.15** ⇒ **escalate**, do not tune. It needs the timer + #031 C's deferred
-        period-awareness *together* (a timer alone worsens the known
-        bench-a-5-foul-star-in-the-final-minute cost), and both are blocked on the same
-        missing `gameProgress` plumbing every parked strategic sub is blocked on
-        ([ideas.md](ideas.md)). **Do NOT re-tune §3.13's sit curve — measured, it does nothing.**
-      Points/FG% are the opposite case and squarely §3.16's: they *are* reachable, and what
-      they need is the efficiency-vs-volume lever described below.
-      **Sequenced LAST on the calibration-blast-radius principle** the rest of this section
-      uses: §3.13 (minutes/fouls) and §3.14 (FTs + a retention path) both move scoring, so
-      recalibrating before them would tune against a baseline they then move. **Three
-      consecutive passes have now declined the same `BASE_*` trim** (§3.10 stopped at 113.8,
-      §3.11 took none, §3.12 took none) — each because the trim cost more calibrated FG%
-      than the points miss was worth. Three passes rejecting one lever is evidence about the
-      **target**, not about the passes.
+- [ ] **§3.16 — Shooting-foul composition** *(needs its own design pass; resequenced
+      by `decisions.md` **#036 C**)*. **The engine's total foul count is already right
+      (19.35 vs 19.9 real) but 145% of real free throws come out of it** — because
+      **74.8% of its fouls are `SHOOTING_FOUL`** (14.67 of 19.61), and those alone
+      produce **29.84 of the 34.0 FTA**. The only free-throw-free foul category is
+      offensive rebounding fouls at **0.58/game**. **The goal, in one line: fewer fouls
+      that award free throws, more that don't, with the total held constant.**
+      `FoulResolver.isFoul` is a **boolean** — when it fires the outcome is always
+      `SHOOTING_FOUL` — so there is no "what kind of foul" branch to tune, and the
+      likely shape is a **re-partition inside that branch** (the #027 A turnover-cause
+      shape, which holds the count by construction).
+      ⚠ **Do NOT reach for `sim.base-no-basket-foul`** — measured 2026-08 at 0.15 → 0.11
+      over 3 seeds: FTA 34.0 → 29.1 and points 118.3 → 117.1 (both toward real), but
+      **fouls 19.35 → 17.27** and **FGA 88.4 → 91.2**. It fixes under half the excess and
+      breaks a correct number. That same run **disproved #028's wrong-way-lever finding
+      at the current configuration** (trimming *lowered* points) — #028 was measured
+      pre-§3.12.
+      ⚠ **The ~35% conversion share is ARITHMETIC, not a measurement** (#036 follow-up),
+      and **the real NBA shooting-foul share is still unsourced** — it is the number that
+      sizes this phase.
+
+- [ ] **§3.17 — Shot mix / the 3PA gap** *(needs its own design pass; **deliberately
+      UNSCOPED** — `decisions.md` **#036 D**)*. **The engine takes 19.9 3PA against the
+      NBA's 37.0 — 54% of real, the largest single divergence and ~60% of the
+      composition error.** 3P% itself is fine (36.7 vs 36.0), so this is **volume, not
+      accuracy**.
+      ⚠ **THE FIRST DESIGN QUESTION IS WHETHER THIS IS AN ENGINE PROBLEM AT ALL.**
+      `ShotSelector.pickShotType` draws on `PlayerGameState.shotTypeWeight(type)` — i.e.
+      **per-player skills** — leaned by the coach's `offensiveScheme` through
+      `shotMixLean`. **That lean scales PERIMETER and THREE together**, so it cannot
+      raise threes while lowering mid-range, which is the shape the real gap needs. If
+      the gap traces to the generated player population's skill distribution, the fix is
+      **upstream of the possession engine** (player generation / seeded rosters) and this
+      is not a `SimConfig` phase. **Answer that before designing any knob.**
+
+- [ ] **§3.18 — Recalibration against verified targets** *(needs its own design pass;
+      **was §3.16** — see the mapping callout above and `decisions.md` #036 F. The LAST
+      Phase-3 sub-phase, and a different KIND of pass — it adds no mechanic, it re-solves
+      numbers)*. **A second §3.4.** See [calibration.md](calibration.md).
+      ✅ **Job (1) — sourcing — is DONE** (Basketball-Reference league averages, per game,
+      **2025-26**), and it made this pass **smaller than it was scoped for**:
+      **FG% was never contested** — real 47.1% vs the engine's 46.9%, a gap **inside the
+      ±0.14 standard error** of the 5-seed mean, so the *target* was wrong and no engine
+      work is owed (#036 A). Points' target moves ~112 → **115.6**, leaving a **+2.7**
+      gap that is itself **largely an artifact** of three cancelling composition errors
+      (2-pt +10.9, 3-pt −18.0, FT +7.1 — #036 B).
+      **Sequenced LAST on the calibration-blast-radius principle**: §3.16 moves FTA by
+      ~10 and §3.17 moves 3PA by ~17, so recalibrating first would tune against a
+      baseline both invalidate — the same stale-anchor error three passes already paid
+      for (§3.10/§3.11/§3.12).
+      **Still unsourced and owed:** foul-outs (its ~0.39 "target" came from §3.13's own
+      landing — circular), technicals, flagrants, the minutes distribution, and the real
+      shooting-foul share. **Exit condition:** every `calibration.md` row is either a
+      `TARGET` with a named source and season, or deliberately `observed`/`ballpark`.
 
 _(A future defensive-fidelity or Phase-4 stats pass may surface more; add new
 numbered sub-phases here rather than reopening a catch-all deferred bucket.)_
@@ -683,8 +680,8 @@ numbered sub-phases here rather than reopening a catch-all deferred bucket.)_
 ### Phase 3 → Phase 4 gate: the documentation condense pass
 
 **Deliberately NOT numbered `§3.17`** (user call, 2026-08). Every `§3.x` in this
-section is an **engine mechanic**, and §3.14b is on record as *the last new mechanic
-in Phase 3* (#034) — numbering a docs pass alongside them would imply the possession
+section is an **engine mechanic**, and §3.14b was on record as *the last new mechanic
+in Phase 3* (⚠ **amended by #036 G** — §3.16 adds one) (#034) — numbering a docs pass alongside them would imply the possession
 arc continues and would contradict that. It is **Phase 4 pre-work**: an explicit exit
 criterion on Phase 3, not an optional chore that slides.
 
@@ -705,7 +702,7 @@ criterion on Phase 3, not an optional chore that slides.
       consumer of this file.** It will reach for #028's wrong-way-lever finding, #030's
       exchange-rate measurements, #031's saturation result and #034's emergent-divisor
       coupling. Compressing first risks cutting exactly what it needs while nobody yet
-      knows which. After §3.16, §3.7–§3.16 is a closed arc that goes historical at once
+      knows which. After §3.16, §3.7–§3.18 is a closed arc that goes historical at once
       and the cross-refs actually reached for are **known rather than guessed**.
       **Why it must not slide past Phase 4's start**: Phase 4 is a stats/consumer phase
       whose reader wants "can I add a column?" — a `#014`/`#017`/`#020` one-liner — and

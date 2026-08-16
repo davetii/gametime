@@ -4,161 +4,189 @@ Tactical task list for the **current phase only**. Check items off or remove
 them as completed. For the big-picture phased roadmap and what's already
 shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
 [backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
-**Possession-fidelity completion** section (§3.7–§3.16).
+**Possession-fidelity completion** section (§3.7–§3.18).
 
-Current focus: **§3.16 — recalibration against verified targets**. The full
-§3.7–§3.16 sequence and what follows (Phase 4) live in **roadmap.md's
-"Possession-fidelity completion" section** — not here (todo.md is
-current-phase-only). §3.7–§3.13, **§3.14a**, **§3.14b** and **§3.15** have all shipped.
+Current focus: **§3.16 — shooting-foul composition**. Phase 3's tail was
+**resequenced** (`decisions.md` **#036**) into **§3.16 shooting fouls → §3.17 shot mix /
+3PA → §3.18 recalibration**. ⚠ **The old "§3.16 = recalibration" is now §3.18** — see
+#036 F for the mapping. §3.7–§3.13, §3.14a, §3.14b and §3.15 have all shipped.
 
 > **⚠ §3.16 NEEDS A DESIGN PASS FIRST — there is no execute-ready plan here yet.**
-> Resolve the open questions below into a new `decisions.md #036` (Decisions A, B,
-> C…) **plus** an execute-ready plan in this file. **Write no production code in that
+> Resolve the open questions below into a new `decisions.md #037` (Decisions A, B, C…)
+> **plus** an execute-ready plan in this file. **Write no production code in that
 > session.**
 >
-> **§3.16 is a different KIND of pass: it adds no mechanic, it re-solves numbers.** A
-> second §3.4, not a fidelity sub-phase. It is **the LAST Phase-3 sub-phase**.
+> **The one-line goal (user's words):** *fewer fouls that award free throws, more that
+> don't, with the total held constant.*
 >
-> **§3.16 IS TWO JOBS (roadmap.md):** **(1) source the true constraints**, and **(2)
-> re-solve the numbers against whatever they turn out to be.** Job (1) is research
-> rather than engine work — **every number on both sides is currently unsourced**,
-> including §3.4's originals. ⚠ **Whether the design pass BLOCKS on job (1) is Q1
-> below, not a settled matter**: roadmap.md notes the sourcing chore can run
-> independently of §3.13–§3.15.
+> **The measured problem.** Total fouls are **already right** — 19.35 vs 19.9 real. But
+> FTA is **34.0 vs 23.5**, i.e. **145% of real**, because **74.8% of the engine's fouls
+> are `SHOOTING_FOUL`** (14.67 of 19.61) and those alone produce **29.84 of the 34.0
+> FTA**. The only free-throw-free foul category is offensive rebounding fouls at
+> **0.58/game**. `FoulResolver.isFoul` is a **boolean** — when it fires the outcome is
+> always `SHOOTING_FOUL` — so **there is no "what kind of foul" branch to tune.**
 >
-> **⚠ THE ESCALATION RULE.** §3.16 may re-solve any number reachable by turning an
-> **existing knob**. If sourcing reveals a gap no existing knob can close, that is a
-> **new mechanic and therefore a new sub-phase** — do not force it into this pass.
-> **Foul-outs are the live example**: §3.13 measured that lever **saturated**.
+> **⚠ THIS IS A MECHANIC PASS.** It adds a possession branch, so
+> `possession-flow.puml` **must** change in the same session (#036 G amends #034's
+> "last new mechanic" claim). That is the opposite of §3.15's fence.
 >
-> **§3.15 shipped the instrument this pass runs on** (#035). Profiles are ordinary
-> Spring profiles; the harness selects one with
-> `-Dspring.profiles.active=test,baseline[,era]` beside `-DcalibrationSeed=NNNN`, and
-> prints an **effective-config dump**. ⚠ **Targets are BASELINE-ONLY (#035 I)** —
-> §3.16 must not author per-profile targets, and a delta is not a target.
+> **⚠ ITS VALIDATION GATE IS NOT "REPRODUCE THE LANDING".** §3.16 is *supposed* to move
+> FTA. What must NOT move: **total fouls (19.35)**, **FG% (46.9, already correct)**, and
+> **FGA (88.4 vs 89.1 real)**. Those three are the tripwires.
 
 ---
 
-## §3.16 — recalibration: the open questions for the design pass
+## §3.16 — shooting-foul composition: the open questions for the design pass
 
-§3.16 is the **second non-mechanic sub-phase** and the **last of Phase 3**. It adds no
-possession branch, no event, no rate — it **re-solves numbers**. Resolve each question
-below into a Decision letter in a new `decisions.md` **#036**.
-
-**Read first** — these are the design-pass input, not this list:
-- **[calibration.md](calibration.md)** — the **source of truth for targets**, its
-  CONTESTED section, and its own statement of the two jobs. ⚠ **No target in it is
-  sourced yet**; the current-value column is §3.15's baseline landing.
-- **roadmap.md's §3.16 bullet** — the four goals, the NON-goals, and the **escalation
-  rule** in full. Do not work from the paraphrase below.
-- **backlog.md's target-sourcing chore** — job (1)'s actual scope.
-- The findings §3.16 will reach for: **#028** (the wrong-way lever), **#030 G** (the
-  `BASE_*` exchange rate), **#031** (the saturated foul-trouble lever), **#034 G** (the
-  emergent flagrant divisor).
+**Read first** — these are the input, not this list:
+- **`decisions.md` #036** — why the phase exists, the sourced row, and the measured
+  experiment that ruled out the obvious knob.
+- **`docs/calibration.md`** — the sourced targets (2025-26). FTA 23.5 is the number
+  this phase is aimed at.
+- **`docs/possession-flow.puml`** — the `FoulResolver` partition and the flagrant
+  branch this would sit beside. **Read it before proposing a branch.**
+- **`PossessionEngine`** — the five `PlayType.FOUL` emission sites (lines ~212, 456,
+  539, 581, 622). §3.16 adds a sixth or re-partitions the first.
 
 > **✅ ALREADY SETTLED — do not re-litigate:**
 >
-> **(i) The escalation rule governs scope** (roadmap.md). §3.16 re-solves anything
-> reachable by an **existing knob**; a gap no existing knob can close is a **new
-> mechanic ⇒ a new sub-phase**. This is a fence on the pass, not a question in it.
+> **(i) `sim.base-no-basket-foul` is NOT the lever.** Measured 2026-08 at 0.15 → 0.11,
+> 3 seeds: FTA 34.0 → 29.1 ✅ and points 118.3 → 117.1 ✅, but **fouls 19.35 → 17.27** ❌
+> and **FGA 88.4 → 91.2** ❌. Fixes under half the excess, breaks two correct numbers.
+> ⚠ **That run also DISPROVED #028's wrong-way-lever claim at the current config** —
+> trimming *lowered* points. #028 was measured pre-§3.12. Do not cite it as live.
 >
-> **(ii) Targets are BASELINE-ONLY** (#035 I). §3.16 must not author per-profile
-> targets — a delta is not a target.
+> **(ii) And-1s are not the lever.** 1.96 of 34.0 FTA (5.8%); #029 set the rate on
+> realism at 4.8% of made FG. Leave it.
 >
-> **(iii) NON-goals** (roadmap.md): no mechanic, no fidelity change, and no reopening
-> `FOUL_MULT_*` (#030 G) or `pickDefender`'s weighting (#031 A).
+> **(iii) `sim.to-weight-offensive-foul` cannot add fouls.** #027 A fixed the turnover
+> *count* at the gate — those weights only re-partition turnovers, and raising this one
+> disturbs the deliberately-protected STOLEN share.
 >
-> **(iv) §3.15 shipped the instrument.** Profiles, the effective-config dump, and
-> baseline-only targets all exist. §3.16 uses them; it does not build them.
+> **(iv) FG% needs NO work** (#036 A) — real 47.1%, engine 46.9%, inside the noise band.
 
-**⚠ Q2 AND Q3 ARE ONE QUESTION WEARING TWO HATS, and that is the crux of the pass.**
-The lever that separates efficiency from volume is *either* pace (an **existing knob**,
-so §3.16 work) *or* shot mix (probably a **new mechanic**, so a new sub-phase). Answer
-them **together and against the escalation rule**, not independently — answering Q2
-"shot mix" while answering Q3 "in scope" quietly converts §3.16 into a mechanic pass.
+### Verified facts (measured 2026-08 against the tree — for whoever designs this)
 
-1. **Does the design pass BLOCK on sourcing, or run in parallel with it?** Job (1) is
-   research, not engine work, and roadmap.md says it "can happen any time, independent
-   of §3.13–§3.15" — so this is a real sequencing choice, not a foregone one.
-   Candidates: **(a) block** — source everything first, then design against real
-   numbers, at the cost of stalling on research that may take a while; **(b) design the
-   lever against the *current* figures and re-solve once sourcing lands** — risks
-   designing for a gap that turns out not to exist; **(c) split** — block only on the
-   CONTESTED pair (points/FG%), proceed on the rest. ⚠ **Whichever is chosen, #036 must
-   say what happens if a sourced number contradicts the design.**
-2. **What is the efficiency-vs-volume lever?** ⚠ **The reason the pass exists.** The
-   only knob that moves points is the shot `BASE_*` rates, and it moves points and FG%
-   **the same direction** (~0.50–0.60% FG% per 1.0 point, measured #030 G). Points want
-   a trim and FG% wants a raise, so **no setting of that one lever satisfies both** —
-   three consecutive passes declined the trim for this reason. Candidates: **(a) pace**
-   (`sim.default-possessions-per-period`, now profilable — fewer possessions cut points
-   without touching FG%); **(b) shot mix** (reweighting toward threes
-   lifts points-per-shot at a *lower* FG%, the modern-NBA shape, and separates the two
-   directly). ⚠ **Measured 2026-08: `ShotSelector` holds NO `SimConfig` reference at
-   all** — shot mix is driven purely by the shooter's skill weights
-   (`PlayerGameState.shotTypeWeight`), so (b) means **introducing a knob that does not
-   exist**, which the escalation rule likely makes a new sub-phase. (a) turns a knob
-   that already exists. **This asymmetry is what ties Q2 to Q3.** **(c) a
-   combination**, which needs both consequences stated.
-3. **Is the 3PA-volume gap in scope?** The engine takes **~20 3PA/team/game against the
-   NBA's ~35** (#030's follow-up, a named §3.16 input). Candidates: **(a) in scope**, if
-   Q2 picks shot mix and the reweight is judged an existing knob; **(b) escalate** to a
-   shot-selection sub-phase; **(c) source it but leave it**, recording the gap in
-   calibration.md as `observed`. ⚠ Note this gap is **evidence for Q2(b)**: closing it
-   would itself move points and FG% in opposite directions.
-4. **Which numbers does the pass COMMIT to landing, and which does it route out?**
-   #036 must name both sets explicitly. **Foul-outs are the worked example** and the
-   reason the rule exists: §3.13's lever is measured **saturated**, so a sourced
-   ~0.35–0.45 means *no work*, while a sourced ~0.15 means *escalate* — the same number
-   is in or out of scope depending on where it lands. **Exit condition**: calibration.md
-   fully sourced — every row either a `TARGET` with a named source and season, or
-   deliberately marked `observed`/`ballpark`.
-5. **Is `PERSONAL_FOULS_PER_TEAM_GAME` re-measured, and what does that do to
-   flagrants?** It is a **measured static** (19.0), deliberately not profilable, and the
-   divisor turning the game-level flagrant rate into a per-foul probability (#034 G). It
-   is an assumption about what the engine *currently does*, so **any pass that moves the
-   foul rate invalidates it — and §3.16 is that pass.** ⚠ Re-measuring it **silently
-   moves the flagrant rate** without touching `sim.flagrant-fouls-per-team-game`. Decide
-   whether that is accepted, compensated, or escalated.
-6. **Which non-targets stay non-targets?** Technicals and flagrants are deliberately
-   **ballparks, not targets** (#032 J / #034 H) — nothing is tuned toward them. Confirm
-   they stay that way rather than being promoted by proximity, and say the same for the
-   4/5/6-foul distribution, which calibration.md calls the real diagnostic behind
-   foul-outs.
-7. **What replaces the reproduction gate?** ⚠ **Every §3.x so far had one; §3.16 is the
-   first pass EXPECTED to move the numbers**, so "reproduce the prior landing" is not
-   available and its absence must be filled deliberately rather than by default. What
-   distinguishes an intended re-solve from a bug? Candidates: **(a) attribution** —
-   every move traceable to a named knob, with the before/after recorded; **(b) a
-   one-knob-at-a-time discipline** with a harness reading between each; **(c) a
-   tolerance band** on the numbers §3.16 is *not* re-solving, so an unintended
-   side-effect surfaces. ⚠ Note the §3.15 lesson: **a caller holding its own copy of a
-   tunable value is invisible to the properties file** — the effective-config dump is
-   the instrument that catches it, and §3.16 should read it every run.
+- **`FoulResolver.isFoul` is a boolean** and its hit is emitted at
+  **`PossessionEngine:212`** as `"SHOOTING_FOUL"`, then `awardFreeThrows(...)` then
+  **`return`** — the possession ends and **no FGA is charged** (the branch returns
+  before `recordFieldGoalAttempt()`). That last point is why FGA is 88.4 while ~103
+  shot attempts are made.
+- **`defender.recordFoul()` is called BEFORE any branching** (line ~187). So foul-outs,
+  `foulTroubleLevel()` and the bonus tally keep working **whichever branch is taken** —
+  this is what makes a re-partition hold the total *by construction* rather than by
+  tuning.
+- **⚠ THE PRECEDENT ALREADY EXISTS IN THIS EXACT BLOCK: `isFlagrant(RandomGenerator)`**
+  (`FoulResolver:171`) is a **second roll layered on a foul that has already happened
+  and been charged**, re-partitioning severity without touching the parent rate (#034
+  A). §3.16's roll would be its sibling. **Read that pair before designing a new shape**
+  — `isFlagrantTwo` (`FoulResolver:193`) shows the flat-share form too.
+- **Five `PlayType.FOUL` emission sites**: `212` SHOOTING_FOUL · `456`
+  REBOUNDING_FOUL_* · `539` flagrant grades · `581` AND_ONE · `622` TECHNICAL_FOUL.
+- **Foul mix today** (seed 1000): SHOOTING 14.67 (74.8%) · AND_ONE 1.96 · REBOUND_DEF
+  1.84 · REBOUND_OFF 0.58 · TECHNICAL 0.39 · FLAGRANT 0.16 = **19.61 total**.
+- **FTA by source**: SHOOTING **29.84** (87.8%) · AND_ONE 1.96 · BONUS 1.51 ·
+  TECHNICAL 0.39 · FLAGRANT 0.33 = **34.0**.
+- **`ShotType.freeThrowsIfFouled()`** is `THREE ? 3 : 2` — a **rule on the enum**, not a
+  `SimConfig` knob (#030 C). Stopped shots split 14.16 two-pt / 0.51 three-pt.
+- **The bonus** is derived, never stored: `GameData.isInBonus(teamId, period, config)`
+  counts FOUL events by `committingTeamId`, **excluding** `TECHNICAL_FOUL` (#032 E).
+  Currently **51.9%** of team-periods reach it.
+- **Baseline landing to beat** (5-seed mean, seeds 1000–5000, profile `local,baseline`):
+  points 118.3 · FG% 46.9 · 3P% 36.7 · ast 27.1 · TO 13.6 · **FTA 34.0** · **fouls
+  19.35** · **FGA 88.4** · foul-outs 0.358 · penalty 51.9%.
+- Harness: `-Dcalibration=true -DcalibrationSeed=NNNN`, 6 rounds × 17 matchups ≈ 102
+  games; every printed figure is already a per-team-per-game mean. Era/scratch profiles
+  are ordinary Spring profiles — `-Dspring.profiles.active=local,baseline,<name>` with
+  **`baseline` kept in the list**.
 
-### What holds regardless of how the questions resolve
-
-**Unlike every §3.x before it, §3.16 is EXPECTED to move the numbers** — that is its
-purpose, and a reproduction gate would defeat it. **Q7 owns what replaces that gate**;
-the items here are fixed either way and are not open questions:
-
-- **No mechanic changes** — no new branch, event or rate, and
-  `possession-flow.puml` must not change.
-- **The final landing is recorded against a SOURCED target**, not an estimate. A pass
-  that re-solves numbers against unsourced targets has done job (2) without job (1).
-- ⚠ **Judge the coarse rows at 5 SEEDS ONLY** — technicals, flagrants and foul-outs
-  are the noisiest in calibration.md, and flagrants are the coarsest row in it.
-- **`calibration.md` and the harness's `(target ~N)` strings move together**, in the
-  same change, whenever a target moves.
+1. **Where does the new branch go?** The leading candidate is a **re-partition inside
+   `FoulResolver.isFoul`'s hit** — between `defender.recordFoul()` and the
+   `SHOOTING_FOUL` emission — so the total is held **by construction** — the shape #027 A
+   used for turnover causes, and the shape **`isFlagrant` already uses three lines
+   above** (#034 A). Alternatives: a separate roll earlier in the possession
+   (models off-ball contact more honestly, but adds fouls rather than re-partitioning
+   them, so the total moves); or extending the rebounding-foul path. ⚠ **Whichever is
+   chosen, say what happens to the SHOT** — see Q3.
+2. **What share converts, and is it a constant or a contest?** ⚠ **The ~35% figure is
+   ARITHMETIC from one 3-seed experiment, not a measurement** — it lands FTA at 23.5 and
+   FTA/foul at 1.20 vs real 1.18, but the design pass must measure it. Is it a flat
+   `SimConfig` share (the #034 E flagrant-share shape), or does it take skill input?
+   **The real NBA shooting-foul share is still UNSOURCED** and is the number that sizes
+   this phase — an earlier ~59% estimate was a bad back-derivation and is withdrawn.
+3. **Does a non-shooting foul stop the shot?** ⚠ **This is the crux and it decides
+   whether the pass breaks FGA.** If the shot still happens, the possession continues
+   and gains an FGA — FGA is currently 88.4 vs 89.1 real, so there is ~0.7 of headroom
+   and no more. If play stops with no free throws, points fall hard and the possession
+   ends. Neither is obviously right; **both need measuring, not reasoning.**
+4. **How does it interact with the bonus?** In the penalty a common foul **does** award
+   2 FTs, which partly undoes the effect late in periods. `sim.bonus-fouls-per-period`
+   is 5 and the derivation is `GameData.isInBonus`. Does the new outcome count toward
+   the penalty tally? (#032 E made that an explicit per-outcome decision — a technical
+   does not count, a flagrant does.)
+5. **What is the outcome string, and does it feed the foul-out limit?** Naming follows
+   the established vocabulary (#027 D — no collisions across phases). It is a personal
+   foul, so it presumably feeds `FOUL_OUT_LIMIT` and `foulTroubleLevel()` — but say so,
+   because §3.14a's technical deliberately does **not** (#032 E), and foul-outs
+   (0.358) would move if this lands.
+6. **Does the flagrant roll apply to a non-shooting foul?** ⚠ **A question the code
+   forces and the phase cannot dodge**, because `isFlagrant` sits *between*
+   `recordFoul()` and the `SHOOTING_FOUL` emission — whatever branch is added lands
+   beside it. Real basketball has away-from-play flagrants, so "yes" is defensible; but
+   **`awardFlagrant` assumes the FOULED PLAYER shoots the free throws** (#034 D
+   explicitly refused to reuse `pickTechnicalFreeThrowShooter` because "on a flagrant
+   somebody was fouled"), and on an off-ball foul there may be no shooter to name.
+   Cheapest defensible answer is to keep the flagrant roll on the shooting branch only —
+   but **say it explicitly**, because silence here is a latent bug.
+7. **Should charges become personal fouls?** `TurnoverCause.OFFENSIVE_FOUL`
+   (~1.26/team/game, javadoc *"Charge / illegal screen"*) emits a **TURNOVER** and never
+   a `PlayType.FOUL`, so the committer is charged nothing and it misses the bonus tally.
+   Counting them would put fouls at **20.87** vs 19.9 real. **Likely a correctness gap
+   independent of calibration** — check #027 for whether the categorization was
+   deliberate before changing it.
 
 ---
 
-### ⚠ Do NOT (standing guardrails — carried forward into §3.16)
+### What holds regardless of how the questions resolve
+
+**⚠ §3.16 HAS NO REPRODUCTION GATE — it is SUPPOSED to move FTA.** What replaces it is
+a set of tripwires: numbers that are already correct and must stay correct. Read them
+off the harness in the same run.
+
+| Must move | from | toward |
+|---|---|---|
+| **FTA / team / game** | 34.0 | **23.5** |
+| FTA per foul | 1.73 | ~1.18 |
+
+| Must NOT move (tripwires) | current | real | tolerance |
+|---|---|---|---|
+| **Fouls / team / game** | 19.35 | 19.9 | the re-partition should hold this *exactly* |
+| **FGA / team / game** | 88.4 | 89.1 | **~0.7 of headroom — Q3 can blow this** |
+| **FG%** | 46.9% | 47.1% | already correct; ±0.14 is seed noise |
+| Points | 118.3 | 115.6 | may improve; must not overshoot downward |
+| Foul-outs | 0.358 | *unsourced* | Q5 moves this if the new foul counts |
+| Penalty rate | 51.9% | *unsourced* | Q4 moves this if it counts toward the bonus |
+
+- **The harness already breaks fouls down by outcome** (`foulsByOutcome`), so a new
+  outcome string shows up in the report **automatically** — no instrument work needed
+  to see the re-partition land.
+- **A scratch profile is the cheap way to test a share before committing to it** —
+  `application-scratch.properties` with the one key, run
+  `-Dspring.profiles.active=local,baseline,scratch`, then **delete it**. §3.15 made this
+  free; the `base-no-basket-foul` finding above came from exactly that.
+- **`possession-flow.puml` MUST be updated in the same session** — this pass adds a
+  branch (#036 G), and it is the first §3.x since §3.14b to do so.
+- ⚠ **Judge the coarse rows at 5 SEEDS ONLY** — foul-outs, technicals, flagrants.
+- **`calibration.md` and the harness `(target ~N)` strings move together**, always.
+
+---
+
+### ⚠ Do NOT (standing guardrails — carried forward into §3.16–§3.18)
 
 These outlive any one phase. **§3.15 shipped as a refactor and changed no number at
-all** (its gate reproduced §3.14b per-seed). **§3.16 owns re-centering and is the only
-phase that may revisit the last one** — but only within the escalation rule: a number
-no existing knob can reach is a new sub-phase, not §3.16 work.
+all** (its gate reproduced §3.14b per-seed). ⚠ **Re-centering is now §3.18, not §3.16**
+(#036 F) — §3.16 and §3.17 are mechanic passes that deliberately move composition, and
+§3.18 re-solves the numbers afterwards.
 
 - **Do NOT add a fourth removal path in `RotationState`** — ejection is the **hard**
   tier and extends `isDisqualified(...)` (#031 H, built §3.14a).

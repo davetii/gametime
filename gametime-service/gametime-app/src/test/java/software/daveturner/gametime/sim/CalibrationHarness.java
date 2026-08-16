@@ -38,14 +38,17 @@ import java.util.Map;
  * Without {@code -Dcalibration=true} the method is skipped, so it stays off the
  * normal build + coverage gate ({@code @EnabledIfSystemProperty}).
  *
- * <p><b>Target benchmarks (modern NBA, per team per game — user-agreed 2026-06-30):</b>
+ * <p><b>Target benchmarks — SOURCED 2026-08</b> (Basketball-Reference league averages,
+ * per game, 2025-26 regular season; decisions.md #036). Per team per game:
  * <ul>
- *   <li>~112 points</li>
- *   <li>~47% FG</li>
- *   <li>~36% 3P</li>
- *   <li>~26 assists</li>
- *   <li>~14 turnovers</li>
+ *   <li>115.6 points</li>
+ *   <li>47.1% FG</li>
+ *   <li>36.0% 3P</li>
+ *   <li>26.7 assists</li>
+ *   <li>14.5 turnovers</li>
  * </ul>
+ * These supersede the unsourced 2026-06-30 estimates (~112 / ~47 / ~36 / ~26 / ~14).
+ * <b>docs/calibration.md is the source of truth — update it and these strings together.</b>
  * "Calibrated" means the aggregates below land near these, observed here — not by eye.
  *
  * <p><b>§3.5 additions (decisions.md #023, Decision E):</b> the report also shows a
@@ -590,32 +593,33 @@ class CalibrationHarness {
             lines.add(String.format("Games simulated:        %d (%d team-games)", gameCount, teamGames));
             lines.add(String.format("Avg periods/game:       %.2f", periods / (double) gameCount));
             // Targets are owned by docs/calibration.md — update BOTH together.
-            // Points and FG% are flagged CONTESTED there (2026-08, §3.12): both were
-            // set in §3.4 from unsourced estimates, current figures suggest points
-            // ~114-117 and FG% ~47-48, and the one lever that moves them (shot
-            // BASE_*) moves BOTH the same direction — so they cannot be reconciled
-            // by a re-centering step. Read that file before trimming anything.
+            // SOURCED 2026-08 from Basketball-Reference league averages, 2025-26
+            // (decisions.md #036). FG% is NOT contested: real 47.1% vs the engine's
+            // 46.9% is inside the +/-0.14 sd of the 5-seed mean, so the target was
+            // wrong and no engine work is owed. Points retargeted ~112 -> 115.6; the
+            // remaining +2.7 is largely three cancelling composition errors (2-pt
+            // +10.9, 3-pt -18.0, FT +7.1). FTA and 3PA own phases: §3.16 and §3.17.
             // Targets are baseline-only: on an era profile they are suppressed in
             // favour of a delta. A delta is not a target, and nothing is tuned
             // against a non-baseline profile.
             boolean baselineRun = isBaselineOnly(activeProfiles);
             lines.add(numbered("Points / team / game:  ", points / tg, "%.1f",
-                    "target ~112 — CONTESTED, see calibration.md",
+                    "target 115.6 — sourced 2025-26, see calibration.md",
                     BASELINE_POINTS, baselineRun));
             lines.add(numbered("FG%:                   ", pct(fgm, fga), "%.1f%%",
-                    "target ~47% — CONTESTED, see calibration.md",
+                    "target 47.1% — sourced 2025-26; engine is inside the noise band",
                     BASELINE_FG_PCT, baselineRun));
             lines.add(numbered("3P%:                   ", pct(tpm, tpa), "%.1f%%",
-                    "target ~36%", BASELINE_3P_PCT, baselineRun));
+                    "target 36.0% — sourced 2025-26", BASELINE_3P_PCT, baselineRun));
             lines.add(String.format("FGA / team / game:      %.1f", fga / tg));
             lines.add(String.format("3PA / team / game:      %.1f", tpa / tg));
             lines.add(numbered("Assists / team / game: ", assists / tg, "%.1f",
-                    "target ~26", BASELINE_ASSISTS, baselineRun));
+                    "target 26.7 — sourced 2025-26", BASELINE_ASSISTS, baselineRun));
             lines.add(numbered("Turnovers / team / game:", turnovers / tg, "%.1f",
-                    "target ~14", BASELINE_TURNOVERS, baselineRun));
+                    "target 14.5 — sourced 2025-26", BASELINE_TURNOVERS, baselineRun));
             lines.add(String.format("Off reb / team / game:  %.1f", offReb / tg));
             lines.add(String.format("Def reb / team / game:  %.1f", defReb / tg));
-            lines.add(String.format("Blocks / team / game:   %.1f   (target ~5)", blocks / tg));
+            lines.add(String.format("Blocks / team / game:   %.1f   (target 4.8 — sourced 2025-26)", blocks / tg));
             lines.add(String.format("OOB / team / game:      %.1f   (§3.8, no target)", oob / tg));
             lines.add(String.format("Reconciliation (ast+blk):%s",
                     reconciliationMismatches == 0 ? " OK (all games match)"

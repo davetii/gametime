@@ -24,14 +24,16 @@ noise is ±1.5 points, enough to bait an over-correction (#029 E).
 > what a number should be, only what changed.
 > **Nothing here is per-profile, and §3.15 did not add a second target set** — authoring
 > era targets is real research and would create a second unsourced table beside the one
-> §3.16 exists to fix (#017's don't-fabricate-a-constraint rule, applied to targets).
+> §3.18 exists to fix (#017's don't-fabricate-a-constraint rule, applied to targets).
 
 ---
 
 ## Everything, in one table
 
-All figures are **per team per game** unless noted. Current = **§3.14b landing,
-5-seed mean, seeds 1000–5000** (2026-08) — the `baseline` profile.
+All figures are **per team per game** unless noted. Current = the **5-seed mean, seeds
+1000–5000** (2026-08) on the `baseline` profile — §3.15 reproduced §3.14b's landing
+per-seed exactly, so the numbers are unchanged since §3.14b. **Target column: sourced
+rows are Basketball-Reference league averages, per game, 2025-26** (#036).
 
 **Type** — `TARGET` = calibrated, steer by it. `ballpark` = plausibility range,
 judge against it but **do not calibrate to it** (#030 G, #017). `observed` = no
@@ -39,15 +41,22 @@ target, reported for visibility.
 
 | Measure | Type | Target / range | Current | Status |
 |---|---|---|---|---|
-| **Points** | TARGET | ~112 | **118.3** | ⚠️ **CONTESTED** — see below |
-| **FG%** | TARGET | ~47% | **46.9%** | ⚠️ **CONTESTED** — see below |
-| 3P% | TARGET | ~36% | 36.7% | ✅ |
-| Assists | TARGET | ~26 | 27.1 | ✅ |
-| Turnovers | TARGET | ~14 | 13.6 | ✅ |
-| Blocks | TARGET | ~5 | 5.0 | ✅ (#025 C) |
+| **Points** | **TARGET (SOURCED)** | **115.6** | **118.3** | +2.7 — largely a composition artifact (#036 B) |
+| **FG%** | **TARGET (SOURCED)** | **47.1%** | **46.9%** | ✅ **inside the ±0.14 sd — no work owed** (#036 A) |
+| 3P% | **TARGET (SOURCED)** | **36.0%** | 36.7% | ✅ |
+| Assists | **TARGET (SOURCED)** | **26.7** | 27.1 | ✅ |
+| Turnovers | **TARGET (SOURCED)** | **14.5** | 13.6 | ✅ |
+| Blocks | **TARGET (SOURCED)** | **4.8** | 5.0 | ✅ (#025 C) |
 | Top-starter minutes | TARGET | ~34–36 | ~36.1 | ✅ (#023; §3.13 cost 0.5) |
 | Minutes ceiling | TARGET | nobody over ~42 | ok | ✅ (#023) |
-| Fouls | ballpark | ~19–20 | 19.35 | ✅ (was 16.8 pre-§3.12) |
+| Fouls | **TARGET (SOURCED)** | **19.9** | 19.35 | ✅ (was 16.8 pre-§3.12) |
+| **FTA** | **TARGET (SOURCED)** | **23.5** | **34.0** | 🔴 **145% of real — §3.16 owns it** |
+| **3PA** | **TARGET (SOURCED)** | **37.0** | **19.9** | 🔴 **54% of real — §3.17 owns it** |
+| FGA | **TARGET (SOURCED)** | **89.1** | 88.4 | ✅ |
+| Off rebounds | **TARGET (SOURCED)** | **11.3** | 9.6 | 🟡 low |
+| Def rebounds | **TARGET (SOURCED)** | **32.4** | 27.6 | 🟡 low — likely a 3PA symptom (#036) |
+| Pace (poss/48) | **TARGET (SOURCED)** | **99.4** | ~100 nominal | ✅ |
+| Steals | observed | 8.4 | *not in the report* | ⚪ harness gap (#036 follow-up) |
 | **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.358** | ⚠️ the target came FROM §3.13's landing — see below |
 | Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.00 / 0.52 / 0.39 | the real diagnostic for foul-outs |
 | **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.367** | ⚠️ **judge at 5 SEEDS ONLY** — see below |
@@ -55,41 +64,49 @@ target, reported for visibility.
 | Flagrant-2s | *(no target — a 15% share)* | — | **0.023** | §3.14b; the ejection driver |
 | **Ejections** | *(no target — an outcome)* | — | **0.027** | §3.14b; BOTH causes (§3.14a alone was 0.014) |
 | Fouled-three rate | ballpark | **~2% of 3PA** | 3.0% | ✅ anchor on the RATE, not the count |
-| 3-FT trips | ballpark | ~0.3–0.6 *here* | 0.59 | ✅ (real NBA ~0.7 off ~35 3PA; we shoot ~20) |
+| 3-FT trips | ballpark | ~0.3–0.6 *here* | 0.59 | ✅ (real ~0.7 off 37.0 3PA; we shoot 19.9 — §3.17) |
 | And-1s | ballpark | ~4–6% of made FG | 1.88 (4.6%) | ✅ (#029 E) |
 | Fouls / team / period | observed | — | 4.85 | bonus at 5 (#028) |
 | Team-periods in penalty | observed | — | 51.9% | a result, not a knob (#030 D) |
 | Out of bounds | observed | — | 2.8 | (#026 D) |
 | Turnover cause mix | observed | STOLEN dominant | 56.8% | no per-cause target (#027 E) |
-| 3PA / team / game | observed | — | 20.1 | vs the NBA's ~35 — a §3.16 input (#030 follow-up) |
 | Period-by-period FG% | observed | flat, not sagging | flat | correct §3.5 behavior (#023 E) |
 
 ---
 
-## ⚠️ Points and FG% are contested (2026-08, §3.12)
+## ✅ RESOLVED — the points/FG% contest, and what it cost to leave it unsourced
 
-Both were set in §3.4 from **unsourced estimates** and never revisited. Checked
-against current figures during §3.12:
+**This section is HISTORY, kept because the lesson is the most expensive one in this
+file.** Points and FG% were flagged CONTESTED in 2026-08 (§3.12) and **resolved by
+sourcing in 2026-08** (#036 A). The resolution:
 
-| | §3.4 target | Apparent modern-NBA | Direction |
-|---|---|---|---|
-| Points | ~112 | 114–117 | target may be too LOW |
-| FG% | ~47% | 47–48% | target may be too LOW |
+| | §3.4 target | §3.12's guess | **Sourced 2025-26** | Engine | Outcome |
+|---|---|---|---|---|---|
+| Points | ~112 | 114–117 | **115.6** | 118.3 | target was **too low**; a real +2.7 gap remains |
+| FG% | ~47% | 47–48% | **47.1%** | 46.9% | ✅ **target was right; the ENGINE was already correct** |
 
-**Neither range is verified** — both are search summaries, the same standard
-§3.4's own numbers were set by. Evidence the targets need scrutiny, *not* new
-targets.
+**FG% was never actually contested.** The engine sits 0.2 below a sourced 47.1% —
+**inside the ±0.14 standard error** of the 5-seed mean, with per-seed values spanning
+46.5–47.3. There was nothing to fix, and no lever needed to be found.
 
-**One lever cannot fix both.** Shot `BASE_*` moves points and FG% the **same
-direction** (~0.50% FG% per 1.0 point, measured on §3.12's numbers). Points are
-~1–2 high (wants a trim); FG% is ~0.6–1.6 low (wants a raise). Reconciling them
-needs a lever separating **efficiency from volume** — that is **§3.16**, not a
-foul phase's re-centering step.
+**⚠ THE LESSON: three passes paid for an unsourced target.** §3.10 stopped at 113.8,
+§3.11 took no trim, §3.12 took none — each declining the same shot-`BASE_*` trim because
+it cost more calibrated FG% than the points miss was worth. **They were right, and the
+reason is now known: the points target was ~3.6 too low, so most of the gap they were
+being asked to close did not exist.** Three phases of judgement were spent working
+around a number nobody had checked. **Source a target before tuning toward it.**
 
-**Three passes running have declined the same trim** — §3.10 stopped at 113.8,
-§3.11 took none, §3.12 took none, each because it cost more calibrated FG% than
-the points miss was worth. That is evidence about the *target*, not the passes.
-Tracked in risks.md.
+**The "one lever cannot fix both" framing is retired.** It was true given the false
+targets — points wanting a trim while FG% wanted a raise, with `BASE_*` moving both the
+same direction (~0.50–0.60% FG% per 1.0 point, #030 G). With FG% correct, **only points
+need to move**, and the deadlock that justified a whole phase is gone.
+
+**What replaced it is a bigger finding (#036 B): the totals are close, the COMPOSITION
+is wrong.** Per team per game, the engine's points come from 2-pt **+10.9**, 3-pt
+**−18.0**, FT **+7.1** against real — three large errors summing to ~zero. **The +2.7
+points gap is largely an artifact of that cancellation.** A points-only re-solve would
+have fixed the total and left the game shaped wrong. That is what §3.16 (FTA) and §3.17
+(3PA) exist to correct, before §3.18 re-solves anything.
 
 ## Foul-outs — §3.13 landed them at ~0.39, ABOVE the ~0.1–0.25 ballpark, deliberately
 
@@ -127,7 +144,7 @@ whole slot curve shifted by ≤0.5 minutes. The §3.4 aggregates are unmoved.
 ballpark to TARGET per #031 H — because §3.13 deliberately tuned against it, so it
 now has an owner — but the number describes where the engine sits, not where the
 NBA does. The original ~0.1–0.25 remains unsourced (0.11 from #030 G, 0.15–0.25
-from a search). **§3.16's benchmark-verification prerequisite should source the
+from a search). **§3.18's benchmark-verification prerequisite should source the
 real figure**; if it confirms ~0.1–0.25, that is a new phase with a new lever, not
 a re-tune of #031's.
 
@@ -210,7 +227,7 @@ Added by **§3.14b** (`decisions.md` **#034 G/H**), landed 2026-08.
 
 **A `ballpark`, not a TARGET**, for exactly §3.14a's reason: nothing is tuned toward it,
 `FLAGRANT_FOULS_PER_TEAM_GAME` (= **0.16**, from a ~0.25–0.40 league-wide figure) is set
-from the real-world number directly. **UNSOURCED**, like every row here — §3.16's job (1).
+from the real-world number directly. **UNSOURCED** — §3.18's job (1); most other rows were sourced in 2026-08 (#036).
 
 **§3.14b landed at 0.148** (5-seed mean, seeds 1000–5000) against the 0.16 configured,
 with a per-seed spread of **0.123–0.186**. That spread is itself the argument below: at
@@ -231,7 +248,7 @@ Compare technicals (11.8% / 5.3%). **A single-seed reading is useless, and even 
 
 **⚠ Its divisor is EMERGENT, which technicals' is not** (#034 G). §3.14a divides a
 game-level constant by a **nominal, config-derived** check count; §3.14b divides by the
-**measured personal-foul rate**. So **§3.16 — or any pass that moves the foul rate —
+**measured personal-foul rate**. So **§3.16 (which moves the foul mix), §3.18, or any pass that moves the foul rate —
 moves flagrants too**, without anyone touching `FLAGRANT_FOULS_PER_TEAM_GAME`.
 Directionally correct (more fouls, more chances for one to be excessive), but it means
 the constant is **not a standalone dial** and a flagrant drift may be a foul-rate signal.
@@ -245,7 +262,8 @@ leak), not a calibration result. **It held** — points moved **+0.76** (117.5 �
 inside the band and between the budget and §3.14a's own budget-vs-landing precedent), the
 penalty rate stayed flat at **51.9%** (§3.14a: 51.2%), and foul-outs landed 0.358 inside
 their seed spread. All three bug signatures are additionally pinned by tests rather than
-inferred from the aggregates. Nothing was re-centered; **§3.16 owns the contested pair.**
+inferred from the aggregates. Nothing was re-centered; **the contested pair was later
+RESOLVED BY SOURCING (#036 A) — FG% needed no work at all, and re-centering is now §3.18.**
 
 **Ejections are an OUTCOME here too, and §3.14b is where they became observable.** They
 landed at **0.027/team/game** against #034 F's predicted ~0.024 — roughly **double**
@@ -263,21 +281,37 @@ event. **So subtract only the technicals line** to compare against §3.13's 19.0
 
 ---
 
-## ⚠️ NOTHING IN THIS TABLE IS SOURCED YET — and that is §3.16's job (1)
+## ✅ MOST OF THIS TABLE IS NOW SOURCED (2026-08)
 
-**Every `TARGET` above was set from an unsourced estimate**, including the ones
-marked ✅. The ✅ means "the engine is where we said we wanted it," **not** "we
-verified that is where the NBA is." §3.16 is explicitly **two jobs in sequence**:
+**Source: Basketball-Reference NBA league averages, per game, 2025-26 regular
+season.** The row was checked for internal consistency before use: FG/FGA = .4714,
+3P/3PA = .3595, FT/FTA = .7830, and 2×(FG−3P) + 3×3P + FT = 115.7 ≈ the stated
+115.6 PTS.
 
-1. **Source the true constraints** — the [backlog.md](backlog.md) research chore.
-   In scope: **points, FG%** (the CONTESTED pair), **foul-outs** (soft, added by
-   §3.13), **technicals** (ballpark, added by §3.14a — the ~0.6–0.8 league figure is
-   user-supplied and unverified), and the load-bearing ballparks (fouls ~19–20,
-   blocks ~5).
+**What sourcing changed** (`decisions.md` #036):
+- **FG% was never contested.** Real **47.1%** vs the engine's 46.9% — a gap *inside*
+  the ±0.14 standard error of the 5-seed mean (per-seed spread 46.5–47.3). The
+  **target** was wrong; the engine is correct and owes no work (#036 A).
+- **Points retargeted ~112 → 115.6.** The remaining +2.7 is **largely an artifact of
+  three cancelling composition errors** — 2-pt **+10.9**, 3-pt **−18.0**, FT **+7.1**
+  (#036 B). A points-only re-solve would fix the total and leave the game shaped wrong.
+- **Two composition gaps now own phases**: FTA at 145% of real (**§3.16**) and 3PA at
+  54% of real (**§3.17**). Recalibration is **§3.18** and goes last.
+
+⚠️ **STILL UNSOURCED** — these are not in a league-averages row and need play-by-play
+derivation or a specialist source: **foul-outs** (and its ~0.39 target is *circular* —
+it came from §3.13's own landing), **technicals**, **flagrants**, the **minutes
+distribution**, and **the real NBA shooting-foul share** (the number that sizes §3.16).
+Deciding a row stays `ballpark` on purpose is a legitimate outcome.
+
+The original two-jobs framing, for reference:
+
+1. **Source the true constraints** — ✅ **largely DONE 2026-08**; what remains is the
+   unsourced list above.
 2. **Re-solve the constants** against whatever those turn out to be.
 
-**The escalation rule (roadmap.md §3.16) — sourcing a number does not make it
-§3.16 work.** §3.16 re-solves anything reachable by turning an **existing knob**.
+**The escalation rule (roadmap.md §3.18) — sourcing a number does not make it
+§3.18 work.** §3.18 re-solves anything reachable by turning an **existing knob**.
 A gap no existing knob can close is a **new mechanic ⇒ a new sub-phase**.
 **Foul-outs are the live example**: §3.13's lever is measured *saturated*, so a
 sourced ~0.35–0.45 means no work, while a sourced ~0.15 means escalate — never
@@ -294,8 +328,8 @@ steer by, not good enough to spend calibrated headroom defending.
 |---|---|
 | **this file** | **source of truth** for targets — **all of them baseline-profile** (#035 I) |
 | `CalibrationHarness` `(target ~N)` strings | the operative copy a tuner reads mid-run; **printed on `baseline` only**, replaced by baseline-deltas elsewhere (#035 I) |
-| `backlog.md` benchmark chore | **§3.16 job (1)** — where the sourced figures will come from |
-| `roadmap.md` §3.16 bullet | the pass's GOALS + the escalation rule |
+| `backlog.md` benchmark chore | **§3.18 job (1)** — largely DONE 2026-08 (#036); the unsourced remainder lives there |
+| `roadmap.md` §3.16/§3.17/§3.18 bullets | the three passes' GOALS + the escalation rule |
 | `decisions.md` #022 D | historical — the original §3.4 agreement |
 | `decisions.md` #025/#028/#029/#030/#031 | per-phase landings, historical by design |
 | `roadmap.md`, `risks.md` | forward-looking guards; should match this table |
@@ -304,6 +338,6 @@ steer by, not good enough to spend calibrated headroom defending.
 same commit. The per-phase landing notes in decisions.md are **history** — never
 retro-edit them.
 
-**When a target becomes SOURCED** (§3.16 job 1): record the **named source and
+**When a target becomes SOURCED** (§3.18 job 1): record the **named source and
 season** alongside it, and note whether it is a league average or a per-team mean
 (they differ) and whether pace-adjusted — the standard the backlog chore sets.

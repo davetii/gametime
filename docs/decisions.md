@@ -892,6 +892,56 @@ The only shared machinery is `awardFreeThrows` (already shared by three situatio
 
 ---
 
+### 036 — Phase 3's tail is RESEQUENCED into three sub-phases (§3.16 shooting-foul composition, §3.17 shot mix / 3PA, §3.18 recalibration), because sourcing the targets showed the engine's TOTALS are close and its COMPOSITION is wrong
+
+**Date**: 2026-08
+
+**Scope**: A **sequencing and numbering decision**, not a design pass. It resolves what Phase 3's remaining sub-phases ARE and in what order — it does **not** design any of them. Each of §3.16/§3.17/§3.18 still needs its own design pass and its own `#NNN`. No code, no schema, no OpenAPI, no possession branch. **This entry exists because §3.16's meaning changed**, and three shipped entries name it.
+
+**The finding that forces it (2026-08, user-sourced).** §3.16's job (1) — source the targets — was done against **Basketball-Reference league averages, per game, 2025-26 regular season**. The row was checked for internal consistency before use (FG/FGA = .4714, 3P/3PA = .3595, FT/FTA = .7830, and 2×(FG−3P) + 3×3P + FT = 115.7 ≈ the stated 115.6 PTS). Against §3.15's shipped baseline:
+
+| | engine | real 2025-26 | |
+|---|---|---|---|
+| Points | 118.3 | 115.6 | +2.7 |
+| **FG%** | **46.9%** | **47.1%** | **−0.2 — inside noise** |
+| FGA | 88.4 | 89.1 | −0.7 |
+| Pace | ~100 nominal | 99.4 | ~0 |
+| **3PA** | **19.9** | **37.0** | **−17.1 (54% of real)** |
+| **FTA** | **34.0** | **23.5** | **+10.5 (145% of real)** |
+
+**Decision A — FG% is NOT contested and never needed engine work; the TARGET was wrong.** Real is 47.1%, the engine runs 46.9%, and the difference is **smaller than the ±0.14 standard error** of the 5-seed mean (per-seed spread 46.5–47.3). This is the "engine fine, target wrong" outcome, and it **dissolves the deadlock that created §3.16**: the pass was framed around points wanting a trim while FG% wanted a raise, with one lever moving both. **FG% wants nothing.** `calibration.md`'s FG% row drops CONTESTED and takes the sourced value; points' target moves ~112 → 115.6.
+
+**Decision B — the engine's SCORING COMPOSITION is wrong, and that is the real finding.** Totals are close, but the sources are not (per team per game): 2-pt points **+10.9**, 3-pt points **−18.0**, FT points **+7.1** — three large errors summing to ~zero. The engine is a mid-range/free-throw offense; the modern NBA is a three-point offense. **The +2.7 points gap is nearly an artifact of that cancellation**, which is why a points-only recalibration would have "fixed" the total while leaving the game shaped wrong.
+
+**Decision C — §3.16 becomes SHOOTING-FOUL COMPOSITION.** FTA is 145% of real while **total fouls are already right** (19.35 vs 19.9). The cause is measured: **74.8% of the engine's fouls are `SHOOTING_FOUL`** (14.67 of 19.61), and those alone produce **29.84 of the 34.0 FTA**. The engine's only free-throw-free foul category is offensive rebounding fouls at **0.58/game**. `FoulResolver.isFoul` is a **boolean** — when it fires the outcome is always `SHOOTING_FOUL` — so there is no "what kind of foul" branch to tune.
+
+**Decision D — §3.17 becomes SHOT MIX / 3PA, and it is deliberately UNSCOPED here.** 3PA at 54% of real is the **largest single divergence** and ~60% of the composition error. ⚠ **Its first design question is whether it is an engine problem at all**: `ShotSelector.pickShotType` draws on `PlayerGameState.shotTypeWeight(type)`, i.e. per-player skills, leaned by the coach's `offensiveScheme` via `shotMixLean`. **That lean scales PERIMETER and THREE together**, so it cannot raise threes while lowering mid-range — the shape the real gap requires. If the gap traces to the generated player population's skill distribution, the fix is **upstream of the possession engine** (player generation / seeded rosters), not a `SimConfig` knob. §3.17's design pass owns that question and must answer it **before** anyone designs a knob.
+
+**Decision E — §3.18 is the recalibration, and it goes LAST.** This is the roadmap's own **calibration-blast-radius** principle applied unchanged: §3.16 moves FTA by ~10 and §3.17 moves 3PA by ~17, so recalibrating before them tunes against a baseline both are about to invalidate. **Three consecutive passes (§3.10/§3.11/§3.12) already paid that cost** against a stale target; this is the same error one layer up.
+
+**Decision F — the phases RENUMBER rather than take `a`/`b` suffixes, and the mapping is recorded HERE.** §3.14's split used `a`/`b` precisely to avoid renumbering (#032 A). This pass renumbers anyway, by user call, because three sub-phases under one number reads worse than three numbers. ⚠ **THE MAPPING, and it is the whole reason this entry exists: every "§3.16" in #030, #031, #032, #034 and #035 means RECALIBRATION, which is now §3.18.** Those entries are shipped and never retro-edited (~43 references). The renumber fence forbids *silent* drift, not a recorded remap — this is the record.
+
+**Decision G — #034's "last new mechanic in Phase 3" is AMENDED, not quietly broken.** #034 states §3.14b was the last, and §3.16/§3.17 contradict it. The claim was true of the **foul-and-ejection arc** it was written about; it is false of Phase 3 as a whole, and the sourced evidence is what changed. **`possession-flow.puml` is therefore NOT structurally complete** — §3.16 adds a branch inside the existing foul box, and §3.17 may add none at all if its answer is upstream.
+
+**Rationale**: *(A)* A gap inside the measurement error is not a gap; tuning toward 47.1 would be fitting to noise, and the seeds already straddle it. *(B)* Three errors cancelling is exactly the case a totals-only comparison hides — the decomposition is what makes it visible, and it is why sourcing was worth doing at all. *(C)* Total fouls being *correct* while FTA is 145% is the signature of a composition problem, not a rate problem; a re-partition inside `isFoul` holds the total by construction, the same shape #027 A used for turnover causes. *(D)* Naming the phase without scoping it is deliberate — the honest answer may be "not an engine phase," and pre-scoping it would prejudge that. *(E)* Sequencing is the one thing this entry can settle cheaply and the one thing that is expensive to get wrong. *(F)* Three numbers read better than three suffixes, and the fence's actual requirement is a written mapping. *(G)* An amended claim is auditable; a silently violated one is doc rot.
+
+**Trade-off**: *(A)* `calibration.md`'s headline controversy evaporates, which makes §3.18 smaller but also removes the pressure that justified the arc — someone may reasonably ask whether §3.18 is still worth running. *(C)* §3.16 adds a mechanic to a phase arc declared closed, and every new foul outcome is another string the penalty derivation must consciously classify (#032 E's legacy). *(D)* §3.17 is a named phase with no scope, which is unusual for this roadmap and will read as vague until its design pass lands. *(F)* **~120 "§3.16" references across 8 docs now require reading with this mapping in hand** — the cost the `a`/`b` convention existed to avoid, accepted knowingly. *(G)* Amending a shipped claim sets a precedent for amending others.
+
+**Alternatives considered**: *(overall)* **Run §3.18 first as originally planned** — rejected: it would tune points against a baseline §3.16/§3.17 both move, the exact stale-anchor error #030 E identified. **Bundle all three into one pass** — rejected: a mechanic pass and a numbers pass have different validation gates (reproduce-exactly vs. move-deliberately), and #034's split precedent showed isolating them is what makes a landing attributable. *(C)* **Trim `sim.base-no-basket-foul`** — **measured, not argued**: 0.15 → 0.11 over 3 seeds moved FTA 34.0 → 29.1 and points 118.3 → 117.1 (both toward real), but fouls 19.35 → **17.27** (away from 19.9) and FGA 88.4 → **91.2** (overshooting 89.1). It fixes under half the FTA excess and breaks a correct number, because one rate governs both. ⚠ **That run also DISPROVED #028's wrong-way-lever finding at the current configuration** — trimming *lowered* points rather than raising them; #028 was measured pre-§3.12, before perimeter and three could draw fouls. **Lower `sim.and-one-base`** — rejected: and-1s are 1.96 of 34.0 FTA (5.8%), too small to matter, and #029 set the rate on realism at 4.8% of made FG. **Raise `sim.to-weight-offensive-foul`** — rejected: #027 A fixed the turnover *count* at the gate, so those weights only re-partition turnovers and would disturb the deliberately-protected STOLEN share. *(F)* **`a`/`b`/`c` suffixes** — rejected by user call, with the mapping above as the mitigation.
+
+**Status of §3.16–§3.18 decisions**: A–G resolved. **Net schema change: NONE. Net OpenAPI change: NONE. No code changed by this entry.** What it produces: the roadmap resequenced into three bullets, `calibration.md` carrying the sourced 2025-26 row (FG% de-contested, points retargeted), and todo.md rewritten for **§3.16's design pass**. **Each sub-phase still needs its own design pass and `#NNN` — this entry designs none of them.**
+
+**§3.16–§3.18 follow-up (carry forward)**:
+- **⚠ The ~35% non-shooting-foul share is ARITHMETIC, not a measurement.** Converting ~35% of `isFoul` hits lands FTA at 23.5 and FTA/foul at 1.20 vs real 1.18 — but that is a spreadsheet result from one 3-seed experiment, and §3.16's design pass must measure it rather than adopt it.
+- **The real NBA shooting-foul SHARE is still unsourced.** It is not in a league-averages row and needs play-by-play derivation. It is the number that sizes §3.16, and an earlier ~59% estimate was a bad back-derivation (it assumed all FTA come from 2-shot trips) and is **withdrawn**.
+- **Charges are not counted as personal fouls.** `TurnoverCause.OFFENSIVE_FOUL` (~1.26/team/game, javadoc "Charge / illegal screen") emits a **TURNOVER**, never a `PlayType.FOUL`, so the committer is charged nothing and it misses the bonus tally. Counting them would put fouls at 20.87 vs 19.9 real. **Likely a correctness gap independent of calibration** — check #027 for whether the categorization was deliberate.
+- **Defensive rebounds sit 4.8 low (27.6 vs 32.4)** — probably a *symptom* of the 3PA gap, since missed threes rebound differently. Re-measure after §3.17, do not tune directly.
+- **Steals (8.4 real) are not in the harness report.** Cheap to add, and §3.9's cause mix is calibrated against a STOLEN share that nothing currently checks against reality.
+- **§3.18 inherits a smaller job than §3.16 was scoped for** (A) — and should re-confirm the CONTESTED framing is genuinely retired rather than assume it.
+- **The `decisions.md` condense pass still gates Phase 4** and now has three more entries coming. This one is deliberately short.
+
+---
+
 *Template for new entries:*
 ```
 ### NNN — Short title

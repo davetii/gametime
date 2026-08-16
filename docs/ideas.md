@@ -55,7 +55,7 @@ into a graveyard.
   the realism/aggregate trade-off is at stake. **Natural home if promoted:** a
   dedicated calibration/tuning pass (its own harness loop + re-agreed aggregates),
   slotting cleanly *between* sub-phases rather than inside one. **The arc now runs
-  §3.7–§3.16**, and **§3.16 (recalibration against verified targets) is the natural
+  §3.7–§3.18**, and **§3.16 (recalibration against verified targets) is the natural
   home** — it is already exactly this kind of pass. **Note (updated 2026-08, §3.13
   design):** the earlier note here ("re-center in §3.12") is superseded — §3.12
   **declined** the trim and the points/FG% **targets themselves are now CONTESTED**
@@ -201,7 +201,7 @@ into a graveyard.
   decision with a sticky-sit/earned-return shape. A later strategic sub should extend
   that shape rather than invent a parallel one (the same discipline #031 H imposes on
   §3.14's ejections). **Natural home if promoted:** its own numbered sub-phase after
-  the §3.7–§3.16 arc, or Phase 4+ alongside a richer coach model — it needs a design
+  the §3.7–§3.18 arc, or Phase 4+ alongside a richer coach model — it needs a design
   pass of its own, starting with the game-situation plumbing. **Not planned work.**
 
 - **TALENT SPREAD as a profile axis — one conceptual knob currently spread across 15
