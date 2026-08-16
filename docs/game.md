@@ -44,9 +44,10 @@ through §3.14b and this doc now documents both:
   second-chance loop's existing `continue` under its existing cap. A flagrant-2 (a
   flat 15%) ejects immediately, still as a **derived** predicate
 
-**Phase 3's possession model is now feature-complete**: §3.15 (`SimConfig` profiles)
-and §3.16 (recalibration) add **no new mechanic and no new possession branch**, so
-`possession-flow.puml` is structurally final.
+**Phase 3's possession model is now feature-complete**: §3.15 (`SimConfig` profiles,
+shipped) and §3.16 (recalibration) add **no new mechanic and no new possession
+branch**, so `possession-flow.puml` is structurally final — §3.15 shipped without
+touching it.
 
 The "Possession flow" section below reflects what the engine actually does today.
 
@@ -593,9 +594,9 @@ surface, and housing a rule there invites someone to tune it. It rides #029 D's
 already-parameterized per-situation FT count, so this was a call-site change, not new
 plumbing.
 
-> **§3.15 generalizes this argument into a structural rule** (`decisions.md` #035 C —
-> design resolved, not yet built). Profiles make `SimConfig`'s tuning surface literal:
-> **57 of the 83 constants become instance state loadable from a profile, and 26 stay
+> **§3.15 generalized this argument into a structural rule** (`decisions.md` #035 C,
+> shipped 2026-08). Profiles make `SimConfig`'s tuning surface literal: **57 of the 83
+> constants are instance state bound from the active profile, and 26 stay
 > `public static final`** — 9 rules, 16 model-machinery entries (the sensitivities plus
 > the two **scale definitions**, `SCALE_AVG` and `MAX_ENERGY`), and the measured
 > `PERSONAL_FOULS_PER_TEAM_GAME`. The invariant reads straight off the source: **`static
@@ -784,10 +785,10 @@ Spec lives in `gametime-api/yml/gametime.yaml`; the hand-written delegate is
 - **`SimulateGameRequest`**: `homeTeamId` (required), `awayTeamId` (required),
   **`seed`** (optional `int64`). **No `possessionsPerPeriod`** — pace is not exposed
   (#024 C); the endpoint always uses the configured default, and per-game tempo variety
-  comes from the coach `pace` attribute (#022 A). *(§3.15 makes that default a
+  comes from the coach `pace` attribute (#022 A). *(Since §3.15 that default is a
   **profilable** value — `sim.default-possessions-per-period`, read from the active
-  profile rather than `SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD` — so the deployment's
-  era sets league pace while the request still cannot. #024 C's call is unchanged.)*
+  profile — so the deployment's era sets league pace while the request still cannot.
+  #024 C's call is unchanged.)*
 
 ### Seed — optional in, and PERSISTED *(#024 B, revises #021 A)*
 

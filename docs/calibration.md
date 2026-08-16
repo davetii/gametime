@@ -14,9 +14,9 @@ JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -f gametime-service
 noise is ±1.5 points, enough to bait an over-correction (#029 E).
 
 > ⚠️ **EVERY TARGET IN THIS FILE BELONGS TO THE `baseline` PROFILE** *(from §3.15,
-> `decisions.md` #035 I — design resolved, not yet built)*. Once profiles exist, the
-> sim profile is chosen by the ordinary Spring profile list (`-Dspring.profiles.active=test,nineties`)
-> beside the seed flag, and an era profile
+> `decisions.md` #035 I — shipped 2026-08)*. The sim profile is chosen by the ordinary
+> Spring profile list (`-Dspring.profiles.active=test,baseline,nineties` — `baseline`
+> must stay in it) beside the seed flag, and an era profile
 > (a 1990s low-pace/high-foul style, a modern three-heavy one) is **SUPPOSED to miss
 > most of these — that is the profile working, not a failure.** So on a non-baseline
 > run the harness **suppresses the `(target ~N)` strings** and prints a **delta against

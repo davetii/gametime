@@ -105,22 +105,29 @@ planned features), see [ideas.md](ideas.md).
       multipliers-zeroed triage baseline **all by hand** — editing constants and
       rebuilding between every reading, ~28 harness runs. That is the evidence.
 
-- [x] **DESIGN PASS DONE → `decisions.md` #035 (A–I); execute-ready plan in
-      [todo.md](todo.md).** *(2026-08.)* **The text below is the design-pass INPUT and is
+- [x] **SHIPPED → `decisions.md` #035 (A–I) + its implementation note.** *(Design pass
+      and execution both 2026-08.)* **The gate held: the baseline profile reproduces
+      §3.14b's landing per-seed byte-for-byte.** Two things this chore's text did not
+      foresee, both worth carrying: `@Validated` needed a **Bean Validation
+      implementation added to the POM** (the project had none), and the harness's own
+      hardcoded `POSSESSIONS_PER_PERIOD = 25` **silently shadowed** the profile's pace
+      key — a caller passing its own copy of a tunable value is invisible to the
+      properties file, and the effective-config dump is the only instrument that shows
+      it. **The text below is the design-pass INPUT and is
       now historical** — read #035 for what was actually decided. Where the two differ,
       #035 wins. **Three things below were resolved differently or more sharply than the
       entry anticipated:** (1) the entry frames this as a *file-format* problem; the real
       obstacle was that `static final` primitives are **compile-time inlined into every
       caller** (JLS §4.12.4), so the constants had to become **instance state** — 323 call
       sites, #035 B; (2) the shape is **override-layer** as the entry leaned, but over
-      **58 profilable constants**, with only rules + model machinery + the measured
-      `PERSONAL_FOULS_PER_TEAM_GAME` left static (#035 C); (3) the doc-drift generator
+      **57 profilable constants** (26 static), with only rules + model machinery + the
+      measured `PERSONAL_FOULS_PER_TEAM_GAME` left static (#035 C); (3) the doc-drift generator
       below was decided **OUT** and remains a separate chore (#035 H).
 
-- [ ] **Load the `SimConfig` constants from flat properties files, as SWAPPABLE
-      PROFILES the harness can be run against.** *(User direction, 2026-08 —
-      **now roadmap.md §3.15**, see above. The text below is the design-pass input,
-      superseded by #035 — see the entry immediately above.)*
+- [x] **Load the `SimConfig` constants from flat properties files, as SWAPPABLE
+      PROFILES the harness can be run against.** *(User direction, 2026-08 — **shipped
+      as roadmap.md §3.15**, see above. The text below is the design-pass input,
+      superseded by #035 and kept only as the accumulated reasoning.)*
       **The profile framing is the point, and it is a bigger win than "avoid a
       rebuild".** It turns tuning from *sequential edits* (change a constant,
       rebuild, run, write the number down, change it again — the previous config now
@@ -310,7 +317,16 @@ planned features), see [ideas.md](ideas.md).
       [risks.md](risks.md) (the gate stayed green because H2 accepted the mismatch),
       and it overlaps the Testcontainers item below (real-Postgres integration tests
       would have caught it).
-- [ ] **Harness self-verification — assert the instrument's own invariants.** The
+- [ ] **Harness self-verification — assert the instrument's own invariants.**
+      ⚠ **PARTIALLY DONE by §3.15 (#035 A/F): the load-bearing half below — "have the
+      harness print the constants it actually ran with" — is BUILT.** The report now
+      names the active profile list and dumps every tunable constant's effective value.
+      It has already earned its place: it caught §3.15's own harness bug, where a
+      hardcoded `POSSESSIONS_PER_PERIOD = 25` shadowed the profile's pace key, which is
+      exactly misfire (1) below in a new guise. **What remains open:** the FT-source
+      counts summing to total FTs with no `UNKNOWN`, and points reconciling with the
+      event log. The original text follows.
+      The
       known risk is that `CalibrationHarness` *reports* and doesn't gate
       ([risks.md](risks.md)); this is the narrower, cheaper problem underneath it: **the
       harness can confidently print a wrong baseline**, and nothing catches that. §3.11
