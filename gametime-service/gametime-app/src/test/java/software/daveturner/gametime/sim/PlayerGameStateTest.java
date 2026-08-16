@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PlayerGameStateTest {
 
+    private final SimConfig config = SimConfig.baseline();
+
     @Test
     void constructorExtractsSkillsAsDoubles() {
         PlayerGameState p = TestPlayerFactory.create("p1", "T1", 15.0);
@@ -66,7 +68,7 @@ class PlayerGameStateTest {
         var entry = new software.daveturner.gametime.model.RosterEntry();
         entry.setPlayer(player);
 
-        PlayerGameState p = new PlayerGameState("p1", "T1", entry);
+        PlayerGameState p = new PlayerGameState("p1", "T1", entry, config);
         assertEquals(SimConfig.SCALE_AVG, p.getOffenseRebound());
         assertEquals(SimConfig.SCALE_AVG, p.getDefenseRebound());
     }
@@ -163,7 +165,7 @@ class PlayerGameStateTest {
         var entry = new software.daveturner.gametime.model.RosterEntry();
         entry.setPlayer(player);
 
-        PlayerGameState p = new PlayerGameState("p1", "T1", entry);
+        PlayerGameState p = new PlayerGameState("p1", "T1", entry, config);
         assertEquals(SimConfig.SCALE_AVG, p.getTeamOffense());
         assertEquals(SimConfig.SCALE_AVG, p.getTeamDefense());
         assertEquals(SimConfig.SCALE_AVG, p.getPassing());
@@ -190,7 +192,7 @@ class PlayerGameStateTest {
         var entry = new software.daveturner.gametime.model.RosterEntry();
         entry.setPlayer(player);
 
-        PlayerGameState p = new PlayerGameState("p1", "T1", entry);
+        PlayerGameState p = new PlayerGameState("p1", "T1", entry, config);
         assertEquals(SimConfig.SCALE_AVG, p.getDrive());
         assertEquals(SimConfig.SCALE_AVG, p.getFinishing());
     }
@@ -214,7 +216,7 @@ class PlayerGameStateTest {
         player.setSkills(new software.daveturner.gametime.model.PlayerSkills());
         var entry = new software.daveturner.gametime.model.RosterEntry();
         entry.setPlayer(player);
-        PlayerGameState p = new PlayerGameState("p1", "T1", entry);
+        PlayerGameState p = new PlayerGameState("p1", "T1", entry, config);
         assertEquals(SimConfig.SCALE_AVG, p.getEndurance());
         assertEquals(SimConfig.SCALE_AVG, p.getEnergy());
     }
@@ -270,13 +272,13 @@ class PlayerGameStateTest {
     void fouledOutIsDerivedFromFoulCounter() {
         PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
         assertFalse(p.isFouledOut());
-        for (int i = 0; i < SimConfig.FOUL_OUT_LIMIT - 1; i++) {
+        for (int i = 0; i < config.foulOutLimit() - 1; i++) {
             p.recordFoul();
             assertFalse(p.isFouledOut(), "not fouled out below the limit");
         }
         p.recordFoul(); // hits the limit
         assertTrue(p.isFouledOut());
-        assertEquals(SimConfig.FOUL_OUT_LIMIT, p.getFouls());
+        assertEquals(config.foulOutLimit(), p.getFouls());
     }
 
     // --- §3.13 foul trouble (decisions.md #031 B/E) ---
@@ -285,7 +287,7 @@ class PlayerGameStateTest {
     void foulTroubleLevelIsDerivedFromTheFoulCounter() {
         PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
         assertEquals(0, p.foulTroubleLevel());
-        for (int i = 1; i <= SimConfig.FOUL_OUT_LIMIT; i++) {
+        for (int i = 1; i <= config.foulOutLimit(); i++) {
             p.recordFoul();
             assertEquals(i, p.foulTroubleLevel(),
                     "foul trouble tracks the counter with no stored flag");
@@ -298,10 +300,10 @@ class PlayerGameStateTest {
         // (a foul recorded on the possession the player fouls out), and the level
         // must stay a valid index into the sit-probability curve.
         PlayerGameState p = TestPlayerFactory.create("p1", "T1", 10.0);
-        for (int i = 0; i < SimConfig.FOUL_OUT_LIMIT + 3; i++) {
+        for (int i = 0; i < config.foulOutLimit() + 3; i++) {
             p.recordFoul();
         }
-        assertEquals(SimConfig.FOUL_OUT_LIMIT, p.foulTroubleLevel());
+        assertEquals(config.foulOutLimit(), p.foulTroubleLevel());
         assertTrue(p.isFouledOut());
     }
 
@@ -405,11 +407,11 @@ class PlayerGameStateTest {
     @Test
     void aFlagrantChargedNormallyStillFeedsTheSixFoulLimitAndFoulTrouble() {
         PlayerGameState p = TestPlayerFactory.create("p", "T", 10.0);
-        for (int i = 0; i < SimConfig.FOUL_OUT_LIMIT - 1; i++) {
+        for (int i = 0; i < config.foulOutLimit() - 1; i++) {
             p.recordFoul();
         }
         assertFalse(p.isFouledOut());
-        assertEquals(SimConfig.FOUL_OUT_LIMIT - 1, p.foulTroubleLevel());
+        assertEquals(config.foulOutLimit() - 1, p.foulTroubleLevel());
 
         // The sixth foul happens to be a flagrant-2: both effects apply.
         p.recordFoul();
@@ -417,7 +419,7 @@ class PlayerGameStateTest {
 
         assertTrue(p.isFouledOut(), "A flagrant counts toward the six (#034 I)");
         assertTrue(p.isEjectedForFlagrant(), "…and ejects on its own grade");
-        assertEquals(SimConfig.FOUL_OUT_LIMIT, p.getFouls(),
+        assertEquals(config.foulOutLimit(), p.getFouls(),
                 "…counted exactly once, not twice");
     }
 }

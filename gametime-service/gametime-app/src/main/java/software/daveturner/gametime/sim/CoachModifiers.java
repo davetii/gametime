@@ -81,7 +81,7 @@ public final class CoachModifiers {
      * §3.5 (Decision D): the avg-10 multiplier over how far down the {@code
      * rotationOrder} bench queue fatigue subs draw. &gt;1.0 = a deeper rotation
      * (more bench players see minutes); &lt;1.0 = a tighter one. Applied to
-     * {@link SimConfig#BASE_ROTATION_DEPTH} via {@link SimConfig#rotationDepth}.
+     * {@link SimConfig#baseRotationDepth()} via {@link SimConfig#rotationDepth}.
      */
     public double rotationDepthFactor() {
         return rotationDepthFactor;
@@ -90,7 +90,7 @@ public final class CoachModifiers {
     /**
      * §3.5 (Decision D): the avg-10 multiplier over the fatigue-sub energy
      * threshold. &gt;1.0 = pull tired starters earlier (higher threshold); &lt;1.0
-     * = ride them longer. Applied to {@link SimConfig#BASE_SUB_ENERGY_THRESHOLD}
+     * = ride them longer. Applied to {@link SimConfig#baseSubEnergyThreshold()}
      * via {@link SimConfig#subEnergyThreshold}.
      */
     public double subAggressivenessFactor() {

@@ -63,10 +63,10 @@ public class ShotResolver {
 
     double baseProbability(ShotType shotType) {
         return switch (shotType) {
-            case DRIVE -> SimConfig.BASE_DRIVE;
-            case PERIMETER -> SimConfig.BASE_PERIMETER;
-            case POST -> SimConfig.BASE_POST;
-            case THREE -> SimConfig.BASE_THREE;
+            case DRIVE -> config.baseDrive();
+            case PERIMETER -> config.basePerimeter();
+            case POST -> config.basePost();
+            case THREE -> config.baseThree();
         };
     }
 
@@ -81,10 +81,10 @@ public class ShotResolver {
 
     double baseBlockProbability(ShotType shotType) {
         return switch (shotType) {
-            case DRIVE -> SimConfig.BASE_BLOCK_DRIVE;
-            case PERIMETER -> SimConfig.BASE_BLOCK_PERIMETER;
-            case POST -> SimConfig.BASE_BLOCK_POST;
-            case THREE -> SimConfig.BASE_BLOCK_THREE;
+            case DRIVE -> config.baseBlockDrive();
+            case PERIMETER -> config.baseBlockPerimeter();
+            case POST -> config.baseBlockPost();
+            case THREE -> config.baseBlockThree();
         };
     }
 

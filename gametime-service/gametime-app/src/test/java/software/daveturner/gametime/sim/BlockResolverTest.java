@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class BlockResolverTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
     private final BlockResolver resolver = new BlockResolver(config);
 
     private RandomGenerator rng(long seed) {
@@ -71,16 +71,16 @@ class BlockResolverTest {
     void distributionMatchesConfiguredWeights() {
         int trials = 200_000;
         Map<BlockRecovery, Integer> counts = tally(trials);
-        double total = SimConfig.BLOCK_RECOVERED_DEFENSE + SimConfig.BLOCK_RECOVERED_OFFENSE
-                + SimConfig.BLOCK_OOB_DEFENSE + SimConfig.BLOCK_OOB_OFFENSE;
+        double total = config.blockRecoveredDefense() + config.blockRecoveredOffense()
+                + config.blockOobDefense() + config.blockOobOffense();
 
-        assertEquals(SimConfig.BLOCK_RECOVERED_DEFENSE / total,
+        assertEquals(config.blockRecoveredDefense() / total,
                 (double) counts.get(BlockRecovery.RECOVERED_DEFENSE) / trials, 0.01);
-        assertEquals(SimConfig.BLOCK_RECOVERED_OFFENSE / total,
+        assertEquals(config.blockRecoveredOffense() / total,
                 (double) counts.get(BlockRecovery.RECOVERED_OFFENSE) / trials, 0.01);
-        assertEquals(SimConfig.BLOCK_OOB_DEFENSE / total,
+        assertEquals(config.blockOobDefense() / total,
                 (double) counts.get(BlockRecovery.OOB_DEFENSE) / trials, 0.01);
-        assertEquals(SimConfig.BLOCK_OOB_OFFENSE / total,
+        assertEquals(config.blockOobOffense() / total,
                 (double) counts.get(BlockRecovery.OOB_OFFENSE) / trials, 0.01);
     }
 

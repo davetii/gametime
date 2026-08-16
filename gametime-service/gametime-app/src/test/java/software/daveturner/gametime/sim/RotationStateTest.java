@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class RotationStateTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
 
     /** A generator whose nextDouble() is always 1.0 — no foul-trouble sub ever fires. */
     private static RandomGenerator rng() {
@@ -145,7 +145,7 @@ class RotationStateTest {
         }
         double f = p.fatigueFactor();
         assertTrue(f < 1.0, "a drained player's fatigue factor is below 1.0");
-        assertTrue(f >= 1.0 - SimConfig.FATIGUE_MAX_PENALTY - 1e-9,
+        assertTrue(f >= 1.0 - config.fatigueMaxPenalty() - 1e-9,
                 "fatigue is a modest thumb, never below 1 − FATIGUE_MAX_PENALTY: " + f);
     }
 
@@ -219,7 +219,7 @@ class RotationStateTest {
         List<PlayerGameState> squad = squad(4);
         RotationState r = rotation(squad, CoachModifiers.neutral());
         PlayerGameState starter1 = squad.get(0);
-        for (int f = 0; f < SimConfig.FOUL_OUT_LIMIT; f++) {
+        for (int f = 0; f < config.foulOutLimit(); f++) {
             starter1.recordFoul();
         }
         assertTrue(starter1.isFouledOut());
@@ -235,7 +235,7 @@ class RotationStateTest {
         List<PlayerGameState> squad = squad(6);
         RotationState r = rotation(squad, CoachModifiers.neutral());
         PlayerGameState starter1 = squad.get(0);
-        for (int f = 0; f < SimConfig.FOUL_OUT_LIMIT; f++) {
+        for (int f = 0; f < config.foulOutLimit(); f++) {
             starter1.recordFoul();
         }
         for (int i = 0; i < 500; i++) {
@@ -252,7 +252,7 @@ class RotationStateTest {
         List<PlayerGameState> squad = squad(0); // exactly 5, no bench
         RotationState r = rotation(squad, CoachModifiers.neutral());
         for (PlayerGameState p : squad) {
-            for (int f = 0; f < SimConfig.FOUL_OUT_LIMIT; f++) {
+            for (int f = 0; f < config.foulOutLimit(); f++) {
                 p.recordFoul();
             }
         }
@@ -269,7 +269,7 @@ class RotationStateTest {
         RotationState r = rotation(squad, coachMods(1, 10)); // tight depth
         // Foul out all five starters.
         for (int i = 0; i < 5; i++) {
-            for (int f = 0; f < SimConfig.FOUL_OUT_LIMIT; f++) {
+            for (int f = 0; f < config.foulOutLimit(); f++) {
                 squad.get(i).recordFoul();
             }
         }
@@ -377,7 +377,7 @@ class RotationStateTest {
     void higherFoulCountsAreBenchedMoreReadily() {
         // The curve must be monotonically increasing over the counts it covers.
         double prev = -1.0;
-        for (int f = 3; f < SimConfig.FOUL_OUT_LIMIT; f++) {
+        for (int f = 3; f < config.foulOutLimit(); f++) {
             double p = config.foulTroubleSitProbability(f, 1.0, SimConfig.SCALE_AVG, false, 5);
             assertTrue(p > prev, "sit probability must rise with foul count at f=" + f);
             prev = p;
@@ -435,7 +435,7 @@ class RotationStateTest {
         // probability exceeds the passive coach's.
         double aggressiveFactor = coachMods(10, 20).subAggressivenessFactor();
         double passiveFactor = coachMods(10, 1).subAggressivenessFactor();
-        for (int f = 3; f < SimConfig.FOUL_OUT_LIMIT; f++) {
+        for (int f = 3; f < config.foulOutLimit(); f++) {
             double aggressive = config.foulTroubleSitProbability(
                     f, aggressiveFactor, SimConfig.SCALE_AVG, true, null);
             double passive = config.foulTroubleSitProbability(
@@ -494,7 +494,7 @@ class RotationStateTest {
         PlayerGameState troubled = squad.get(0);
         foul(troubled, 5);
         for (int i = 5; i < squad.size(); i++) {
-            foul(squad.get(i), SimConfig.FOUL_OUT_LIMIT);
+            foul(squad.get(i), config.foulOutLimit());
         }
 
         r.advancePossession(fixedRng(0.0));
@@ -512,7 +512,7 @@ class RotationStateTest {
         PlayerGameState troubled = squad.get(0);
         PlayerGameState fouledOutBench = squad.get(5);
         foul(troubled, 5);
-        foul(fouledOutBench, SimConfig.FOUL_OUT_LIMIT);
+        foul(fouledOutBench, config.foulOutLimit());
 
         for (int i = 0; i < 50; i++) {
             r.advancePossession(fixedRng(0.0));
@@ -531,7 +531,7 @@ class RotationStateTest {
         RotationState r = rotation(squad, coachMods(10, 20));
         PlayerGameState fouledOut = squad.get(0);
         PlayerGameState troubled = squad.get(1);
-        foul(fouledOut, SimConfig.FOUL_OUT_LIMIT);
+        foul(fouledOut, config.foulOutLimit());
         foul(troubled, 5);
 
         r.advancePossession(fixedRng(0.0));
@@ -863,7 +863,7 @@ class RotationStateTest {
         PlayerGameState bench2 = squad.get(6);
         eject(bench1);
         // Force a hard sub by fouling out a starter.
-        foul(squad.get(0), SimConfig.FOUL_OUT_LIMIT);
+        foul(squad.get(0), config.foulOutLimit());
 
         r.advancePossession(rng());
 
@@ -884,10 +884,10 @@ class RotationStateTest {
         RotationState r = rotation(squad, CoachModifiers.neutral());
         // Every bench player unavailable: one ejected, one fouled out.
         eject(squad.get(5));
-        foul(squad.get(6), SimConfig.FOUL_OUT_LIMIT);
+        foul(squad.get(6), config.foulOutLimit());
         // And two of the on-floor five disqualified, one by each cause.
         eject(squad.get(0));
-        foul(squad.get(1), SimConfig.FOUL_OUT_LIMIT);
+        foul(squad.get(1), config.foulOutLimit());
 
         r.advancePossession(rng());
 
@@ -984,7 +984,7 @@ class RotationStateTest {
         PlayerGameState bench1 = squad.get(5);
         PlayerGameState bench2 = squad.get(6);
         ejectForFlagrant(bench1);
-        foul(squad.get(0), SimConfig.FOUL_OUT_LIMIT); // force a hard sub
+        foul(squad.get(0), config.foulOutLimit()); // force a hard sub
 
         r.advancePossession(rng());
 
@@ -1004,11 +1004,11 @@ class RotationStateTest {
         RotationState r = rotation(squad, CoachModifiers.neutral());
         // Both bench players unavailable, by two different causes.
         ejectForFlagrant(squad.get(5));
-        foul(squad.get(6), SimConfig.FOUL_OUT_LIMIT);
+        foul(squad.get(6), config.foulOutLimit());
         // And three of the on-floor five disqualified, one by EACH cause.
         ejectForFlagrant(squad.get(0));
         eject(squad.get(1));
-        foul(squad.get(2), SimConfig.FOUL_OUT_LIMIT);
+        foul(squad.get(2), config.foulOutLimit());
 
         r.advancePossession(rng());
 
@@ -1026,7 +1026,7 @@ class RotationStateTest {
         List<PlayerGameState> squad = squad(0); // no bench: the hard tier cannot replace
         RotationState r = rotation(squad, CoachModifiers.neutral());
         PlayerGameState p = squad.get(0);
-        foul(p, SimConfig.FOUL_OUT_LIMIT - 1); // deep in foul trouble
+        foul(p, config.foulOutLimit() - 1); // deep in foul trouble
         ejectForFlagrant(p);
 
         r.advancePossession(rng());

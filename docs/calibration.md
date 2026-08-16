@@ -13,12 +13,25 @@ JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -f gametime-service
 **Judge by the mean of several `-DcalibrationSeed` runs, never one** — per-seed
 noise is ±1.5 points, enough to bait an over-correction (#029 E).
 
+> ⚠️ **EVERY TARGET IN THIS FILE BELONGS TO THE `baseline` PROFILE** *(from §3.15,
+> `decisions.md` #035 I — shipped 2026-08)*. The sim profile is chosen by the ordinary
+> Spring profile list (`-Dspring.profiles.active=test,baseline,nineties` — `baseline`
+> must stay in it) beside the seed flag, and an era profile
+> (a 1990s low-pace/high-foul style, a modern three-heavy one) is **SUPPOSED to miss
+> most of these — that is the profile working, not a failure.** So on a non-baseline
+> run the harness **suppresses the `(target ~N)` strings** and prints a **delta against
+> the baseline landing** instead. **A delta is not a target**: it claims nothing about
+> what a number should be, only what changed.
+> **Nothing here is per-profile, and §3.15 did not add a second target set** — authoring
+> era targets is real research and would create a second unsourced table beside the one
+> §3.16 exists to fix (#017's don't-fabricate-a-constraint rule, applied to targets).
+
 ---
 
 ## Everything, in one table
 
-All figures are **per team per game** unless noted. Current = **§3.13 landing,
-5-seed mean** (2026-08).
+All figures are **per team per game** unless noted. Current = **§3.14b landing,
+5-seed mean, seeds 1000–5000** (2026-08) — the `baseline` profile.
 
 **Type** — `TARGET` = calibrated, steer by it. `ballpark` = plausibility range,
 judge against it but **do not calibrate to it** (#030 G, #017). `observed` = no
@@ -26,16 +39,16 @@ target, reported for visibility.
 
 | Measure | Type | Target / range | Current | Status |
 |---|---|---|---|---|
-| **Points** | TARGET | ~112 | **117.0** | ⚠️ **CONTESTED** — see below |
-| **FG%** | TARGET | ~47% | **46.6%** | ⚠️ **CONTESTED** — see below |
-| 3P% | TARGET | ~36% | 36.6% | ✅ |
-| Assists | TARGET | ~26 | 26.7 | ✅ |
-| Turnovers | TARGET | ~14 | 13.8 | ✅ |
+| **Points** | TARGET | ~112 | **118.3** | ⚠️ **CONTESTED** — see below |
+| **FG%** | TARGET | ~47% | **46.9%** | ⚠️ **CONTESTED** — see below |
+| 3P% | TARGET | ~36% | 36.7% | ✅ |
+| Assists | TARGET | ~26 | 27.1 | ✅ |
+| Turnovers | TARGET | ~14 | 13.6 | ✅ |
 | Blocks | TARGET | ~5 | 5.0 | ✅ (#025 C) |
 | Top-starter minutes | TARGET | ~34–36 | ~36.1 | ✅ (#023; §3.13 cost 0.5) |
 | Minutes ceiling | TARGET | nobody over ~42 | ok | ✅ (#023) |
-| Fouls | ballpark | ~19–20 | 19.0 | ✅ (was 16.8 pre-§3.12) |
-| **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.39** | ⚠️ the target IS the landing — see below |
+| Fouls | ballpark | ~19–20 | 19.35 | ✅ (was 16.8 pre-§3.12) |
+| **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.358** | ⚠️ the target came FROM §3.13's landing — see below |
 | Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.00 / 0.52 / 0.39 | the real diagnostic for foul-outs |
 | **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.367** | ⚠️ **judge at 5 SEEDS ONLY** — see below |
 | **Flagrants** | ballpark (**UNSOURCED**) | **~0.13–0.20** (~0.25–0.40 league-wide) | **0.148** | ⚠️ **the COARSEST row here — 5 SEEDS ONLY** — see below |
@@ -45,7 +58,7 @@ target, reported for visibility.
 | 3-FT trips | ballpark | ~0.3–0.6 *here* | 0.59 | ✅ (real NBA ~0.7 off ~35 3PA; we shoot ~20) |
 | And-1s | ballpark | ~4–6% of made FG | 1.88 (4.6%) | ✅ (#029 E) |
 | Fouls / team / period | observed | — | 4.85 | bonus at 5 (#028) |
-| Team-periods in penalty | observed | — | 51.3% | a result, not a knob (#030 D) |
+| Team-periods in penalty | observed | — | 51.9% | a result, not a knob (#030 D) |
 | Out of bounds | observed | — | 2.8 | (#026 D) |
 | Turnover cause mix | observed | STOLEN dominant | 56.8% | no per-cause target (#027 E) |
 | 3PA / team / game | observed | — | 20.1 | vs the NBA's ~35 — a §3.16 input (#030 follow-up) |
@@ -279,8 +292,8 @@ steer by, not good enough to spend calibrated headroom defending.
 
 | Location | Role |
 |---|---|
-| **this file** | **source of truth** for targets |
-| `CalibrationHarness` `(target ~N)` strings | the operative copy a tuner reads mid-run |
+| **this file** | **source of truth** for targets — **all of them baseline-profile** (#035 I) |
+| `CalibrationHarness` `(target ~N)` strings | the operative copy a tuner reads mid-run; **printed on `baseline` only**, replaced by baseline-deltas elsewhere (#035 I) |
 | `backlog.md` benchmark chore | **§3.16 job (1)** — where the sourced figures will come from |
 | `roadmap.md` §3.16 bullet | the pass's GOALS + the escalation rule |
 | `decisions.md` #022 D | historical — the original §3.4 agreement |

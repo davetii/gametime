@@ -21,7 +21,7 @@ public class FoulResolver {
 
     /**
      * Roll a foul that <b>stopped the shot</b> — the possession-ending "foul, no
-     * basket" branch, on {@link SimConfig#BASE_NO_BASKET_FOUL}. Its counterpart is
+     * basket" branch, on {@link SimConfig#baseNoBasketFoul()}. Its counterpart is
      * {@link #isAndOne}, the foul the shot survived.
      *
      * <p>§3.4: {@code defensivePressure} (the defending coach's defensiveScheme
@@ -67,7 +67,7 @@ public class FoulResolver {
         // owner. Behavior-neutral: the added max(0.0, ...) can never bind, since
         // both factors above are non-negative.
         double contested = defensivePressure * config.contestProbability(
-                SimConfig.BASE_NO_BASKET_FOUL, foulDrawing, effectiveDefense);
+                config.baseNoBasketFoul(), foulDrawing, effectiveDefense);
         double prob = config.clampRareProbability(
                 config.foulMultiplier(shotType) * contested);
         return rng.nextDouble() < prob;
@@ -77,7 +77,7 @@ public class FoulResolver {
      * §3.11 (decisions.md #029 A1/C): roll an <b>and-1</b> — a defensive foul on a
      * shot that still went in. This is a SECOND, post-make roll, entirely separate
      * from {@link #isFoul}: the pre-shot foul branch keeps meaning "the contact
-     * stopped the shot" and {@link SimConfig#BASE_NO_BASKET_FOUL} keeps its §3.4
+     * stopped the shot" and {@link SimConfig#baseNoBasketFoul()} keeps its §3.4
      * calibration (#029 A1). The caller rolls this only on a MADE shot, so this
      * method does not re-check the make.
      *
@@ -112,7 +112,7 @@ public class FoulResolver {
      * the shooter's {@code foulDrawing} against the defender's effective discipline
      * ({@code foulProne} inverted), both fatigue-scaled, scaled by {@code
      * defensivePressure} (an aggressive scheme concedes more contact, the coach.md
-     * pressure/breakdown trade-off) — but on {@link SimConfig#AND_ONE_BASE} through
+     * pressure/breakdown trade-off) — but on {@link SimConfig#andOneBase()} through
      * {@link SimConfig#rareEventProbability}, NOT {@code contestProbability}: the
      * global {@code PROB_FLOOR} (0.02) would act as a floor on a thin base and make
      * this knob tunable only upward (the #028 trap), and the global {@code
@@ -128,7 +128,7 @@ public class FoulResolver {
         double prob = Math.min(SimConfig.PROB_CEILING,
                 config.foulMultiplier(shotType) * defensivePressure
                         * config.rareEventProbability(
-                                SimConfig.AND_ONE_BASE, foulDrawing, effectiveDefense,
+                                config.andOneBase(), foulDrawing, effectiveDefense,
                                 SimConfig.AND_ONE_SENSITIVITY));
         return rng.nextDouble() < prob;
     }
@@ -191,7 +191,7 @@ public class FoulResolver {
      * the same reason {@link #isFlagrant} is — see its javadoc.
      */
     public boolean isFlagrantTwo(RandomGenerator rng) {
-        return rng.nextDouble() < SimConfig.FLAGRANT_TWO_SHARE;
+        return rng.nextDouble() < config.flagrantTwoShare();
     }
 
     public boolean isFreeThrowMade(PlayerGameState shooter, RandomGenerator rng) {
@@ -221,7 +221,7 @@ public class FoulResolver {
      * / #022): the aggregate discipline of the rebounding side against the
      * aggregate foul-drawing of the other, scaled by {@code defensivePressure} (an
      * aggressive scheme concedes more contact — the coach.md pressure/breakdown
-     * trade-off), all on a small {@link SimConfig#REBOUND_FOUL_BASE}. Fatigue
+     * trade-off), all on a small {@link SimConfig#reboundFoulBase()}. Fatigue
      * scales each side's skills exactly as {@link #isFoul} does.
      *
      * <p><b>RNG order is fixed</b> (#028, determinism): the foul roll, then (only
@@ -240,17 +240,17 @@ public class FoulResolver {
         // gentle sensitivity keeps the base dominant, as §3.7 does for blocks.
         double prob = Math.min(SimConfig.PROB_CEILING,
                 defensivePressure * config.rareEventProbability(
-                        SimConfig.REBOUND_FOUL_BASE, offenseDrawing, defenseDiscipline,
+                        config.reboundFoulBase(), offenseDrawing, defenseDiscipline,
                         SimConfig.REBOUND_FOUL_SENSITIVITY));
         if (rng.nextDouble() >= prob) {
             return null;
         }
 
         // Side draw — defense-leaning (raw weights, normalized by their sum).
-        double sideTotal = SimConfig.REBOUND_FOUL_DEFENSE_WEIGHT
-                + SimConfig.REBOUND_FOUL_OFFENSE_WEIGHT;
+        double sideTotal = config.reboundFoulDefenseWeight()
+                + config.reboundFoulOffenseWeight();
         boolean offenseCommits =
-                rng.nextDouble() * sideTotal >= SimConfig.REBOUND_FOUL_DEFENSE_WEIGHT;
+                rng.nextDouble() * sideTotal >= config.reboundFoulDefenseWeight();
         ReboundFoul.Side side = offenseCommits
                 ? ReboundFoul.Side.OFFENSE
                 : ReboundFoul.Side.DEFENSE;

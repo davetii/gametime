@@ -15,6 +15,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Transactional
 class GameSimulatorIntegrationTest {
 
+    private final SimConfig config = SimConfig.baseline();
+
     @Autowired
     GameSimulator simulator;
 
@@ -289,9 +291,9 @@ class GameSimulatorIntegrationTest {
             int gameMinutes = SimConfig.PERIODS * SimConfig.MINUTES_PER_PERIOD
                     + Math.max(0, game.getPeriods() - SimConfig.PERIODS) * SimConfig.OT_MINUTES;
             for (BoxScoreEntity b : boxScores) {
-                assertTrue(b.getFouls() <= SimConfig.FOUL_OUT_LIMIT,
+                assertTrue(b.getFouls() <= config.foulOutLimit(),
                         "fouls never exceed the DQ limit (seed " + seed + ")");
-                if (b.getFouls() >= SimConfig.FOUL_OUT_LIMIT) {
+                if (b.getFouls() >= config.foulOutLimit()) {
                     assertTrue(b.getMinutes() < gameMinutes,
                             "a fouled-out player cannot log a full game (seed " + seed + ")");
                 }

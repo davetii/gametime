@@ -45,9 +45,11 @@ import java.util.random.RandomGenerator;
 public class MissedShotResolver {
 
     private final ReboundResolver reboundResolver;
+    private final SimConfig config;
 
-    public MissedShotResolver(ReboundResolver reboundResolver) {
+    public MissedShotResolver(ReboundResolver reboundResolver, SimConfig config) {
         this.reboundResolver = reboundResolver;
+        this.config = config;
     }
 
     /**
@@ -61,7 +63,7 @@ public class MissedShotResolver {
     /**
      * Resolve the missed shot. When {@code capReached}, no offense-retained outcome
      * is returned (the second-chance loop is bounded by
-     * {@link SimConfig#MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION}).
+     * {@link SimConfig#maxOffensiveRetentionsPerPossession()}).
      *
      * @param offense     the on-floor offensive five (rebounder pool)
      * @param defense     the on-floor defensive five (rebounder pool)
@@ -71,12 +73,12 @@ public class MissedShotResolver {
                           boolean capReached, RandomGenerator rng) {
         // 1. Carve OOB off the top FIRST — a flat, skill-independent share of misses
         //    leave the court. Skill plays NO part in whether the ball goes OOB.
-        if (rng.nextDouble() < SimConfig.OOB_TOTAL_WEIGHT) {
+        if (rng.nextDouble() < config.oobTotalWeight()) {
             // 2a. Split the OOB share defense/offense by the flat, defense-leaning
             //     weights (also skill-independent). Cap forces OOB_DEFENSE.
-            double oobTotal = SimConfig.OOB_DEFENSE_WEIGHT + SimConfig.OOB_OFFENSE_WEIGHT;
+            double oobTotal = config.oobDefenseWeight() + config.oobOffenseWeight();
             boolean oobOffense = !capReached
-                    && rng.nextDouble() * oobTotal >= SimConfig.OOB_DEFENSE_WEIGHT;
+                    && rng.nextDouble() * oobTotal >= config.oobDefenseWeight();
             MissedShotOutcome outcome = oobOffense
                     ? MissedShotOutcome.OOB_OFFENSE
                     : MissedShotOutcome.OOB_DEFENSE;

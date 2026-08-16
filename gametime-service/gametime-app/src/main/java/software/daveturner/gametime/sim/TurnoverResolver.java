@@ -35,7 +35,7 @@ public class TurnoverResolver {
                 .orElse(SimConfig.SCALE_AVG);
         double ballSecurity = ballHandler.getBallSecurity() * ballHandler.fatigueFactor();
         double prob = config.clampProbability(defensivePressure * config.contestProbability(
-                SimConfig.BASE_TURNOVER, avgDefense, ballSecurity));
+                config.baseTurnover(), avgDefense, ballSecurity));
         return rng.nextDouble() < prob;
     }
 
@@ -94,23 +94,23 @@ public class TurnoverResolver {
     private double causeWeight(TurnoverCause cause, double acumen,
                                double teamOffense, double defensivePressure) {
         return switch (cause) {
-            case STOLEN -> SimConfig.TO_WEIGHT_STOLEN;
+            case STOLEN -> config.toWeightStolen();
             // ↑ as ball-handler acumen falls below 10 AND as the defending scheme
             // pressures more (defensivePressure > 1.0 for an aggressive scheme).
-            case SHOT_CLOCK_VIOLATION -> SimConfig.TO_WEIGHT_SHOT_CLOCK
+            case SHOT_CLOCK_VIOLATION -> config.toWeightShotClock()
                     * config.turnoverCauseLean(SimConfig.SCALE_AVG - acumen)
                     * defensivePressure;
             // ↑ as the offense's teamOffense falls below 10 (a weaker, less
             // coordinated offense charges / throws it away more).
-            case OFFENSIVE_FOUL -> SimConfig.TO_WEIGHT_OFFENSIVE_FOUL
+            case OFFENSIVE_FOUL -> config.toWeightOffensiveFoul()
                     * config.turnoverCauseLean(SimConfig.SCALE_AVG - teamOffense);
-            case BAD_PASS -> SimConfig.TO_WEIGHT_BAD_PASS
+            case BAD_PASS -> config.toWeightBadPass()
                     * config.turnoverCauseLean(SimConfig.SCALE_AVG - teamOffense);
-            case TRAVELLING -> SimConfig.TO_WEIGHT_TRAVELLING;
-            case LOST_BALL_OUT_OF_BOUNDS -> SimConfig.TO_WEIGHT_LOST_BALL_OOB;
-            case THREE_SECONDS_VIOLATION -> SimConfig.TO_WEIGHT_THREE_SECONDS;
-            case EIGHT_SECONDS_BACKCOURT_VIOLATION -> SimConfig.TO_WEIGHT_EIGHT_SECONDS_BACKCOURT;
-            case OVER_AND_BACK -> SimConfig.TO_WEIGHT_OVER_AND_BACK;
+            case TRAVELLING -> config.toWeightTravelling();
+            case LOST_BALL_OUT_OF_BOUNDS -> config.toWeightLostBallOob();
+            case THREE_SECONDS_VIOLATION -> config.toWeightThreeSeconds();
+            case EIGHT_SECONDS_BACKCOURT_VIOLATION -> config.toWeightEightSecondsBackcourt();
+            case OVER_AND_BACK -> config.toWeightOverAndBack();
         };
     }
 

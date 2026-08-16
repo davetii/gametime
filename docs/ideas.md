@@ -45,8 +45,10 @@ into a graveyard.
   the common path, so raising it lets more second-chance possessions run to
   completion, adding **offensive rebounds, shot attempts, and points** across *every*
   game (not only the rare 8-tip possession). That moves the harness aggregates
-  (currently on-target 112 pts / 47% FG / ~11 off reb), so 3→5 needs its **own
-  recalibration pass** (re-center shot base rates for the added points). Deliberately
+  (§3.14b landing: **118.3 pts / 46.9% FG / 9.74 off reb**, with points and FG% both
+  **CONTESTED** — [calibration.md](calibration.md) is the source of truth), so 3→5
+  needs its **own recalibration pass** (re-center shot base rates for the added
+  points). Deliberately
   **not folded into §3.8** so the OOB change is verified against a known-good
   baseline (one moving knob at a time — the §3.7 lesson). Also note the loop-
   termination *guarantee* is independent of the value (it holds at 3, 5, or 50); only
@@ -60,6 +62,13 @@ into a graveyard.
   ([calibration.md](calibration.md) is the source of truth). Three consecutive passes
   have declined the same trim. Do **not** stack this idea on top of an unresolved
   target question: it waits for §3.16, which owns both.
+  **⚠ Note (2026-08, §3.15 design): the cap is PROFILABLE from §3.15, and that does NOT
+  unpark this idea** (`decisions.md` #035 C). Excluding it from the profilable set was
+  argued and rejected: **the fence protects the BASELINE value, and a profile cannot
+  touch the baseline** — nothing is tuned against a non-baseline profile, and higher
+  offensive-rebound rates are a genuine 1990s trait, so an era profile setting the cap
+  is legitimate and needs no recalibration pass. **Raising the shipped default from 3
+  still does**, exactly as described above.
 
 - **Restructure `resolvePossession`'s second-chance loop — a BEHAVIOR-FREE cleanup,
   deliberately separate from the 3→5 tuning idea above.** *(The rename half of this
@@ -194,6 +203,42 @@ into a graveyard.
   §3.14's ejections). **Natural home if promoted:** its own numbered sub-phase after
   the §3.7–§3.16 arc, or Phase 4+ alongside a richer coach model — it needs a design
   pass of its own, starting with the game-situation plumbing. **Not planned work.**
+
+- **TALENT SPREAD as a profile axis — one conceptual knob currently spread across 15
+  `*_SENSITIVITY` constants.** *(Raised 2026-08 during §3.15's design pass, from a user
+  observation: playing with the sensitivities "would adjust the span of talent between
+  bad, mediocre and great players." That is exactly what they do, and it is a better
+  description than the "model machinery" label #035 C files them under.)*
+  **The two axes are genuinely different.** A base rate says *where the league sits*
+  (how often anyone blocks a shot); a sensitivity says *how far apart the players within
+  it are* — `probability = base + SENSITIVITY × (skillA − skillB)/10`. Low sensitivity
+  compresses the league (a 20-rated rim protector barely out-blocks a 10-rated one, so
+  roster quality hardly matters); high sensitivity stretches it (stars separate, roster
+  construction dominates). **"An era of superteams" vs. "a parity era" is a real
+  distinction, and this is the only lever that expresses it** — player attributes come
+  from seed data on a fixed 1–20 scale, so the talent span cannot be widened by changing
+  players, only by changing how strongly the engine reads the gaps.
+  **Why it is NOT profilable in §3.15** (#035 C, and the reason is the useful part):
+  it is **one idea spread across 15 constants** (`SENSITIVITY`, `BLOCK_`, `REBOUND_FOUL_`,
+  `AND_ONE_`, `TO_CAUSE_`, `COACH_`, `ASSIST_`, `ACUMEN_`, `TEAM_EFFICIENCY_`, `FT_`,
+  `ENDURANCE_DRAIN_`, `FOUL_TROUBLE_VALUE_` …). Exposing them individually invites
+  turning **one** in isolation, which is precisely the §3.7 mistake: at the global 0.5,
+  a good rim protector (14) vs an average finisher (10) blocked **~23%** of shots against
+  a real ~5–6%, so skill alone drove blocks 2–3× over target *regardless of the base
+  rate* — which is why `BLOCK_SENSITIVITY = 0.12` exists at all. A profile author raising
+  it to build a "defensive era" would not get more defense; they would break the
+  base-dominant property the constant was created to protect. Same story for
+  `REBOUND_FOUL_SENSITIVITY` and `AND_ONE_SENSITIVITY` (both 0.10) — thin bases need
+  gentle slopes.
+  **What would make it real:** a design pass that treats talent spread as **one knob** —
+  most plausibly a single multiplier applied across the family, so the ratios the phases
+  established (blocks gentler than the global, and-1s gentler still) are preserved while
+  the whole spread widens or narrows together. That needs its own calibration, because
+  widening the spread changes every rare-event rate at once. **Natural home if promoted:**
+  its own sub-phase after §3.16, or Phase 4+ alongside player-facing eras — it is a
+  *gameplay* axis (leagues that feel different), not a tuning convenience. **Not planned
+  work.** Until then the honest era knobs are the base rates, which §3.15 does profile:
+  `BASE_BLOCK_*`, `BASE_NO_BASKET_FOUL`, `FOUL_MULT_*`, the shot `BASE_*`.
 
 - **Coach competence in rotation decisions.** The §3.5 fatigue rotation reads only
   the coach's `rotationDepth` / `substitutionAggressiveness` (both *style* axes) —

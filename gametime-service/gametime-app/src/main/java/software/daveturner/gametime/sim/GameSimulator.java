@@ -166,10 +166,10 @@ public class GameSimulator {
 
         List<PlayerGameState> rotation = new ArrayList<>();
         for (RosterEntry e : starters) {
-            rotation.add(new PlayerGameState(e.getPlayer().getId(), teamId, e));
+            rotation.add(new PlayerGameState(e.getPlayer().getId(), teamId, e, config));
         }
         for (RosterEntry e : bench) {
-            rotation.add(new PlayerGameState(e.getPlayer().getId(), teamId, e));
+            rotation.add(new PlayerGameState(e.getPlayer().getId(), teamId, e, config));
         }
         return rotation;
     }

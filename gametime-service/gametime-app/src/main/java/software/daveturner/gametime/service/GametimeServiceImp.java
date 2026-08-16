@@ -27,6 +27,7 @@ public class GametimeServiceImp implements GametimeService {
     private final BoxScoreRepo boxScoreRepo;
     private final GameSimulator gameSimulator;
     private final TeamQueryService teamQueryService;
+    private final SimConfig simConfig;
 
     private final EntityMapper entityMapper;
 
@@ -46,7 +47,8 @@ public class GametimeServiceImp implements GametimeService {
                               PlayerTeamRepo playerTeamRepo, PlayerTeamHistRepo playerTeamHistRepo,
                               GameRepo gameRepo, GameEventRepo gameEventRepo,
                               BoxScoreRepo boxScoreRepo, GameSimulator gameSimulator,
-                              TeamQueryService teamQueryService, EntityMapper entityMapper) {
+                              TeamQueryService teamQueryService, EntityMapper entityMapper,
+                              SimConfig simConfig) {
         this.teamRepo = teamRepo;
         this.playerRepo = playerRepo;
         this.playerTeamRepo = playerTeamRepo;
@@ -57,6 +59,7 @@ public class GametimeServiceImp implements GametimeService {
         this.gameSimulator = gameSimulator;
         this.teamQueryService = teamQueryService;
         this.entityMapper = entityMapper;
+        this.simConfig = simConfig;
     }
 
     @Override
@@ -236,7 +239,7 @@ public class GametimeServiceImp implements GametimeService {
         // Optional in, random default (#024 B / #021 A) — persisted by the engine.
         long resolvedSeed = seed != null ? seed : seedSource.nextLong();
         SimResult sim = gameSimulator.simulate(homeTeamId, awayTeamId, resolvedSeed,
-                SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD);
+                simConfig.defaultPossessionsPerPeriod());
         // The engine returns only the score summary (no box score), so read the
         // persisted rows back into the shared GameResult shape.
         return getGame(sim.getGameId());

@@ -60,6 +60,11 @@ import java.util.Map;
 @Transactional
 class CalibrationHarness {
 
+    // Injected, NOT SimConfig.baseline(): the report must describe the config the
+    // engine actually ran, which is whatever the active profile list bound.
+    @Autowired
+    SimConfig config;
+
     // All 40 seeded teams carry exactly 5 starters (verified against roster.csv).
     private static final String[] TEAMS = {
             "NY", "PHI", "BRK", "BOS", "NC", "ATL", "MIA", "MI", "CHI", "IND",
@@ -68,7 +73,9 @@ class CalibrationHarness {
             "SEA", "UT", "VAN", "LV"
     };
 
-    private static final int POSSESSIONS_PER_PERIOD = 25;
+    // Pace comes from the active profile. A hardcoded literal here would shadow
+    // sim.default-possessions-per-period and silently neutralize an era profile's
+    // biggest lever, while every other value bound correctly.
 
     @Autowired
     GameSimulator simulator;
@@ -81,6 +88,11 @@ class CalibrationHarness {
 
     @Autowired
     GametimeService gametimeService;
+
+    // The environment, not System.getProperty: both the command line and
+    // application.properties feed it, and only it knows which won.
+    @Autowired
+    org.springframework.core.env.Environment environment;
 
     @Test
     @EnabledIfSystemProperty(named = "calibration", matches = "true")
@@ -106,11 +118,16 @@ class CalibrationHarness {
             }
         }
 
-        agg.print(games);
+        String activeProfiles = String.join(",", environment.getActiveProfiles());
+        if (activeProfiles.isEmpty()) {
+            activeProfiles = "(none active — Spring defaults)";
+        }
+        agg.print(games, config, activeProfiles);
     }
 
     private void accumulate(String home, String away, long seed, Agg agg) {
-        SimResult result = simulator.simulate(home, away, seed, POSSESSIONS_PER_PERIOD);
+        SimResult result = simulator.simulate(home, away, seed,
+                config.defaultPossessionsPerPeriod());
 
         List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
         List<GameEventEntity> events = gameEventRepo
@@ -147,7 +164,7 @@ class CalibrationHarness {
             int pf = nz(bs.getFouls());
             if (nz(bs.getMinutes()) > 0) {
                 agg.playersPlayed++;
-                if (pf >= SimConfig.FOUL_OUT_LIMIT) agg.foulOuts++;
+                if (pf >= config.foulOutLimit()) agg.foulOuts++;
                 if (pf == 4) agg.playersWithFourFouls++;
                 if (pf == 5) agg.playersWithFiveFouls++;
             }
@@ -348,7 +365,7 @@ class CalibrationHarness {
         for (java.util.Map.Entry<String, Integer> entry : foulsByTeamPeriod.entrySet()) {
             agg.teamPeriodFouls += entry.getValue();
             agg.teamPeriods++;
-            if (entry.getValue() >= SimConfig.BONUS_FOULS_PER_PERIOD) {
+            if (entry.getValue() >= config.bonusFoulsPerPeriod()) {
                 agg.teamPeriodsInBonus++;
             }
         }
@@ -565,7 +582,9 @@ class CalibrationHarness {
         final java.util.Map<String, Long> freeThrowsBySource = new java.util.HashMap<>();
         final java.util.Map<String, Long> freeThrowsMadeBySource = new java.util.HashMap<>();
 
-        void print(int games) {
+        // Config is passed in: Agg is static, and a baseline() field would misreport
+        // every era run.
+        void print(int games, SimConfig config, String activeProfiles) {
             double tg = teamGames;
             List<String> lines = new ArrayList<>();
             lines.add(String.format("Games simulated:        %d (%d team-games)", gameCount, teamGames));
@@ -576,13 +595,24 @@ class CalibrationHarness {
             // ~114-117 and FG% ~47-48, and the one lever that moves them (shot
             // BASE_*) moves BOTH the same direction — so they cannot be reconciled
             // by a re-centering step. Read that file before trimming anything.
-            lines.add(String.format("Points / team / game:   %.1f   (target ~112 — CONTESTED, see calibration.md)", points / tg));
-            lines.add(String.format("FG%%:                    %.1f%%  (target ~47%% — CONTESTED, see calibration.md)", pct(fgm, fga)));
-            lines.add(String.format("3P%%:                    %.1f%%  (target ~36%%)", pct(tpm, tpa)));
+            // Targets are baseline-only: on an era profile they are suppressed in
+            // favour of a delta. A delta is not a target, and nothing is tuned
+            // against a non-baseline profile.
+            boolean baselineRun = isBaselineOnly(activeProfiles);
+            lines.add(numbered("Points / team / game:  ", points / tg, "%.1f",
+                    "target ~112 — CONTESTED, see calibration.md",
+                    BASELINE_POINTS, baselineRun));
+            lines.add(numbered("FG%:                   ", pct(fgm, fga), "%.1f%%",
+                    "target ~47% — CONTESTED, see calibration.md",
+                    BASELINE_FG_PCT, baselineRun));
+            lines.add(numbered("3P%:                   ", pct(tpm, tpa), "%.1f%%",
+                    "target ~36%", BASELINE_3P_PCT, baselineRun));
             lines.add(String.format("FGA / team / game:      %.1f", fga / tg));
             lines.add(String.format("3PA / team / game:      %.1f", tpa / tg));
-            lines.add(String.format("Assists / team / game:  %.1f   (target ~26)", assists / tg));
-            lines.add(String.format("Turnovers / team / game:%.1f   (target ~14)", turnovers / tg));
+            lines.add(numbered("Assists / team / game: ", assists / tg, "%.1f",
+                    "target ~26", BASELINE_ASSISTS, baselineRun));
+            lines.add(numbered("Turnovers / team / game:", turnovers / tg, "%.1f",
+                    "target ~14", BASELINE_TURNOVERS, baselineRun));
             lines.add(String.format("Off reb / team / game:  %.1f", offReb / tg));
             lines.add(String.format("Def reb / team / game:  %.1f", defReb / tg));
             lines.add(String.format("Blocks / team / game:   %.1f   (target ~5)", blocks / tg));
@@ -593,6 +623,10 @@ class CalibrationHarness {
 
             System.out.println();
             System.out.println("======== §3.4 + §3.5 + §3.7 CALIBRATION REPORT =========");
+            System.out.printf("Profiles:               %s%s%n",
+                    activeProfiles,
+                    isBaselineOnly(activeProfiles) ? ""
+                            : "   NON-BASELINE - targets suppressed");
             lines.forEach(System.out::println);
 
             // §3.5 minutes distribution (per team-game, biggest-minutes slot first).
@@ -630,7 +664,7 @@ class CalibrationHarness {
             System.out.println("--- Team fouls / bonus (§3.10) ---");
             System.out.printf("  Fouls / team / period:   %.2f   (plausible: a handful; bonus at %d)%n",
                     teamPeriods == 0 ? 0.0 : teamPeriodFouls / (double) teamPeriods,
-                    SimConfig.BONUS_FOULS_PER_PERIOD);
+                    config.bonusFoulsPerPeriod());
             System.out.printf("  Team-periods in bonus:   %.1f%%  (%d of %d)%n",
                     teamPeriods == 0 ? 0.0 : 100.0 * teamPeriodsInBonus / teamPeriods,
                     teamPeriodsInBonus, teamPeriods);
@@ -726,7 +760,7 @@ class CalibrationHarness {
                     playersPlayed / tg);
 
             // §3.14a (decisions.md #032 J). A BALLPARK, not a TARGET — nothing in the
-            // engine is tuned toward it: SimConfig.TECHNICAL_FOULS_PER_TEAM_GAME is
+            // engine is tuned toward it: config.technicalFoulsPerTeamGame() is
             // set from the real-world figure directly, so this line is a CORRECTNESS
             // CHECK that the roll fires at the rate configured, not a calibration
             // objective. calibration.md carries the row and owns the number.
@@ -756,7 +790,7 @@ class CalibrationHarness {
             // confidence — sharing a line would make neither readable.
             //
             // A BALLPARK, not a TARGET — nothing is tuned toward it:
-            // SimConfig.FLAGRANT_FOULS_PER_TEAM_GAME is set from the real-world figure
+            // config.flagrantFoulsPerTeamGame() is set from the real-world figure
             // directly, so this line is a CORRECTNESS CHECK that the roll fires at the
             // rate configured, not a calibration objective. calibration.md owns the row.
             //
@@ -779,8 +813,92 @@ class CalibrationHarness {
                             + " ejection driver; ~5 events per run, NOT independently tunable)%n",
                     flagrantTwos / tg);
 
+            printEffectiveConfig(config, activeProfiles);
             System.out.println("========================================================");
             System.out.println();
+        }
+
+
+        // The shipped baseline landing (5-seed mean), held fixed so era deltas have a
+        // stable reference. A reference point, not a target - the targets are in
+        // docs/calibration.md and apply to baseline only.
+        private static final double BASELINE_POINTS = 118.3;
+        private static final double BASELINE_FG_PCT = 46.9;
+        private static final double BASELINE_3P_PCT = 36.7;
+        private static final double BASELINE_ASSISTS = 27.1;
+        private static final double BASELINE_TURNOVERS = 13.6;
+
+        /**
+         * True on the plain baseline profile - the only one any target applies to.
+         */
+        private static boolean isBaselineOnly(String activeProfiles) {
+            for (String profile : activeProfiles.split(",")) {
+                String name = profile.trim();
+                if (!name.isEmpty() && !name.equals("baseline")
+                        && !name.equals("test") && !name.equals("local")) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * One report line: the target on a baseline run, a delta on an era run.
+         */
+        private static String numbered(String label, double value, String valueFormat,
+                                       String target, double baselineValue,
+                                       boolean baselineRun) {
+            String v = String.format(valueFormat, value);
+            String note = baselineRun
+                    ? "(" + target + ")"
+                    : String.format("(baseline %.1f, %+.1f)", baselineValue,
+                            value - baselineValue);
+            return String.format("%-24s%-7s %s", label, v, note);
+        }
+
+        /**
+         * Every tunable constant and the value this run actually used.
+         *
+         * <p>This is the only thing that catches a mis-ordered profile list: putting
+         * baseline last lets it win, so an era file silently does nothing and the
+         * aggregates just look like baseline. It also catches a caller passing its
+         * own copy of a tunable value.
+         */
+        private static void printEffectiveConfig(SimConfig config, String activeProfiles) {
+            System.out.println("--- Effective sim config ---");
+            System.out.printf("  active profiles: %s%n", activeProfiles);
+            java.util.List<java.lang.reflect.Field> fields =
+                    new java.util.ArrayList<>();
+            for (java.lang.reflect.Field f : SimConfig.class.getDeclaredFields()) {
+                if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                    fields.add(f);
+                }
+            }
+            fields.sort(java.util.Comparator.comparing(java.lang.reflect.Field::getName));
+            for (java.lang.reflect.Field f : fields) {
+                f.setAccessible(true);
+                try {
+                    Object v = f.get(config);
+                    String shown = (v instanceof double[] arr)
+                            ? java.util.Arrays.toString(arr) : String.valueOf(v);
+                    System.out.printf("  %-42s %s%n", kebab(f.getName()), shown);
+                } catch (IllegalAccessException e) {
+                    System.out.printf("  %-42s (unreadable)%n", kebab(f.getName()));
+                }
+            }
+        }
+
+        /** camelCase field name to the kebab-case property key it binds from. */
+        private static String kebab(String name) {
+            StringBuilder sb = new StringBuilder("sim.");
+            for (char c : name.toCharArray()) {
+                if (Character.isUpperCase(c)) {
+                    sb.append('-').append(Character.toLowerCase(c));
+                } else {
+                    sb.append(c);
+                }
+            }
+            return sb.toString();
         }
 
         private static double pct(long made, long attempted) {

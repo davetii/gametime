@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class FoulResolverTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
     private final FoulResolver resolver = new FoulResolver(config);
 
     private RandomGenerator rng(long seed) {
@@ -107,7 +107,7 @@ class FoulResolverTest {
             if (resolver.isFreeThrowMade(shooter, r)) makes++;
         }
         double rate = (double) makes / trials;
-        assertEquals(SimConfig.FT_BASE, rate, 0.03);
+        assertEquals(config.ftBase(), rate, 0.03);
     }
 
     @Test
@@ -362,7 +362,7 @@ class FoulResolverTest {
         // top of made contact shots (#029 A1) — it must actually fire.
         double rate = andOneRate(contactPlayer("s1", "A", 10.0, 10.0),
                 contactPlayer("d1", "B", 10.0, 10.0), 1.0, 42, 20_000);
-        assertEquals(SimConfig.AND_ONE_BASE, rate, 0.02,
+        assertEquals(config.andOneBase(), rate, 0.02,
                 "At avg-vs-avg the and-1 rate should sit near AND_ONE_BASE");
     }
 
@@ -457,12 +457,12 @@ class FoulResolverTest {
         // multiple would spuriously fail every time the base is tuned down — which
         // is exactly what §3.11's recalibration did, 0.11 → 0.055.) What must hold
         // is that even a max mismatch leaves the and-1 a RARE event.
-        double extreme = config.rareEventProbability(SimConfig.AND_ONE_BASE, 20.0, 0.0,
+        double extreme = config.rareEventProbability(config.andOneBase(), 20.0, 0.0,
                 SimConfig.AND_ONE_SENSITIVITY);
         assertTrue(extreme < 0.30,
                 "Even a max-skill mismatch must leave the and-1 rare: " + extreme);
         // And the global sensitivity would NOT: it is the trap §3.7/§3.10 hit twice.
-        double withGlobal = config.rareEventProbability(SimConfig.AND_ONE_BASE, 20.0, 0.0,
+        double withGlobal = config.rareEventProbability(config.andOneBase(), 20.0, 0.0,
                 SimConfig.SENSITIVITY);
         assertTrue(withGlobal > 3 * extreme,
                 "The global SENSITIVITY would swamp a thin base — hence our own dial");
@@ -530,16 +530,16 @@ class FoulResolverTest {
         // DRIVE/POST at 1.0 precisely so their behavior is numerically IDENTICAL to
         // §3.11 — which is what makes §3.12's entire harness delta attributable to
         // perimeter/three. If someone retunes FOUL_MULT_DRIVE off 1.0, this fails.
-        assertEquals(1.0, SimConfig.FOUL_MULT_DRIVE, 1e-9,
+        assertEquals(1.0, config.foulMultDrive(), 1e-9,
                 "DRIVE is the anchor — raising it reopens a §3.4-calibrated number");
-        assertEquals(1.0, SimConfig.FOUL_MULT_POST, 1e-9,
+        assertEquals(1.0, config.foulMultPost(), 1e-9,
                 "POST passed the same gate as DRIVE in §3.11, so it stays 1.0");
 
         // And the realized rate matches the un-multiplied §3.11 computation.
         PlayerGameState shooter = contactPlayer("s1", "A", 12.0, 10.0);
         PlayerGameState defender = contactPlayer("d1", "B", 10.0, 13.0);
         double expected = config.clampProbability(config.contestProbability(
-                SimConfig.BASE_NO_BASKET_FOUL,
+                config.baseNoBasketFoul(),
                 shooter.getFoulDrawing() * shooter.fatigueFactor(),
                 (SimConfig.SCALE_AVG * 2 - defender.getFoulProne()) * defender.fatigueFactor()));
         assertEquals(expected, foulRate(ShotType.DRIVE, shooter, defender, 99, 40_000), 0.01,
@@ -556,7 +556,7 @@ class FoulResolverTest {
         PlayerGameState shooter = contactPlayer("s1", "A", 10.0, 10.0);
         PlayerGameState defender = contactPlayer("d1", "B", 10.0, 10.0);
         double three = foulRate(ShotType.THREE, shooter, defender, 5, 60_000);
-        assertEquals(SimConfig.BASE_NO_BASKET_FOUL * SimConfig.FOUL_MULT_THREE, three, 0.01,
+        assertEquals(config.baseNoBasketFoul() * config.foulMultThree(), three, 0.01,
                 "A stopped three should land near BASE_NO_BASKET_FOUL × FOUL_MULT_THREE");
         assertTrue(three < 0.05,
                 "A fouled three must stay rare (well under the perimeter rate): " + three);
@@ -574,7 +574,7 @@ class FoulResolverTest {
         // are final, so this pins the property the multiply must have.
         PlayerGameState shooter = contactPlayer("s1", "A", 20.0, 10.0);
         PlayerGameState defender = contactPlayer("d1", "B", 10.0, 20.0);
-        double contested = config.contestProbability(SimConfig.BASE_NO_BASKET_FOUL,
+        double contested = config.contestProbability(config.baseNoBasketFoul(),
                 shooter.getFoulDrawing() * shooter.fatigueFactor(),
                 (SimConfig.SCALE_AVG * 2 - defender.getFoulProne()) * defender.fatigueFactor());
         assertTrue(contested > 0.0, "the un-multiplied contest is positive here");
@@ -594,9 +594,9 @@ class FoulResolverTest {
         // FOUL_MULT_THREE = 0.133 means "13.3% of the drive rate" (⇒ ~2%), not
         // "13.3% of threes are fouled". Pin the arithmetic so the meaning is
         // executable, not just documented.
-        assertEquals(0.15 * SimConfig.FOUL_MULT_THREE,
-                SimConfig.BASE_NO_BASKET_FOUL * config.foulMultiplier(ShotType.THREE), 1e-9);
-        assertTrue(SimConfig.BASE_NO_BASKET_FOUL * SimConfig.FOUL_MULT_THREE < 0.03,
+        assertEquals(0.15 * config.foulMultThree(),
+                config.baseNoBasketFoul() * config.foulMultiplier(ShotType.THREE), 1e-9);
+        assertTrue(config.baseNoBasketFoul() * config.foulMultThree() < 0.03,
                 "The THREE multiplier must resolve to a ~2% foul rate, not a 13% one");
         for (ShotType type : ShotType.values()) {
             assertTrue(config.foulMultiplier(type) > 0.0 && config.foulMultiplier(type) <= 1.0,
@@ -646,7 +646,7 @@ class FoulResolverTest {
         for (int i = 0; i < trials; i++) {
             if (resolver.isFlagrantTwo(r)) hits++;
         }
-        assertEquals(SimConfig.FLAGRANT_TWO_SHARE, hits / (double) trials, 0.005,
+        assertEquals(config.flagrantTwoShare(), hits / (double) trials, 0.005,
                 "~15% of flagrants are flagrant-2 (#034 E)");
     }
 
