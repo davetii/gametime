@@ -4,22 +4,24 @@ Tactical task list for the **current phase only**. Check items off or remove
 them as completed. For the big-picture phased roadmap and what's already
 shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
 [backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
-**Possession-fidelity completion** section (§3.7–§3.18).
+**Possession-fidelity completion** section (§3.7–§3.19).
 
 Current focus: **§3.16 — shooting-foul composition**. Phase 3's tail was
 **resequenced** (`decisions.md` **#036**) into **§3.16 shooting fouls → §3.17 shot mix /
-3PA → §3.18 recalibration**. ⚠ **The old "§3.16 = recalibration" is now §3.18** — see
+3PA → §3.18 steals → §3.19 recalibration**. ⚠ **The old "§3.16 = recalibration" is now §3.19** — see
 #036 F for the mapping. §3.7–§3.13, §3.14a, §3.14b and §3.15 have all shipped.
 
 > **⚠ §3.16 NEEDS A DESIGN PASS FIRST — there is no execute-ready plan here yet.**
-> Resolve the open questions below into a new `decisions.md #037` (Decisions A, B, C…)
+> Resolve the open questions below into a new `decisions.md #039` (Decisions A, B, C…)
 > **plus** an execute-ready plan in this file. **Write no production code in that
 > session.**
 >
 > **The one-line goal (user's words):** *fewer fouls that award free throws, more that
 > don't, with the total held constant.*
 >
-> **The measured problem.** Total fouls are **already right** — 19.35 vs 19.9 real. But
+> **The measured problem.** Total fouls **look** right — 19.35 vs 19.9 real — ⚠ **but
+> that reading is partly an artifact of Q7: charges are not counted as fouls at all, and
+> counting them puts the real figure at 20.87.** But
 > FTA is **34.0 vs 23.5**, i.e. **145% of real**, because **74.8% of the engine's fouls
 > are `SHOOTING_FOUL`** (14.67 of 19.61) and those alone produce **29.84 of the 34.0
 > FTA**. The only free-throw-free foul category is offensive rebounding fouls at
@@ -138,12 +140,33 @@ Current focus: **§3.16 — shooting-foul composition**. Phase 3's tail was
    somebody was fouled"), and on an off-ball foul there may be no shooter to name.
    Cheapest defensible answer is to keep the flagrant roll on the shooting branch only —
    but **say it explicitly**, because silence here is a latent bug.
-7. **Should charges become personal fouls?** `TurnoverCause.OFFENSIVE_FOUL`
-   (~1.26/team/game, javadoc *"Charge / illegal screen"*) emits a **TURNOVER** and never
-   a `PlayType.FOUL`, so the committer is charged nothing and it misses the bonus tally.
-   Counting them would put fouls at **20.87** vs 19.9 real. **Likely a correctness gap
-   independent of calibration** — check #027 for whether the categorization was
-   deliberate before changing it.
+7. **⚠ CHARGES ARE PERSONAL FOULS BY RULE, AND THE ENGINE DOES NOT MODEL THAT — this
+   is a CORRECTNESS BUG, not a tuning question. Routed and justified in `decisions.md`
+   **#037**; it needs its own Decision letter in this phase's entry (#039).**
+   `TurnoverCause.OFFENSIVE_FOUL` (~**1.26**/team/game, javadoc *"Charge / illegal
+   screen"*) is emitted at `PossessionEngine:178–181` as `shooter.recordTurnover()` +
+   a **`PlayType.TURNOVER`** event, and **`recordFoul()` is never called**. So a charge
+   today counts toward *nothing*: not the player's six, not the team-foul/bonus tally,
+   not the box-score `fouls` column, not foul-trouble benching. A player can commit
+   unlimited charges and never foul out.
+   ✅ **Checked (#037): an OVERSIGHT, not a deliberate simplification.** #027 designed
+   the nine-cause taxonomy as a pure re-partition of an already-decided turnover and
+   **never mentions `recordFoul`, personal fouls or `FOUL_OUT_LIMIT` at all** — the foul
+   consequence simply never came up.
+   **⚠ IT MOVES THIS PHASE'S OWN BASELINE, which is why it cannot be deferred:** fouls
+   go **19.61 → 20.87** (vs 19.9 real), i.e. from slightly under to slightly over. §3.16
+   is tuning *against* the foul total, so it must design against the corrected number or
+   it will land on the wrong one and be re-broken by the fix.
+   **What the design pass must settle:**
+   - **Two events for one occurrence** — a charge would emit **both** `TURNOVER` and
+     `FOUL`. Every reconciliation that counts events must tolerate that, and the
+     harness's `Fouls / team / game` line steps up ~1.26 **for this reason alone** —
+     do not misread it as the re-partition misfiring.
+   - **The committer is on OFFENSE**, so the *defensive* team goes into the bonus.
+     `GameData.isInBonus` reads `committingTeamId` so it should handle this, but it has
+     never been exercised with an offensive committer outside the rebounding-foul path.
+   - **Foul-outs will rise** from 0.358 — a calibrated (if unsourced) number.
+   - **Does it also become flagrant-eligible?** Almost certainly not; say so.
 
 ---
 
@@ -160,7 +183,7 @@ off the harness in the same run.
 
 | Must NOT move (tripwires) | current | real | tolerance |
 |---|---|---|---|
-| **Fouls / team / game** | 19.35 | 19.9 | the re-partition should hold this *exactly* |
+| **Fouls / team / game** | 19.35 → **20.87 once Q7 lands** | 19.9 | ⚠ **Q7 raises it by ~1.26 BEFORE the re-partition runs** — design against the corrected number. The re-partition itself should hold whatever the total is *exactly*. |
 | **FGA / team / game** | 88.4 | 89.1 | **~0.7 of headroom — Q3 can blow this** |
 | **FG%** | 46.9% | 47.1% | already correct; ±0.14 is seed noise |
 | Points | 118.3 | 115.6 | may improve; must not overshoot downward |
@@ -181,12 +204,12 @@ off the harness in the same run.
 
 ---
 
-### ⚠ Do NOT (standing guardrails — carried forward into §3.16–§3.18)
+### ⚠ Do NOT (standing guardrails — carried forward into §3.16–§3.19)
 
 These outlive any one phase. **§3.15 shipped as a refactor and changed no number at
-all** (its gate reproduced §3.14b per-seed). ⚠ **Re-centering is now §3.18, not §3.16**
+all** (its gate reproduced §3.14b per-seed). ⚠ **Re-centering is now §3.19, not §3.16**
 (#036 F) — §3.16 and §3.17 are mechanic passes that deliberately move composition, and
-§3.18 re-solves the numbers afterwards.
+§3.19 re-solves the numbers afterwards.
 
 - **Do NOT add a fourth removal path in `RotationState`** — ejection is the **hard**
   tier and extends `isDisqualified(...)` (#031 H, built §3.14a).

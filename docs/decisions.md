@@ -942,6 +942,46 @@ The only shared machinery is `awardFreeThrows` (already shared by three situatio
 
 ---
 
+### 037 — Charges are personal fouls by rule and the engine does not model that; the fix is folded INTO §3.16 rather than deferred, because it moves §3.16's own baseline
+
+**Date**: 2026-08
+
+**Decision**: `TurnoverCause.OFFENSIVE_FOUL` — the charge / illegal screen — is a **personal foul in basketball and is not one in gametime**. It is emitted at `PossessionEngine:178–181` as `shooter.recordTurnover()` plus a **`PlayType.TURNOVER`** event; **`recordFoul()` is never called**. So a charge counts toward **nothing**: not the committer's six, not the team-foul/bonus tally, not the box-score `fouls` column, not foul-trouble benching. A player can commit unlimited charges and never foul out. **This is corrected as part of §3.16 and gets its own Decision letter in that phase's entry — it is NOT a separate sub-phase and NOT deferred.**
+
+**Rationale**: **It was an oversight, not a simplification** — #027 designed the nine-cause turnover taxonomy as a pure re-partition of an already-decided turnover (Decision A: the count is fixed by the untouched gate) and **never mentions `recordFoul`, personal fouls or `FOUL_OUT_LIMIT` anywhere**. The foul consequence simply never came up, so there is no prior call to revisit. **It belongs to §3.16 specifically because it moves that phase's own baseline**: counting charges takes fouls from **19.61 to 20.87** against a sourced 19.9 — from slightly under to slightly over. §3.16 tunes *against* the foul total (its stated goal is to cut FTA while holding fouls constant), so designing against the uncorrected number would land the phase on the wrong figure and the fix would immediately re-break it. §3.16 is also already deciding what counts toward the bonus and the foul-out limit for its own new outcome, so the same questions are answered once rather than twice, by the same pass, consistently.
+
+**Consequences the §3.16 design pass must state explicitly**:
+- **Two events for one occurrence** — a charge emits **both** `TURNOVER` and `FOUL`. Every reconciliation that counts events must tolerate that, and **the harness's `Fouls / team / game` line steps up ~1.26 for this reason alone** — it must not be misread as §3.16's re-partition misfiring.
+- **The committer is on OFFENSE**, so the **defensive** team gains the bonus. `GameData.isInBonus` reads `committingTeamId` and should handle it, but it has never been exercised with an offensive committer outside the rebounding-foul path.
+- **Foul-outs rise** from 0.358 — a calibrated (if unsourced) number, and the increase is a *correctness* consequence rather than drift.
+- **Not flagrant-eligible** — say so rather than leaving it implied.
+
+**Alternatives considered**: **A standalone correctness sub-phase before §3.16** — rejected: it costs a full design/execute cycle for what is essentially one `recordFoul()` call plus an event, and §3.16 would immediately re-open the same bonus/foul-out questions. **Defer to §3.18 (recalibration)** — rejected outright: §3.18 adds no mechanic by definition, and leaving §3.16 to tune against a foul total known to be wrong by 1.26 is the stale-anchor error #036 was written about. **Leave it as-is and treat 19.61 as the engine's foul count** — rejected: it is a rule of basketball the engine does not implement, in the same class as the latent fouled-three free-throw count §3.12 found (#030 C), and it silently invalidates "fouls are correct" as a calibration reading.
+
+**Note on scope**: this entry records the **finding and the routing**, not the design. The mechanism — where the `FOUL` event is emitted relative to the `TURNOVER`, and how the two reconcile — is resolved by §3.16's design pass in its own entry.
+
+---
+
+### 038 — Phase 3's tail gains a fourth sub-phase (§3.18, the steal as a first-class event) and recalibration moves to §3.19 and LAST, on the principle that recalibration re-solves numbers only once the SHAPE of the game is final
+
+**Date**: 2026-08
+
+**Decision**: **Recalibration is §3.19, and it is last by rule rather than by accident.** The stated principle (user, 2026-08): *every pass before recalibration settles the SHAPE of the game — the foul mix (§3.16), the shot mix (§3.17), the event vocabulary (§3.18) — and recalibration re-solves the numbers once that shape is final.* A new **§3.18 — the steal as a first-class event** is inserted before it.
+
+⚠ **THE MAPPING, superseding #036 F's:** recalibration was **§3.16** (as named in the shipped text of #030/#031/#032/#034/#035), was briefly **§3.18** (#036 F), and is now **§3.19**. Those five entries are shipped and not retro-edited; this is the current record. Nothing else renumbered — §3.16 and §3.17 keep the meanings #036 gave them.
+
+**Why §3.18 exists**: **a steal is the only contested defensive play the event log does not attribute.** At `PossessionEngine:174–181` the stealer is picked (`pickStealer`), credited in the box score (`recordSteal()`), then dropped — the emitted `TURNOVER` event carries `primaryPlayerId = shooter`, **the player who LOST the ball**. An assist rides `assistPlayerId`; a block gets its own `BLOCKED_*` SHOT event. A steal gets neither, so **"who stole it" is unanswerable from the event log**. Not a bug — the box score is correct and the rate is calibrated — a **parity gap**, in the class §3.7 closed for blocks. It arrived with the §3.4 turnover model, where a steal was a *property of a turnover* rather than a defensive play, and §3.9 explicitly kept that path "unchanged" (#027 A), carrying the gap forward.
+
+**Rationale**: *(sequencing)* Recalibration tuning against a shape three later passes will change is the stale-anchor error #036 was written about, one layer up — and the project has already paid for it three times (§3.10/§3.11/§3.12 declining a trim against a target that was wrong). Making "last" a **rule with a stated reason** rather than a position in a list is what stops the next new sub-phase from being appended after it by default. *(§3.18)* Attribution parity is a fidelity question the box score cannot expose and only the event log can; deferring it past recalibration would mean re-solving numbers against an event vocabulary still due to change.
+
+**Trade-off**: Phase 3's tail is now **four** sub-phases where #036 planned three and the original plan had one — the arc keeps growing as sourcing exposes structure, and each addition pushes the `decisions.md` condense pass (a Phase-4 gate) further out. **Recalibration has now been renumbered twice**, so any reader of #030–#036 needs two mappings rather than one; mitigated by both being recorded, and by nothing else moving.
+
+**Alternatives considered**: **Leave §3.18 as §3.19, after recalibration** — rejected (user call): it would recalibrate against an event vocabulary still due to change. **Treat the steal gap as a backlog chore rather than a phase** — rejected: it plausibly needs a schema or OpenAPI change (a second participant column, or a new event), which every sub-phase since §3.10 has avoided and which is exactly what a design pass exists to decide. **Bundle it into §3.16** — rejected: §3.16 is foul work with a foul-shaped gate; a steal shares no machinery with it.
+
+**Note on scope**: this entry records the **sequencing and the finding**, not the design. Whether the stealer rides the existing `TURNOVER` event or gets its own, and whether that justifies a schema change, is §3.18's design pass. ⚠ **Its cheap prerequisite is a backlog chore, not this phase**: the harness has **never printed steals** (no accumulator, no reconciliation), and a count-based check (`STOLEN` events vs. summed box-score steals) **works today with no engine change** — the same shape §3.7 uses for blocks. Real is **8.4**/team/game (sourced 2025-26); the engine is **~7.67 by derivation only** (13.8 × 55.6%). **Measure before designing** — the rate may be fine, making §3.18 pure parity work.
+
+---
+
 *Template for new entries:*
 ```
 ### NNN — Short title

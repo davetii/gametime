@@ -458,10 +458,15 @@ re-running the loop and re-agreeing the numbers, not a red build.
 > with the same ordering: **the self-contained half first, the structural half second.**
 > **§3.14 used the `a`/`b` suffix** rather than renumbering, because §3.16 is named in
 > the shipped, never-retro-edited text of #030 and #031.
-> ⚠ **§3.16 WAS RESEQUENCED ANYWAY in 2026-08 (`decisions.md` #036 F, user call).**
+> ⚠ **§3.16 WAS RESEQUENCED ANYWAY in 2026-08 (user call), TWICE.**
 > **Every "§3.16" in #030, #031, #032, #034 and #035 means RECALIBRATION, which is now
-> §3.18.** ~43 references across those entries, ~120 across all docs. They are shipped
-> and not retro-edited; #036 F is the recorded mapping.
+> §3.19** — it was §3.16, briefly §3.18 (`decisions.md` #036 F), and is now §3.19
+> (**#038**, the current record). ~43 references across those entries. They are shipped
+> and not retro-edited.
+> **Recalibration is LAST BY RULE, not by position** (#038): every pass before it settles
+> the SHAPE of the game — foul mix (§3.16), shot mix (§3.17), event vocabulary (§3.18) —
+> and recalibration re-solves the numbers once that shape is final. **Do not append a new
+> sub-phase after it.**
 
 - [x] **§3.14a — Technical fouls** *(SHIPPED — `decisions.md` **#032 A–J** + its
       implementation note)*. A non-contact, **behavioral** penalty the engine has no path for: today
@@ -617,9 +622,10 @@ re-running the loop and re-agreeing the numbers, not a red build.
       **exactly — per-seed, on the BASELINE profile** — before any §3.16 number is read off
       it (the same check that validated the §3.11 harness against §3.10's numbers). An era
       profile producing different numbers is the goal working, not a failure.
-- [ ] **§3.16 — Shooting-foul composition** *(needs its own design pass; resequenced
-      by `decisions.md` **#036 C**)*. **The engine's total foul count is already right
-      (19.35 vs 19.9 real) but 145% of real free throws come out of it** — because
+- [ ] **§3.16 — Shooting-foul composition + the charge correctness fix** *(needs its
+      own design pass; resequenced by `decisions.md` **#036 C**)*. **The engine's total
+      foul count looks right (19.35 vs 19.9 real) but 145% of real free throws come out
+      of it** — because
       **74.8% of its fouls are `SHOOTING_FOUL`** (14.67 of 19.61), and those alone
       produce **29.84 of the 34.0 FTA**. The only free-throw-free foul category is
       offensive rebounding fouls at **0.58/game**. **The goal, in one line: fewer fouls
@@ -637,6 +643,15 @@ re-running the loop and re-agreeing the numbers, not a red build.
       ⚠ **The ~35% conversion share is ARITHMETIC, not a measurement** (#036 follow-up),
       and **the real NBA shooting-foul share is still unsourced** — it is the number that
       sizes this phase.
+      ⚠ **THIS PHASE ALSO CARRIES A CORRECTNESS FIX: charges are personal fouls by rule,
+      and the engine does not model that.** `TurnoverCause.OFFENSIVE_FOUL`
+      (~1.26/team/game) emits a `TURNOVER` and never calls `recordFoul()`, so a charge
+      counts toward neither the player's six nor the team-foul/bonus tally — a player can
+      commit unlimited charges and never foul out. **Verified an oversight, not a
+      simplification** (#037): #027 designed the turnover taxonomy as a pure
+      re-partition and never mentions the foul consequence. **It is folded into §3.16 rather than deferred
+      because it moves this phase's own baseline** — fouls 19.61 → **20.87**, from
+      slightly under 19.9 to slightly over — and §3.16 tunes *against* the foul total.
 
 - [ ] **§3.17 — Shot mix / the 3PA gap** *(needs its own design pass; **deliberately
       UNSCOPED** — `decisions.md` **#036 D**)*. **The engine takes 19.9 3PA against the
@@ -652,10 +667,39 @@ re-running the loop and re-agreeing the numbers, not a red build.
       **upstream of the possession engine** (player generation / seeded rosters) and this
       is not a `SimConfig` phase. **Answer that before designing any knob.**
 
-- [ ] **§3.18 — Recalibration against verified targets** *(needs its own design pass;
-      **was §3.16** — see the mapping callout above and `decisions.md` #036 F. The LAST
-      Phase-3 sub-phase, and a different KIND of pass — it adds no mechanic, it re-solves
-      numbers)*. **A second §3.4.** See [calibration.md](calibration.md).
+- [ ] **§3.18 — The steal as a first-class event** *(needs its own design pass; added
+      2026-08 by user call)*. **A steal is the only contested defensive play the event
+      log does not attribute.** At `PossessionEngine:174–181` the stealer is picked
+      (`pickStealer`), credited in the box score (`recordSteal()`), and then **dropped**:
+      the emitted `TURNOVER` event carries `primaryPlayerId = shooter` — **the player who
+      LOST the ball** — and the stealer's identity exists only in the box-score column.
+      **The asymmetry against the other two contested credits:** an assist rides
+      `assistPlayerId` on the SHOT event; a block gets its own `BLOCKED_*` SHOT event and
+      a §3.7 reconciliation invariant. A steal gets neither, so **"who stole it" is
+      unanswerable from the event log** and no event-vs-box-score check is possible on
+      the creditor.
+      **Why it is this way**: steals arrived with the §3.4 turnover model, where a steal
+      was a *property of a turnover* rather than a defensive play. §3.9 then re-partitioned
+      turnover causes and explicitly kept the steal path "unchanged" (#027 A), so the gap
+      was carried forward rather than examined. **Not a bug** — the box score is correct
+      and the rate is calibrated — **a fidelity/parity gap**, in the class §3.7 closed for
+      blocks.
+      **Open for its design pass**: whether the stealer rides the existing TURNOVER event
+      (a second participant column, which the schema may not have — check #028 D's
+      `committing_team_id` precedent and its OpenAPI follow-up), or gets its own event the
+      way a block does; and whether that is worth a schema change, which every sub-phase
+      since §3.10 has avoided.
+      ⚠ **Do NOT bundle this with the harness's steal REPORTING** — that is a
+      backlog.md chore, is test-only, needs no engine change, and **a count-based
+      reconciliation (`STOLEN` events vs. box-score steals) already works today**. Do the
+      cheap measurement first; it may show the rate is fine and this phase is pure parity.
+
+- [ ] **§3.19 — Recalibration against verified targets** *(needs its own design pass;
+      **was §3.16, then §3.18** — see the mapping callout above and `decisions.md` #036 F
+      / #037. **THE LAST Phase-3 sub-phase, and it must stay last**: every pass before it
+      settles the SHAPE of the game — the foul mix (§3.16), the shot mix (§3.17), the
+      event vocabulary (§3.18) — and recalibration re-solves the numbers **once that
+      shape is final**. A different KIND of pass: it adds no mechanic.)*. **A second §3.4.** See [calibration.md](calibration.md).
       ✅ **Job (1) — sourcing — is DONE** (Basketball-Reference league averages, per game,
       **2025-26**), and it made this pass **smaller than it was scoped for**:
       **FG% was never contested** — real 47.1% vs the engine's 46.9%, a gap **inside the

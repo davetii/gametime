@@ -317,6 +317,24 @@ planned features), see [ideas.md](ideas.md).
       [risks.md](risks.md) (the gate stayed green because H2 accepted the mismatch),
       and it overlaps the Testcontainers item below (real-Postgres integration tests
       would have caught it).
+- [ ] **Harness: track and report STEALS, with a reconciliation check.** ⚠ **Steals are
+      the only contested credit the harness never prints.** It accumulates fga/fgm/tpa/
+      tpm/assists/turnovers/offReb/defReb/blocks — **but not steals** — and the
+      reconciliation invariant covers assists and blocks and **not** steals. Meanwhile
+      `SimConfig`'s `TO_WEIGHT_STOLEN = 56.0` javadoc says the weight is held at ~56% of
+      the cause mix precisely so **`BoxScore.steals` does not drift** — i.e. the constant
+      is protecting a number nothing has ever measured.
+      **The data is all there**: `PlayerGameState.recordSteal()` is called at
+      `PossessionEngine:176`, the `steals` column is populated, and a `STOLEN` TURNOVER
+      event is emitted. **A count-based reconciliation works TODAY with no engine
+      change** — `STOLEN` events vs. summed box-score steals, exactly the shape §3.7 uses
+      for blocks (which also name the victim, not the creditor, and reconcile by count).
+      **The real figure is 8.4/team/game** (sourced 2025-26, in calibration.md as
+      `observed`). The engine's value is **~7.67 by derivation** (13.8 turnovers × 55.6%
+      STOLEN) — ⚠ **a derivation, not a measurement**, which is the point of this chore.
+      Cheap: one accumulator, one report line, one reconciliation check. **Test-only, no
+      engine change.** Do it in whatever phase next touches the harness.
+
 - [ ] **Harness self-verification — assert the instrument's own invariants.**
       ⚠ **PARTIALLY DONE by §3.15 (#035 A/F): the load-bearing half below — "have the
       harness print the constants it actually ran with" — is BUILT.** The report now
