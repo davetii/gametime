@@ -11,14 +11,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PossessionEngineTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
     private final ShotSelector shotSelector = new ShotSelector();
     private final ShotResolver shotResolver = new ShotResolver(config);
     private final TurnoverResolver turnoverResolver = new TurnoverResolver(config);
     private final FoulResolver foulResolver = new FoulResolver(config);
     private final ReboundResolver reboundResolver = new ReboundResolver(config);
     private final BlockResolver blockResolver = new BlockResolver(config);
-    private final MissedShotResolver missedShotResolver = new MissedShotResolver(reboundResolver);
+    private final MissedShotResolver missedShotResolver = new MissedShotResolver(reboundResolver, config);
     private final PossessionEngine engine = new PossessionEngine(
             shotSelector, shotResolver, turnoverResolver, foulResolver,
             blockResolver, missedShotResolver, config);
@@ -407,7 +407,7 @@ class PossessionEngineTest {
                     .filter(e -> e.playType() == PlayType.REBOUND
                             && e.outcome().equals("OFFENSIVE"))
                     .count();
-            assertTrue(offRebounds <= SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION,
+            assertTrue(offRebounds <= config.maxOffensiveRetentionsPerPossession(),
                     "Offensive rebounds per possession must be capped, got " + offRebounds
                             + " (seed " + seed + ")");
         }
@@ -936,7 +936,7 @@ class PossessionEngineTest {
             // Each retention re-enters the loop; the offense can never keep the ball
             // more than the cap allows, so a single possession is bounded well below a
             // runaway count. (Cap is 3; allow slack for the terminal non-retained shot.)
-            assertTrue(offensiveRetentions <= SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION + 3,
+            assertTrue(offensiveRetentions <= config.maxOffensiveRetentionsPerPossession() + 3,
                     "second chances (blocks + off rebounds) must stay bounded, got "
                             + offensiveRetentions + " (seed " + seed + ")");
         }
@@ -1086,7 +1086,7 @@ class PossessionEngineTest {
                     .count();
             // Each retention re-enters the loop; all three paths count against the one
             // cap, so a possession stays bounded well below a runaway count.
-            assertTrue(retentions <= SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION + 3,
+            assertTrue(retentions <= config.maxOffensiveRetentionsPerPossession() + 3,
                     "all retentions (blocks + off rebounds + OOB-offense) must stay bounded, got "
                             + retentions + " (seed " + seed + ")");
         }
@@ -1137,7 +1137,7 @@ class PossessionEngineTest {
 
         assertTrue(result.offenseRetains(), "Under the bonus a defensive foul retains");
         assertEquals(4, data.periodFoulCount("DEF", 1));
-        assertFalse(data.isInBonus("DEF", 1));
+        assertFalse(data.isInBonus("DEF", 1, config));
         assertEquals(1, committer.getFouls(), "The committer wears the foul (#023 F)");
 
         List<GameData.EventRecord> emitted = data.getEvents().subList(3, data.getEvents().size());
@@ -1156,17 +1156,17 @@ class PossessionEngineTest {
         GameData data = freshData();
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
-        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD - 1);
+        seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod() - 1);
 
         PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
                 data, new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
                 offense, defense, "OFF", "DEF", 1, 50, false, rng(2));
 
         assertFalse(result.offenseRetains(), "The possession ends after the bonus FTs");
-        assertTrue(data.isInBonus("DEF", 1), "The Nth foul puts DEF in the bonus");
+        assertTrue(data.isInBonus("DEF", 1, config), "The Nth foul puts DEF in the bonus");
 
         List<GameData.EventRecord> emitted = data.getEvents()
-                .subList(SimConfig.BONUS_FOULS_PER_PERIOD - 1, data.getEvents().size());
+                .subList(config.bonusFoulsPerPeriod() - 1, data.getEvents().size());
         assertEquals("REBOUNDING_FOUL_DEFENSE", emitted.get(0).outcome());
         long freeThrows = emitted.stream()
                 .filter(e -> e.playType() == PlayType.FREE_THROW).count();
@@ -1183,7 +1183,7 @@ class PossessionEngineTest {
         GameData data = freshData();
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
-        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD); // DEF in bonus, irrelevant
+        seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod()); // DEF in bonus, irrelevant
 
         PlayerGameState committer = offense.get(0);
         PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
@@ -1193,10 +1193,10 @@ class PossessionEngineTest {
         assertFalse(result.offenseRetains(),
                 "An offensive foul is a turnover-like loss of the ball — never a retain");
         assertEquals(1, data.periodFoulCount("OFF", 1));
-        assertFalse(data.isInBonus("OFF", 1), "OFF's own count is what matters, not DEF's");
+        assertFalse(data.isInBonus("OFF", 1, config), "OFF's own count is what matters, not DEF's");
 
         List<GameData.EventRecord> emitted = data.getEvents()
-                .subList(SimConfig.BONUS_FOULS_PER_PERIOD, data.getEvents().size());
+                .subList(config.bonusFoulsPerPeriod(), data.getEvents().size());
         assertEquals(1, emitted.size(), "Under the bonus: the FOUL only, no FTs");
         assertEquals("REBOUNDING_FOUL_OFFENSE", emitted.get(0).outcome());
         assertEquals("OFF", emitted.get(0).committingTeamId());
@@ -1210,17 +1210,17 @@ class PossessionEngineTest {
         GameData data = freshData();
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
-        seedFouls(data, "OFF", 1, SimConfig.BONUS_FOULS_PER_PERIOD - 1);
+        seedFouls(data, "OFF", 1, config.bonusFoulsPerPeriod() - 1);
 
         PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
                 data, new ReboundFoul(ReboundFoul.Side.OFFENSE, offense.get(0)),
                 offense, defense, "OFF", "DEF", 1, 50, false, rng(4));
 
         assertFalse(result.offenseRetains());
-        assertTrue(data.isInBonus("OFF", 1));
+        assertTrue(data.isInBonus("OFF", 1, config));
 
         List<GameData.EventRecord> emitted = data.getEvents()
-                .subList(SimConfig.BONUS_FOULS_PER_PERIOD - 1, data.getEvents().size());
+                .subList(config.bonusFoulsPerPeriod() - 1, data.getEvents().size());
         long freeThrows = emitted.stream()
                 .filter(e -> e.playType() == PlayType.FREE_THROW).count();
         assertEquals(SimConfig.FREE_THROWS_PER_FOUL, freeThrows);
@@ -1300,7 +1300,7 @@ class PossessionEngineTest {
         GameData data = freshData();
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
-        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD - 1);
+        seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod() - 1);
 
         engine.resolveReboundFoul(data,
                 new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
@@ -1363,8 +1363,8 @@ class PossessionEngineTest {
         // #029 B (a guardrail, not an emergent property): an and-1 is ALWAYS one
         // FT by rule, penalty status irrelevant — it must never consult the bonus.
         GameData data = freshData();
-        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD + 2);
-        assertTrue(data.isInBonus("DEF", 1), "precondition: DEF is well into the penalty");
+        seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod() + 2);
+        assertTrue(data.isInBonus("DEF", 1, config), "precondition: DEF is well into the penalty");
 
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
@@ -1897,11 +1897,11 @@ class PossessionEngineTest {
         data.setAwayTeamId("A");
 
         int seq = 1;
-        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD + 2; i++) {
+        for (int i = 0; i < config.bonusFoulsPerPeriod() + 2; i++) {
             seq = engine.awardTechnicalFoul(data, home.get(0), homeCtx, awayCtx,
                     "H", "A", 1, seq, rng(7L));
         }
-        assertFalse(data.isInBonus("H", 1),
+        assertFalse(data.isInBonus("H", 1, config),
                 "Technicals must never reach the penalty tally (#032 E)");
         assertEquals(0, data.periodFoulCount("H", 1));
     }
@@ -2157,16 +2157,16 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
-        seedFouls(data, "DEF", 1, SimConfig.BONUS_FOULS_PER_PERIOD - 1);
-        assertFalse(data.isInBonus("DEF", 1), "precondition: one short of the penalty");
+        seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod() - 1);
+        assertFalse(data.isInBonus("DEF", 1, config), "precondition: one short of the penalty");
 
         engine.awardFlagrant(data, defense.get(0), offense.get(0), "OFF", "OFF", "DEF",
                 1, 50, new ScriptedRng(0.99, 0.99));
 
-        assertTrue(data.isInBonus("DEF", 1),
+        assertTrue(data.isInBonus("DEF", 1, config),
                 "A flagrant is a PERSONAL foul and must reach the penalty tally (#034 I) — "
                         + "the opposite of §3.14a's TECHNICAL_FOUL exclusion (#032 E)");
-        assertEquals(SimConfig.BONUS_FOULS_PER_PERIOD,
+        assertEquals(config.bonusFoulsPerPeriod(),
                 data.periodFoulCount("DEF", 1),
                 "…counted exactly once, not twice");
     }
@@ -2311,7 +2311,7 @@ class PossessionEngineTest {
 
         long flagrants = data.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.FOUL).count();
-        assertEquals(SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION + 1, flagrants,
+        assertEquals(config.maxOffensiveRetentionsPerPossession() + 1, flagrants,
                 "The offense retains up to the cap and no further — the flagrant is NOT "
                         + "exempt from MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION (#034 B)");
         assertEquals(flagrants * SimConfig.FLAGRANT_FREE_THROWS,
@@ -2351,7 +2351,7 @@ class PossessionEngineTest {
                 .filter(e -> e.playType() == PlayType.FOUL)
                 .filter(e -> String.valueOf(e.outcome()).startsWith("FLAGRANT")).count();
 
-        assertEquals(SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION + 1, flagrants,
+        assertEquals(config.maxOffensiveRetentionsPerPossession() + 1, flagrants,
                 "The flagrant and-1 retains up to the cap and no further (#034 B)");
         assertEquals(flagrants, madeShots,
                 "Each retained iteration scored EXACTLY ONE basket — the flagrant path "

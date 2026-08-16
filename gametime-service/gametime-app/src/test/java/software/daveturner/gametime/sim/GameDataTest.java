@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GameDataTest {
 
+    private final SimConfig config = SimConfig.baseline();
+
     @Test
     void addScoreTracksHomeAndAway() {
         GameData data = new GameData();
@@ -74,11 +76,11 @@ class GameDataTest {
     @Test
     void notInBonusBelowTheThreshold() {
         GameData data = new GameData();
-        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD - 1; i++) {
+        for (int i = 0; i < config.bonusFoulsPerPeriod() - 1; i++) {
             addFoul(data, "H", 1, "SHOOTING_FOUL");
         }
-        assertEquals(SimConfig.BONUS_FOULS_PER_PERIOD - 1, data.periodFoulCount("H", 1));
-        assertFalse(data.isInBonus("H", 1), "One foul short of the limit is NOT the bonus");
+        assertEquals(config.bonusFoulsPerPeriod() - 1, data.periodFoulCount("H", 1));
+        assertFalse(data.isInBonus("H", 1, config), "One foul short of the limit is NOT the bonus");
     }
 
     @Test
@@ -87,23 +89,23 @@ class GameDataTest {
         // is the one that awards — "in the bonus" means the count HAS reached the
         // limit, so the predicate is >= and the current foul is already in the log.
         GameData data = new GameData();
-        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD - 1; i++) {
+        for (int i = 0; i < config.bonusFoulsPerPeriod() - 1; i++) {
             addFoul(data, "H", 1, "SHOOTING_FOUL");
         }
-        assertFalse(data.isInBonus("H", 1));
+        assertFalse(data.isInBonus("H", 1, config));
 
         addFoul(data, "H", 1, "REBOUNDING_FOUL_DEFENSE"); // the Nth
-        assertTrue(data.isInBonus("H", 1),
+        assertTrue(data.isInBonus("H", 1, config),
                 "The Nth foul must itself put the team in the bonus (emit-then-count)");
     }
 
     @Test
     void staysInBonusAboveTheThreshold() {
         GameData data = new GameData();
-        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD + 3; i++) {
+        for (int i = 0; i < config.bonusFoulsPerPeriod() + 3; i++) {
             addFoul(data, "H", 1, "SHOOTING_FOUL");
         }
-        assertTrue(data.isInBonus("H", 1));
+        assertTrue(data.isInBonus("H", 1, config));
     }
 
     @Test
@@ -134,11 +136,11 @@ class GameDataTest {
     void onlyFoulsInTheSamePeriodCount() {
         // No reset logic exists BECAUSE the predicate filters by period (#028 A1).
         GameData data = new GameData();
-        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD; i++) {
+        for (int i = 0; i < config.bonusFoulsPerPeriod(); i++) {
             addFoul(data, "H", 1, "SHOOTING_FOUL");
         }
-        assertTrue(data.isInBonus("H", 1));
-        assertFalse(data.isInBonus("H", 2),
+        assertTrue(data.isInBonus("H", 1, config));
+        assertFalse(data.isInBonus("H", 2, config),
                 "A new period starts clean with no reset logic — the filter does it");
         assertEquals(0, data.periodFoulCount("H", 2));
     }
@@ -152,7 +154,7 @@ class GameDataTest {
         }
         assertEquals(0, data.periodFoulCount("H", 1),
                 "A TURNOVER with an OFFENSIVE_FOUL cause is not a FOUL event (#027 B)");
-        assertFalse(data.isInBonus("H", 1));
+        assertFalse(data.isInBonus("H", 1, config));
     }
 
     @Test
@@ -171,13 +173,13 @@ class GameDataTest {
     @Test
     void technicalFoulsDoNotCountTowardThePeriodFoulTally() {
         GameData data = new GameData();
-        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD; i++) {
+        for (int i = 0; i < config.bonusFoulsPerPeriod(); i++) {
             data.addEvent("H", "A", 1, i, PlayType.FOUL,
                     GameData.TECHNICAL_FOUL_OUTCOME, "p1", null, "H");
         }
         assertEquals(0, data.periodFoulCount("H", 1),
                 "Technicals are excluded from the personal-foul tally (#032 E)");
-        assertFalse(data.isInBonus("H", 1),
+        assertFalse(data.isInBonus("H", 1, config),
                 "A team cannot be put in the penalty by technicals alone");
     }
 
@@ -189,17 +191,17 @@ class GameDataTest {
     void technicalsDoNotDisturbTheBonusThresholdReachedByPersonalFouls() {
         GameData data = new GameData();
         int seq = 0;
-        for (int i = 0; i < SimConfig.BONUS_FOULS_PER_PERIOD - 1; i++) {
+        for (int i = 0; i < config.bonusFoulsPerPeriod() - 1; i++) {
             data.addEvent("H", "A", 1, seq++, PlayType.FOUL, "SHOOTING_FOUL", "p1", null, "H");
             data.addEvent("H", "A", 1, seq++, PlayType.FOUL,
                     GameData.TECHNICAL_FOUL_OUTCOME, "p2", null, "H");
         }
-        assertFalse(data.isInBonus("H", 1),
+        assertFalse(data.isInBonus("H", 1, config),
                 "One personal foul short of the limit — the technicals must not close the gap");
 
         data.addEvent("H", "A", 1, seq, PlayType.FOUL, "SHOOTING_FOUL", "p1", null, "H");
-        assertTrue(data.isInBonus("H", 1),
+        assertTrue(data.isInBonus("H", 1, config),
                 "The Nth PERSONAL foul still puts the team in the penalty");
-        assertEquals(SimConfig.BONUS_FOULS_PER_PERIOD, data.periodFoulCount("H", 1));
+        assertEquals(config.bonusFoulsPerPeriod(), data.periodFoulCount("H", 1));
     }
 }

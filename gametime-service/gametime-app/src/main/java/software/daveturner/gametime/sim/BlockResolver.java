@@ -29,10 +29,10 @@ public class BlockResolver {
      * pattern in {@link ReboundResolver}. Skill-independent by design.
      */
     public BlockRecovery resolveRecovery(RandomGenerator rng) {
-        double recoveredDefense = SimConfig.BLOCK_RECOVERED_DEFENSE;
-        double recoveredOffense = SimConfig.BLOCK_RECOVERED_OFFENSE;
-        double oobDefense = SimConfig.BLOCK_OOB_DEFENSE;
-        double oobOffense = SimConfig.BLOCK_OOB_OFFENSE;
+        double recoveredDefense = config.blockRecoveredDefense();
+        double recoveredOffense = config.blockRecoveredOffense();
+        double oobDefense = config.blockOobDefense();
+        double oobOffense = config.blockOobOffense();
         double total = recoveredDefense + recoveredOffense + oobDefense + oobOffense;
 
         double roll = rng.nextDouble() * total;

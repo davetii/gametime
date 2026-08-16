@@ -18,9 +18,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MissedShotResolverTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
     private final ReboundResolver reboundResolver = new ReboundResolver(config);
-    private final MissedShotResolver resolver = new MissedShotResolver(reboundResolver);
+    private final MissedShotResolver resolver = new MissedShotResolver(reboundResolver, config);
 
     private RandomGenerator rng(long seed) {
         return RandomGeneratorFactory.of("L64X128MixRandom").create(seed);
@@ -122,8 +122,8 @@ class MissedShotResolverTest {
                 "OOB offense share must be skill-independent: eliteOff=" + oobOffShareA
                         + " eliteDef=" + oobOffShareB);
         // And it should sit near the configured lean, not near the board result.
-        double expected = SimConfig.OOB_OFFENSE_WEIGHT
-                / (SimConfig.OOB_OFFENSE_WEIGHT + SimConfig.OOB_DEFENSE_WEIGHT);
+        double expected = config.oobOffenseWeight()
+                / (config.oobOffenseWeight() + config.oobDefenseWeight());
         assertEquals(expected, oobOffShareA, 0.05,
                 "OOB offense share should track the flat lean, got " + oobOffShareA);
     }

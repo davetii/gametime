@@ -86,9 +86,14 @@ public class PlayerGameState {
     private double currentEnergy;
     private int onFloorPossessions;
 
-    public PlayerGameState(String playerId, String teamId, RosterEntry entry) {
+    // This class reads BOTH kinds of SimConfig constant: the tunable ones through
+    // this field, and SCALE_AVG / MAX_ENERGY / the ejection limits as statics below.
+    private final SimConfig config;
+
+    public PlayerGameState(String playerId, String teamId, RosterEntry entry, SimConfig config) {
         this.playerId = playerId;
         this.teamId = teamId;
+        this.config = config;
         Player player = entry.getPlayer();
         // A null lineupRole ⇒ not a starter (the correct default). In production
         // GameSimulator.buildRotation only ever passes STARTER entries or bench
@@ -152,7 +157,7 @@ public class PlayerGameState {
      * counter — no stored flag; permanent for the game because fouls only grow.
      */
     public boolean isFouledOut() {
-        return fouls >= SimConfig.FOUL_OUT_LIMIT;
+        return fouls >= config.foulOutLimit();
     }
 
     /**
@@ -252,7 +257,7 @@ public class PlayerGameState {
      * coach-free. The decision lives in {@link RotationState}.
      */
     public int foulTroubleLevel() {
-        return Math.min(fouls, SimConfig.FOUL_OUT_LIMIT);
+        return Math.min(fouls, config.foulOutLimit());
     }
 
     /**
@@ -287,7 +292,7 @@ public class PlayerGameState {
      */
     public double fatigueFactor() {
         double frac = Math.max(0.0, Math.min(1.0, currentEnergy / SimConfig.MAX_ENERGY));
-        return 1.0 - SimConfig.FATIGUE_MAX_PENALTY * (1.0 - frac);
+        return 1.0 - config.fatigueMaxPenalty() * (1.0 - frac);
     }
 
     /**
@@ -298,9 +303,9 @@ public class PlayerGameState {
     public void drainForPossession() {
         double scale = 1.0 - SimConfig.ENDURANCE_DRAIN_SENSITIVITY
                 * (endurance - SimConfig.SCALE_AVG) / SimConfig.SCALE_AVG;
-        scale = Math.max(SimConfig.MIN_DRAIN_SCALE, scale);
+        scale = Math.max(config.minDrainScale(), scale);
         currentEnergy = Math.max(0.0,
-                currentEnergy - SimConfig.ENERGY_DRAIN_PER_POSSESSION * scale);
+                currentEnergy - config.energyDrainPerPossession() * scale);
         onFloorPossessions++;
     }
 
@@ -308,7 +313,7 @@ public class PlayerGameState {
     public void recoverForPossession() {
         double scale = energy / SimConfig.SCALE_AVG;
         currentEnergy = Math.min(SimConfig.MAX_ENERGY,
-                currentEnergy + SimConfig.ENERGY_RECOVERY_PER_POSSESSION * scale);
+                currentEnergy + config.energyRecoveryPerPossession() * scale);
     }
 
     public double offensiveWeight() {

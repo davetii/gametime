@@ -277,7 +277,7 @@ public class RotationState {
         // a real rest advantage makes the sit stick in both directions using only
         // energy state that already exists: no "benched for fouls" flag, no timer.
         if (replacement.getCurrentEnergy()
-                <= candidate.getCurrentEnergy() + SimConfig.FOUL_TROUBLE_FRESHNESS_MARGIN) {
+                <= candidate.getCurrentEnergy() + config.foulTroubleFreshnessMargin()) {
             return;
         }
         onFloor.set(onFloor.indexOf(candidate), replacement);
@@ -297,7 +297,7 @@ public class RotationState {
             // either. Asked through the shared predicate so the two tiers cannot
             // drift apart on what "disqualified" means.
             if (isDisqualified(p)
-                    || SimConfig.FOUL_TROUBLE_SIT_PROBABILITY[p.foulTroubleLevel()] <= 0.0) {
+                    || config.foulTroubleSitProbabilities()[p.foulTroubleLevel()] <= 0.0) {
                 continue;
             }
             if (candidate == null

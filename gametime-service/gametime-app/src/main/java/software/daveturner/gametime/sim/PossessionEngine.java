@@ -72,7 +72,7 @@ public class PossessionEngine {
         while (true) {
             int possessionsThisPeriod = (period <= SimConfig.PERIODS)
                     ? pacedPossessions
-                    : SimConfig.OT_POSSESSIONS_PER_PERIOD;
+                    : config.otPossessionsPerPeriod();
 
             for (int poss = 0; poss < possessionsThisPeriod * 2; poss++) {
                 boolean homeOnOffense = (poss % 2 == 0);
@@ -155,7 +155,7 @@ public class PossessionEngine {
             // is only ever incremented immediately before a `continue`, so its value
             // at the top of an iteration is what both original sites read.
             boolean capReached =
-                    offensiveRetentions >= SimConfig.MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION;
+                    offensiveRetentions >= config.maxOffensiveRetentionsPerPossession();
 
             PlayerGameState shooter = shotSelector.pickShooter(offense, rng);
             ShotType shotType = shotSelector.pickShotType(shooter, shotMixLean, rng);
@@ -387,7 +387,7 @@ public class PossessionEngine {
      * <p><b>Emit-then-count</b> (#028 A1, the crux): the {@code FOUL} event —
      * carrying {@code committingTeamId} — is added to the log FIRST, and only then
      * is {@link GameData#isInBonus} asked. So the Nth foul (the one that reaches
-     * {@link SimConfig#BONUS_FOULS_PER_PERIOD}) itself sends the fouled team to the
+     * {@link SimConfig#bonusFoulsPerPeriod()}) itself sends the fouled team to the
      * line. There is no stored team-foul counter anywhere; the predicate reads the
      * events (#020).
      *
@@ -459,7 +459,7 @@ public class PossessionEngine {
 
         // Emit-then-count: the event above is already in the log, so the Nth foul
         // puts its own committing team in the bonus.
-        boolean inBonus = data.isInBonus(committingTeamId, period);
+        boolean inBonus = data.isInBonus(committingTeamId, period, config);
 
         if (inBonus) {
             // The FOULED team shoots. Its FTs score for that team.

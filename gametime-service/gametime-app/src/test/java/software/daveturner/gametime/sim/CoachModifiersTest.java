@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CoachModifiersTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
 
     private Coach coach(Integer pace, Integer offScheme, Integer defScheme) {
         Coach c = new Coach();

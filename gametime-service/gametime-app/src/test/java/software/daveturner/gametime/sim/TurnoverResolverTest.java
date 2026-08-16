@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TurnoverResolverTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
     private final TurnoverResolver resolver = new TurnoverResolver(config);
 
     private RandomGenerator rng(long seed) {
@@ -30,7 +30,7 @@ class TurnoverResolverTest {
             if (resolver.isTurnover(handler, defenders, r)) turnovers++;
         }
         double rate = (double) turnovers / trials;
-        assertEquals(SimConfig.BASE_TURNOVER, rate, 0.03);
+        assertEquals(config.baseTurnover(), rate, 0.03);
     }
 
     @Test

@@ -172,8 +172,19 @@ push a branch just because it's ahead of origin.
 
 ## Key conventions
 
+- `SimConfig`'s declaration form says whether a constant is tunable: `public static
+  final` is a rule of basketball or the shape of the model; `private final` +
+  accessor is a tunable knob, bound by `@ConfigurationProperties(prefix = "sim")`.
+- Tunable sim constants have **no initializers in Java** — their values live only in
+  `application-baseline.properties`. Never give one a default or a `public static
+  final` alias; both silently create a second value, since javac inlines constants
+  into each caller. Outside a Spring context, use `SimConfig.baseline()`.
+- Sim profiles are ordinary Spring profiles composed with the infra ones
+  (`spring.profiles.active=local,baseline`). Era profiles are deltas over `baseline`,
+  so `baseline` must stay in the list and profile order is positional.
 - OpenAPI delegate pattern: generated `V1ApiDelegate` interface, hand-written `V1ApiDelegateimpl` implements it.
 - Entities use Lombok `@Data` for boilerplate reduction.
 - Entity `@Table` annotations include `schema = "gametime"`.
 - Cucumber tests use JUnit 5 Platform (`@Suite` + `cucumber-junit-platform-engine`), not JUnit 4 vintage.
-- Spring profile `local` is active by default. Test profile overrides to H2 via `src/test/resources/`.
+- Profiles `local,baseline` are active by default. Tests inherit that and override
+  `local` to H2 via `src/test/resources/application-local.properties`.

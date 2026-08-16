@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ReboundResolverTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
     private final ReboundResolver resolver = new ReboundResolver(config);
 
     private RandomGenerator rng(long seed) {
@@ -36,7 +36,7 @@ class ReboundResolverTest {
             if (resolver.isOffensiveRebound(off, def, r)) offRebounds++;
         }
         double rate = (double) offRebounds / trials;
-        assertEquals(SimConfig.BASE_OFFENSIVE_REBOUND, rate, 0.03,
+        assertEquals(config.baseOffensiveRebound(), rate, 0.03,
                 "Average vs average should sit near BASE_OFFENSIVE_REBOUND, got " + rate);
     }
 
@@ -51,7 +51,7 @@ class ReboundResolverTest {
             if (resolver.isOffensiveRebound(off, def, r)) offRebounds++;
         }
         double rate = (double) offRebounds / trials;
-        assertTrue(rate > SimConfig.BASE_OFFENSIVE_REBOUND,
+        assertTrue(rate > config.baseOffensiveRebound(),
                 "Elite off rebounder vs weak def should exceed base rate, got " + rate);
     }
 
@@ -66,7 +66,7 @@ class ReboundResolverTest {
             if (resolver.isOffensiveRebound(off, def, r)) offRebounds++;
         }
         double rate = (double) offRebounds / trials;
-        assertTrue(rate < SimConfig.BASE_OFFENSIVE_REBOUND,
+        assertTrue(rate < config.baseOffensiveRebound(),
                 "Weak off rebounder vs elite def should fall below base rate, got " + rate);
     }
 

@@ -1,6 +1,22 @@
 package software.daveturner.gametime.sim;
 
-import org.springframework.stereotype.Component;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
+import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.env.PropertiesPropertySource;
+import org.springframework.validation.annotation.Validated;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
 
 /**
  * All simulation constants in one place (decisions.md #021) so they can be tuned
@@ -15,7 +31,7 @@ import org.springframework.stereotype.Component;
  * </pre>
  * Turnovers settle around 15 rather than 14: each possession can run several
  * turnover checks (second-chance possessions after offensive rebounds re-roll the
- * full flow), so the per-check {@code BASE_TURNOVER} hits diminishing returns
+ * full flow), so the per-check {@code sim.base-turnover} hits diminishing returns
  * below ~0.04 — pushing it lower distorts the steal distribution for &lt;1 TO of
  * gain. 15.3 is within ~10% of target, accepted. Re-run the harness after any
  * change here to re-observe the aggregates (it is disabled in the normal build).
@@ -29,7 +45,7 @@ import org.springframework.stereotype.Component;
  * ~37, no one over ~42, benches scaling down (34/32/29/27/24/22/20/16). Note: the
  * period-by-period FG% stays roughly flat rather than sagging late — this is the
  * correct emergent behavior, not a miss: substitution pulls tired legs and cycles
- * fresh ones in, so the on-floor FG% holds even as {@code FATIGUE_MAX_PENALTY}
+ * fresh ones in, so the on-floor FG% holds even as {@code sim.fatigue-max-penalty}
  * bites harder. Fatigue shows up as <i>who is on the floor</i> (the minutes curve),
  * and it degrades players who <i>stay</i> on tired (thin benches, foul trouble,
  * exhausted deep-bench late games).
@@ -54,7 +70,7 @@ import org.springframework.stereotype.Component;
  * was NOT free: +2.7 pts before tuning, of which only ~1.1 was the bonus FTs. Two
  * findings worth keeping:
  * <ul>
- *   <li>{@link #BASE_NO_BASKET_FOUL} (then named {@code BASE_FOUL}) is a
+ *   <li>{@link #baseNoBasketFoul()} (then named {@code BASE_FOUL}) is a
  *       <b>counter-intuitive lever that moves points the
  *       WRONG way</b> — trimming it 0.15→0.138 <i>raised</i> scoring, because a
  *       shooting foul ENDS a possession for ~1.5 expected FT points, which is worth
@@ -93,7 +109,7 @@ import org.springframework.stereotype.Component;
  *       free throws, which cost no FG%. Spending calibrated FG% to hide it (only for
  *       §3.12 to re-tune the same number) was rejected: <b>no {@code BASE_*} trim was
  *       taken</b> (user call), leaving points knowingly high for §3.12 to re-center
- *       once. {@link #BASE_NO_BASKET_FOUL} was again NOT touched (see §3.10
+ *       once. {@link #baseNoBasketFoul()} was again NOT touched (see §3.10
  *       above).</li>
  * </ul>
  * The landing (harness, ~102 games × <b>5 seeds, tuned to the mean</b> — a single run
@@ -109,13 +125,33 @@ import org.springframework.stereotype.Component;
  * <b>Points are deliberately ~3.9 above the ~112 target; that is deferred debt for
  * §3.12, not drift.</b>
  */
-@Component
+@ConfigurationProperties(prefix = "sim")
+@Validated
 public class SimConfig {
 
+    // Two kinds of constant live here, and the declaration form tells them apart:
+    //
+    //   public static final       a RULE of basketball or the SHAPE of the model.
+    //                             Not a knob. 26 of them.
+    //   private final + accessor  a tunable knob, bound by Spring from
+    //                             application-baseline.properties. 57 of them.
+    //
+    // The instance fields take NO INITIALIZERS: the values exist only in the
+    // properties file, and a missing key fails the context at startup. Adding a
+    // default back here would create a second source of truth (javac rejects it
+    // outright, since the fields are final and constructor-assigned).
+    //
+    // Never add a public static final alias for a tunable constant: javac inlines
+    // constant variables into each caller at that caller's compile time, so an
+    // alias becomes a stale second value with no link to the real one.
+    //
+    // SCALE_AVG and MAX_ENERGY are scale DEFINITIONS, not knobs - each is the
+    // denominator that gives its family meaning.
+
     // --- Possession count (Decision B) ---
-    public static final int DEFAULT_POSSESSIONS_PER_PERIOD = 25;
+    private final int defaultPossessionsPerPeriod;
     public static final int PERIODS = 4;
-    public static final int OT_POSSESSIONS_PER_PERIOD = 5;
+    private final int otPossessionsPerPeriod;
 
     // --- Probability sensitivity (Decision C) ---
     public static final double SENSITIVITY = 0.5;
@@ -124,13 +160,13 @@ public class SimConfig {
     public static final double SCALE_AVG = 10.0;
 
     // --- Shot base rates (calibrated §3.4 against ~47% FG / ~36% 3P) ---
-    public static final double BASE_DRIVE = 0.5975;
-    public static final double BASE_PERIMETER = 0.4375;
-    public static final double BASE_THREE = 0.3375;
-    public static final double BASE_POST = 0.4975;
+    private final double baseDrive;
+    private final double basePerimeter;
+    private final double baseThree;
+    private final double basePost;
 
     // --- Turnover base rate (per possession; calibrated §3.4 toward ~14 TO/team) ---
-    public static final double BASE_TURNOVER = 0.038;
+    private final double baseTurnover;
 
     // --- Foul base rate: P(a foul STOPPED the shot) on a DRIVE (§3.12 anchor) ---
     // RENAMED from BASE_FOUL by §3.12 (#030 F). The VALUE NEVER MOVED — it is the
@@ -146,7 +182,7 @@ public class SimConfig {
     // a league-wide average — keeping it the drive rate is what makes drive/post
     // behavior bit-identical to §3.11 and §3.12's whole delta attributable to
     // perimeter/three.
-    public static final double BASE_NO_BASKET_FOUL = 0.15;
+    private final double baseNoBasketFoul;
 
     // --- Per-shot-type foul multipliers (§3.12, decisions.md #030 A1/A2/B) ---
     //
@@ -193,10 +229,10 @@ public class SimConfig {
     // Raising DRIVE above 1.0 would break the attributability A2 was chosen for; if
     // drives should foul more, that is a BASE_NO_BASKET_FOUL conversation, and it
     // reopens a §3.4-calibrated number.
-    public static final double FOUL_MULT_DRIVE = 1.0;
-    public static final double FOUL_MULT_POST = 1.0;
-    public static final double FOUL_MULT_PERIMETER = 0.30;
-    public static final double FOUL_MULT_THREE = 0.133;
+    private final double foulMultDrive;
+    private final double foulMultPost;
+    private final double foulMultPerimeter;
+    private final double foulMultThree;
 
     /**
      * §3.12 (#030 A1/A2/B): the per-shot-type foul multiplier — how often this shot
@@ -213,22 +249,22 @@ public class SimConfig {
      */
     public double foulMultiplier(ShotType shotType) {
         return switch (shotType) {
-            case DRIVE -> FOUL_MULT_DRIVE;
-            case POST -> FOUL_MULT_POST;
-            case PERIMETER -> FOUL_MULT_PERIMETER;
-            case THREE -> FOUL_MULT_THREE;
+            case DRIVE -> foulMultDrive;
+            case POST -> foulMultPost;
+            case PERIMETER -> foulMultPerimeter;
+            case THREE -> foulMultThree;
         };
     }
 
     // --- Free throw ---
-    public static final double FT_BASE = 0.75;
+    private final double ftBase;
     public static final double FT_SENSITIVITY = 0.20;
     public static final int FREE_THROWS_PER_FOUL = 2;
 
     // --- Rebounding (§3.3) ---
     // Base offensive-rebound rate at an average-vs-average contest (NBA ~25–28%).
     // Tuned empirically in §3.4. Rebound contests reuse the global SENSITIVITY.
-    public static final double BASE_OFFENSIVE_REBOUND = 0.27;
+    private final double baseOffensiveRebound;
     // The ONLY bound on PossessionEngine.resolvePossession's second-chance
     // `while (true)` loop: how many times the offense may keep the ball and run the
     // flow again within one possession. Once reached, the retaining path is refused
@@ -249,25 +285,25 @@ public class SimConfig {
     // Raising it 3 → 5 is a SEPARATE, parked tuning idea (ideas.md): it fires on the
     // common path, so it would add offensive rebounds, shot attempts and points across
     // every game and needs its own recalibration pass. Do not change the value here.
-    public static final int MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION = 3;
+    private final int maxOffensiveRetentionsPerPossession;
 
     // --- Missed-shot out of bounds (§3.8, decisions.md #026) ---
     // A missed shot resolves to one of FOUR outcomes in a single draw (Decision A):
     // offensive rebound / defensive rebound / OOB-offense / OOB-defense. The OOB
     // share is carved off FIRST by these flat, skill-INDEPENDENT weights (a fixed
     // defensive lean, NOT a second skilled contest — Decision A); only the clean-
-    // rebound remainder runs ReboundResolver's skill contest. OOB_TOTAL_WEIGHT is
+    // rebound remainder runs ReboundResolver's skill contest. oobTotalWeight is
     // the fraction of missed shots that leave the court (sail-out untouched or
     // tipped out in a scramble); the two slices below split THAT share, leaning
     // defensive (a loose ball in a scrum favors the defense). MissedShotResolver
     // normalizes the two slices by their sum, so they need not add to anything in
-    // particular — only their ratio and OOB_TOTAL_WEIGHT matter. Placeholders,
+    // particular — only their ratio and oobTotalWeight matter. Placeholders,
     // settled by the CalibrationHarness OOB line (Decision D): OOB removes some
     // second-chance possessions, so its rate must be visible and the §3.4/§3.5
     // aggregates re-confirmed. Kept smaller than the two rebound outcomes.
-    public static final double OOB_TOTAL_WEIGHT = 0.07;
-    public static final double OOB_DEFENSE_WEIGHT = 0.60;
-    public static final double OOB_OFFENSE_WEIGHT = 0.40;
+    private final double oobTotalWeight;
+    private final double oobDefenseWeight;
+    private final double oobOffenseWeight;
 
     // --- Blocked shots (§3.7, decisions.md #025) ---
     // Per-shot-type block base rate at an average-vs-average contest (defender
@@ -279,10 +315,10 @@ public class SimConfig {
     // artifact for no benefit). Placeholders — tuned empirically by the
     // CalibrationHarness toward ~5 blocks/team/game (Decision C), same as the
     // §3.4 BASE_* shot rates. Blocks reuse the global SENSITIVITY.
-    public static final double BASE_BLOCK_DRIVE = 0.056;
-    public static final double BASE_BLOCK_POST = 0.048;
-    public static final double BASE_BLOCK_PERIMETER = 0.023;
-    public static final double BASE_BLOCK_THREE = 0.005;
+    private final double baseBlockDrive;
+    private final double baseBlockPost;
+    private final double baseBlockPerimeter;
+    private final double baseBlockThree;
     // Block-specific contest sensitivity (Decision B: "same logistic shape"). The
     // global SENSITIVITY (0.5) is far too steep for blocks — a real event so rare
     // that a good rim protector blocks only ~5–6% of opponent attempts, so a ±0.5
@@ -303,10 +339,10 @@ public class SimConfig {
     // placeholders — no citable NBA block-recovery distribution exists — settled
     // by the harness against the ~5/team target. Defense keeps the ball on
     // RECOVERED_DEFENSE + OOB_DEFENSE (OOB off the shooter/offense).
-    public static final double BLOCK_RECOVERED_DEFENSE = 0.45;
-    public static final double BLOCK_RECOVERED_OFFENSE = 0.30;
-    public static final double BLOCK_OOB_DEFENSE = 0.13;
-    public static final double BLOCK_OOB_OFFENSE = 0.12;
+    private final double blockRecoveredDefense;
+    private final double blockRecoveredOffense;
+    private final double blockOobDefense;
+    private final double blockOobOffense;
 
     // --- Turnover sub-cause weights (§3.9, decisions.md #027) ---
     // Once the (unchanged) turnover gate fires, TurnoverResolver.pickCause runs a
@@ -324,15 +360,15 @@ public class SimConfig {
     // there is NO hard per-cause target and these do NOT touch the aggregates (the
     // turnover count is free by construction). Same static-base-plus-modest-lean
     // pattern as the block-recovery / OOB weights above.
-    public static final double TO_WEIGHT_STOLEN = 56.0;
-    public static final double TO_WEIGHT_SHOT_CLOCK = 10.0;
-    public static final double TO_WEIGHT_OFFENSIVE_FOUL = 9.0;
-    public static final double TO_WEIGHT_BAD_PASS = 8.0;
-    public static final double TO_WEIGHT_TRAVELLING = 6.0;
-    public static final double TO_WEIGHT_LOST_BALL_OOB = 4.0;
-    public static final double TO_WEIGHT_THREE_SECONDS = 3.0;
-    public static final double TO_WEIGHT_EIGHT_SECONDS_BACKCOURT = 2.0;
-    public static final double TO_WEIGHT_OVER_AND_BACK = 2.0;
+    private final double toWeightStolen;
+    private final double toWeightShotClock;
+    private final double toWeightOffensiveFoul;
+    private final double toWeightBadPass;
+    private final double toWeightTravelling;
+    private final double toWeightLostBallOob;
+    private final double toWeightThreeSeconds;
+    private final double toWeightEightSecondsBackcourt;
+    private final double toWeightOverAndBack;
 
     // Modest avg-10 deviation sensitivity for the four LEANED causes (Decision C).
     // Only four causes scale (the rest are flat tier weights): SHOT_CLOCK_VIOLATION
@@ -352,17 +388,17 @@ public class SimConfig {
     // circuiting it on a hit, so the rebound-foul rate stays independently tunable
     // and never entangles with the rebound weights.
     //
-    // REBOUND_FOUL_BASE is the per-missed-shot probability at an average-vs-average
+    // reboundFoulBase is the per-missed-shot probability at an average-vs-average
     // contest, scaled by the same discipline/pressure inputs the shooting foul uses
     // (foulProne / defensivePressure) in the avg-10 form (#021 C / #022). It must
     // stay SMALL: every hit either hands the offense a second chance or (in the
     // bonus) two free throws, so this is the knob that drives §3.10's scoring lift.
-    public static final double REBOUND_FOUL_BASE = 0.055;
+    private final double reboundFoulBase;
     // Two-sided split (Decision A2), DEFENSE-LEANING: box-out contact dominates,
     // over-the-back is the genuine minority. Raw weights — the resolver normalizes
     // by their sum, so only the ratio matters.
-    public static final double REBOUND_FOUL_DEFENSE_WEIGHT = 0.75;
-    public static final double REBOUND_FOUL_OFFENSE_WEIGHT = 0.25;
+    private final double reboundFoulDefenseWeight;
+    private final double reboundFoulOffenseWeight;
     // Rebound-foul contest sensitivity — its OWN, far below the global SENSITIVITY
     // (0.5), for the same reason BLOCK_SENSITIVITY is (§3.7): at a ~0.03 base, a
     // ±0.5 swing per 10 skill points swamps the base entirely and lets skill alone
@@ -376,20 +412,20 @@ public class SimConfig {
     // (GameData.isInBonus), never stored (#028 A1); this is the only constant it
     // needs. EMIT-THEN-COUNT: the Nth foul is emitted first, so it awards the bonus
     // itself.
-    public static final int BONUS_FOULS_PER_PERIOD = 5;
+    private final int bonusFoulsPerPeriod;
 
     // --- And-1 / shooting foul on a made basket (§3.11, decisions.md #029) ---
     // An and-1 is a SECOND, post-make foul roll (#029 A1) carved beside the assist:
-    // the pre-shot foul branch and BASE_NO_BASKET_FOUL are untouched, so "P(a foul
+    // the pre-shot foul branch and baseNoBasketFoul are untouched, so "P(a foul
     // stops the shot)" keeps its §3.4 meaning and this rate stays independently
     // tunable — the §3.7 block / §3.10 rebound-foul carve, a third time.
     //
-    // AND_ONE_BASE is P(the make also drew a foul) at an average-vs-average contest,
+    // andOneBase is P(the make also drew a foul) at an average-vs-average contest,
     // rolled ONLY on a made DRIVE/POST (#029 A2 — widening to all shot types is
     // §3.12). It must stay THIN: every hit is a pure-additive point (a made FG plus
     // one FT with no offsetting removal), so this is the knob that drives §3.11's
     // scoring lift. Placeholder, settled by the CalibrationHarness and-1 line (E).
-    public static final double AND_ONE_BASE = 0.055;
+    private final double andOneBase;
     // And-1 contest sensitivity — its OWN, far below the global SENSITIVITY (0.5),
     // for the same reason BLOCK_SENSITIVITY (§3.7) and REBOUND_FOUL_SENSITIVITY
     // (§3.10) are: at a thin base, a ±0.5 swing per 10 skill points swamps the base
@@ -415,7 +451,7 @@ public class SimConfig {
     // Foul-out disqualification limit (Decision F). A player with >= this many
     // fouls is forced off the floor and ineligible to return (a derived predicate
     // over the existing PlayerGameState.fouls counter — no stored flag).
-    public static final int FOUL_OUT_LIMIT = 6;
+    private final int foulOutLimit;
 
     // Wall-clock minutes a full regulation game represents (PERIODS × MINUTES_PER
     // = 48) and per-OT (Decision A). Minutes are a possession-share projection:
@@ -429,40 +465,40 @@ public class SimConfig {
     public static final double MAX_ENERGY = 100.0;
     // Base drain per possession a player is on the floor, before the endurance
     // scale. At endurance 10 this is the raw drain; higher endurance drains less.
-    public static final double ENERGY_DRAIN_PER_POSSESSION = 2.6;
+    private final double energyDrainPerPossession;
     // How strongly endurance slows the drain (avg-10 deviation): drain is scaled
     // by 1 − ENDURANCE_DRAIN_SENSITIVITY × (endurance − 10)/10, clamped ≥ a floor
     // so an elite-endurance player still tires, just far slower.
     public static final double ENDURANCE_DRAIN_SENSITIVITY = 0.6;
-    public static final double MIN_DRAIN_SCALE = 0.25;
+    private final double minDrainScale;
     // Recovery per possession spent benched.
-    public static final double ENERGY_RECOVERY_PER_POSSESSION = 5.5;
+    private final double energyRecoveryPerPossession;
     // Fatigue multiplier over skills: at full energy ×1.0; as energy falls toward
-    // 0 the multiplier falls toward (1 − FATIGUE_MAX_PENALTY). Tuned in §3.5
+    // 0 the multiplier falls toward (1 − fatigueMaxPenalty). Tuned in §3.5
     // calibration so tired players degrade visibly (late-period FG% sags a touch)
     // while still a thumb on the scale, not a cliff (Decision B).
-    public static final double FATIGUE_MAX_PENALTY = 0.28;
+    private final double fatigueMaxPenalty;
 
     // Substitution (Decisions C/D): a tired on-floor starter is pulled when their
     // energy drops below a threshold. The base threshold is scaled per-coach by
     // substitutionAggressiveness (higher ⇒ pull earlier ⇒ higher threshold).
-    public static final double BASE_SUB_ENERGY_THRESHOLD = 62.0;
+    private final double baseSubEnergyThreshold;
     // Starters tolerate more fatigue before being pulled (Decision C star
     // retention): their effective threshold is lowered by this many energy points,
     // so a starter is pulled later than a bench player at the same energy. Tuned in
     // §3.5 calibration to land the top starter near ~36 min (not 38+).
-    public static final double STARTER_SUB_THRESHOLD_BONUS = 8.0;
+    private final double starterSubThresholdBonus;
     // Base bench depth (players drawn off the rotationOrder queue) at an average
     // (10) rotationDepth coach, scaled by rotationDepthFactor. Full squad is always
     // available for forced (foul-out) subs regardless of this.
-    public static final int BASE_ROTATION_DEPTH = 4;
+    private final int baseRotationDepth;
 
     // --- Foul trouble (§3.13, decisions.md #031 B) ---
     // The SOFT benching rule: a player carrying fouls is a bench CANDIDATE, and
     // whether he actually sits is a per-possession probability, not a threshold.
     //
     // UNITS — read this before touching the numbers below (the #030 G lesson):
-    //   FOUL_TROUBLE_SIT_PROBABILITY[f] is a PROBABILITY (per rotation check) that
+    //   foulTroubleSitProbabilities()[f] is a PROBABILITY (per rotation check) that
     //   an average-value player under an average (10) substitutionAggressiveness
     //   coach is benched at foul count f. It is NOT a multiplier.
     //   FOUL_TROUBLE_VALUE_SENSITIVITY is a MULTIPLIER sensitivity (avg-10
@@ -474,7 +510,7 @@ public class SimConfig {
     // So index 3 is deliberately small (only an aggressive coach's multiplier lifts
     // it to something that fires often) and index 5 is high (nearly everyone sits).
     // Counts 0–2 are ZERO: no coach benches a player for 2 fouls. Index 6 is
-    // FOUL_OUT_LIMIT — a foul-out is the HARD rule's business, not this one.
+    // foulOutLimit — a foul-out is the HARD rule's business, not this one.
     //
     // These are per-CHECK probabilities and substitution is re-decided ~100 times
     // per team per game, so even a small value fires reliably given exposure; the
@@ -488,8 +524,7 @@ public class SimConfig {
     // #031 D sends him BACK (via the ordinary freshness path, by design) into the same
     // over-dispersed defender draw that gave him the fouls. Getting below ~0.38 needs
     // a different lever than this one — see #031's implementation note.
-    public static final double[] FOUL_TROUBLE_SIT_PROBABILITY =
-            {0.0, 0.0, 0.0, 0.120, 0.500, 0.900, 0.0};
+    private final double[] foulTroubleSitProbabilities;
 
     // How strongly the player's VALUE composite (PlayerGameState.valueComposite())
     // bends the sit probability, in the avg-10 deviation form the rest of this class
@@ -497,7 +532,7 @@ public class SimConfig {
     //
     // DIRECTION IS DELIBERATE AND INVERTS THE FATIGUE RULE (#031 B): a POSITIVE
     // sensitivity means a BETTER player is MORE likely to be sat at the same foul
-    // count. You ride your star when he's tired (STARTER_SUB_THRESHOLD_BONUS lets
+    // count. You ride your star when he's tired (starterSubThresholdBonus lets
     // starters tolerate more fatigue); you PROTECT him when he's in foul trouble.
     // This looks like an inconsistency and is not — do not "fix" it.
     public static final double FOUL_TROUBLE_VALUE_SENSITIVITY = 0.55;
@@ -507,9 +542,9 @@ public class SimConfig {
     // the coach has already committed to, so he is managed a little more tightly
     // still; bench players get a mild discount that deepens down the rotationOrder
     // queue, capped so a deep reserve is never fully exempt.
-    public static final double FOUL_TROUBLE_STARTER_BONUS = 0.15;
-    public static final double FOUL_TROUBLE_BENCH_DISCOUNT_PER_SLOT = 0.05;
-    public static final double FOUL_TROUBLE_MIN_ROSTER_FACTOR = 0.70;
+    private final double foulTroubleStarterBonus;
+    private final double foulTroubleBenchDiscountPerSlot;
+    private final double foulTroubleMinRosterFactor;
 
     // How much fresher (energy points) a bench player must be before the SOFT
     // foul-trouble rule will sit an on-floor player for him. This is the
@@ -531,7 +566,7 @@ public class SimConfig {
     // the rule swap for a replacement who is fresher by a rounding error, which
     // churns without removing exposure. 1.0 is the floor of the useful band.
     //
-    // Note this is BELOW one possession's drain (ENERGY_DRAIN_PER_POSSESSION = 2.6),
+    // Note this is BELOW one possession's drain (energyDrainPerPossession = 2.6),
     // so it does not by itself keep a just-returned player on the floor for a fixed
     // number of possessions. It doesn't need to: the anti-oscillation guarantee comes
     // from the combination of this margin and the fact that a returning player enters
@@ -539,7 +574,7 @@ public class SimConfig {
     // length assertion rather than by this constant's size.
     //
     // A margin, in energy points — NOT a probability and NOT a multiplier.
-    public static final double FOUL_TROUBLE_FRESHNESS_MARGIN = 1.0;
+    private final double foulTroubleFreshnessMargin;
 
     // --- Technical fouls (§3.14a, decisions.md #032 B2/E/F) ---
     //
@@ -552,7 +587,7 @@ public class SimConfig {
     //
     // Stored this way deliberately (#032 B2): 0.00175 has no intuitive meaning, cannot
     // be sanity-checked by eye, is not comparable to anything in calibration.md, and
-    // would silently drift if DEFAULT_POSSESSIONS_PER_PERIOD or PERIODS ever moved.
+    // would silently drift if defaultPossessionsPerPeriod or PERIODS ever moved.
     // 0.35 is the number a tuner reasons about.
     //
     // Set from the user's real-world figure of 0.6–0.8 technicals per GAME
@@ -564,10 +599,10 @@ public class SimConfig {
     // a correctness check that the roll fires at the rate configured, not a
     // calibration objective. Judge it at 5 SEEDS ONLY (11.8% relative sd at 102
     // games; 5.3% at 5 seeds).
-    public static final double TECHNICAL_FOULS_PER_TEAM_GAME = 0.35;
+    private final double technicalFoulsPerTeamGame;
 
     // Two technicals in one game is an automatic ejection (#032 F). A monotonic
-    // counter exactly like FOUL_OUT_LIMIT, which is why PlayerGameState.isEjected()
+    // counter exactly like foulOutLimit, which is why PlayerGameState.isEjected()
     // is a DERIVED predicate with no stored flag — #023 F's discipline applies
     // unchanged. (The stored-state exception belongs to §3.14b's flagrant-2, which
     // is a severity grade with no counter behind it.)
@@ -582,7 +617,7 @@ public class SimConfig {
     // --- Flagrant fouls (§3.14b, decisions.md #034 A/E/G) ---
     //
     // ⚠ THIS IS A PER-TEAM-PER-GAME RATE, NOT A PER-FOUL PROBABILITY — the same
-    // shape as TECHNICAL_FOULS_PER_TEAM_GAME above, and read the same way: the
+    // shape as technicalFoulsPerTeamGame above, and read the same way: the
     // number of flagrant fouls one team is expected to commit in one game. The
     // per-foul probability the engine actually rolls is ~0.0084 and is DERIVED, by
     // flagrantFoulProbability() below.
@@ -601,7 +636,7 @@ public class SimConfig {
     // calibration objective. JUDGE IT AT 5 SEEDS ONLY — at 102 games this is ~33
     // events (relative sd 17.4%) and at 5 seeds ~166 (7.8%), the COARSEST row in
     // calibration.md. A single-seed reading is useless.
-    public static final double FLAGRANT_FOULS_PER_TEAM_GAME = 0.16;
+    private final double flagrantFoulsPerTeamGame;
 
     // What fraction of flagrants are FLAGRANT-2 — the grade that ejects immediately
     // (#034 E). A flat CONDITIONAL SHARE, rolled only once a flagrant has already
@@ -614,11 +649,11 @@ public class SimConfig {
     // clampRareProbability). It inherits the parent rate's resolvability rather than
     // having its own: a separately-tuned flagrant-2 RATE was rejected because ~5
     // events per 102-game run cannot be resolved at any seed count (#034 E).
-    public static final double FLAGRANT_TWO_SHARE = 0.15;
+    private final double flagrantTwoShare;
 
     // ONE flagrant-2 is an automatic ejection (#034 E/F). Named rather than inlined as
     // `>= 1` so the third disqualification threshold reads identically to the other two
-    // (FOUL_OUT_LIMIT = 6, TECHNICAL_EJECTION_LIMIT = 2) — the shape is the point:
+    // (foulOutLimit = 6, TECHNICAL_EJECTION_LIMIT = 2) — the shape is the point:
     // PlayerGameState.isEjectedForFlagrant() is a DERIVED predicate over a monotonic
     // counter, and a limit of 1 changes nothing about that. It is what makes the
     // stored-state exception predicted by #031 H / #032 F unnecessary a second time.
@@ -648,7 +683,7 @@ public class SimConfig {
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
     // much the supporting cast's passing deviates from average. Tuned in §3.4
     // calibration toward ~26 assists/team/game.
-    public static final double BASE_ASSIST = 0.62;
+    private final double baseAssist;
     // How strongly the supporting cast's average passing deviation bends the
     // assist rate (avg-10 deviation form).
     public static final double ASSIST_SENSITIVITY = 0.30;
@@ -673,10 +708,10 @@ public class SimConfig {
     /**
      * Probability that a made field goal is assisted, given the average passing
      * of the supporting cast (the four non-shooter offensive players). Average
-     * passing (10) yields {@code BASE_ASSIST}; better-passing casts assist more.
+     * passing (10) yields {@code sim.base-assist}; better-passing casts assist more.
      */
     public double assistProbability(double supportingCastPassing) {
-        double p = BASE_ASSIST
+        double p = baseAssist
                 + ASSIST_SENSITIVITY * (supportingCastPassing - SCALE_AVG) / SCALE_AVG;
         return clampProbability(p);
     }
@@ -698,23 +733,23 @@ public class SimConfig {
     /**
      * §3.5 (Decision B): the energy a player loses for one on-floor possession,
      * scaled by endurance — a high-endurance player drains slower. The scale is
-     * the avg-10 deviation form, floored at {@link #MIN_DRAIN_SCALE} so even an
+     * the avg-10 deviation form, floored at {@link #minDrainScale()} so even an
      * elite-endurance player still tires (just far more slowly).
      */
     public double energyDrain(double endurance) {
         double scale = 1.0 - ENDURANCE_DRAIN_SENSITIVITY * (endurance - SCALE_AVG) / SCALE_AVG;
-        scale = Math.max(MIN_DRAIN_SCALE, scale);
-        return ENERGY_DRAIN_PER_POSSESSION * scale;
+        scale = Math.max(minDrainScale, scale);
+        return energyDrainPerPossession * scale;
     }
 
     /**
      * §3.5 (Decision B): the fatigue multiplier over a player's skills at contest
      * time. Full energy ⇒ ×1.0; as energy falls to 0 the multiplier falls linearly
-     * to {@code 1 − FATIGUE_MAX_PENALTY}. A modest thumb on the scale, not a cliff.
+     * to {@code 1 − fatigueMaxPenalty}. A modest thumb on the scale, not a cliff.
      */
     public double fatigueFactor(double energy) {
         double frac = Math.max(0.0, Math.min(1.0, energy / MAX_ENERGY));
-        return 1.0 - FATIGUE_MAX_PENALTY * (1.0 - frac);
+        return 1.0 - fatigueMaxPenalty * (1.0 - frac);
     }
 
     /**
@@ -734,7 +769,7 @@ public class SimConfig {
      * Forced (foul-out) subs may still reach the full roster regardless of this.
      */
     public int rotationDepth(double rotationDepthFactor) {
-        int depth = (int) Math.round(BASE_ROTATION_DEPTH * rotationDepthFactor);
+        int depth = (int) Math.round(baseRotationDepth * rotationDepthFactor);
         return Math.max(1, depth);
     }
 
@@ -746,9 +781,9 @@ public class SimConfig {
      * fatigue — Decision C star retention).
      */
     public double subEnergyThreshold(double subAggressivenessFactor, boolean starter) {
-        double threshold = BASE_SUB_ENERGY_THRESHOLD * subAggressivenessFactor;
+        double threshold = baseSubEnergyThreshold * subAggressivenessFactor;
         if (starter) {
-            threshold -= STARTER_SUB_THRESHOLD_BONUS;
+            threshold -= starterSubThresholdBonus;
         }
         return threshold;
     }
@@ -760,7 +795,7 @@ public class SimConfig {
      *
      * <p>{@code base(foulCount) × coachFactor × valueFactor × rosterFactor}:
      * <ul>
-     *   <li><b>base</b> — {@link #FOUL_TROUBLE_SIT_PROBABILITY}, zero below 3 fouls
+     *   <li><b>base</b> — {@link #foulTroubleSitProbabilities()}, zero below 3 fouls
      *       and at the foul-out limit (6 is the hard rule's business, not this one).</li>
      *   <li><b>coach</b> — {@code CoachModifiers.subAggressivenessFactor()}, so one
      *       curve expresses "aggressive coaches think about it at 3, average at 4,
@@ -782,10 +817,10 @@ public class SimConfig {
     public double foulTroubleSitProbability(int foulCount, double subAggressivenessFactor,
                                             double valueComposite, boolean starter,
                                             Integer rotationOrder) {
-        if (foulCount < 0 || foulCount >= FOUL_TROUBLE_SIT_PROBABILITY.length) {
+        if (foulCount < 0 || foulCount >= foulTroubleSitProbabilities.length) {
             return 0.0;
         }
-        double base = FOUL_TROUBLE_SIT_PROBABILITY[foulCount];
+        double base = foulTroubleSitProbabilities[foulCount];
         if (base <= 0.0) {
             return 0.0;
         }
@@ -806,11 +841,11 @@ public class SimConfig {
      */
     public double rosterProtectionFactor(boolean starter, Integer rotationOrder) {
         if (starter) {
-            return 1.0 + FOUL_TROUBLE_STARTER_BONUS;
+            return 1.0 + foulTroubleStarterBonus;
         }
         int slot = (rotationOrder == null) ? 1 : Math.max(1, rotationOrder);
-        double factor = 1.0 - FOUL_TROUBLE_BENCH_DISCOUNT_PER_SLOT * slot;
-        return Math.max(FOUL_TROUBLE_MIN_ROSTER_FACTOR, factor);
+        double factor = 1.0 - foulTroubleBenchDiscountPerSlot * slot;
+        return Math.max(foulTroubleMinRosterFactor, factor);
     }
 
     /**
@@ -912,13 +947,13 @@ public class SimConfig {
      * game.
      */
     public double technicalFoulProbability() {
-        int nominalChecks = DEFAULT_POSSESSIONS_PER_PERIOD * PERIODS * 2;
-        return clampRareProbability(TECHNICAL_FOULS_PER_TEAM_GAME / nominalChecks);
+        int nominalChecks = defaultPossessionsPerPeriod * PERIODS * 2;
+        return clampRareProbability(technicalFoulsPerTeamGame / nominalChecks);
     }
 
     /**
      * §3.14b (decisions.md #034 A/G): the probability that <b>a foul that has already
-     * happened was a FLAGRANT</b> — {@link #FLAGRANT_FOULS_PER_TEAM_GAME} divided down
+     * happened was a FLAGRANT</b> — {@link #flagrantFoulsPerTeamGame()} divided down
      * by the personal-foul rate. Expect <b>~0.0084</b> (0.16 / 19.0).
      *
      * <p><b>This is a severity roll layered ON TOP of an existing foul, not a foul
@@ -931,7 +966,7 @@ public class SimConfig {
      *
      * <p><b>⚠ THE DIVISOR IS EMERGENT, AND THAT IS THIS CONSTANT'S HONEST COST (#034
      * G).</b> {@link #technicalFoulProbability}'s divisor is NOMINAL — derived from
-     * config ({@code DEFAULT_POSSESSIONS_PER_PERIOD × PERIODS × 2}), so it moves only
+     * config ({@code defaultPossessionsPerPeriod × PERIODS × 2}), so it moves only
      * when a constant moves. This one is different in kind: {@link
      * #PERSONAL_FOULS_PER_TEAM_GAME} is a <b>measured</b> quantity, an assumption about
      * what the engine currently does. <b>So §3.16 — or any pass that moves the foul
@@ -951,14 +986,14 @@ public class SimConfig {
      */
     public double flagrantFoulProbability() {
         return clampRareProbability(
-                FLAGRANT_FOULS_PER_TEAM_GAME / PERSONAL_FOULS_PER_TEAM_GAME);
+                flagrantFoulsPerTeamGame / PERSONAL_FOULS_PER_TEAM_GAME);
     }
 
     /**
      * §3.10 (decisions.md #028 C): the probability of a deliberately-RARE carved-off
      * event, contested in the usual avg-10 form but clamped WITHOUT the {@link
      * #PROB_FLOOR} — see {@link #clampRareProbability} for why the floor is wrong
-     * here. {@link #REBOUND_FOUL_BASE} sits at ~0.03, close enough to 0.02 for the
+     * here. {@link #reboundFoulBase()} sits at ~0.03, close enough to 0.02 for the
      * floor to bite. This is the same class of problem {@link #BLOCK_SENSITIVITY}
      * solved for §3.7 — a global constant tuned for common events being wrong for a
      * rare one.
@@ -993,7 +1028,448 @@ public class SimConfig {
     }
 
     public double freeThrowProbability(double freeThrowSkill) {
-        double p = FT_BASE + (freeThrowSkill - SCALE_AVG) / SCALE_AVG * FT_SENSITIVITY;
+        double p = ftBase + (freeThrowSkill - SCALE_AVG) / SCALE_AVG * FT_SENSITIVITY;
         return clampProbability(p);
     }
+
+    // Constructor binding is what lets every field be final with no initializer.
+    // Accessor names map to keys directly: baseThree() -> sim.base-three.
+
+    public SimConfig(
+            @Positive int defaultPossessionsPerPeriod,
+            @Positive int otPossessionsPerPeriod,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseDrive,
+            @DecimalMin("0.0") @DecimalMax("1.0") double basePerimeter,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseThree,
+            @DecimalMin("0.0") @DecimalMax("1.0") double basePost,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseTurnover,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseNoBasketFoul,
+            @DecimalMin("0.0") double foulMultDrive,
+            @DecimalMin("0.0") double foulMultPost,
+            @DecimalMin("0.0") double foulMultPerimeter,
+            @DecimalMin("0.0") double foulMultThree,
+            @DecimalMin("0.0") @DecimalMax("1.0") double ftBase,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseOffensiveRebound,
+            @Positive int maxOffensiveRetentionsPerPossession,
+            @DecimalMin("0.0") @DecimalMax("1.0") double oobTotalWeight,
+            @DecimalMin("0.0") double oobDefenseWeight,
+            @DecimalMin("0.0") double oobOffenseWeight,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseBlockDrive,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseBlockPost,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseBlockPerimeter,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseBlockThree,
+            @DecimalMin("0.0") double blockRecoveredDefense,
+            @DecimalMin("0.0") double blockRecoveredOffense,
+            @DecimalMin("0.0") double blockOobDefense,
+            @DecimalMin("0.0") double blockOobOffense,
+            @DecimalMin("0.0") double toWeightStolen,
+            @DecimalMin("0.0") double toWeightShotClock,
+            @DecimalMin("0.0") double toWeightOffensiveFoul,
+            @DecimalMin("0.0") double toWeightBadPass,
+            @DecimalMin("0.0") double toWeightTravelling,
+            @DecimalMin("0.0") double toWeightLostBallOob,
+            @DecimalMin("0.0") double toWeightThreeSeconds,
+            @DecimalMin("0.0") double toWeightEightSecondsBackcourt,
+            @DecimalMin("0.0") double toWeightOverAndBack,
+            @DecimalMin("0.0") @DecimalMax("1.0") double reboundFoulBase,
+            @DecimalMin("0.0") double reboundFoulDefenseWeight,
+            @DecimalMin("0.0") double reboundFoulOffenseWeight,
+            @Positive int bonusFoulsPerPeriod,
+            @DecimalMin("0.0") @DecimalMax("1.0") double andOneBase,
+            @Positive int foulOutLimit,
+            @DecimalMin("0.0") double energyDrainPerPossession,
+            @DecimalMin("0.0") @DecimalMax("1.0") double minDrainScale,
+            @DecimalMin("0.0") double energyRecoveryPerPossession,
+            @DecimalMin("0.0") @DecimalMax("1.0") double fatigueMaxPenalty,
+            @DecimalMin("0.0") double baseSubEnergyThreshold,
+            @DecimalMin("0.0") double starterSubThresholdBonus,
+            @Positive int baseRotationDepth,
+            @NotNull @Size(min = 7, max = 7, message = "sim.foul-trouble-sit-probabilities must have exactly 7 entries (foul counts 0-6)") double[] foulTroubleSitProbabilities,
+            @DecimalMin("0.0") double foulTroubleStarterBonus,
+            @DecimalMin("0.0") double foulTroubleBenchDiscountPerSlot,
+            @DecimalMin("0.0") double foulTroubleMinRosterFactor,
+            @DecimalMin("0.0") double foulTroubleFreshnessMargin,
+            @DecimalMin("0.0") double technicalFoulsPerTeamGame,
+            @DecimalMin("0.0") double flagrantFoulsPerTeamGame,
+            @DecimalMin("0.0") @DecimalMax("1.0") double flagrantTwoShare,
+            @DecimalMin("0.0") @DecimalMax("1.0") double baseAssist) {
+        this.defaultPossessionsPerPeriod = defaultPossessionsPerPeriod;
+        this.otPossessionsPerPeriod = otPossessionsPerPeriod;
+        this.baseDrive = baseDrive;
+        this.basePerimeter = basePerimeter;
+        this.baseThree = baseThree;
+        this.basePost = basePost;
+        this.baseTurnover = baseTurnover;
+        this.baseNoBasketFoul = baseNoBasketFoul;
+        this.foulMultDrive = foulMultDrive;
+        this.foulMultPost = foulMultPost;
+        this.foulMultPerimeter = foulMultPerimeter;
+        this.foulMultThree = foulMultThree;
+        this.ftBase = ftBase;
+        this.baseOffensiveRebound = baseOffensiveRebound;
+        this.maxOffensiveRetentionsPerPossession = maxOffensiveRetentionsPerPossession;
+        this.oobTotalWeight = oobTotalWeight;
+        this.oobDefenseWeight = oobDefenseWeight;
+        this.oobOffenseWeight = oobOffenseWeight;
+        this.baseBlockDrive = baseBlockDrive;
+        this.baseBlockPost = baseBlockPost;
+        this.baseBlockPerimeter = baseBlockPerimeter;
+        this.baseBlockThree = baseBlockThree;
+        this.blockRecoveredDefense = blockRecoveredDefense;
+        this.blockRecoveredOffense = blockRecoveredOffense;
+        this.blockOobDefense = blockOobDefense;
+        this.blockOobOffense = blockOobOffense;
+        this.toWeightStolen = toWeightStolen;
+        this.toWeightShotClock = toWeightShotClock;
+        this.toWeightOffensiveFoul = toWeightOffensiveFoul;
+        this.toWeightBadPass = toWeightBadPass;
+        this.toWeightTravelling = toWeightTravelling;
+        this.toWeightLostBallOob = toWeightLostBallOob;
+        this.toWeightThreeSeconds = toWeightThreeSeconds;
+        this.toWeightEightSecondsBackcourt = toWeightEightSecondsBackcourt;
+        this.toWeightOverAndBack = toWeightOverAndBack;
+        this.reboundFoulBase = reboundFoulBase;
+        this.reboundFoulDefenseWeight = reboundFoulDefenseWeight;
+        this.reboundFoulOffenseWeight = reboundFoulOffenseWeight;
+        this.bonusFoulsPerPeriod = bonusFoulsPerPeriod;
+        this.andOneBase = andOneBase;
+        this.foulOutLimit = foulOutLimit;
+        this.energyDrainPerPossession = energyDrainPerPossession;
+        this.minDrainScale = minDrainScale;
+        this.energyRecoveryPerPossession = energyRecoveryPerPossession;
+        this.fatigueMaxPenalty = fatigueMaxPenalty;
+        this.baseSubEnergyThreshold = baseSubEnergyThreshold;
+        this.starterSubThresholdBonus = starterSubThresholdBonus;
+        this.baseRotationDepth = baseRotationDepth;
+        this.foulTroubleSitProbabilities = foulTroubleSitProbabilities;
+        this.foulTroubleStarterBonus = foulTroubleStarterBonus;
+        this.foulTroubleBenchDiscountPerSlot = foulTroubleBenchDiscountPerSlot;
+        this.foulTroubleMinRosterFactor = foulTroubleMinRosterFactor;
+        this.foulTroubleFreshnessMargin = foulTroubleFreshnessMargin;
+        this.technicalFoulsPerTeamGame = technicalFoulsPerTeamGame;
+        this.flagrantFoulsPerTeamGame = flagrantFoulsPerTeamGame;
+        this.flagrantTwoShare = flagrantTwoShare;
+        this.baseAssist = baseAssist;
+    }
+
+    /** sim.default-possessions-per-period */
+    public int defaultPossessionsPerPeriod() {
+        return defaultPossessionsPerPeriod;
+    }
+
+    /** sim.ot-possessions-per-period */
+    public int otPossessionsPerPeriod() {
+        return otPossessionsPerPeriod;
+    }
+
+    /** sim.base-drive */
+    public double baseDrive() {
+        return baseDrive;
+    }
+
+    /** sim.base-perimeter */
+    public double basePerimeter() {
+        return basePerimeter;
+    }
+
+    /** sim.base-three */
+    public double baseThree() {
+        return baseThree;
+    }
+
+    /** sim.base-post */
+    public double basePost() {
+        return basePost;
+    }
+
+    /** sim.base-turnover */
+    public double baseTurnover() {
+        return baseTurnover;
+    }
+
+    /** sim.base-no-basket-foul */
+    public double baseNoBasketFoul() {
+        return baseNoBasketFoul;
+    }
+
+    /** sim.foul-mult-drive */
+    public double foulMultDrive() {
+        return foulMultDrive;
+    }
+
+    /** sim.foul-mult-post */
+    public double foulMultPost() {
+        return foulMultPost;
+    }
+
+    /** sim.foul-mult-perimeter */
+    public double foulMultPerimeter() {
+        return foulMultPerimeter;
+    }
+
+    /** sim.foul-mult-three */
+    public double foulMultThree() {
+        return foulMultThree;
+    }
+
+    /** sim.ft-base */
+    public double ftBase() {
+        return ftBase;
+    }
+
+    /** sim.base-offensive-rebound */
+    public double baseOffensiveRebound() {
+        return baseOffensiveRebound;
+    }
+
+    /** sim.max-offensive-retentions-per-possession */
+    public int maxOffensiveRetentionsPerPossession() {
+        return maxOffensiveRetentionsPerPossession;
+    }
+
+    /** sim.oob-total-weight */
+    public double oobTotalWeight() {
+        return oobTotalWeight;
+    }
+
+    /** sim.oob-defense-weight */
+    public double oobDefenseWeight() {
+        return oobDefenseWeight;
+    }
+
+    /** sim.oob-offense-weight */
+    public double oobOffenseWeight() {
+        return oobOffenseWeight;
+    }
+
+    /** sim.base-block-drive */
+    public double baseBlockDrive() {
+        return baseBlockDrive;
+    }
+
+    /** sim.base-block-post */
+    public double baseBlockPost() {
+        return baseBlockPost;
+    }
+
+    /** sim.base-block-perimeter */
+    public double baseBlockPerimeter() {
+        return baseBlockPerimeter;
+    }
+
+    /** sim.base-block-three */
+    public double baseBlockThree() {
+        return baseBlockThree;
+    }
+
+    /** sim.block-recovered-defense */
+    public double blockRecoveredDefense() {
+        return blockRecoveredDefense;
+    }
+
+    /** sim.block-recovered-offense */
+    public double blockRecoveredOffense() {
+        return blockRecoveredOffense;
+    }
+
+    /** sim.block-oob-defense */
+    public double blockOobDefense() {
+        return blockOobDefense;
+    }
+
+    /** sim.block-oob-offense */
+    public double blockOobOffense() {
+        return blockOobOffense;
+    }
+
+    /** sim.to-weight-stolen */
+    public double toWeightStolen() {
+        return toWeightStolen;
+    }
+
+    /** sim.to-weight-shot-clock */
+    public double toWeightShotClock() {
+        return toWeightShotClock;
+    }
+
+    /** sim.to-weight-offensive-foul */
+    public double toWeightOffensiveFoul() {
+        return toWeightOffensiveFoul;
+    }
+
+    /** sim.to-weight-bad-pass */
+    public double toWeightBadPass() {
+        return toWeightBadPass;
+    }
+
+    /** sim.to-weight-travelling */
+    public double toWeightTravelling() {
+        return toWeightTravelling;
+    }
+
+    /** sim.to-weight-lost-ball-oob */
+    public double toWeightLostBallOob() {
+        return toWeightLostBallOob;
+    }
+
+    /** sim.to-weight-three-seconds */
+    public double toWeightThreeSeconds() {
+        return toWeightThreeSeconds;
+    }
+
+    /** sim.to-weight-eight-seconds-backcourt */
+    public double toWeightEightSecondsBackcourt() {
+        return toWeightEightSecondsBackcourt;
+    }
+
+    /** sim.to-weight-over-and-back */
+    public double toWeightOverAndBack() {
+        return toWeightOverAndBack;
+    }
+
+    /** sim.rebound-foul-base */
+    public double reboundFoulBase() {
+        return reboundFoulBase;
+    }
+
+    /** sim.rebound-foul-defense-weight */
+    public double reboundFoulDefenseWeight() {
+        return reboundFoulDefenseWeight;
+    }
+
+    /** sim.rebound-foul-offense-weight */
+    public double reboundFoulOffenseWeight() {
+        return reboundFoulOffenseWeight;
+    }
+
+    /** sim.bonus-fouls-per-period */
+    public int bonusFoulsPerPeriod() {
+        return bonusFoulsPerPeriod;
+    }
+
+    /** sim.and-one-base */
+    public double andOneBase() {
+        return andOneBase;
+    }
+
+    /** sim.foul-out-limit */
+    public int foulOutLimit() {
+        return foulOutLimit;
+    }
+
+    /** sim.energy-drain-per-possession */
+    public double energyDrainPerPossession() {
+        return energyDrainPerPossession;
+    }
+
+    /** sim.min-drain-scale */
+    public double minDrainScale() {
+        return minDrainScale;
+    }
+
+    /** sim.energy-recovery-per-possession */
+    public double energyRecoveryPerPossession() {
+        return energyRecoveryPerPossession;
+    }
+
+    /** sim.fatigue-max-penalty */
+    public double fatigueMaxPenalty() {
+        return fatigueMaxPenalty;
+    }
+
+    /** sim.base-sub-energy-threshold */
+    public double baseSubEnergyThreshold() {
+        return baseSubEnergyThreshold;
+    }
+
+    /** sim.starter-sub-threshold-bonus */
+    public double starterSubThresholdBonus() {
+        return starterSubThresholdBonus;
+    }
+
+    /** sim.base-rotation-depth */
+    public int baseRotationDepth() {
+        return baseRotationDepth;
+    }
+
+    /** sim.foul-trouble-sit-probabilities */
+    public double[] foulTroubleSitProbabilities() {
+        return foulTroubleSitProbabilities;
+    }
+
+    /** sim.foul-trouble-starter-bonus */
+    public double foulTroubleStarterBonus() {
+        return foulTroubleStarterBonus;
+    }
+
+    /** sim.foul-trouble-bench-discount-per-slot */
+    public double foulTroubleBenchDiscountPerSlot() {
+        return foulTroubleBenchDiscountPerSlot;
+    }
+
+    /** sim.foul-trouble-min-roster-factor */
+    public double foulTroubleMinRosterFactor() {
+        return foulTroubleMinRosterFactor;
+    }
+
+    /** sim.foul-trouble-freshness-margin */
+    public double foulTroubleFreshnessMargin() {
+        return foulTroubleFreshnessMargin;
+    }
+
+    /** sim.technical-fouls-per-team-game */
+    public double technicalFoulsPerTeamGame() {
+        return technicalFoulsPerTeamGame;
+    }
+
+    /** sim.flagrant-fouls-per-team-game */
+    public double flagrantFoulsPerTeamGame() {
+        return flagrantFoulsPerTeamGame;
+    }
+
+    /** sim.flagrant-two-share */
+    public double flagrantTwoShare() {
+        return flagrantTwoShare;
+    }
+
+    /** sim.base-assist */
+    public double baseAssist() {
+        return baseAssist;
+    }
+
+    /**
+     * §3.15 (decisions.md #035 A/E): a {@code SimConfig} carrying the BASELINE
+     * profile, for code outside a Spring context — the ~10 unit tests that used to
+     * write {@code new SimConfig()} when every constant was a static.
+     *
+     * <p><b>It reads {@code application-baseline.properties} — the same file, through
+     * the same Spring binder, that the application context binds from.</b> That is the
+     * whole point: the values exist in exactly ONE place (#035 A), so a test using this
+     * factory and a running engine can never disagree. Hard-coding the 57 values here
+     * would reintroduce precisely the second source of truth this design eliminates,
+     * and every test would still pass.
+     *
+     * <p>Not cached: a {@code SimConfig} is immutable, tests build one per class, and
+     * a shared mutable static would undercut the per-simulation-input direction #035 B
+     * chose instance state for.
+     */
+    public static SimConfig baseline() {
+        Properties props = new Properties();
+        try (InputStream in = new ClassPathResource(BASELINE_PROFILE_RESOURCE).getInputStream()) {
+            props.load(in);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Could not read " + BASELINE_PROFILE_RESOURCE
+                            + " — it is the only copy of the 57 profilable constants", e);
+        }
+        StandardEnvironment env = new StandardEnvironment();
+        env.getPropertySources().addFirst(new PropertiesPropertySource("baseline", props));
+        return new Binder(ConfigurationPropertySources.get(env))
+                .bind("sim", SimConfig.class)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Could not bind sim.* from " + BASELINE_PROFILE_RESOURCE));
+    }
+
+    /** The baseline profile file — the single copy of the 57 profilable values. */
+    public static final String BASELINE_PROFILE_RESOURCE = "application-baseline.properties";
 }

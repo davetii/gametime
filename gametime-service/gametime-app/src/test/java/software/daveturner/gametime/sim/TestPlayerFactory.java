@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 
 class TestPlayerFactory {
 
+    private static final SimConfig config = SimConfig.baseline();
+
     static PlayerGameState create(String id, String teamId, double allSkillLevel) {
         return create(id, teamId, allSkillLevel, allSkillLevel, allSkillLevel,
                 allSkillLevel, allSkillLevel, allSkillLevel, allSkillLevel,
@@ -81,7 +83,7 @@ class TestPlayerFactory {
         entry.setPlayer(player);
         entry.setLineupRole(LineupRole.STARTER);
 
-        return new PlayerGameState(id, teamId, entry);
+        return new PlayerGameState(id, teamId, entry, config);
     }
 
     /**
@@ -123,7 +125,7 @@ class TestPlayerFactory {
         entry.setLineupRole(role);
         entry.setRotationOrder(rotationOrder);
 
-        return new PlayerGameState(id, teamId, entry);
+        return new PlayerGameState(id, teamId, entry, config);
     }
 
     /**
@@ -171,7 +173,7 @@ class TestPlayerFactory {
         entry.setLineupRole(role);
         entry.setRotationOrder(rotationOrder);
 
-        return new PlayerGameState(id, teamId, entry);
+        return new PlayerGameState(id, teamId, entry, config);
     }
 
     private static BigDecimal bd(double val) {

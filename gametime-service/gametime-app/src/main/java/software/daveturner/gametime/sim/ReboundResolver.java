@@ -24,7 +24,7 @@ public class ReboundResolver {
     /**
      * Contest the offensive rebounder's {@code offenseRebound} against the
      * defensive rebounder's {@code defenseRebound}. Two average players yield
-     * {@link SimConfig#BASE_OFFENSIVE_REBOUND}.
+     * {@link SimConfig#baseOffensiveRebound()}.
      */
     public boolean isOffensiveRebound(PlayerGameState offRebounder,
                                       PlayerGameState defRebounder,
@@ -32,7 +32,7 @@ public class ReboundResolver {
         // §3.5: fatigue scales each rebounder's skill — a tired crasher and a tired
         // box-out man both work the glass worse. Full energy ⇒ ×1.0.
         double prob = config.contestProbability(
-                SimConfig.BASE_OFFENSIVE_REBOUND,
+                config.baseOffensiveRebound(),
                 offRebounder.getOffenseRebound() * offRebounder.fatigueFactor(),
                 defRebounder.getDefenseRebound() * defRebounder.fatigueFactor());
         return rng.nextDouble() < prob;

@@ -69,7 +69,7 @@ public class GameData {
      * §3.10 (decisions.md #028 A1 — the crux): is {@code teamId} in the BONUS
      * (penalty) for period {@code period}? Computed on demand from the FOUL event
      * log — {@code count(FOUL events with committingTeamId == teamId in this
-     * period) >= SimConfig.BONUS_FOULS_PER_PERIOD} — with <b>no stored teamFouls
+     * period) >= config.bonusFoulsPerPeriod()} — with <b>no stored teamFouls
      * counter and no reset logic</b>. The events already hold the fact (#020), so
      * a counter could only ever disagree with them; this is exactly the derived-
      * predicate discipline #023 F applied to foul-OUTS, carried to the team level.
@@ -95,8 +95,8 @@ public class GameData {
      * <b>does</b> count (unlike a technical, a flagrant is a personal foul and also
      * feeds the six-foul limit).
      */
-    public boolean isInBonus(String teamId, int period) {
-        return periodFoulCount(teamId, period) >= SimConfig.BONUS_FOULS_PER_PERIOD;
+    public boolean isInBonus(String teamId, int period, SimConfig config) {
+        return periodFoulCount(teamId, period) >= config.bonusFoulsPerPeriod();
     }
 
     /**

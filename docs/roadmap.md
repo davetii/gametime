@@ -544,9 +544,27 @@ re-running the loop and re-agreeing the numbers, not a red build.
       the foul"). One seed re-baselined by re-derivation (7L → 9L, a non-vacuity
       precondition); `RotationStateTest` needed none, as #034 A predicted. **542 tests
       green** (from 513); `sim` **99.2%** line coverage; gate green._
-- [ ] **§3.15 — `SimConfig` profiles** *(**design pass DONE — resolved as `decisions.md`
-      #035 A–I**; the execute-ready plan is in [todo.md](todo.md). Promoted from a backlog
-      chore to a numbered phase by user call, 2026-08.)* Load the tunable constants from
+- [x] **§3.15 — `SimConfig` profiles** *(**SHIPPED** — designed as `decisions.md` #035 A–I,
+      built 2026-08. Promoted from a backlog chore to a numbered phase by user call,
+      2026-08.)*
+      _Shipped (decisions.md #035): **57 constants converted to initializer-free instance
+      state** on `SimConfig`, bound by `@ConfigurationProperties(prefix="sim")` +
+      `@Validated` from `application-baseline.properties` — **their only copy**; **26 stay
+      `public static final`** (9 rules + 16 machinery + `PERSONAL_FOULS_PER_TEAM_GAME`).
+      **323 call sites converted (84 main, 239 test), no static aliases.** Two profile
+      files ship (`baseline`, plus an **illustrative, untuned** `nineties`); profiles are
+      ordinary Spring profiles (`local,baseline`). Harness gained an **effective-config
+      dump** + baseline-only targets (era runs print deltas). **The validation gate HELD
+      EXACTLY, per-seed on baseline** (seeds 1000–5000): 118.3 pts / 46.9% FG / 36.7% 3P /
+      27.1 ast / 13.6 TO / 51.9% penalty / 0.358 foul-outs / **0.148 flagrants** — byte-for-
+      byte identical to §3.14b, with no RNG draw added, removed or reordered.
+      `nineties` reads 99.7 pts / 72.9 FGA — different, which is the goal, and not tuned.
+      **548 tests green, coverage gate met**; `possession-flow.puml` unchanged.
+      Three additions the design did not anticipate: `@ConfigurationPropertiesScan`,
+      a `spring-boot-starter-validation` dependency (the project had no Bean Validation
+      impl, so `@Validated` failed the context), and **the harness's hardcoded
+      `POSSESSIONS_PER_PERIOD = 25`, which silently shadowed the profile's pace knob** —
+      caught by the effective-config dump, the concrete case for it being load-bearing._ Load the tunable constants from
       **named, swappable profiles** instead of compile-time constants, so tuning becomes
       **comparable experiments** rather than sequential edits (change a constant, rebuild,
       run, write the number down — the previous config gone unless someone remembered it).

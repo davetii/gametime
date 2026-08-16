@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SimConfigTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
 
     @Test
     void clampProbabilityEnforcesFloor() {
@@ -58,22 +58,22 @@ class SimConfigTest {
     @Test
     void blockProbabilityEqualSkillsReturnsBase() {
         // Average defender vs. average finisher lands exactly at base.
-        double result = config.blockProbability(SimConfig.BASE_BLOCK_DRIVE, 10.0, 10.0);
-        assertEquals(SimConfig.BASE_BLOCK_DRIVE, result, 0.001);
+        double result = config.blockProbability(config.baseBlockDrive(), 10.0, 10.0);
+        assertEquals(config.baseBlockDrive(), result, 0.001);
     }
 
     @Test
     void blockProbabilityStrongDefenderIncreasesProb() {
         // The DEFENDER drives the contest: a strong rim protector blocks more.
-        double result = config.blockProbability(SimConfig.BASE_BLOCK_DRIVE, 20.0, 10.0);
-        assertTrue(result > SimConfig.BASE_BLOCK_DRIVE);
+        double result = config.blockProbability(config.baseBlockDrive(), 20.0, 10.0);
+        assertTrue(result > config.baseBlockDrive());
     }
 
     @Test
     void blockProbabilityStrongFinisherDecreasesProb() {
         // A great finisher (the counter-factor) gets blocked less.
-        double result = config.blockProbability(SimConfig.BASE_BLOCK_DRIVE, 10.0, 20.0);
-        assertTrue(result < SimConfig.BASE_BLOCK_DRIVE);
+        double result = config.blockProbability(config.baseBlockDrive(), 10.0, 20.0);
+        assertTrue(result < config.baseBlockDrive());
     }
 
     @Test
@@ -130,17 +130,17 @@ class SimConfigTest {
 
     @Test
     void assistProbabilityAveragePassingReturnsBase() {
-        assertEquals(SimConfig.BASE_ASSIST, config.assistProbability(10.0), 0.0001);
+        assertEquals(config.baseAssist(), config.assistProbability(10.0), 0.0001);
     }
 
     @Test
     void assistProbabilityHigherPassingAssistsMore() {
-        assertTrue(config.assistProbability(20.0) > SimConfig.BASE_ASSIST);
+        assertTrue(config.assistProbability(20.0) > config.baseAssist());
     }
 
     @Test
     void assistProbabilityLowerPassingAssistsLess() {
-        assertTrue(config.assistProbability(1.0) < SimConfig.BASE_ASSIST);
+        assertTrue(config.assistProbability(1.0) < config.baseAssist());
     }
 
     @Test
@@ -178,7 +178,7 @@ class SimConfigTest {
 
     @Test
     void fatigueFactorEmptyEnergyIsMaxPenalty() {
-        assertEquals(1.0 - SimConfig.FATIGUE_MAX_PENALTY, config.fatigueFactor(0.0), 0.0001);
+        assertEquals(1.0 - config.fatigueMaxPenalty(), config.fatigueFactor(0.0), 0.0001);
     }
 
     @Test
@@ -190,12 +190,12 @@ class SimConfigTest {
     @Test
     void fatigueFactorClampsOutOfRangeEnergy() {
         assertEquals(1.0, config.fatigueFactor(SimConfig.MAX_ENERGY + 50), 0.0001);
-        assertEquals(1.0 - SimConfig.FATIGUE_MAX_PENALTY, config.fatigueFactor(-10.0), 0.0001);
+        assertEquals(1.0 - config.fatigueMaxPenalty(), config.fatigueFactor(-10.0), 0.0001);
     }
 
     @Test
     void energyDrainAverageEnduranceIsBaseDrain() {
-        assertEquals(SimConfig.ENERGY_DRAIN_PER_POSSESSION, config.energyDrain(10.0), 0.0001);
+        assertEquals(config.energyDrainPerPossession(), config.energyDrain(10.0), 0.0001);
     }
 
     @Test
@@ -207,15 +207,15 @@ class SimConfigTest {
     @Test
     void energyDrainScaleIsFloored() {
         // Even an off-the-charts endurance drains at least MIN_DRAIN_SCALE × base.
-        double minDrain = SimConfig.ENERGY_DRAIN_PER_POSSESSION * SimConfig.MIN_DRAIN_SCALE;
+        double minDrain = config.energyDrainPerPossession() * config.minDrainScale();
         assertEquals(minDrain, config.energyDrain(1000.0), 0.0001);
     }
 
     @Test
     void rotationDepthScalesWithFactorAndFloorsAtOne() {
-        assertEquals(SimConfig.BASE_ROTATION_DEPTH, config.rotationDepth(1.0));
-        assertTrue(config.rotationDepth(1.5) > SimConfig.BASE_ROTATION_DEPTH);
-        assertTrue(config.rotationDepth(0.5) < SimConfig.BASE_ROTATION_DEPTH);
+        assertEquals(config.baseRotationDepth(), config.rotationDepth(1.0));
+        assertTrue(config.rotationDepth(1.5) > config.baseRotationDepth());
+        assertTrue(config.rotationDepth(0.5) < config.baseRotationDepth());
         assertEquals(1, config.rotationDepth(0.0), "depth never drops below 1");
     }
 
@@ -223,8 +223,8 @@ class SimConfigTest {
     void subEnergyThresholdStartersToleratedLonger() {
         double bench = config.subEnergyThreshold(1.0, false);
         double starter = config.subEnergyThreshold(1.0, true);
-        assertEquals(SimConfig.BASE_SUB_ENERGY_THRESHOLD, bench, 0.0001);
-        assertEquals(SimConfig.BASE_SUB_ENERGY_THRESHOLD - SimConfig.STARTER_SUB_THRESHOLD_BONUS,
+        assertEquals(config.baseSubEnergyThreshold(), bench, 0.0001);
+        assertEquals(config.baseSubEnergyThreshold() - config.starterSubThresholdBonus(),
                 starter, 0.0001);
         assertTrue(starter < bench, "starters have a lower sub threshold (pulled later)");
     }
@@ -242,14 +242,14 @@ class SimConfigTest {
     @Test
     void foulTroubleCurveIsZeroBelowThreeFoulsAndAtTheFoulOutLimit() {
         for (int f = 0; f <= 2; f++) {
-            assertEquals(0.0, SimConfig.FOUL_TROUBLE_SIT_PROBABILITY[f], 0.0,
+            assertEquals(0.0, config.foulTroubleSitProbabilities()[f], 0.0,
                     "no coach benches a player for " + f + " fouls");
             assertEquals(0.0, config.foulTroubleSitProbability(f, 1.2, 16.0, true, null), 0.0);
         }
-        assertEquals(0.0, SimConfig.FOUL_TROUBLE_SIT_PROBABILITY[SimConfig.FOUL_OUT_LIMIT], 0.0,
+        assertEquals(0.0, config.foulTroubleSitProbabilities()[config.foulOutLimit()], 0.0,
                 "6 fouls is the HARD foul-out rule's business, not the soft rule's");
         assertEquals(0.0, config.foulTroubleSitProbability(
-                SimConfig.FOUL_OUT_LIMIT, 1.2, 16.0, true, null), 0.0);
+                config.foulOutLimit(), 1.2, 16.0, true, null), 0.0);
     }
 
     @Test
@@ -317,10 +317,10 @@ class SimConfigTest {
         double starter = config.rosterProtectionFactor(true, null);
         double firstOffBench = config.rosterProtectionFactor(false, 1);
         double deepBench = config.rosterProtectionFactor(false, 8);
-        assertEquals(1.0 + SimConfig.FOUL_TROUBLE_STARTER_BONUS, starter, 1e-9);
+        assertEquals(1.0 + config.foulTroubleStarterBonus(), starter, 1e-9);
         assertTrue(starter > firstOffBench, "a starter is managed more tightly");
         assertTrue(firstOffBench > deepBench, "protection falls down the rotation queue");
-        assertEquals(SimConfig.FOUL_TROUBLE_MIN_ROSTER_FACTOR, deepBench, 1e-9,
+        assertEquals(config.foulTroubleMinRosterFactor(), deepBench, 1e-9,
                 "a deep reserve is protected less, never exempt");
     }
 
@@ -339,8 +339,8 @@ class SimConfigTest {
      */
     @Test
     void technicalFoulProbabilityDividesTheGameRateByTheNominalCheckCount() {
-        int nominalChecks = SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD * SimConfig.PERIODS * 2;
-        assertEquals(SimConfig.TECHNICAL_FOULS_PER_TEAM_GAME / nominalChecks,
+        int nominalChecks = config.defaultPossessionsPerPeriod() * SimConfig.PERIODS * 2;
+        assertEquals(config.technicalFoulsPerTeamGame() / nominalChecks,
                 config.technicalFoulProbability(), 1e-12);
         // ~0.00175, NOT #032 B2's stated ~0.0035: that estimate assumed ~100 checks
         // per team per game, but PossessionEngine.simulate advances BOTH rotations on
@@ -399,7 +399,7 @@ class SimConfigTest {
     @Test
     void technicalEjectionLimitIsTwoAndSeparateFromTheFoulOutLimit() {
         assertEquals(2, SimConfig.TECHNICAL_EJECTION_LIMIT);
-        assertNotEquals(SimConfig.FOUL_OUT_LIMIT, SimConfig.TECHNICAL_EJECTION_LIMIT);
+        assertNotEquals(config.foulOutLimit(), SimConfig.TECHNICAL_EJECTION_LIMIT);
     }
 
     /** #030 C's lesson applied: a technical is ONE free throw, not two. */
@@ -418,7 +418,7 @@ class SimConfigTest {
      */
     @Test
     void flagrantFoulProbabilityDividesTheGameRateByThePersonalFoulRate() {
-        assertEquals(SimConfig.FLAGRANT_FOULS_PER_TEAM_GAME
+        assertEquals(config.flagrantFoulsPerTeamGame()
                         / SimConfig.PERSONAL_FOULS_PER_TEAM_GAME,
                 config.flagrantFoulProbability(), 1e-12);
         assertEquals(0.0084, config.flagrantFoulProbability(), 1e-4,
@@ -441,7 +441,7 @@ class SimConfigTest {
         // not appear in any other formula — moving the foul rate moves flagrants
         // silently, which is exactly what #034 G records.
         int technicalDivisor =
-                SimConfig.DEFAULT_POSSESSIONS_PER_PERIOD * SimConfig.PERIODS * 2;
+                config.defaultPossessionsPerPeriod() * SimConfig.PERIODS * 2;
         assertNotEquals((double) technicalDivisor, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME,
                 "The two rates divide by different KINDS of quantity (#034 G)");
     }
@@ -473,8 +473,8 @@ class SimConfigTest {
      */
     @Test
     void theFlagrantTwoShareIsAFlatConditionalShare() {
-        assertEquals(0.15, SimConfig.FLAGRANT_TWO_SHARE, 1e-12);
-        assertTrue(SimConfig.FLAGRANT_TWO_SHARE > SimConfig.PROB_FLOOR,
+        assertEquals(0.15, config.flagrantTwoShare(), 1e-12);
+        assertTrue(config.flagrantTwoShare() > SimConfig.PROB_FLOOR,
                 "It is a share of an already-rare parent event, far above the floor — "
                         + "no clamp is involved at all (#034 E)");
     }

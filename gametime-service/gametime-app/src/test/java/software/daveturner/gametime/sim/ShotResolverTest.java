@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ShotResolverTest {
 
-    private final SimConfig config = new SimConfig();
+    private final SimConfig config = SimConfig.baseline();
     private final ShotResolver resolver = new ShotResolver(config);
 
     private RandomGenerator rng(long seed) {
@@ -29,7 +29,7 @@ class ShotResolverTest {
             if (resolver.isMade(ShotType.PERIMETER, shooter, defender, r)) makes++;
         }
         double rate = (double) makes / trials;
-        assertEquals(SimConfig.BASE_PERIMETER, rate, 0.03);
+        assertEquals(config.basePerimeter(), rate, 0.03);
     }
 
     @Test
@@ -145,7 +145,7 @@ class ShotResolverTest {
         PlayerGameState shooter = shooterWithFinishing("s1", 10);
         PlayerGameState defender = defenderWithBlockSkills("d1", 10, 10);
         double rate = blockRate(ShotType.DRIVE, shooter, defender, 42, 20_000);
-        assertEquals(SimConfig.BASE_BLOCK_DRIVE, rate, 0.02,
+        assertEquals(config.baseBlockDrive(), rate, 0.02,
                 "average-vs-average block rate should land near the base rate");
     }
 
