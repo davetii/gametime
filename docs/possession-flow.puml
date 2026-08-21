@@ -8,7 +8,7 @@
 ' `plantuml -checkonly` is unaffected (it parses, it does not lay out), so a
 ' green checkonly does NOT tell you the PNG is complete. Verify the rendered
 ' height if you add a partition.
-title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals,\n§3.14b flagrants)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals,\n§3.14b flagrants, §3.16 shooting-foul composition + charges)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -138,6 +138,31 @@ partition "TurnoverResolver (§3.9 causes — decisions.md #027)" {
       TRAVELLING / LOST_BALL_OUT_OF_BOUNDS / 3_SECONDS_VIOLATION /
       8_SECONDS_BACKCOURT_VIOLATION / OVER_AND_BACK
       //no stealer credited//;
+      if (**§3.16 — cause == OFFENSIVE_FOUL?**\n//the charge / illegal screen — a PERSONAL FOUL by rule//) then (yes)
+        :FOUL — OFFENSIVE_FOUL
+        charge the BALL-HANDLER //recordFoul()// (G)
+        committingTeamId = **OFFENSE** — so the DEFENSE gains the bonus;
+        note right
+          **§3.16 (decisions.md #039 G) — the charge correctness fix (#037).**
+          ⚠ **TWO EVENTS FOR ONE OCCURRENCE**: the TURNOVER above and this
+          FOUL both describe the same charge. Any reconciliation that counts
+          events must tolerate that, and the harness's ``Fouls / team / game``
+          line steps up **~1.26 for this reason alone** — NOT the §3.16
+          re-partition misfiring.
+          Before §3.16 ``recordFoul()`` was **never called** here, so a charge
+          counted toward nothing: not the committer's six, not the team-foul
+          tally, not the box-score ``fouls`` column (#027 never considered it).
+          **This is the ONLY site where the committer is on OFFENSE outside the
+          rebounding foul**, so it is the only other path that puts the
+          DEFENSIVE team in the bonus. ``GameData.isInBonus`` reads
+          ``committingTeamId`` and already supports it.
+          **NOT flagrant-eligible** (#039 G) — the flagrant roll lives in
+          FoulResolver and this path never reaches it. Counts toward the
+          bonus and FOUL_OUT_LIMIT: it is a personal foul.
+          The possession already ends (it is a turnover), so #039 C's
+          possession question does not arise here.
+        end note
+      endif
     endif
     stop
   endif
@@ -209,6 +234,52 @@ partition "FoulResolver" {
       //the FTs having been awarded either way, exactly as §3.10 degrades)//;
       stop
     endif
+
+    if (**§3.16 — COMMON (non-shooting) FOUL?**\n//flat sim.non-shooting-foul-share, NO skill input (#039 E)//\n//a SECOND roll on the foul already charged above//) then (yes)
+      :FOUL — COMMON_FOUL
+      //the foul was ALREADY charged above — this only re-labels it//
+      counts toward the bonus AND FOUL_OUT_LIMIT (B);
+      note right
+        **§3.16 (decisions.md #039 A/B/C/D) — THE FTA RE-PARTITION,
+        and the whole point of the phase.**
+        **Layered, not carved** — the ``isFoul`` roll above is UNCHANGED
+        in rate, skills and RNG draw, and ``recordFoul()`` has already
+        run, so **the foul TOTAL holds by construction** (A). Exactly the
+        ``isFlagrant`` shape three lines up (#034 A) and §3.9's turnover
+        causes one layer out (#027 A).
+        **Order matters**: flagrant is rolled FIRST, so a flagrant common
+        foul is simply a flagrant (F) — the two never compose.
+        ⚠ **THE POSSESSION ENDS AND THE BALL DOES NOT COME BACK (C), AND
+        THAT IS DELIBERATELY WRONG AS BASKETBALL.** A real common foul is
+        a side inbound: the offense keeps the ball. It is not modelled
+        that way because **every returning variant yields a live attempt
+        worth ~0.76 FGA where the stopped shot charged NONE**, and FGA is
+        88.4 against 89.1 real — **0.7 of headroom**. That caps a
+        retaining variant at a **~6% share**, which moves FTA by less
+        than 1.0. The retention reading and the phase goal are
+        arithmetically incompatible; FGA wins because it is sourced and
+        already correct.
+        **Share 0.50, and it is BACK-SOLVED, NOT SOURCED (D)** — the real
+        NBA shooting-foul share is not in a league-averages row. The
+        earlier ~35% figure is **withdrawn**: it assumed zero FTs, but a
+        large share of these fouls are committed **ALREADY IN THE PENALTY**
+        and those award 2 bonus FTs. #039 D predicted 0.43 from an 18.5%
+        in-penalty share; the charge fork above raised the bonus rate to
+        ~56% of team-periods, so each conversion removes ~1.47 FTs and the
+        share measured out at **0.50** (5 seeds, FTA 23.6). The LANDING is
+        the target, not the constant.
+        ⚠ **Points falls ~8 to ~110 and §3.19 RECOVERS IT (H)** — not
+        drift, and NOT to be chased here (#038's rule).
+      end note
+      if (committing team already in the penalty?\n//GameData.isInBonus — emit-then-count, §3.10 #028 A1//) then (yes)
+        :FREE_THROW ×**2** — BONUS
+        //the fouled team shoots; this is the 18.5% case above//;
+      else (no)
+        :**no free throws** — the point of the phase;
+      endif
+      stop
+    endif
+
     repeat
       if (free throw made?\n//freeThrows skill//) then (yes)
         :FREE_THROW — MADE_SHOOTING (source-tagged §3.11 D)

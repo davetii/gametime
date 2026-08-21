@@ -13,12 +13,18 @@ planned features), see [ideas.md](ideas.md).
 
 ---
 
-- [ ] **VERIFY THE CALIBRATION BENCHMARKS — find sourced modern-NBA figures for the
-      five §3.4 targets, PLUS the foul-out figure §3.13 promoted.** *(Filed 2026-08 from
-      §3.12's close-out; foul-outs added 2026-08 at §3.13's close-out. **This is
-      job (1) of roadmap.md §3.16** — that pass is "source the constraints, then re-solve
-      the numbers," and this chore is the sourcing half. It is research, not engine work,
-      so it can happen any time, independent of §3.14–§3.15.)*
+- [ ] **MOSTLY DONE — VERIFY THE REMAINING UNSOURCED CALIBRATION BENCHMARKS.**
+      ⚠ **The five §3.4 targets were SOURCED in 2026-08 (`decisions.md` #036)** —
+      Basketball-Reference league averages, 2025-26 regular season, recorded in
+      calibration.md with the season named per row. **That half of this chore is closed.**
+      What remains unsourced: **foul-outs** (a soft target), **technicals**, **flagrants**,
+      the **minutes distribution**, and — added by §3.16 — the **shooting-foul share**
+      behind `sim.non-shooting-foul-share` (see the end of this entry).
+      *(Filed 2026-08 from §3.12's close-out; foul-outs added at §3.13's close-out;
+      narrowed at §3.16's close-out once #036 landed the five.)*
+      ⚠ **NUMBERING**: every "§3.16" below was written when §3.16 meant **recalibration**.
+      **#038 renumbered that to §3.19**; the §3.16 slot became foul composition, which has
+      **shipped**. Read the phase name, not the number.
       **The problem, stated plainly: every number on both sides of the current argument
       is unsourced.** The §3.4 targets (~112 pts / ~47% FG / ~36% 3P / ~26 ast / ~14 TO)
       were set in `decisions.md` #022 D as "agreed target benchmarks (modern NBA)" with
@@ -60,10 +66,23 @@ planned features), see [ideas.md](ideas.md).
       the coarsest in the table**. A sourced figure within ~15% of the landing is not
       distinguishable from the current one at any seed count we run — so **do not spend
       effort re-tuning either against a new source unless it moves by more than that.**
-      **Why it matters now:** three consecutive passes (§3.10/§3.11/§3.12) have declined
-      the same `BASE_*` trim because it cost more calibrated FG% than the points miss was
-      worth. That is evidence the target is wrong, but nobody can *act* on it until the
-      real number is known.
+      **Why it mattered:** three consecutive passes (§3.10/§3.11/§3.12) declined the same
+      `BASE_*` trim because it cost more calibrated FG% than the points miss was worth.
+      ✅ **RESOLVED by #036's sourcing**: the real points target is **115.6**, not the
+      unsourced ~112 — so those three passes were right to decline, and the "engine is 2
+      points high" reading was an artifact of a wrong target. The composition work that
+      followed (§3.16 FTA, §3.17 3PA) is the actual fix.
+      **⚠ ONE NEW UNSOURCED NUMBER ARRIVED WITH §3.16 (2026-08), and it is the weakest
+      in the file**: `sim.non-shooting-foul-share` = **0.50**, the fraction of stopped-shot
+      fouls that award no free throws. It is **BACK-SOLVED against a sourced FTA (23.5),
+      not measured from basketball** — the real NBA shooting-foul share is not in a
+      league-averages row and needs **play-by-play derivation**, a different and harder
+      research job than reading a league-averages table. calibration.md labels it
+      *derived, not sourced*. ⚠ **It is also priced by the penalty rate**, so it is not a
+      stable constant: anything moving team-periods-in-penalty re-prices it (§3.16's own
+      charge fix did exactly that, moving the value from a predicted 0.43 to 0.50).
+      Sourcing it is the only thing that would tell us whether §3.16 is *right* or merely
+      *self-consistent*.
 
 - [x] **PROMOTED OUT OF THE BACKLOG → `roadmap.md` §3.15** *(user call, 2026-08:
       "profiles should be a numbered phase")*. **This is no longer a chore** — it is a
@@ -226,26 +245,28 @@ planned features), see [ideas.md](ideas.md).
 
 - [ ] **Condense `decisions.md` — NOW A GATE ON STARTING PHASE 4 (user call, 2026-08).**
       **This entry is the plan; no design pass is needed.** It is scheduled as
-      **Phase 4 pre-work** — after §3.16, before Phase 4 — and roadmap.md carries the
-      gate (deliberately *not* numbered §3.17: every §3.x is an engine mechanic and
-      §3.14b was the last of them). Two reasons for that exact slot: **§3.16 is the
-      heaviest consumer of this file**, so compressing before it risks cutting what it
-      needs; and **Phase 4 is when the second reader arrives** — a stats/consumer phase
-      whose "can I add a column?" question is a `#014`/`#017`/`#020` one-liner buried
-      under the engine reasoning.
-      ⚠ **RE-MEASURED 2026-08 after §3.15's design pass — the figures below are STALE:**
-      the file is now **872 lines / 392k chars**, `#001`–`#020` still average ~1.3k, and
-      the **fifteen** §3.x engine entries average **24.4k** — a ~19× gap, and **93% of the
-      file**. The five largest were all written *after* this entry was filed: **#030
-      (53k), #031 (47k), #032 (44k), #034 (44k), #029 (26k)**. This entry predicted "#030
-      will beat #029"; it beat it **twofold**.
-      **✅ THE SIZE CAP IS WORKING, on its first test:** the `project-docs` proportionality
-      rule (~15–20k per entry, implementation note ≲6k, added 2026-08 ahead of this pass)
-      produced **#035 at 22.3k** — over budget, but **half the 44k trend** of the four
-      entries before it, and the overage is two specification tables (the static/profilable
-      split and the non-bean-reader map) rather than restated prose. **One more to come**
-      (#036 for §3.16). Both will still need compressing here, but the job did not grow at
-      the rate this entry feared.
+      **Phase 4 pre-work** — after the Phase-3 tail, before Phase 4 — and roadmap.md
+      carries the gate (deliberately *not* numbered as a §3.x: every §3.x is an engine
+      mechanic). Two reasons for that slot: **recalibration is the heaviest consumer of
+      this file**, so compressing before it risks cutting what it needs; and **Phase 4 is
+      when the second reader arrives** — a stats/consumer phase whose "can I add a
+      column?" question is a `#014`/`#017`/`#020` one-liner buried under engine reasoning.
+      ⚠ **NUMBERING**: this entry originally said "after §3.16," meaning **recalibration**.
+      **#038 renumbered that to §3.19** and §3.16 became foul composition, which has now
+      shipped. The gate is **after §3.19**, not after §3.16 — three sub-phases later than
+      a literal reading suggests.
+      ⚠ **RE-MEASURED 2026-08 after §3.16 shipped:** the file is **1,066 lines / 445k
+      chars**, `#001`–`#020` still average ~1.3k, and the **nineteen** §3.x engine entries
+      average **22.0k** — still ~17× the early entries, and ~94% of the file. The five
+      largest remain **#030 (53.8k), #031 (47.6k), #032 (44.9k), #034 (44.4k), #035
+      (35.3k)**, all written *after* this entry was filed.
+      **✅ THE SIZE CAP IS HOLDING, now across three consecutive entries** — the
+      `project-docs` proportionality rule (~15–20k per entry, implementation note ≲6k):
+      **#035 at 22.3k**, then **#036/#037/#038 small**, then **#039 (§3.16) at 21.4k**
+      *including* its implementation note. Both large ones are over budget but land at
+      **~half the 44k trend** of the four entries before the rule, and the engine-entry
+      average has started **falling** (24.4k → 22.0k) for the first time. The rule is
+      doing what it was written to do; this pass is still needed for the pre-rule five.
       *(Historical, as filed:)* The file is 443
       lines / **~170k chars** and has become hard to track. The cause is a size split,
       not entry count: `#001`–`#020` (platform/domain/schema/roster/API) average **~1.3k**
@@ -334,6 +355,27 @@ planned features), see [ideas.md](ideas.md).
       STOLEN) — ⚠ **a derivation, not a measurement**, which is the point of this chore.
       Cheap: one accumulator, one report line, one reconciliation check. **Test-only, no
       engine change.** Do it in whatever phase next touches the harness.
+
+- [ ] **Harness: classify a stopped shot by `ShotType`, not by its free-throw count —
+      the fouled-three rows have under-counted by ~2× since §3.16.** ⚠ **A BROKEN
+      INSTRUMENT, NOT A BROKEN ENGINE — do not re-tune `sim.foul-mult-three` against
+      these rows.**
+      `CalibrationHarness.flushStoppedShot` infers *"was this a stopped THREE?"* from the
+      **free-throw run** (3 FTs ⇒ a three, else a two). That was a faithful proxy while
+      every stopped shot awarded free throws. **§3.16 broke it**: a `COMMON_FOUL` awards
+      **0** FTs outside the penalty and **2** inside it, never 3, so a fouled three that
+      converts is either invisible (`freeThrowCount == 0` returns early) or miscounted as
+      a two. At the shipped 0.50 share the harness sees about half of them — measured
+      **1.50%** of 3PA against a true **~3.0%**, and `1.50 ≈ 3.0 × (1 − 0.50)` matches to
+      two decimals, which is what identifies it as an artifact rather than a rate change.
+      **Fix**: read the `ShotType` off the shot/foul event instead of counting FTs — the
+      harness already has `shotTypeOf(outcome)` for the shot vocabulary. **Test-only, no
+      engine change.**
+      ⚠ **Worth doing BEFORE §3.17**, which is the phase that will actually read these
+      rows: a pass that doubles three-point volume needs a working fouled-three
+      instrument to confirm it did not also double three-point *fouls*, and FTA is one of
+      that phase's tripwires. Also fixes the `3-FT trips` row, which under-counts for the
+      same reason.
 
 - [ ] **Harness self-verification — assert the instrument's own invariants.**
       ⚠ **PARTIALLY DONE by §3.15 (#035 A/F): the load-bearing half below — "have the

@@ -41,35 +41,35 @@ target, reported for visibility.
 
 | Measure | Type | Target / range | Current | Status |
 |---|---|---|---|---|
-| **Points** | **TARGET (SOURCED)** | **115.6** | **118.3** | +2.7 — largely a composition artifact (#036 B) |
-| **FG%** | **TARGET (SOURCED)** | **47.1%** | **46.9%** | ✅ **inside the ±0.14 sd — no work owed** (#036 A) |
+| **Points** | **TARGET (SOURCED)** | **115.6** | **109.6** | ⚠️ **−6.0 BY DESIGN — §3.16 removed ~10 FTA; §3.19 recovers it** (#039 H) |
+| **FG%** | **TARGET (SOURCED)** | **47.1%** | **46.7%** | ✅ **inside the noise band — no work owed** (#036 A) |
 | 3P% | **TARGET (SOURCED)** | **36.0%** | 36.7% | ✅ |
-| Assists | **TARGET (SOURCED)** | **26.7** | 27.1 | ✅ |
+| Assists | **TARGET (SOURCED)** | **26.7** | 26.9 | ✅ |
 | Turnovers | **TARGET (SOURCED)** | **14.5** | 13.6 | ✅ |
-| Blocks | **TARGET (SOURCED)** | **4.8** | 5.0 | ✅ (#025 C) |
+| Blocks | **TARGET (SOURCED)** | **4.8** | 4.9 | ✅ (#025 C) |
 | Top-starter minutes | TARGET | ~34–36 | ~36.1 | ✅ (#023; §3.13 cost 0.5) |
 | Minutes ceiling | TARGET | nobody over ~42 | ok | ✅ (#023) |
-| Fouls | **TARGET (SOURCED)** | **19.9** | 19.35 | ✅ (was 16.8 pre-§3.12) |
-| **FTA** | **TARGET (SOURCED)** | **23.5** | **34.0** | 🔴 **145% of real — §3.16 owns it** |
-| **3PA** | **TARGET (SOURCED)** | **37.0** | **19.9** | 🔴 **54% of real — §3.17 owns it** |
-| FGA | **TARGET (SOURCED)** | **89.1** | 88.4 | ✅ |
-| Off rebounds | **TARGET (SOURCED)** | **11.3** | 9.6 | 🟡 low |
-| Def rebounds | **TARGET (SOURCED)** | **32.4** | 27.6 | 🟡 low — likely a 3PA symptom (#036) |
+| Fouls | **TARGET (SOURCED)** | **19.9** | 20.53 | ✅ **§3.16's charge fix added ~1.2** — charges are personal fouls (#039 G) |
+| **FTA** | **TARGET (SOURCED)** | **23.5** | **23.60** | ✅ **§3.16 landed it** (was 34.0 = 145%) — see the share note below |
+| **3PA** | **TARGET (SOURCED)** | **37.0** | **20.0** | 🔴 **54% of real — §3.17 owns it** |
+| FGA | **TARGET (SOURCED)** | **89.1** | 88.80 | ✅ ⚠️ **§3.16's binding tripwire — only 0.3 of headroom left** (#039 C) |
+| Off rebounds | **TARGET (SOURCED)** | **11.3** | 9.9 | 🟡 low |
+| Def rebounds | **TARGET (SOURCED)** | **32.4** | 27.4 | 🟡 low — likely a 3PA symptom (#036) |
 | Pace (poss/48) | **TARGET (SOURCED)** | **99.4** | ~100 nominal | ✅ |
 | Steals | observed | **8.4** | *not in the report* | ⚪ **harness never prints it** — backlog chore; engine ~7.67 *by derivation only* |
-| **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.358** | ⚠️ the target came FROM §3.13's landing — see below |
-| Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.00 / 0.52 / 0.39 | the real diagnostic for foul-outs |
-| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.367** | ⚠️ **judge at 5 SEEDS ONLY** — see below |
-| **Flagrants** | ballpark (**UNSOURCED**) | **~0.13–0.20** (~0.25–0.40 league-wide) | **0.148** | ⚠️ **the COARSEST row here — 5 SEEDS ONLY** — see below |
-| Flagrant-2s | *(no target — a 15% share)* | — | **0.023** | §3.14b; the ejection driver |
-| **Ejections** | *(no target — an outcome)* | — | **0.027** | §3.14b; BOTH causes (§3.14a alone was 0.014) |
-| Fouled-three rate | ballpark | **~2% of 3PA** | 3.0% | ✅ anchor on the RATE, not the count |
-| 3-FT trips | ballpark | ~0.3–0.6 *here* | 0.59 | ✅ (real ~0.7 off 37.0 3PA; we shoot 19.9 — §3.17) |
-| And-1s | ballpark | ~4–6% of made FG | 1.88 (4.6%) | ✅ (#029 E) |
-| Fouls / team / period | observed | — | 4.85 | bonus at 5 (#028) |
-| Team-periods in penalty | observed | — | 51.9% | a result, not a knob (#030 D) |
+| **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.517** | ⚠️ up from 0.358 — **charges now count** (#039 G); the target itself is circular, see below |
+| Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.31 / 0.63 / 0.52 | the real diagnostic for foul-outs |
+| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.350** | ⚠️ **judge at 5 SEEDS ONLY** — see below |
+| **Flagrants** | ballpark (**UNSOURCED**) | **~0.13–0.20** (~0.25–0.40 league-wide) | **0.162** | ⚠️ **the COARSEST row here — 5 SEEDS ONLY**; §3.16 re-measured its divisor to 20.15 (#034 G) |
+| Flagrant-2s | *(no target — a 15% share)* | — | **0.035** | §3.14b; the ejection driver |
+| **Ejections** | *(no target — an outcome)* | — | **0.044** | §3.14b; BOTH causes (§3.14a alone was 0.014) |
+| Fouled-three rate | ballpark | **~2% of 3PA** | **1.50%** *(instrument under-counts)* | ⚠️ **NOT a regression — the harness can no longer see half of them.** See below |
+| 3-FT trips | ballpark | ~0.3–0.6 *here* | 0.30 *(instrument under-counts)* | ⚠️ same cause — the true count is ~2× this |
+| And-1s | ballpark | ~4–6% of made FG | 1.88 (4.5%) | ✅ (#029 E) |
+| Fouls / team / period | observed | — | 5.15 | bonus at 5 (#028) — ⚠️ **now AT the threshold**, which is why the penalty rate jumped |
+| Team-periods in penalty | observed | — | 55.7% | a result, not a knob (#030 D) — ⚠️ **and it PRICES the §3.16 share**, see below |
 | Out of bounds | observed | — | 2.8 | (#026 D) |
-| Turnover cause mix | observed | STOLEN dominant | 56.8% | no per-cause target (#027 E) |
+| Turnover cause mix | observed | STOLEN dominant | 55.5% | no per-cause target (#027 E) |
 | Period-by-period FG% | observed | flat, not sagging | flat | correct §3.5 behavior (#023 E) |
 
 ---
@@ -105,8 +105,9 @@ need to move**, and the deadlock that justified a whole phase is gone.
 is wrong.** Per team per game, the engine's points come from 2-pt **+10.9**, 3-pt
 **−18.0**, FT **+7.1** against real — three large errors summing to ~zero. **The +2.7
 points gap is largely an artifact of that cancellation.** A points-only re-solve would
-have fixed the total and left the game shaped wrong. That is what §3.16 (FTA) and §3.17
-(3PA) exist to correct, before §3.19 re-solves anything.
+have fixed the total and left the game shaped wrong. That is what §3.16 (FTA, **shipped
+— the FT excess is gone**) and §3.17 (3PA, still open) exist to correct, before §3.19
+re-solves anything.
 
 ## Foul-outs — §3.13 landed them at ~0.39, ABOVE the ~0.1–0.25 ballpark, deliberately
 
@@ -281,6 +282,69 @@ event. **So subtract only the technicals line** to compare against §3.13's 19.0
 
 ---
 
+## ⚠ BROKEN INSTRUMENT — the fouled-three rows under-count by ~2× since §3.16
+
+**The engine is fine. The measurement is not.** Do **not** re-tune
+`sim.foul-mult-three` against these two rows.
+
+`CalibrationHarness.flushStoppedShot` infers *"was this a stopped THREE?"* from the
+**free-throw count** — 3 FTs means a three, anything else a two — because before §3.16
+every stopped shot awarded free throws, so the FT run was a faithful proxy for the shot
+type.
+
+**§3.16 broke that proxy.** A `COMMON_FOUL` awards **0** free throws outside the
+penalty and **2** inside it, and it never awards 3. So every fouled three that converts
+to a common foul is either **invisible** (`freeThrowCount == 0` returns early) or
+**miscounted as a two**. With the share at 0.50 the harness sees roughly half of them:
+
+> measured **1.50%** ≈ true **3.0%** × (1 − 0.50) — the arithmetic matches to two
+> decimals, which is what identifies this as an artifact rather than a rate change.
+
+**Nothing in the engine changed here**: §3.16 re-partitions the *outcome* of a foul
+that `isFoul` already rolled, and `foul-mult-three` still governs how often a three
+draws contact at exactly the §3.12 rate (#030 A2). The rows read low because the
+instrument lost its signal, not because the mechanic moved.
+
+**The fix is a harness change, not a config change** — classify the stopped shot from
+the `ShotType` behind the event rather than from its FT run. That is a **backlog chore**
+(it touches only test sources), and it is worth doing **before §3.17**, which is the
+phase that will actually want to read these rows: a 3PA pass that doubles three-point
+volume needs a working fouled-three instrument to check it did not also double
+three-point *fouls*.
+
+---
+
+## ⚠ The §3.16 non-shooting-foul share — DERIVED, NOT SOURCED (§3.16, SHIPPED)
+
+`sim.non-shooting-foul-share = 0.50` is the fraction of already-rolled fouls that
+become a free-throw-free `COMMON_FOUL` instead of a `SHOOTING_FOUL`. It is the
+lever that took FTA from 34.0 to 23.60.
+
+**⚠ IT IS BACK-SOLVED AGAINST A SOURCED TARGET, NOT MEASURED FROM BASKETBALL — and
+that is a weaker claim than the other numbers in this file.** The real NBA
+shooting-foul share is **not in a league-averages row**; deriving it needs
+play-by-play data, and it could not be sourced in §3.16. What 0.50 means is *"the
+value at which this engine lands on the sourced FTA of 23.5"* — which is exactly
+the circularity that makes the foul-out target untrustworthy (see above), entered
+knowingly and labelled. **Do not cite 0.50 as what the NBA does.** An earlier
+~0.35 figure and a still earlier ~0.59 are both **withdrawn** (#036, #039 D).
+
+**⚠ THE SHARE IS PRICED BY THE PENALTY RATE, so it is NOT a stable constant.**
+Each converted foul removes 2 free throws *unless* the committing team is already
+in the bonus, in which case it awards 2 instead — so the net FT removed per
+conversion depends on the **team-periods-in-penalty** row (55.7%). §3.16's own
+charge fix moved that row 51.1% → 55.7%, which is why the share shipped at **0.50**
+rather than the **0.43** #039 D predicted from a pre-charge-fix measurement:
+conversions remove ~1.47 FTs, not 1.664. **Anything that moves the penalty rate —
+including §3.19's pace work — re-prices this share. Re-check FTA; do not assume
+the constant still lands.**
+
+**Tune it against FTA, never against points.** It moves both, and points is
+§3.19's (#039 H). Buying points here costs accuracy against a *sourced* FTA
+target — the one-rate-governing-two-numbers failure mode #036 C named.
+
+---
+
 ## ✅ MOST OF THIS TABLE IS NOW SOURCED (2026-08)
 
 **Source: Basketball-Reference NBA league averages, per game, 2025-26 regular
@@ -295,8 +359,11 @@ season.** The row was checked for internal consistency before use: FG/FGA = .471
 - **Points retargeted ~112 → 115.6.** The remaining +2.7 is **largely an artifact of
   three cancelling composition errors** — 2-pt **+10.9**, 3-pt **−18.0**, FT **+7.1**
   (#036 B). A points-only re-solve would fix the total and leave the game shaped wrong.
-- **Two composition gaps now own phases**: FTA at 145% of real (**§3.16**) and 3PA at
-  54% of real (**§3.17**). Recalibration is **§3.19** and goes last — §3.18 is the steal-attribution pass (#038).
+- **Two composition gaps owned phases**: FTA at 145% of real (**§3.16 — SHIPPED, now
+  23.60**) and 3PA at 54% of real (**§3.17**, still open — the largest remaining
+  divergence). Recalibration is **§3.19** and goes last — §3.18 is the steal-attribution
+  pass (#038). ⚠ **Points reads 109.6 rather than 118.3 because §3.16 removed ~10 FTA on
+  purpose; §3.19 owns recovering it** (#039 H).
 
 ⚠️ **STILL UNSOURCED** — these are not in a league-averages row and need play-by-play
 derivation or a specialist source: **foul-outs** (and its ~0.39 target is *circular* —

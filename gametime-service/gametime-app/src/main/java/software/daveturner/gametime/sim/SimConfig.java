@@ -134,7 +134,7 @@ public class SimConfig {
     //   public static final       a RULE of basketball or the SHAPE of the model.
     //                             Not a knob. 26 of them.
     //   private final + accessor  a tunable knob, bound by Spring from
-    //                             application-baseline.properties. 57 of them.
+    //                             application-baseline.properties. 58 of them.
     //
     // The instance fields take NO INITIALIZERS: the values exist only in the
     // properties file, and a missing key fails the context at startup. Adding a
@@ -651,6 +651,37 @@ public class SimConfig {
     // events per 102-game run cannot be resolved at any seed count (#034 E).
     private final double flagrantTwoShare;
 
+    // --- Shooting-foul composition (§3.16, decisions.md #039 A/B/D/E) ---
+    //
+    // What fraction of the fouls FoulResolver.isFoul has ALREADY rolled and charged
+    // are COMMON (non-shooting) fouls rather than SHOOTING_FOUL. A SECOND roll layered
+    // on the foul, the isFlagrant shape three fields up: isFoul keeps its rate, skills
+    // and RNG draw, recordFoul() has already run, so THE FOUL TOTAL HOLDS BY
+    // CONSTRUCTION and this knob re-partitions the outcome only (#039 A).
+    //
+    // ⚠ The key is sim.non-shooting-foul-share, NOT common-foul-share, and the
+    // divergence from the COMMON_FOUL event outcome is DELIBERATE (#039 E): a config
+    // key is read by a tuner and defines itself against SHOOTING_FOUL, while the event
+    // outcome sits in a play-by-play list of basketball terms. Different audiences,
+    // named for different readers.
+    //
+    // ⚠ BACK-SOLVED, NOT SOURCED (#039 D). The real NBA shooting-foul share is not in
+    // a league-averages row and needs play-by-play derivation; this is the value that
+    // lands the engine on a SOURCED FTA (~23.5), which is a weaker claim than it being
+    // what the NBA does. calibration.md records it as derived. An earlier ~35% figure
+    // is WITHDRAWN — it assumed the converted foul awards zero FTs, but a large share
+    // of these fouls are committed ALREADY IN THE PENALTY and award 2 bonus FTs
+    // (#039 B), so each conversion removes well under 2 free throws.
+    //
+    // Measured 2026-08 at 5 seeds: 0.50 lands FTA at 23.6. #039 D predicted 0.43 from
+    // an 18.5% in-penalty share, but the §3.16 charge fix raises the bonus rate to
+    // ~56% of team-periods, so the in-penalty share is higher and each conversion
+    // removes ~1.47 FTs rather than 1.664 — hence the higher share. The LANDING is
+    // the target, not the constant.
+    //
+    // NO skill input by design (#039 E) — see FoulResolver.isNonShootingFoul.
+    private final double nonShootingFoulShare;
+
     // ONE flagrant-2 is an automatic ejection (#034 E/F). Named rather than inlined as
     // `>= 1` so the third disqualification threshold reads identically to the other two
     // (foulOutLimit = 6, TECHNICAL_EJECTION_LIMIT = 2) — the shape is the point:
@@ -673,11 +704,22 @@ public class SimConfig {
     // The divisor for flagrantFoulProbability() — personal fouls per team per game.
     //
     // ⚠ A NAMED CONSTANT, NOT A MAGIC NUMBER, because it is an ASSUMPTION ABOUT THE
-    // ENGINE'S CURRENT BEHAVIOR rather than a rule: it must be greppable when §3.16
-    // invalidates it. Measured, not configured — §3.14a's harness landing of ~19.4
-    // `Fouls / team / game` MINUS its 0.367 technicals (that line tallies ALL FOUL
-    // events), i.e. the personal-foul rate alone, which §3.13 measured at 19.0.
-    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 19.0;
+    // ENGINE'S CURRENT BEHAVIOR rather than a rule: it must be greppable when a pass
+    // invalidates it. Measured, not configured — the harness's `Fouls / team / game`
+    // MINUS the technicals on that line (it tallies ALL FOUL events), i.e. the
+    // personal-foul rate alone.
+    //
+    // ⚠ NOT A TUNABLE, AND NOT ALLOWED TO DRIFT EITHER (#034 G): a pass that moves
+    // the engine's foul rate must re-measure this DELIBERATELY. §3.16 is the first
+    // such pass and did so. §3.14a/§3.13 measured 19.0; §3.16's charge fix (#039 G)
+    // made ~1.2 charges per team-game personal fouls that had counted toward nothing,
+    // taking the measured rate to 20.50 all-events MINUS ~0.35 technicals = 20.15
+    // (5 seeds, 2026-08). Left at 19.0 the flagrant rate would have run ~6% high.
+    //
+    // §3.16's COMMON_FOUL re-partition does NOT enter this number: it re-labels a
+    // foul that was already rolled and charged, so it moves composition, not the
+    // total (#039 A). Only the charge fix moved the rate.
+    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 20.15;
 
     // Base probability that a made field goal is assisted, at an average passing
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
@@ -1092,6 +1134,7 @@ public class SimConfig {
             @DecimalMin("0.0") double technicalFoulsPerTeamGame,
             @DecimalMin("0.0") double flagrantFoulsPerTeamGame,
             @DecimalMin("0.0") @DecimalMax("1.0") double flagrantTwoShare,
+            @DecimalMin("0.0") @DecimalMax("1.0") double nonShootingFoulShare,
             @DecimalMin("0.0") @DecimalMax("1.0") double baseAssist) {
         this.defaultPossessionsPerPeriod = defaultPossessionsPerPeriod;
         this.otPossessionsPerPeriod = otPossessionsPerPeriod;
@@ -1149,6 +1192,7 @@ public class SimConfig {
         this.technicalFoulsPerTeamGame = technicalFoulsPerTeamGame;
         this.flagrantFoulsPerTeamGame = flagrantFoulsPerTeamGame;
         this.flagrantTwoShare = flagrantTwoShare;
+        this.nonShootingFoulShare = nonShootingFoulShare;
         this.baseAssist = baseAssist;
     }
 
@@ -1432,6 +1476,11 @@ public class SimConfig {
         return flagrantTwoShare;
     }
 
+    /** sim.non-shooting-foul-share */
+    public double nonShootingFoulShare() {
+        return nonShootingFoulShare;
+    }
+
     /** sim.base-assist */
     public double baseAssist() {
         return baseAssist;
@@ -1445,7 +1494,7 @@ public class SimConfig {
      * <p><b>It reads {@code application-baseline.properties} — the same file, through
      * the same Spring binder, that the application context binds from.</b> That is the
      * whole point: the values exist in exactly ONE place (#035 A), so a test using this
-     * factory and a running engine can never disagree. Hard-coding the 57 values here
+     * factory and a running engine can never disagree. Hard-coding the 58 values here
      * would reintroduce precisely the second source of truth this design eliminates,
      * and every test would still pass.
      *
@@ -1460,7 +1509,7 @@ public class SimConfig {
         } catch (IOException e) {
             throw new IllegalStateException(
                     "Could not read " + BASELINE_PROFILE_RESOURCE
-                            + " — it is the only copy of the 57 profilable constants", e);
+                            + " — it is the only copy of the 58 profilable constants", e);
         }
         StandardEnvironment env = new StandardEnvironment();
         env.getPropertySources().addFirst(new PropertiesPropertySource("baseline", props));
@@ -1470,6 +1519,6 @@ public class SimConfig {
                         "Could not bind sim.* from " + BASELINE_PROFILE_RESOURCE));
     }
 
-    /** The baseline profile file — the single copy of the 57 profilable values. */
+    /** The baseline profile file — the single copy of the 58 profilable values. */
     public static final String BASELINE_PROFILE_RESOURCE = "application-baseline.properties";
 }

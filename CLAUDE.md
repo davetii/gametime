@@ -48,16 +48,18 @@ Before starting work, review these for context:
   `sim` package: it shows every branch in order (turnover → foul → block →
   make/miss → and-1 → rebound-foul → missed-shot outcome), which fork each
   sub-phase added, and carries inline notes citing the decision behind each one.
+  ⚠ **Branch ORDER within a partition is often load-bearing** — the diagram is the
+  place that records why. Read it there rather than re-deriving it.
   A new branch or event **must** be reflected here in the same change — it is a
   living spec, not an illustration. Validate edits with
   `plantuml -checkonly docs/possession-flow.puml`; render a viewable copy with
   **`plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng docs/possession-flow.puml`**
   (the `.png` is gitignored, so the `.puml` is the artifact that matters).
-  ⚠ **The size flag is REQUIRED, not optional**: the diagram is ~9,600px tall
-  and PlantUML's default ceiling is 4096px, so a plain `-tpng` **silently
-  truncates it to the top ~43%** with no warning. `-checkonly` parses without
-  laying out, so **a green checkonly does not prove the PNG is complete** —
-  check the rendered height whenever you add a partition.
+  ⚠ **The size flag is REQUIRED, not optional**: the diagram is far taller than
+  PlantUML's default 4096px ceiling, so a plain `-tpng` **silently truncates it**
+  with no warning. `-checkonly` parses without laying out, so **a green checkonly
+  does not prove the PNG is complete** — after rendering, confirm the image is
+  taller than 4096px whenever you add a partition.
 - **`docs/calibration.md`** — **the calibration targets, and the single source of
   truth for them.** What the simulation is tuned toward (points, FG%, 3P%, assists,
   turnovers), the minutes targets, the soft foul-out target, the per-phase rates, and
@@ -101,6 +103,29 @@ its header callout says either "needs a DESIGN PASS first" or "execute-ready,
 design resolved as #NNN". Start there. Don't execute a roadmap bullet as if it
 were a plan: the bullets are seams, deliberately under-specified, and every phase
 so far has found real design questions the one-liner hid.
+
+### ⚠ Two traps that bite EVERY session — read these before trusting a doc
+
+**1. SUB-PHASE NUMBERS HAVE BEEN REUSED. `§3.16` IN AN OLDER DOC DOES NOT MEAN
+§3.16.** Recalibration was §3.16, then briefly §3.18, and is now **§3.19** (#038).
+The §3.16 slot was reassigned to shooting-foul composition, which has shipped. So
+**every "§3.16" written before 2026-08 means RECALIBRATION** — including in #030,
+#031, #032, #034, #035, and in scattered lines of roadmap.md, backlog.md, ideas.md,
+risks.md and game.md. A literal reading sends you three sub-phases too early, to a
+phase that already shipped and does something else entirely.
+**Rule: read the phase NAME, never the number alone.** roadmap.md carries the
+mapping callout. When you find a stale one, annotate it rather than silently
+rewriting — the history is worth keeping legible.
+
+**2. A MECHANIC CHANGE CAN SILENTLY BREAK AN INSTRUMENT, and no test will catch it.**
+`CalibrationHarness` infers meaning from what an event *awards* — e.g. it classified
+a stopped shot as a three by counting **3 free throws**. §3.16 added a foul that
+awards 0 or 2 but never 3, so that row silently began under-counting by ~2× while
+the engine stayed correct. Nothing failed; the number just quietly meant something
+new. **No test asserts an instrument's meaning**, so the only defense is to re-read
+calibration.md row by row against a fresh harness run whenever a phase changes what
+an event awards, and to ask of a moved number "did the engine change, or did the
+measurement?" before tuning anything.
 
 ## Build requirements
 

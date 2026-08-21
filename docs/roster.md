@@ -211,6 +211,30 @@ The four live consumers:
   ⚠ **A flagrant IS a personal foul** (#034 I), so unlike a technical it also feeds the
   six-foul limit and §3.13's foul-trouble bench rule above — a player can foul out on
   one, or be sat for accumulating one, with no extra code.
+- **Charges & common fouls** (§3.16, decisions.md #039) — like the flagrant, **no new
+  committer pool**: both ride machinery that had already picked a player. But §3.16 is
+  the sub-phase that **most moved the numbers this section tracks**, in two ways.
+  ⚠ **The CHARGE is the first foul in the engine charged to an OFFENSIVE player**
+  (#039 G). Every foul consumer above — the six-foul limit, §3.13's foul-trouble bench
+  rule, `isDisqualified` — had only ever seen fouls committed by defenders. A charge is
+  committed by the **ball-handler**, so **a player can now foul out while his team has
+  the ball**, and the foul-trouble rule can sit a team's primary offensive creator for
+  fouls he committed *on offense*. No new code was needed for any of that, which is the
+  seam working — but it is a genuinely new way for this domain's lineup to be disrupted.
+  It was also a **correctness fix, not a feature** (#037): before §3.16 a charge called
+  `recordFoul()` on nobody, so a player could commit unlimited charges and never foul
+  out, and none of them reached the box-score `fouls` column.
+  ⚠ **Foul-outs rose 0.358 → 0.517 per team-game** as a direct result — the single
+  largest move this line has seen since §3.13 landed it at ~0.39, and it is **above
+  that soft target**. It is a *consequence* of the correctness fix rather than a
+  regression in the bench rule, so §3.13's saturated sit curve must **not** be re-tuned
+  against it (see calibration.md, and #031's saturation finding). Players at 4/5/6 fouls
+  moved 1.09/0.52/0.37 → **1.31/0.63/0.52**, so more of every game is now played under
+  foul-trouble management by this domain's rules.
+  The `COMMON_FOUL` half contributes nothing new here: it re-labels a foul already
+  rolled and charged, so it feeds the same limit and the same bench rule as the
+  `SHOOTING_FOUL` it replaced, by construction (#039 A). **Both are transient — no
+  write-back to `player_team`.**
 
 ## Not yet built
 

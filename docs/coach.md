@@ -59,7 +59,7 @@ phase reads each — **all five are now live**: §3.4 wired the scheme/pace trio
 |-----------|--------|-------------|--------|
 | **pace** | Possessions per game (scales the possession **count**) | §3.4 possession flow | ✅ read |
 | **offensiveScheme** | Shot distribution — perimeter/3pt lean vs. inside/post | §3.4 `ShotSelector` lean | ✅ read |
-| **defensiveScheme** | Aggressiveness — turnover/foul pressure vs. contain | §3.4 turnover/foul pressure; §3.9 also leans the shot-clock **turnover cause**; §3.10 scales **rebounding fouls** (→ bonus exposure); §3.11 scales **and-1s** | ✅ read |
+| **defensiveScheme** | Aggressiveness — turnover/foul pressure vs. contain | §3.4 turnover/foul pressure; §3.9 also leans the shot-clock **turnover cause**; §3.10 scales **rebounding fouls** (→ bonus exposure); §3.11 scales **and-1s**. ⚠ §3.16 scales the **parent** foul but not its composition, and **not** the charge (which leans on the offense's `teamOffense` instead) | ✅ read |
 | **rotationDepth** | How many players see real minutes (tight 7 vs. deep 10) | §3.5 minutes allocation | ✅ read |
 | **substitutionAggressiveness** | How early/eagerly fatigued starters are pulled | §3.5 sub triggers | ✅ read |
 
@@ -102,6 +102,30 @@ not make a given contact more *excessive*. **The five coach attributes stand unc
 at five** for the fourth sub-phase running — §3.14b adds none and reads none directly.
 Accepted cost, the same as §3.14a's: a coach's temperament has no influence on whether
 his players cross the line.
+
+**§3.16 (shooting-foul composition, `decisions.md` #039) makes it three passes running,
+by the same argument — and adds one asymmetry worth knowing.** The composition roll
+(`sim.non-shooting-foul-share`, "was this foul a `COMMON_FOUL` rather than a
+`SHOOTING_FOUL`?") is a flat constant with **no coach input and no skill input at all**
+(#039 E), for §3.14b's exact reason: it is a *grade* on a foul whose committer was
+already chosen by a `foulProne`-weighted `pickDefender`, so weighting it again would
+apply one signal twice. There is also nothing honest to weight it *by* — what really
+decides shooting-vs-common is **where on the floor the contact happened**, which this
+engine does not represent. **The coach's influence still flows through the parent
+foul**, which `defensivePressure` scales as always: an aggressive scheme concedes more
+fouls, so it concedes proportionally more of both kinds.
+
+⚠ **But §3.16's other half runs the other way, and it is the first foul in the engine
+that an OFFENSIVE coach's attribute reaches.** The **charge** (#039 G) is now a personal
+foul, and its frequency is set by the `OFFENSIVE_FOUL` turnover-cause weight — which
+§3.9 leans on **`teamOffense`**, not on the defending coach's `defensiveScheme` (#027
+C). So a poorly-coordinated offense commits more charges, and therefore more personal
+fouls, **independently of how the defense plays**. Every other foul in the model is
+scaled by the defense. Worth watching in calibration for the same reason the paragraph
+above flags: **`defensiveScheme` no longer accounts for all of a team's foul total.**
+
+**The five coach attributes stand unchanged at five** for the fifth sub-phase running —
+§3.16 adds none and reads none directly.
 
 **Deferred until a consumer is live:**
 
@@ -191,6 +215,7 @@ display/API open questions below, not engine work.
 | 8. **§3.4 effects** — `pace`/`offensiveScheme`/`defensiveScheme` → engine | ✅ decisions.md #022 (`CoachModifiers` + `TeamContext`) |
 | 9. **§3.5 effects** — `rotationDepth`/`substitutionAggressiveness` → minutes/fatigue | ✅ decisions.md #023 (`CoachModifiers.rotationDepthFactor()`/`subAggressivenessFactor()` + `RotationState`) |
 | 10. **§3.9–§3.11 reach** — `defensiveScheme` extended to the new foul/turnover rolls | ✅ no new coach code; each sub-phase scales its own roll by the existing `defensivePressure` (#027 C, #028 C, #029 C) |
+| 11. **§3.14a/§3.14b/§3.16 — three passes that read NO coach attribute** | ✅ deliberate, not an oversight: a technical is behavioral (#032 B), a flagrant grade is inert (#034 E), and a foul's *kind* has no floor-position signal to weight it by (#039 E). Coach influence reaches all three through the **parent** event |
 
 All five effects (`f(...)` in the interface above) are implemented as the
 `CoachModifiers` value object, threaded through `PossessionEngine` via
@@ -198,7 +223,8 @@ All five effects (`f(...)` in the interface above) are implemented as the
 rotation effects drive the between-possession substitution check in
 `RotationState` (who is on the floor, and when a tired starter is pulled).
 **No coach-side code has changed since §3.5** — §3.9–§3.11 each reused
-`defensivePressure` as-is, which is the seam working as designed.
+`defensivePressure` as-is, and §3.14a/§3.14b/§3.16 each deliberately read nothing,
+which is the seam working as designed.
 
 ---
 

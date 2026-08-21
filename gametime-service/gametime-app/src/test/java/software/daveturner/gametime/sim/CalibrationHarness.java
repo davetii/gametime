@@ -436,6 +436,20 @@ class CalibrationHarness {
     /**
      * §3.12: classify a completed SHOOTING_FOUL by its free-throw run — 3 FTs means
      * the foul stopped a THREE, anything else a two-point attempt.
+     *
+     * <p>⚠ <b>THIS UNDER-COUNTS BY ~2× SINCE §3.16 — the two rows it feeds are a BROKEN
+     * INSTRUMENT, not an engine regression. Do NOT re-tune {@code sim.foul-mult-three}
+     * against them.</b> The FT run was a faithful proxy for the shot type only while
+     * every stopped shot awarded free throws. A §3.16 {@code COMMON_FOUL} awards
+     * <b>0</b> outside the penalty and <b>2</b> inside it, never 3 — so a fouled three
+     * that converts is either invisible (the {@code freeThrowCount == 0} early return)
+     * or miscounted as a two. At the shipped 0.50 share this sees about half of them:
+     * measured 1.50% of 3PA against a true ~3.0%, and 1.50 ≈ 3.0 × (1 − 0.50) matches to
+     * two decimals, which is what identifies it as an artifact.
+     *
+     * <p><b>The fix is to read {@link ShotType} off the event</b> ({@code shotTypeOf} is
+     * right here) rather than counting free throws — a backlog chore, test-only, and
+     * worth doing before §3.17 needs these rows.
      */
     private void flushStoppedShot(String pendingFoul, int freeThrowCount, Agg agg) {
         if (pendingFoul == null || freeThrowCount == 0) return;
@@ -611,8 +625,13 @@ class CalibrationHarness {
                     BASELINE_FG_PCT, baselineRun));
             lines.add(numbered("3P%:                   ", pct(tpm, tpa), "%.1f%%",
                     "target 36.0% — sourced 2025-26", BASELINE_3P_PCT, baselineRun));
-            lines.add(String.format("FGA / team / game:      %.1f", fga / tg));
-            lines.add(String.format("3PA / team / game:      %.1f", tpa / tg));
+            lines.add(String.format("FGA / team / game:      %.1f   (target 89.1 — SOURCED"
+                    + " 2025-26. \u26a0 THE BINDING CONSTRAINT since \u00a73.16: only ~0.3 of"
+                    + " headroom, and #039 C's dead-possession concession exists to protect"
+                    + " it. If this climbs, a foul branch started returning the ball.)",
+                    fga / tg));
+            lines.add(String.format("3PA / team / game:      %.1f   (target 37.0 — SOURCED"
+                    + " 2025-26; \u00a73.17 owns the gap)", tpa / tg));
             lines.add(numbered("Assists / team / game: ", assists / tg, "%.1f",
                     "target 26.7 — sourced 2025-26", BASELINE_ASSISTS, baselineRun));
             lines.add(numbered("Turnovers / team / game:", turnovers / tg, "%.1f",
@@ -678,7 +697,11 @@ class CalibrationHarness {
                         e.getKey(), totalFouls == 0 ? 0.0 : 100.0 * e.getValue() / totalFouls,
                         e.getValue() / tg);
             }
-            System.out.printf("  FTA / team / game:       %.1f%n", freeThrows / tg);
+            System.out.printf("  FTA / team / game:       %.1f   (target ~23.5 — SOURCED"
+                            + " 2025-26; §3.16 landed it from 34.0 via sim.non-shooting-"
+                            + "foul-share. ⚠ TUNE THAT SHARE AGAINST THIS LINE, never"
+                            + " against points)%n",
+                    freeThrows / tg);
 
             // §3.11 (decisions.md #029 E) and-1 rate + FT-source split. §3.11 is a
             // PURE-ADDITIVE lift — an FT tacked onto a shot that already scored,
@@ -722,8 +745,11 @@ class CalibrationHarness {
             // 3PA), NOT the count: this engine shoots ~20 3PA/team/game against the
             // NBA's ~35, so the same rate necessarily yields fewer trips than the
             // real-league ~0.7. "Fixing" 0.40 up to 0.7 would silently undo #030 G.
-            System.out.printf("  3-FT trips / team / game:%.2f   (%.2f%% of 3PA — the RATE is the anchor,"
-                            + " ~2%%; expect ~0.3-0.6 trips, NOT the NBA's 0.7)%n",
+            System.out.printf("  3-FT trips / team / game:%.2f   (%.2f%% of 3PA — the RATE is the"
+                            + " anchor, ~2%%. \u26a0 BROKEN INSTRUMENT SINCE \u00a73.16: this counts"
+                            + " FREE THROWS, and a COMMON_FOUL awards 0 or 2 but never 3, so"
+                            + " it sees only ~half of them. The true rate is ~2x this. Do NOT"
+                            + " re-tune foul-mult-three against it \u2014 see flushStoppedShot)%n",
                     stoppedThrees / tg, tpa == 0 ? 0.0 : 100.0 * stoppedThrees / tpa);
             System.out.print("  And-1s by shot type:    ");
             for (ShotType t : ShotType.values()) {
@@ -747,16 +773,20 @@ class CalibrationHarness {
             // So to compare against §3.11/§3.13's figures, subtract the technicals line
             // only. getFouls() itself remains untouched by §3.14a, which the box-score
             // reconciliation in GameSimulatorIntegrationTest pins.
-            System.out.printf("  Fouls / team / game:     %.2f   (ALL foul events incl."
-                            + " §3.14a technicals; flagrants REPLACE a foul event so add"
-                            + " nothing here; plausible ~19-20; §3.11 measured 16.8)%n",
+            System.out.printf("  Fouls / team / game:     %.2f   (target ~19.9 — SOURCED"
+                            + " 2025-26. ALL foul events incl. §3.14a technicals;"
+                            + " flagrants REPLACE a foul event so add nothing here."
+                            + " §3.16's charge fix added ~1.2 — charges are personal"
+                            + " fouls (#039 G); its COMMON_FOUL re-partition adds NOTHING,"
+                            + " by construction)%n",
                     totalFouls / tg);
             // §3.12's genuinely NEW instrument (#030 G): the foul-out mechanism has
             // been live since §3.5 but its rate has NEVER been observed. The
             // DISTRIBUTION matters more than the count — it shows pressure building
             // below the threshold before it crosses it.
             System.out.printf("  Foul-outs / team / game: %.3f  (target ~0.39 — §3.13's landing,"
-                            + " a SOFT target; see calibration.md)%n",
+                            + " a SOFT target; see calibration.md. §3.16 raised it to ~0.52:"
+                            + " charges now count, #039 G)%n",
                     foulOuts / tg);
             System.out.printf("  Players at 4 / 5 / 6 fouls per team/game: %.2f / %.2f / %.2f"
                             + "   (of %.1f who played)%n",
