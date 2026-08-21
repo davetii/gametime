@@ -691,4 +691,79 @@ class FoulResolverTest {
                     "isFoul's RNG consumption must be unchanged by §3.14b");
         }
     }
+
+    // ---------- §3.16: the shooting/common composition roll (decisions.md #039) ----------
+
+    /**
+     * #039 A/D: the realized common-foul share over many trials lands on the configured
+     * flat share — a plain rate check with no contest, isFlagrant's shape.
+     */
+    @Test
+    void theNonShootingRollFiresAtTheConfiguredShare() {
+        RandomGenerator r = rng(13);
+        int trials = 200_000;
+        int hits = 0;
+        for (int i = 0; i < trials; i++) {
+            if (resolver.isNonShootingFoul(r)) hits++;
+        }
+        assertEquals(config.nonShootingFoulShare(), hits / (double) trials, 0.005,
+                "The common-foul roll must realize sim.non-shooting-foul-share (#039 D)");
+    }
+
+    /**
+     * #039 A: BOTH branches are reachable at the configured share — a roll that always
+     * or never fires would still pass a mean check written loosely, and the whole phase
+     * rests on the split being real.
+     */
+    @Test
+    void bothBranchesOfTheNonShootingRollAreReachable() {
+        RandomGenerator r = rng(17);
+        int hits = 0;
+        int misses = 0;
+        for (int i = 0; i < 1_000; i++) {
+            if (resolver.isNonShootingFoul(r)) hits++; else misses++;
+        }
+        assertTrue(hits > 0, "some fouls must convert to COMMON_FOUL");
+        assertTrue(misses > 0, "some fouls must stay SHOOTING_FOUL");
+    }
+
+    /**
+     * #039 E, the design claim stated as a test: <b>the roll takes no skill input</b>.
+     * {@code foulProne} has already had its say at {@code pickDefender}, and the engine
+     * has no floor-position signal — the thing that actually decides shooting vs.
+     * common — so weighting here would manufacture a signal the model does not have.
+     *
+     * <p>Asserted structurally, exactly as {@link #neitherFlagrantRollTakesAnySkillInput}
+     * does, because "add the skill weighting" is the natural-looking change this
+     * forbids.
+     */
+    @Test
+    void theNonShootingRollTakesNoSkillInput() throws Exception {
+        assertArrayEquals(new Class<?>[] { RandomGenerator.class },
+                FoulResolver.class.getMethod("isNonShootingFoul", RandomGenerator.class)
+                        .getParameterTypes(),
+                "isNonShootingFoul must take no PlayerGameState (#039 E)");
+    }
+
+    /**
+     * #039 A, THE by-construction guarantee: the composition roll is layered on a foul
+     * that has already been rolled and charged, so {@code isFoul} must be untouched —
+     * same rate, same inputs, same SINGLE draw. If it had started consuming a second
+     * draw, two generators at one seed would diverge immediately.
+     *
+     * <p>This is what makes the foul TOTAL hold without tuning, and it is the property
+     * the whole phase is built on.
+     */
+    @Test
+    void theExistingFoulRollIsUnchangedByTheCompositionLayer() {
+        PlayerGameState shooter = TestPlayerFactory.create("s1", "A", 10.0);
+        PlayerGameState defender = TestPlayerFactory.create("d1", "B", 10.0);
+        RandomGenerator a = rng(5);
+        RandomGenerator b = rng(5);
+        for (int i = 0; i < 500; i++) {
+            assertEquals(resolver.isFoul(ShotType.DRIVE, shooter, defender, 1.0, a),
+                    resolver.isFoul(ShotType.DRIVE, shooter, defender, 1.0, b),
+                    "isFoul's RNG consumption must be unchanged by §3.16");
+        }
+    }
 }

@@ -55,13 +55,19 @@ into a graveyard.
   the realism/aggregate trade-off is at stake. **Natural home if promoted:** a
   dedicated calibration/tuning pass (its own harness loop + re-agreed aggregates),
   slotting cleanly *between* sub-phases rather than inside one. **The arc now runs
-  §3.7–§3.16**, and **§3.16 (recalibration against verified targets) is the natural
-  home** — it is already exactly this kind of pass. **Note (updated 2026-08, §3.13
-  design):** the earlier note here ("re-center in §3.12") is superseded — §3.12
-  **declined** the trim and the points/FG% **targets themselves are now CONTESTED**
-  ([calibration.md](calibration.md) is the source of truth). Three consecutive passes
-  have declined the same trim. Do **not** stack this idea on top of an unresolved
-  target question: it waits for §3.16, which owns both.
+  §3.7–§3.19**, and **recalibration against verified targets — now §3.19 (#038), NOT
+  §3.16 — is the natural home**; it is already exactly this kind of pass.
+  ⚠ **NUMBERING**: the note below said "it waits for §3.16" when §3.16 meant
+  recalibration. **#038 renumbered that to §3.19.** It waits for **§3.19**.
+  **Note (updated 2026-08, §3.16 close-out):** ✅ **the blocker named below has cleared** —
+  the points/FG% targets were **SOURCED** by #036 (115.6 / 47.1%, Basketball-Reference
+  2025-26), so they are no longer contested, and the three passes that declined the
+  `BASE_*` trim were right to. **But this idea should still wait for §3.19**, for a
+  *different* and now sharper reason: ⚠ **FGA has ~0.3 of headroom** (88.8 against 89.1
+  real) and **§3.16 spent the rest of that budget** — #039 C made the common foul a dead
+  possession purely to avoid ~0.76 FGA. **Raising the retention cap adds attempts**, so
+  it now competes directly with a concession already paid for. Measure FGA first; it is
+  the binding constraint, not points.
   **⚠ Note (2026-08, §3.15 design): the cap is PROFILABLE from §3.15, and that does NOT
   unpark this idea** (`decisions.md` #035 C). Excluding it from the profilable set was
   argued and rejected: **the fence protects the BASELINE value, and a profile cannot
@@ -109,10 +115,15 @@ into a graveyard.
     retention path is tested, and a restructure would touch shipped §3.7/§3.8/§3.10
     lines for zero behavior change — exactly the kind of churn that makes a future
     bisect harder. **What would make it real:** a sixth path, or a phase that needs to
-    add one. **Explicitly NOT a §3.15 or §3.16 job** — §3.15 is a config refactor whose
-    validation gate is reproducing §3.14b's landing byte-for-byte, and §3.16 is a
-    recalibration; a control-flow restructure riding either would blur what moved a
-    number. If promoted it wants its own small pass with the existing retention tests
+    add one. **Explicitly NOT a §3.15 or recalibration job** — §3.15 was a config refactor
+    gated on reproducing §3.14b's landing byte-for-byte, and recalibration (**§3.19**
+    since #038, not §3.16) is a tuning pass; a control-flow restructure riding either
+    would blur what moved a number.
+    ⚠ **§3.16 (2026-08) added the fifth and sixth retention-adjacent sites and did NOT
+    trigger this** — deliberately. Its two new branches (`COMMON_FOUL`, the charge's
+    `FOUL`) both **end** the possession, so neither is a `continue` path: the count of
+    *retention* sites is unchanged. **The "sixth path" trigger has not fired.** Worth
+    knowing, because a reader counting new foul branches might think it had. If promoted it wants its own small pass with the existing retention tests
     as the safety net.
 
 - ~~**Flagrant / technical fouls, and altercations (fights).**~~ **PROMOTED (2026-08)
@@ -201,7 +212,7 @@ into a graveyard.
   decision with a sticky-sit/earned-return shape. A later strategic sub should extend
   that shape rather than invent a parallel one (the same discipline #031 H imposes on
   §3.14's ejections). **Natural home if promoted:** its own numbered sub-phase after
-  the §3.7–§3.16 arc, or Phase 4+ alongside a richer coach model — it needs a design
+  the §3.7–§3.18 arc, or Phase 4+ alongside a richer coach model — it needs a design
   pass of its own, starting with the game-situation plumbing. **Not planned work.**
 
 - **TALENT SPREAD as a profile axis — one conceptual knob currently spread across 15
@@ -235,7 +246,8 @@ into a graveyard.
   established (blocks gentler than the global, and-1s gentler still) are preserved while
   the whole spread widens or narrows together. That needs its own calibration, because
   widening the spread changes every rare-event rate at once. **Natural home if promoted:**
-  its own sub-phase after §3.16, or Phase 4+ alongside player-facing eras — it is a
+  its own sub-phase after the Phase-3 tail (i.e. after **§3.19**, not §3.16 — #038
+  renumbered recalibration), or Phase 4+ alongside player-facing eras — it is a
   *gameplay* axis (leagues that feel different), not a tuning convenience. **Not planned
   work.** Until then the honest era knobs are the base rates, which §3.15 does profile:
   `BASE_BLOCK_*`, `BASE_NO_BASKET_FOUL`, `FOUL_MULT_*`, the shot `BASE_*`.

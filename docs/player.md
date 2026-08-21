@@ -254,6 +254,36 @@ manufactured. **Net: a disciplined veteran and a reckless rookie are equally lik
 commit a flagrant-2 *given* a flagrant** — a real fidelity ceiling, accepted knowingly,
 the same one #032 B accepted for technicals.
 
+**§3.16's composition roll (#039) is the THIRD skill-free mechanic, and its reason is
+the most interesting of the three — the model is MISSING A DIMENSION, not spending a
+used-up signal.** Asked of a foul that has already been rolled and charged: *was it a
+`SHOOTING_FOUL` or a non-shooting `COMMON_FOUL`?* It inherits §3.14b's argument in full
+— `pickDefender` chose the committer before this roll fires, so `foulProne` has had its
+say and grading him again would double-count it (#039 E). **But there is a second,
+stronger reason, and it is the one to remember**: what actually decides shooting-vs-common
+in real basketball is **where on the floor the contact happened** — a reach-in at the
+top of the key versus body contact on a drive. **This engine has no floor position at
+all.** There is no `ShotType`-adjacent spatial model, no off-ball concept, nothing. So
+any skill weighting here would not be a weak signal like §3.14a's committer draw; it
+would be a **fabricated** one, standing in for a dimension the model does not have —
+the #017 don't-fabricate-a-constraint rule applied to a probability rather than a
+column.
+
+**Net: a foul's KIND is independent of who committed it.** The consequence to expect is
+that a player's `SHOOTING_FOUL`-to-`COMMON_FOUL` ratio is the same league-wide constant
+(≈50/50 at the shipped `sim.non-shooting-foul-share` = 0.50), so **no player draws
+disproportionately many free-throw-awarding fouls**. That is a real fidelity ceiling —
+in the NBA a rim protector's fouls skew shooting and a perimeter pest's skew common —
+and lifting it needs floor position, not a tuning constant.
+
+⚠ **§3.16's other half runs the opposite way and is worth flagging here**: the **charge**
+(#039 G) is now a personal foul, and it is charged to the **ball-handler on offense** —
+so it lands on `PlayerGameState.recordFoul()` for a player the possession picked via
+`ShotSelector.pickShooter`, not `pickDefender`. Its frequency leans on `teamOffense`
+(§3.9's cause draw), which makes it the **only foul in the model whose rate responds to
+an offensive skill**. A high-usage creator on a poorly-coordinated offense now
+accumulates personal fouls — and can foul out — from possessions his team had the ball.
+
 **§3.13 wires skills to something new in kind — a *rotation* decision rather than
 a possession outcome** (#031). The foul-trouble bench rule scales the chance a
 coach sits a player by that player's **value to the team**, a *derived composite*
@@ -294,6 +324,8 @@ the engine does read.
 | And-1 (foul on a MADE shot)? | foulDrawing vs foulProne again — a **second, post-make** roll on its own thin rate; made DRIVE/POST only until §3.12 | ✅ §3.11 |
 | Rebounding foul? | foulDrawing vs foulProne (two-sided — either team can commit; `foulProne` also weights *who* commits it) | ✅ §3.10 |
 | **Was that foul FLAGRANT?** | **NONE — no skill, coach or situation input at all** (#034 A/E). A flat rate on **any** of the three fouls above, and a flat 15% severity sub-roll for flagrant-2. `foulProne` had its say **already**, in picking the committer — grading him again would apply one signal twice | ✅ §3.14b |
+| **Was that foul NON-SHOOTING (`COMMON_FOUL`)?** | **NONE — and here the missing input is the MODEL's, not the signal's** (#039 E). A flat `sim.non-shooting-foul-share` (0.50) on the stopped-shot foul, rolled only after the flagrant question misses. `foulProne` has already had its say (as above), **and** what truly decides this is *floor position*, which the engine does not represent at all — so weighting it would fabricate a dimension. Consequence: **a foul's kind is independent of who committed it** | ✅ §3.16 |
+| **Charge (offensive foul) → a personal foul** | `teamOffense`↓ leans the `OFFENSIVE_FOUL` turnover cause (#027 C); the committer is the **ball-handler** from `pickShooter`. ⚠ **The only foul in the model charged to an OFFENSIVE player, and the only one whose rate responds to an offensive skill** (#039 G) | ✅ §3.16 |
 | Free throws | freeThrows; clutch (late game) | ✅ §3.2 (clutch ⬜) |
 | Rebound | offenseRebound / defenseRebound | ✅ §3.3 |
 | Turnover / steal | ballSecurity vs stealing (gate); §3.9 cause draw leans `SHOT_CLOCK_VIOLATION` on `acumen`↓ + defending `defensiveScheme`↑ and `OFFENSIVE_FOUL`/`BAD_PASS` on `teamOffense`↓ | ✅ §3.2/§3.9 |
@@ -307,7 +339,7 @@ the engine (the rotation step, `RotationState.advancePossession()`):
 |-----------------|-------------|--------|
 | Fatigue drain / recovery | endurance (slows drain), energy (speeds recovery) | ✅ §3.5 |
 | Fatigue sub | `currentEnergy` vs a coach-scaled threshold; starters tolerate MORE | ✅ §3.5 |
-| Foul-out (forced off) | none — a derived predicate over the foul counter | ✅ §3.5 |
+| Foul-out (forced off) | none — a derived predicate over the foul counter. ⚠ **§3.16 fed that counter a new source**: a charge is a personal foul, so a player can now foul out on fouls committed **on offense** (#039 G), and the rate rose 0.358 → 0.517 | ✅ §3.5 |
 | **Foul-trouble sub** | the **value composite** (individualDefense, rimProtection, defenseRebound + the five offense skills) × foul count × coach × roster slot; better players benched **sooner** | ✅ §3.13 |
 | **Technical foul** | **none for the RATE** — deliberately random, no causal model (#032 B); `foulProne` weights only **who** commits it, over the on-floor five (#032 C) | ✅ §3.14a |
 | **Technical FT shooter** | `freeThrows` — a **deterministic** highest-on-the-floor pick, *not* the `foulDrawing`-weighted draw bonus FTs use (#032 G) | ✅ §3.14a |

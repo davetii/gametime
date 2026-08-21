@@ -194,6 +194,54 @@ public class FoulResolver {
         return rng.nextDouble() < config.flagrantTwoShare();
     }
 
+    /**
+     * §3.16 (decisions.md #039 A/B/C/E): was a foul that <b>already happened</b> a
+     * COMMON (non-shooting) foul rather than a {@code SHOOTING_FOUL}? A flat {@link
+     * SimConfig#nonShootingFoulShare()} roll, {@link #isFlagrant}'s sibling and
+     * deliberately its twin in shape.
+     *
+     * <p><b>LAYERED ON TOP of a foul already rolled and charged, not carved OUT of
+     * one</b> — the inversion that makes §3.14b free on every existing rate, applied a
+     * second time. {@link #isFoul} keeps its rate, its skills and its RNG draw exactly
+     * as shipped, and {@code defender.recordFoul()} has already run before this is
+     * asked, so <b>the foul TOTAL holds by construction</b> (#039 A): foul-outs, {@code
+     * foulTroubleLevel()} and the bonus tally keep working on either branch with no
+     * tuning. What moves is the <i>outcome</i>, and with it the free throws.
+     *
+     * <p><b>⚠ The converted foul awards NO free throws outside the bonus, and ENDS the
+     * possession — the ball does NOT come back</b> (#039 C). That is wrong as
+     * basketball (a real common foul is a side inbound; the offense keeps the ball) and
+     * it is deliberate: every returning variant re-enters the loop at {@code
+     * ShotSelector} and yields a live attempt worth ~0.76 FGA where the stopped shot
+     * charged none, and FGA is 88.4 against 89.1 real — <b>0.7 of headroom</b>. That
+     * caps a retaining variant at a ~6% share, which moves FTA by less than one
+     * attempt. The retention reading and this phase's goal are arithmetically
+     * incompatible; FGA wins because it is sourced and already correct. The caller owns
+     * that fork — see {@code PossessionEngine}'s foul block.
+     *
+     * <p><b>⚠ NO SKILL INPUTS, and as with {@link #isFlagrant} that is a positive
+     * design claim rather than a simplification (#039 E).</b> {@code foulProne} has
+     * <b>already had its say</b> — {@code pickDefender} chose the committer before this
+     * roll fires — so weighting the <i>kind</i> of foul by it too would apply one
+     * signal twice (#034 E). It is also the honest position: the engine has no
+     * representation of <i>where on the floor</i> the contact happened, which is the
+     * thing that actually decides shooting vs. common, so any skill weighting here
+     * would manufacture a signal the model does not have.
+     *
+     * <p><b>⚠ Rolled only AFTER {@link #isFlagrant} misses</b> (#039 F). A flagrant
+     * common foul is simply a flagrant — it awards its flat 2 FTs and returns the ball
+     * — so the two never compose and there is no "flagrant that awards nothing" case.
+     * The ordering is load-bearing, not incidental.
+     *
+     * <p><b>Determinism:</b> one {@code nextDouble()} <b>per non-flagrant foul</b>,
+     * nested inside the already-conditional foul branch exactly as {@link #isFlagrant}
+     * is, so it forks the stream only on the foul's own outcome. Seed-pinned assertions
+     * downstream of any foul re-baseline once.
+     */
+    public boolean isNonShootingFoul(RandomGenerator rng) {
+        return rng.nextDouble() < config.nonShootingFoulShare();
+    }
+
     public boolean isFreeThrowMade(PlayerGameState shooter, RandomGenerator rng) {
         double prob = config.freeThrowProbability(shooter.getFreeThrows());
         return rng.nextDouble() < prob;

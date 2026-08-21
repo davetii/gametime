@@ -2364,4 +2364,310 @@ class PossessionEngineTest {
                 "2 FTs each, NOT the and-1's 1 and not 1+2 (#034 C)");
     }
 
+    // ---------- §3.16: common fouls + the charge fix (decisions.md #039) ----------
+
+    /**
+     * The RNG script for one possession that reaches the foul block, in draw order:
+     * pickShooter, pickShotType, pickDefender, isTurnover (miss), isFoul (hit),
+     * isFlagrant (miss), then the §3.16 composition roll the caller supplies.
+     *
+     * <p>The tail is high so anything drawn afterwards (free-throw makes, etc.) is
+     * deterministic without needing to be scripted.
+     */
+    private ScriptedRng foulPossessionRng(double compositionRoll) {
+        return new ScriptedRng(0.99,
+                0.5,   // pickShooter
+                0.5,   // pickShotType
+                0.5,   // pickDefender
+                0.99,  // isTurnover — miss
+                0.0,   // isFoul — hit
+                0.99,  // isFlagrant — miss
+                compositionRoll);
+    }
+
+    /**
+     * The RNG script for one possession that turns the ball over on a CHARGE:
+     * pickShooter, pickShotType, pickDefender, isTurnover (hit), then pickCause.
+     *
+     * <p>0.70 of the weight total selects OFFENSIVE_FOUL — STOLEN (56) + SHOT_CLOCK
+     * (10) = 66 cumulative, and OFFENSIVE_FOUL (9) runs to 75. At neutral skills every
+     * lean is 1.0, so the raw weights are the configured ones.
+     */
+    private ScriptedRng chargeRng() {
+        return new ScriptedRng(0.99,
+                0.5,   // pickShooter
+                0.5,   // pickShotType
+                0.5,   // pickDefender
+                0.0,   // isTurnover — hit
+                0.70); // pickCause — OFFENSIVE_FOUL
+    }
+
+    /**
+     * #039 B/C, THE POINT OF THE PHASE: a common foul outside the bonus emits the
+     * {@code COMMON_FOUL} event and <b>no free throws at all</b>.
+     *
+     * <p>⚠ And it <b>ENDS the possession</b> — no retention. That is deliberately wrong
+     * as basketball (a real common foul is a side inbound and the offense keeps the
+     * ball) and is the single most likely thing for a later change to "fix": every
+     * returning variant yields a live attempt worth ~0.76 FGA where the stopped shot
+     * charged none, and FGA has only 0.7 of headroom, which caps a retaining variant at
+     * a ~6% share — too small to move FTA at all.
+     */
+    @Test
+    void commonFoulOutsideTheBonusAwardsNoFreeThrowsAndEndsThePossession() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        resolvePossession(data, offense, defense, "OFF", "DEF", 1, 1,
+                foulPossessionRng(0.0));
+
+        List<GameData.EventRecord> events = data.getEvents();
+        assertEquals(1, events.size(),
+                "a common foul outside the bonus is ONE event — the foul, nothing else");
+        assertEquals(PlayType.FOUL, events.get(0).playType());
+        assertEquals(PossessionEngine.COMMON_FOUL_OUTCOME, events.get(0).outcome());
+        assertEquals(0, events.stream()
+                        .filter(e -> e.playType() == PlayType.FREE_THROW).count(),
+                "NO free throws outside the bonus — the whole point of §3.16 (#039 C)");
+        assertEquals(0, events.stream()
+                        .filter(e -> e.playType() == PlayType.SHOT).count(),
+                "the possession ENDS — the ball does not come back, so no second "
+                        + "attempt is generated (#039 C). If this fails, someone made "
+                        + "the common foul retain and FGA will blow its budget.");
+    }
+
+    /**
+     * #039 B/D: in the penalty the same foul awards exactly <b>2</b> bonus free throws.
+     * This is the ~18.5%-and-rising case that makes the net FT removed per conversion
+     * well under 2 — and therefore why the share is what it is, not the withdrawn ~35%.
+     */
+    @Test
+    void commonFoulInTheBonusAwardsExactlyTwoBonusFreeThrows() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        // Put DEF in the penalty: the Nth foul is the one being rolled below, so
+        // pre-load one short of the limit (emit-then-count, #028 A1).
+        for (int i = 0; i < config.bonusFoulsPerPeriod() - 1; i++) {
+            data.addEvent("OFF", "DEF", 1, 1, PlayType.FOUL, "SHOOTING_FOUL",
+                    "DEF-p1", null, "DEF");
+        }
+
+        resolvePossession(data, offense, defense, "OFF", "DEF", 1, 50,
+                foulPossessionRng(0.0));
+
+        List<GameData.EventRecord> freeThrows = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW).toList();
+        assertEquals(SimConfig.FREE_THROWS_PER_FOUL, freeThrows.size(),
+                "in the penalty a common foul awards the flat 2 bonus FTs (#039 B)");
+        for (GameData.EventRecord ft : freeThrows) {
+            assertTrue(String.valueOf(ft.outcome()).endsWith("_BONUS"),
+                    "they are BONUS free throws, source-tagged so the harness can "
+                            + "attribute them (#029 D)");
+        }
+    }
+
+    /**
+     * #028 A1 applied to the new outcome: <b>emit-then-count</b>. The common foul that
+     * REACHES the threshold is itself the one that awards — the event is in the log
+     * before {@code isInBonus} is asked, so the Nth foul sends its own team to the line.
+     */
+    @Test
+    void theNthFoulBeingACommonFoulItselfAwardsTheBonusFreeThrows() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+        for (int i = 0; i < config.bonusFoulsPerPeriod() - 1; i++) {
+            data.addEvent("OFF", "DEF", 1, 1, PlayType.FOUL, "SHOOTING_FOUL",
+                    "DEF-p1", null, "DEF");
+        }
+        assertFalse(data.isInBonus("DEF", 1, config), "one short before the roll");
+
+        resolvePossession(data, offense, defense, "OFF", "DEF", 1, 50,
+                foulPossessionRng(0.0));
+
+        assertTrue(data.isInBonus("DEF", 1, config),
+                "the common foul just emitted is the Nth and puts DEF in the bonus");
+        assertEquals(2, data.getEvents().stream()
+                        .filter(e -> e.playType() == PlayType.FREE_THROW).count(),
+                "and it awards on that same foul — emit-then-count, not count-then-emit");
+    }
+
+    /**
+     * #039 B: a {@code COMMON_FOUL} is a PERSONAL foul — it counts toward the period
+     * penalty tally exactly as a {@code SHOOTING_FOUL} does. The contrast with §3.14a's
+     * technical (excluded, #032 E) is the reason this is asserted rather than assumed:
+     * a foul type handled in one derivation but not the other makes the harness
+     * silently disagree with the engine.
+     */
+    @Test
+    void commonFoulCountsTowardThePenaltyTallyUnlikeATechnical() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        resolvePossession(data, offense, defense, "OFF", "DEF", 1, 1,
+                foulPossessionRng(0.0));
+
+        assertEquals(1, data.periodFoulCount("DEF", 1),
+                "COMMON_FOUL counts toward the bonus tally (#039 B)");
+        assertEquals("DEF", data.getEvents().get(0).committingTeamId(),
+                "the committer is the DEFENDER at this site, as on a shooting foul");
+    }
+
+    /**
+     * #039 A, the by-construction guarantee at the ENGINE level: the composition roll
+     * decides the KIND of foul, never whether one happened. The same scripted possession
+     * emits exactly one FOUL event either way — only the outcome string differs.
+     */
+    @Test
+    void theCompositionRollChangesTheOutcomeButNeverTheFoulCount() {
+        GameData common = freshData();
+        resolvePossession(common, teamOf5("OFF", 10), teamOf5("DEF", 10),
+                "OFF", "DEF", 1, 1, foulPossessionRng(0.0));
+
+        GameData shooting = freshData();
+        resolvePossession(shooting, teamOf5("OFF", 10), teamOf5("DEF", 10),
+                "OFF", "DEF", 1, 1, foulPossessionRng(0.99));
+
+        assertEquals(1, common.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL).count());
+        assertEquals(1, shooting.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL).count());
+        assertEquals(PossessionEngine.COMMON_FOUL_OUTCOME,
+                common.getEvents().get(0).outcome());
+        assertEquals("SHOOTING_FOUL", shooting.getEvents().get(0).outcome(),
+                "the roll re-partitions the OUTCOME; the foul total holds by "
+                        + "construction because recordFoul() ran before either branch");
+    }
+
+    /**
+     * #039 F, the load-bearing ordering: flagrant is rolled FIRST, so a flagrant common
+     * foul is simply a flagrant. The two never compose and there is no "flagrant that
+     * awards nothing" case.
+     */
+    @Test
+    void aFlagrantFoulNeverAlsoEmitsACommonFoul() {
+        GameData data = freshData();
+        // isFlagrant HITS (0.0), and the composition roll would also hit if it were
+        // reached — it must not be.
+        resolvePossession(data, teamOf5("OFF", 10), teamOf5("DEF", 10), "OFF", "DEF",
+                1, 1, new ScriptedRng(0.99,
+                        0.5, 0.5, 0.5,  // shooter / type / defender
+                        0.99,           // isTurnover — miss
+                        0.0,            // isFoul — hit
+                        0.0,            // isFlagrant — HIT
+                        0.0));          // would be the composition roll
+
+        List<String> foulOutcomes = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL)
+                .map(GameData.EventRecord::outcome).toList();
+        assertFalse(foulOutcomes.contains(PossessionEngine.COMMON_FOUL_OUTCOME),
+                "a flagrant short-circuits the composition roll (#039 F) — the two "
+                        + "must never compose");
+        assertTrue(foulOutcomes.stream().anyMatch(o -> o.startsWith("FLAGRANT_FOUL")),
+                "it is simply a flagrant");
+    }
+
+    /**
+     * #039 G / #037, the charge correctness fix: one charge emits <b>TWO events</b> —
+     * the {@code TURNOVER} that always existed and a {@code FOUL} that did not.
+     *
+     * <p>⚠ {@code committingTeamId} is the OFFENSE. This is the only site outside the
+     * rebounding foul where that is true, so it is the only other path that puts the
+     * DEFENSIVE team in the bonus.
+     */
+    @Test
+    void aChargeEmitsBothATurnoverAndAFoulCommittedByTheOffense() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        resolvePossession(data, offense, defense, "OFF", "DEF", 1, 1, chargeRng());
+
+        List<GameData.EventRecord> events = data.getEvents();
+        assertEquals(2, events.size(), "TWO events for ONE occurrence (#039 G)");
+
+        GameData.EventRecord turnover = events.get(0);
+        assertEquals(PlayType.TURNOVER, turnover.playType());
+        assertEquals(TurnoverCause.OFFENSIVE_FOUL.outcome(), turnover.outcome());
+
+        GameData.EventRecord foul = events.get(1);
+        assertEquals(PlayType.FOUL, foul.playType());
+        assertEquals(TurnoverCause.OFFENSIVE_FOUL.outcome(), foul.outcome(),
+                "both events read the same word — one string, not two copies");
+        assertEquals("OFF", foul.committingTeamId(),
+                "the OFFENSE committed the charge (#039 G) — the only such site "
+                        + "outside the rebounding foul");
+        assertEquals(turnover.primaryPlayerId(), foul.primaryPlayerId(),
+                "the ball-handler both lost it and committed it");
+    }
+
+    /**
+     * #039 G: the charge counts toward the bonus, and because the committer is on
+     * OFFENSE it is the <b>DEFENSE</b> that reaches the penalty a foul sooner — a path
+     * {@code isInBonus} always supported but which nothing outside the rebounding foul
+     * had ever exercised.
+     */
+    @Test
+    void aChargePutsTheOffenseAFoulCloserToTheBonusNotTheDefense() {
+        GameData data = freshData();
+
+        resolvePossession(data, teamOf5("OFF", 10), teamOf5("DEF", 10),
+                "OFF", "DEF", 1, 1, chargeRng());
+
+        assertEquals(1, data.periodFoulCount("OFF", 1),
+                "the charge is charged to the OFFENSE's team tally (#039 G)");
+        assertEquals(0, data.periodFoulCount("DEF", 1),
+                "and not to the defense's");
+    }
+
+    /**
+     * #039 G / #037, the bug this fixes stated directly: before §3.16 a charge charged
+     * {@code recordFoul()} to <b>nobody</b> — not the committer's six, not the box-score
+     * fouls column. A player who charges repeatedly must now foul out.
+     */
+    @Test
+    void aChargeChargesThePersonalFoulSoRepeatChargersFoulOut() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        for (int i = 0; i < config.foulOutLimit(); i++) {
+            resolvePossession(data, offense, defense, "OFF", "DEF", 1, 1 + i * 2,
+                    chargeRng());
+        }
+
+        // The scripted picks are identical every possession, so the same ball-handler
+        // charges each time.
+        PlayerGameState charger = offense.stream()
+                .filter(p -> p.getFouls() > 0).findFirst().orElseThrow();
+        assertEquals(config.foulOutLimit(), charger.getFouls(),
+                "every charge charges a personal foul (#039 G) — before §3.16 this "
+                        + "counted toward nothing at all (#037)");
+        assertTrue(charger.isFouledOut(),
+                "so a repeat charger fouls out, which he previously never could");
+    }
+
+    /**
+     * #039 G: a charge is <b>NOT flagrant-eligible</b> — stated rather than implied,
+     * because the flagrant roll lives in FoulResolver's foul block and this path never
+     * reaches it. Even an RNG that would hit every flagrant roll produces no flagrant.
+     */
+    @Test
+    void aChargeIsNeverFlagrant() {
+        GameData data = freshData();
+        // Every unscripted draw is 0.0 — any flagrant roll reached would HIT.
+        resolvePossession(data, teamOf5("OFF", 10), teamOf5("DEF", 10), "OFF", "DEF",
+                1, 1, new ScriptedRng(0.0,
+                        0.5, 0.5, 0.5,  // shooter / type / defender
+                        0.0,            // isTurnover — hit
+                        0.70));         // pickCause — OFFENSIVE_FOUL
+
+        assertTrue(data.getEvents().stream()
+                        .noneMatch(e -> String.valueOf(e.outcome()).startsWith("FLAGRANT")),
+                "the charge path never reaches the flagrant roll (#039 G)");
+    }
+
 }

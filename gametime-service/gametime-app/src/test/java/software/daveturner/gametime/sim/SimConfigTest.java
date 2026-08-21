@@ -414,28 +414,35 @@ class SimConfigTest {
     /**
      * #034 G: the constant is the per-team-per-GAME rate, divided down by the
      * PERSONAL-FOUL rate because the roll fires per FOUL, not per possession or per
-     * check. ~0.16 / 19.0 ≈ 0.0084.
+     * check. ~0.16 / 20.15 ≈ 0.0079.
      */
     @Test
     void flagrantFoulProbabilityDividesTheGameRateByThePersonalFoulRate() {
         assertEquals(config.flagrantFoulsPerTeamGame()
                         / SimConfig.PERSONAL_FOULS_PER_TEAM_GAME,
                 config.flagrantFoulProbability(), 1e-12);
-        assertEquals(0.0084, config.flagrantFoulProbability(), 1e-4,
-                "The per-foul probability lands around 0.0084");
+        assertEquals(0.0079, config.flagrantFoulProbability(), 1e-4,
+                "The per-foul probability lands around 0.0079");
     }
 
     /**
      * #034 G, the honest cost: unlike the technical rate's NOMINAL, config-derived
      * divisor, this one is a MEASURED quantity — an assumption about the engine's
-     * current behavior. It is a named constant precisely so §3.16 can grep for it when
-     * it invalidates it.
+     * current behavior. It is a named constant precisely so a pass that moves the foul
+     * rate can grep for it, and §3.16 is the first pass that did.
+     *
+     * <p>§3.13/§3.14a measured 19.0. §3.16's charge fix (#039 G) made ~1.2 charges per
+     * team-game into personal fouls that had counted toward nothing, taking the
+     * measured rate to <b>20.15</b> (20.50 all-events minus ~0.35 technicals, 5 seeds).
+     * §3.16's COMMON_FOUL re-partition does NOT enter it — that only re-labels a foul
+     * already rolled and charged (#039 A).
      */
     @Test
     void theFlagrantDivisorIsTheMeasuredPersonalFoulRateNotAConfiguredCount() {
-        assertEquals(19.0, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
-                "§3.14a measured ~19.4 fouls/team/game over ALL foul events, minus its "
-                        + "0.367 technicals — i.e. §3.13's 19.0 personal fouls");
+        assertEquals(20.15, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
+                "§3.16 re-measured this deliberately (#034 G forbids letting it drift): "
+                        + "20.50 fouls/team/game over ALL foul events, minus ~0.35 "
+                        + "technicals, i.e. 20.15 personal fouls");
         // The contrast that makes the coupling worth stating: the technical divisor is
         // derived from constants, so it moves only when a constant moves. This one does
         // not appear in any other formula — moving the foul rate moves flagrants

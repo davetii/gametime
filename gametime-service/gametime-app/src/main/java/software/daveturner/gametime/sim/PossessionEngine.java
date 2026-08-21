@@ -32,6 +32,27 @@ public class PossessionEngine {
     static final String FLAGRANT_FOUL_1_OUTCOME = "FLAGRANT_FOUL_1";
     static final String FLAGRANT_FOUL_2_OUTCOME = "FLAGRANT_FOUL_2";
 
+    /**
+     * §3.16 (decisions.md #039 B/E): the foul that awards no free throws outside the
+     * bonus — {@link FoulResolver#isNonShootingFoul}'s outcome.
+     *
+     * <p><b>⚠ The event outcome is {@code COMMON_FOUL} while the config key is {@code
+     * sim.non-shooting-foul-share}, and the divergence is INTENTIONAL, not drift</b>
+     * (#039 E). This string sits in a play-by-play list of basketball terms
+     * ({@code SHOOTING_FOUL}, {@code REBOUNDING_FOUL_*}, {@code TECHNICAL_FOUL},
+     * {@code FLAGRANT_FOUL_*}) where the jargon reads correctly and
+     * {@code NON_SHOOTING_FOUL} would read as a clumsy negation; the config key is
+     * read by a tuner with no such surrounding vocabulary, so it defines itself
+     * against {@code SHOOTING_FOUL} instead. Different audiences, named for different
+     * readers.
+     *
+     * <p>Like the flagrant outcomes above it lives HERE rather than on {@link
+     * GameData}: a common foul <b>counts</b> toward the penalty (#039 B), so {@code
+     * GameData} needs no entry for it — only the technical, the one excluded outcome,
+     * must be recognised on both sides of that agreement.
+     */
+    static final String COMMON_FOUL_OUTCOME = "COMMON_FOUL";
+
     private final ShotSelector shotSelector;
     private final ShotResolver shotResolver;
     private final TurnoverResolver turnoverResolver;
@@ -178,7 +199,42 @@ public class PossessionEngine {
                 shooter.recordTurnover();
                 data.addEvent(offTeamId, defTeamId, period, sequence,
                         PlayType.TURNOVER, cause.outcome(), shooter.getPlayerId());
-                return sequence + 1;
+                sequence++;
+
+                // §3.16 (decisions.md #039 G, fixing #037): a CHARGE IS A PERSONAL
+                // FOUL, and until now the engine charged it to nobody — not the
+                // committer's six, not the team-foul tally, not the box-score fouls
+                // column. §3.9 (#027) added the cause without noticing.
+                //
+                // ⚠ TWO EVENTS FOR ONE OCCURRENCE: the TURNOVER above and the FOUL
+                // below both describe the same charge. Every reconciliation that
+                // counts events must tolerate that, and the harness's
+                // `Fouls / team / game` line steps up ~1.26 for this reason ALONE —
+                // which must not be misread as §3.16's re-partition misfiring.
+                //
+                // ⚠ committingTeamId = offTeamId. This is the ONLY site outside the
+                // rebounding foul where the committer is on OFFENSE, so it is the
+                // only other path that puts the DEFENSIVE team in the bonus.
+                // GameData.isInBonus reads committingTeamId and already supports it;
+                // it counts toward the bonus and FOUL_OUT_LIMIT because it IS a
+                // personal foul (no exclusion in GameData.countsTowardBonus — only
+                // the technical is excluded, #032 E).
+                //
+                // ⚠ NOT flagrant-eligible (#039 G), stated rather than implied: the
+                // flagrant roll lives in FoulResolver's foul block below and this
+                // path never reaches it. The possession already ends (it is a
+                // turnover), so #039 C's possession-fork question does not arise.
+                if (cause == TurnoverCause.OFFENSIVE_FOUL) {
+                    shooter.recordFoul();
+                    // The outcome string is TurnoverCause's own — the FOUL event and
+                    // the TURNOVER event describe one occurrence, so they must read
+                    // the same word, and a literal here would be a second copy of it.
+                    data.addEvent(offTeamId, defTeamId, period, sequence,
+                            PlayType.FOUL, cause.outcome(), shooter.getPlayerId(),
+                            null, offTeamId);
+                    sequence++;
+                }
+                return sequence;
             }
 
             // 2. Foul check — a foul that STOPPED the shot (no basket), on ANY shot
@@ -203,6 +259,50 @@ public class PossessionEngine {
                         continue; // the offense keeps the ball (#034 B)
                     }
                     return sequence; // cap full: FTs awarded, possession ends (§3.10's shape)
+                }
+
+                // §3.16 (decisions.md #039 A/B/C/E): the COMPOSITION roll, layered
+                // on the same already-charged foul the flagrant roll above rides.
+                // `defender.recordFoul()` ran BEFORE all branching, which is what
+                // holds the foul TOTAL by construction — this only decides what KIND
+                // of foul it was, and therefore whether free throws follow.
+                //
+                // ⚠ ORDERING IS LOAD-BEARING (#039 F): flagrant is rolled FIRST and
+                // returns above, so a flagrant common foul is simply a flagrant. The
+                // two never compose and there is no "flagrant that awards nothing".
+                //
+                // ⚠ THE POSSESSION ENDS AND THE BALL DOES NOT COME BACK (#039 C) —
+                // no `continue`, no `offensiveRetentions++`. This is DELIBERATELY
+                // wrong as basketball: a real common foul is a side inbound and the
+                // offense keeps the ball. It is not modelled that way because every
+                // returning variant re-enters the loop at ShotSelector and yields a
+                // live attempt worth ~0.76 FGA where the stopped shot charged NONE,
+                // and FGA is 88.4 against 89.1 real — 0.7 of headroom. That caps a
+                // retaining variant at a ~6% share, which moves FTA by less than one
+                // attempt: the retention reading and this phase's goal are
+                // arithmetically incompatible. FGA wins because it is sourced and
+                // already correct. Revisit only if §3.17 buys FGA headroom.
+                if (foulResolver.isNonShootingFoul(rng)) {
+                    // Emit-then-count (#028 A1): the event goes in the log FIRST, so
+                    // the Nth foul — this one — sends its own team to the line.
+                    data.addEvent(offTeamId, defTeamId, period, sequence,
+                            PlayType.FOUL, COMMON_FOUL_OUTCOME, defender.getPlayerId(),
+                            null, defTeamId);
+                    sequence++;
+
+                    // In the penalty: 2 bonus FTs, exactly as the rebounding foul
+                    // awards them. This is the ~18.5% case that makes the net FT
+                    // removed per conversion 1.664 rather than 2.034 (#039 D) — and
+                    // it is why the share is 0.43 and not the withdrawn ~0.35.
+                    if (data.isInBonus(defTeamId, period, config)) {
+                        sequence = awardFreeThrows(data, shooter, offTeamId,
+                                offTeamId, defTeamId, period, sequence,
+                                SimConfig.FREE_THROWS_PER_FOUL,
+                                FreeThrowSource.BONUS, rng);
+                    }
+                    // Not in the penalty: NO free throws at all — the point of the
+                    // phase. The §3.10 not-in-bonus rebounding-foul shape.
+                    return sequence;
                 }
 
                 // §3.10 (#028 D): a shooting foul's committer is always the
