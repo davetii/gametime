@@ -62,10 +62,14 @@ letting it drift**: a pass that moves the foul rate must decide it again, in wri
 
 ## §3.17 open questions (resolve these into decisions.md #040)
 
-1. **Is the 3PA gap an engine problem or a player-generation problem?** Measure the
-   generated population's `shotTypeWeight(THREE)` distribution before designing
-   anything. If the engine faithfully renders a population that simply does not shoot
-   threes, the phase moves upstream and this becomes a **player-generation** pass.
+1. **Is the 3PA gap an engine problem or a player-generation problem?** (#036 D's
+   gating question.) ⚠ **A STRONG PROVISIONAL ANSWER ALREADY EXISTS — see Verified
+   facts: it looks like the WEIGHT FORMULA, not the population.** `shotTypeWeight` gives
+   `DRIVE` the **sum of two** skills while every other type gets **one**, which predicts
+   a 20% three share at an average player; the engine shows **22.5%** against a real
+   **41.5%**. Since the skill calculators all centre on ~10 by construction, no plausible
+   population shift closes that gap. **Confirm this measurement yourself before relying
+   on it** — but if it holds, the phase is an **engine** pass and question 2 is live.
 2. **If it IS an engine problem: what shape does the lever take?** `shotMixLean` scaling
    PERIMETER and THREE together is the known blocker — does it split, does a new
    per-type lean appear, or does the base weight table move? ⚠ **A re-partition that
@@ -84,9 +88,66 @@ letting it drift**: a pass that moves the foul rate must decide it again, in wri
    fouled threes (1.50% measured vs ~3.0% true). **Do not re-tune `foul-mult-three`
    against the current rows, and do not read them as evidence either way** until it
    classifies by `ShotType`.
-5. **Does the rebounding gap resolve itself?** Off/def rebounds are both low (9.6/27.6
+5. **Does the rebounding gap resolve itself?** Off/def rebounds are both low (9.9/27.4
    vs 11.3/32.4) and #036 already suspects that is a 3PA symptom — a three misses
    longer. **Check whether §3.17 fixes it for free** rather than designing a rebound pass.
+6. **Is `shotTypeWeight`'s sum-vs-average asymmetry deliberate or an oversight?**
+   `shotTypeWeight` uses `drive + finishing` (a **sum**) while `offenseSkillForShot`
+   uses `(drive + finishing) / 2.0` (an **average**) — the same two skills, combined two
+   different ways in adjacent methods (`PlayerGameState:323` / `:332`). One of them is
+   the 3PA lever; the other is the accuracy path and **must not move** (3P% is already
+   correct at 36.7 vs 36.0). ⚠ **Decide this explicitly** — if the sum was intentional
+   ("a drive is genuinely the most common shot"), then the fix is a deliberate re-weight
+   rather than a bug fix, and the entry should say so. This is the #030 F / #039 E
+   naming-and-intent discipline applied to a formula.
+7. **Does the fix belong to the weights, a new lean, or both — and does it hold FGA?**
+   ⚠ **A re-partition of the shot MIX holds total FGA by construction** (the §3.9/§3.16
+   shape) because every possession still takes one shot; only its *type* changes. That
+   is the cheap and safe answer given FGA has ~0.3 of headroom. **Anything that changes
+   the NUMBER of attempts spends a budget §3.16 already spent** (#039 C).
+
+---
+
+### Verified facts (measured 2026-08 against the tree — for whoever designs this)
+
+- **`ShotSelector.pickShotType`** (`ShotSelector:34`) does a weighted draw over all four
+  `ShotType`s using `leanedWeight` (`ShotSelector:50`), which is
+  `shooter.shotTypeWeight(type)` scaled by `shotMixLean` **for PERIMETER and THREE
+  together** (`ShotSelector:52`). **That single line is the known blocker** — it cannot
+  raise threes while lowering mid-range.
+- **⚠ THE WEIGHTS ARE NOT SYMMETRIC, AND THIS LOOKS LIKE THE ACTUAL CAUSE.**
+  `PlayerGameState.shotTypeWeight` (`PlayerGameState:323`) is:
+  **`DRIVE -> drive + finishing`** (a **SUM OF TWO** skills) · `PERIMETER -> perimeter` ·
+  `POST -> post` · `THREE -> longRange` (each a **single** skill).
+  So at an average player — every skill ≈ 10, which is what the calculators are built to
+  produce — the draw is **DRIVE 40% · PERIMETER 20% · POST 20% · THREE 20%**. DRIVE gets
+  double weight purely because its formula adds two skills together.
+- **The engine's observed mix matches that structural prediction almost exactly**:
+  3PA 20.0 of FGA 88.80 = **22.5% of attempts**, against a structural 20%. **Real is
+  37.0 of 89.1 = 41.5%.** ⚠ **So question 1 looks ANSWERED: this is the weight formula,
+  not the generated population.** The calculators all center on ~10 (`LongRangeSkillCalculator`
+  and `DriveSkillCalculator` both build a ~10-centered value), so no plausible population
+  shift closes a 20%→41.5% gap. **Re-confirm this measurement first, then design.**
+- **`offenseSkillForShot`** (`PlayerGameState:332`) — the *accuracy* path — uses
+  **`(drive + finishing) / 2.0`**, i.e. an **average**, where `shotTypeWeight` uses the
+  **sum**. ⚠ **The same two skills are combined two different ways in adjacent methods.**
+  That asymmetry is the cheapest thing to examine, and it is worth deciding whether the
+  sum is deliberate (drive is genuinely the most common shot) or an oversight.
+- **3P% is fine — this is VOLUME, not accuracy**: 36.7% against a sourced 36.0%. Do not
+  touch the make rates.
+- **Baseline landing to beat** (5-seed mean, seeds 1000–5000, profile `local,baseline`,
+  post-§3.16): points **109.6** · FG% **46.68** · 3P% 36.7 · ast 26.9 · TO 13.6 ·
+  FTA **23.60** · fouls **20.53** · **FGA 88.80** · 3PA **20.0** · foul-outs 0.517 ·
+  penalty 55.7%. ⚠ **Points 109.6 is BY DESIGN and is §3.19's** (#039 H).
+- **Rebounds are low and may be a symptom**: off 9.9 vs 11.3, def 27.4 vs 32.4. #036
+  suspects the 3PA gap causes it (a three misses longer). Check before designing a fix.
+- **`SimConfig` shot bases** (`application-baseline.properties`): `base-drive=0.5975`,
+  `base-perimeter=0.4375`, `base-three=0.3375`, `base-post=0.4975`. ⚠ **These are
+  MAKE probabilities, not shot-mix weights** — they do not select the shot type, so they
+  are not the 3PA lever. The mix comes only from `shotTypeWeight` × `shotMixLean`.
+- Harness: `-Dcalibration=true -DcalibrationSeed=NNNN`, 6 rounds × 17 matchups ≈ 102
+  games per seed. Judge at **5 seeds**. Since §3.15 the sim profile rides the ordinary
+  Spring list (`-Dspring.profiles.active=test,baseline`), and `baseline` must stay in it.
 
 ---
 
