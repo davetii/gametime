@@ -670,3 +670,33 @@ planned features), see [ideas.md](ideas.md).
       **Not §3.17's** (blocks are a §3.19 row, #038's rule) and **not a blocker** — but
       §3.19 must not re-tune the four `base-block-*` without holding this, or it will tune
       a constant that does nothing and conclude the lever is dead.
+
+- [ ] **A test asserts a ~13% RANDOM EVENT on a pinned seed, and it is ALSO order-dependent
+      — so a green local `mvn install` does not prove it passes.** Found 2026-08 when CI
+      failed on §3.17's branch after two clean local full builds.
+      `GameSimulatorIntegrationTest.technicalFoulsArePersistedOnTheBoxScoreAndReconcileWithTheEvents`
+      opens with a **precondition** — *"a 40-possession game must produce at least one
+      technical"* — that keeps its reconciliation from passing vacuously. ⚠ **That is not
+      an invariant.** The per-check technical probability is **~0.00175**, so 40
+      possessions × 2 teams expects **~0.14** technicals: "at least one" fires on roughly
+      **one seed in eight**. It has now broken **twice** on passes that touched neither
+      technicals nor fouls — §3.14b (flagrant roll consumed an extra draw, seed 7 → 9) and
+      §3.17 (the shot mix changed `pickShotType`'s result on nearly every possession, seed
+      9 → 12). Each time the fix was to re-measure and re-pin, which works and does not
+      scale.
+      ⚠ **THE ORDER-DEPENDENCE IS THE BIGGER HALF, AND IT DEFEATS THE LOCAL GATE.**
+      Measured: the test **fails in isolation and passes in the full suite on the same
+      seed**. `V1ApiDelegateimplTest` is **not** `@Transactional` and commits roster rows;
+      that changes who is on the floor, which changes the RNG consumption pattern
+      downstream. **So the suite passing is the lucky ordering, not the honest result** —
+      exactly how §3.17 shipped a red branch after `mvn clean install` reported
+      `BUILD SUCCESS` twice.
+      **The durable fix (pick one, do not keep re-pinning):** raise the possession count
+      until at least one technical is near-certain; or assert the reconciliation identity
+      over a **batch of seeds** and drop the precondition entirely — the identity
+      (`events == box-score column`) is what the test is actually for and it holds at zero
+      technicals too, it just proves nothing there. **Also worth fixing independently:**
+      make `V1ApiDelegateimplTest` `@Transactional`, or give the sim tests their own
+      fixture, so test order stops changing simulation output.
+      ⚠ **Audit for siblings before closing**: any other fixed-seed test whose assertion
+      depends on a rare event firing. Grep for seed literals in `sim` tests.

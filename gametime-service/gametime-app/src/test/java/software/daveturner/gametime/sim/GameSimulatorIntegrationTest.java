@@ -455,18 +455,34 @@ class GameSimulatorIntegrationTest {
      * <p>This is the assertion that catches the sim → entity write being dropped: the
      * field is nullable and every other layer would still compile and pass without it.
      *
-     * <p><b>§3.14b re-baselined the SEED, 7 → 9, and nothing else.</b> The {@code > 0}
-     * line below is a <b>precondition</b> that keeps the reconciliation from passing
-     * vacuously, not an invariant about technicals — and §3.14b's flagrant roll consumes
-     * one extra draw per foul, so the seed-7 stream no longer happens to produce one.
-     * Seed 9 was chosen by <b>measuring</b> which seeds still yield technicals here (it
-     * yields three, so the precondition has margin), not by weakening the assertion to
-     * {@code >= 0}. The reconciliation identity itself is unchanged and is what the test
-     * is actually for.
+     * <p><b>§3.14b re-baselined the SEED, 7 → 9; §3.17 re-baselined it again, 9 → 12.</b>
+     * The {@code > 0} line below is a <b>precondition</b> that keeps the reconciliation
+     * from passing vacuously, not an invariant about technicals. §3.14b's flagrant roll
+     * consumed an extra draw per foul; §3.17 changed what {@code pickShotType} returns on
+     * nearly every possession (#040), and either shifts the whole downstream stream. Each
+     * re-baseline picked the new seed by <b>measuring</b> which seeds still yield
+     * technicals here, never by weakening the assertion to {@code >= 0}. Seed 12 yields
+     * <b>four</b>, the widest margin in the first 60 seeds.
+     *
+     * <p>⚠ <b>THIS PRECONDITION IS INHERENTLY FRAGILE AND THE FRAGILITY IS WORTH KNOWING
+     * — it is asserting a ~13% EVENT, not an invariant.</b> The per-check technical
+     * probability is ~0.00175, so 40 possessions × 2 teams expects ~0.14 technicals; "at
+     * least one" happens on roughly one seed in eight. That is why it has now broken
+     * twice on passes that touched neither technicals nor fouls.
+     *
+     * <p>⚠ <b>IT IS ALSO ORDER-DEPENDENT, WHICH IS A SEPARATE AND LARGER PROBLEM.</b>
+     * Measured 2026-08: this test <b>fails in isolation and passes in the full suite</b>
+     * on the same seed. {@code V1ApiDelegateimplTest} is not {@code @Transactional} and
+     * commits roster rows, which changes who is on the floor and therefore the RNG
+     * consumption pattern. <b>So a green full-suite run does NOT prove this test passes
+     * — CI caught what a local {@code mvn install} did not.</b> Filed as a backlog chore;
+     * the durable fix is to stop asserting a rare event in a fixed-seed test (raise the
+     * possession count, or assert the reconciliation identity over a batch of seeds and
+     * drop the precondition), not to keep re-pinning the seed.
      */
     @Test
     void technicalFoulsArePersistedOnTheBoxScoreAndReconcileWithTheEvents() {
-        SimResult result = simulator.simulate("CHI", "NY", 9L, 40);
+        SimResult result = simulator.simulate("CHI", "NY", 12L, 40);
         List<GameEventEntity> events = gameEventRepo
                 .findByGameIdOrderBySequenceAsc(result.getGameId());
         List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());

@@ -101,6 +101,23 @@ When adding or changing production code under `gametime-app/src/main/java`,
 invoke the **`test-coverage`** skill — the JaCoCo gate is per-package and runs at
 `install`, not `test`, so a green `mvn test` does not prove it passes.
 
+⚠ **AND A GREEN `mvn clean install` DOES NOT PROVE CI WILL PASS EITHER.** Measured
+2026-08: §3.17 shipped a branch that failed in GitHub Actions after **two** clean local
+full builds. `GameSimulatorIntegrationTest` **fails in isolation and passes in the full
+suite on the same seed**, because `V1ApiDelegateimplTest` is not `@Transactional` and
+commits roster rows — which changes who is on the floor and therefore the RNG
+consumption pattern downstream. **The suite passing was the lucky ordering.**
+**After any change that moves the sim's RNG stream** — a new draw, a changed draw
+result, anything touching `PossessionEngine`/`ShotSelector`/`RotationState` — **also run
+the sim test classes ALONE**, which is the stricter check:
+```
+JAVA_HOME=... mvn -pl gametime-app -f gametime-service/pom.xml test -Dtest='GameSimulatorIntegrationTest' -DfailIfNoTests=false
+```
+⚠ Several sim tests pin a seed and assert something that is **probabilistic, not
+invariant** (the technicals precondition asserts a ~13% event). Those re-baseline
+whenever the stream shifts — measure a new seed, never weaken the assertion. See
+backlog.md for the durable fix.
+
 ### How a phase moves (read this before starting work)
 
 Engine sub-phases run in **three separate sessions**, and knowing which one you're
