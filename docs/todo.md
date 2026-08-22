@@ -230,6 +230,34 @@ blocked on; Steps 1–2 must be measured *separately* so the landing is attribut
       matches what shipped** and adjust if the placement moved. Validate with
       `plantuml -checkonly`, then render with **`-DPLANTUML_LIMIT_SIZE=16384`** and confirm
       the PNG is taller than 4096px (it is ~10,900px today; a plain `-tpng` silently truncates).
+- [ ] ⚠ **THE FOUR DOMAIN-DESIGN DOCS ALSO GO STALE, AND NEITHER THE `project-docs` SKILL
+      NOR ANY PRIOR PLAN COVERS THEM** (found 2026-08 by the user, while reviewing this
+      plan). The skill's routing table lists the six planning docs plus the `.puml` and
+      **omits `game.md` / `player.md` / `coach.md` / `roster.md` entirely**, so every phase
+      so far has updated them by noticing rather than by rule. Anchors verified against the
+      tree this pass:
+      - **`coach.md` — the substantive one.** Line **171** states *"`offensiveScheme`
+        multiplies only the `PERIMETER` + `THREE` shot weights"* and line **158**'s formula
+        table reads `baseShotMix × f(offensiveScheme) → perimeter vs. interior shot share`.
+        ⚠ **Decision D makes BOTH false** — THREE takes the lean and PERIMETER takes its
+        **reciprocal**, so the axis is now mid-range-vs-three, not jumper-vs-interior. Line
+        **61**'s attribute table row needs the same correction.
+      - **`player.md`** — line **214** describes shot selection as reading
+        `drive`/`finishing`/`perimeter`/`post`/`longRange`, **which is #021 D's five-for-four
+        wording and the origin of the bug** (#040 B). Line **294**'s `offense = mean(...)`
+        formula and the `longRange`/`finishing` rows (**75**, **106**) should say what each
+        skill now drives: **selection is a share table nudged by skill; accuracy is
+        unchanged.**
+      - **`game.md`** — lines **178**/**188** (`ShotSelector` picks the shot type) and the
+        `COMMON_FOUL` mentions at **48**, **63**, **138**, **215–216**, **225**.
+      - **`roster.md`** — line **234**'s `COMMON_FOUL` mention.
+      ⚠ **The `COMMON_FOUL` hits in `game.md` / `roster.md` / `player.md` are Step 3b's
+      rename**, not the mix change — but **do NOT retro-edit `decisions.md` #039**, which is
+      shipped (#040 M is the record).
+- [ ] **File a backlog chore: the `project-docs` routing table omits the four domain-design
+      docs.** This gap is why the omission was possible, and fixing the docs without fixing
+      the rule means the next phase rediscovers it. **Do not fix the skill inside this
+      phase** — a skill edit mid-execution is scope creep; file it and move on.
 - [ ] Implementation note on **#040** — divergences, the resolved open-at-execution items,
       final constants, the landing, and **where the #040 E/F predictions were wrong**.
 

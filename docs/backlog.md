@@ -362,6 +362,33 @@ planned features), see [ideas.md](ideas.md).
       Cheap: one accumulator, one report line, one reconciliation check. **Test-only, no
       engine change.** Do it in whatever phase next touches the harness.
 
+- [ ] **The `project-docs` skill's routing table omits the four DOMAIN-DESIGN docs, so
+      they are kept current by noticing rather than by rule.** *(found 2026-08 by the user
+      while reviewing §3.17's execution plan.)*
+      The skill routes decisions.md / todo.md / roadmap.md / backlog.md / ideas.md /
+      risks.md, plus `possession-flow.puml` as a living spec. **`game.md`, `player.md`,
+      `coach.md` and `roster.md` are not in the table at all** — yet every engine sub-phase
+      touches at least one of them, and §3.17 alone makes **`coach.md:171` factually wrong**
+      (*"`offensiveScheme` multiplies only the `PERIMETER` + `THREE` shot weights"* — #040 D
+      makes THREE take the lean and PERIMETER its reciprocal) and leaves **`player.md:214`**
+      still describing shot selection with #021 D's five-skills-for-four-types wording,
+      **the very phrasing that caused the bug §3.17 fixes**.
+      ⚠ **The failure mode is silent and asymmetric**: a stale planning doc gets caught
+      because the next design pass reads it start to finish; a stale *domain* doc is read
+      by whoever is learning the model, who has no way to know it is wrong. **`coach.md` is
+      the sharpest case** — it is the reference for what the five coach attributes mean, and
+      a reader who trusts line 171 after §3.17 would build against an axis that no longer
+      exists.
+      **Fix**: add a row per domain doc to the routing table (what each owns, what it does
+      NOT), and extend the skill's "Before you finish" checklist with a domain-doc check
+      alongside the existing `possession-flow.puml` one. ⚠ **Worth pairing with a
+      grep-based reality check** — the anchors above were all found by grepping for
+      `shotTypeWeight` / `offensiveScheme` / `COMMON_FOUL`, which suggests the rule should
+      be *"grep the domain docs for every identifier the phase renamed or re-specified"*
+      rather than a prose reminder to remember.
+      **Do NOT fix this inside a phase's execution** — a skill edit mid-execution is scope
+      creep. §3.17's plan carries the doc updates it owns and files this separately.
+
 - [ ] **`possession-flow.puml` has outgrown one page — thin the PROSE before splitting the
       FLOW.** *(raised 2026-08 by the user; **post-Phase-3**, alongside the `decisions.md`
       condense pass below — both are "the docs outgrew their format" problems and both are
