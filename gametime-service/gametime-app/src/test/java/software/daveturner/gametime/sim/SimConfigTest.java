@@ -414,15 +414,15 @@ class SimConfigTest {
     /**
      * #034 G: the constant is the per-team-per-GAME rate, divided down by the
      * PERSONAL-FOUL rate because the roll fires per FOUL, not per possession or per
-     * check. ~0.16 / 20.15 ≈ 0.0079.
+     * check. ~0.16 / 17.82 ≈ 0.0090 (§3.17 re-measured the divisor — see below).
      */
     @Test
     void flagrantFoulProbabilityDividesTheGameRateByThePersonalFoulRate() {
         assertEquals(config.flagrantFoulsPerTeamGame()
                         / SimConfig.PERSONAL_FOULS_PER_TEAM_GAME,
                 config.flagrantFoulProbability(), 1e-12);
-        assertEquals(0.0079, config.flagrantFoulProbability(), 1e-4,
-                "The per-foul probability lands around 0.0079");
+        assertEquals(0.0090, config.flagrantFoulProbability(), 1e-4,
+                "The per-foul probability lands around 0.0090");
     }
 
     /**
@@ -434,15 +434,23 @@ class SimConfigTest {
      * <p>§3.13/§3.14a measured 19.0. §3.16's charge fix (#039 G) made ~1.2 charges per
      * team-game into personal fouls that had counted toward nothing, taking the
      * measured rate to <b>20.15</b> (20.50 all-events minus ~0.35 technicals, 5 seeds).
-     * §3.16's COMMON_FOUL re-partition does NOT enter it — that only re-labels a foul
+     * §3.16's NON_SHOOTING_FOUL re-partition does NOT enter it — that only re-labels a foul
      * already rolled and charged (#039 A).
+     *
+     * <p>⚠ <b>§3.17 moved it again, to 17.82</b> — and it is the clearest demonstration
+     * yet of why #034 G forbids drift. §3.17 touches <b>no foul constant whatsoever</b>;
+     * it moves the SHOT MIX. But shifting draws from DRIVE/POST ({@code foul-mult} 1.0)
+     * to THREE (0.133) means far fewer of them draw contact, so personal fouls fell
+     * 20.18 → 17.82 (−11.5%). <b>The drift was already visible in the output</b>: the
+     * measured flagrant rate ran 0.119 against its ~0.16 ballpark, which is exactly the
+     * 17.82/20.15 ratio. Nothing failed — which is #032 B2's whole point.
      */
     @Test
     void theFlagrantDivisorIsTheMeasuredPersonalFoulRateNotAConfiguredCount() {
-        assertEquals(20.15, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
-                "§3.16 re-measured this deliberately (#034 G forbids letting it drift): "
-                        + "20.50 fouls/team/game over ALL foul events, minus ~0.35 "
-                        + "technicals, i.e. 20.15 personal fouls");
+        assertEquals(17.82, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
+                "§3.17 re-measured this deliberately (#034 G forbids letting it drift): "
+                        + "18.18 fouls/team/game over ALL foul events, minus ~0.36 "
+                        + "technicals, i.e. 17.82 personal fouls");
         // The contrast that makes the coupling worth stating: the technical divisor is
         // derived from constants, so it moves only when a constant moves. This one does
         // not appear in any other formula — moving the foul rate moves flagrants

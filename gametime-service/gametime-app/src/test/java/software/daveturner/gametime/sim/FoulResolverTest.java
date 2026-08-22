@@ -723,7 +723,7 @@ class FoulResolverTest {
         for (int i = 0; i < 1_000; i++) {
             if (resolver.isNonShootingFoul(r)) hits++; else misses++;
         }
-        assertTrue(hits > 0, "some fouls must convert to COMMON_FOUL");
+        assertTrue(hits > 0, "some fouls must convert to NON_SHOOTING_FOUL");
         assertTrue(misses > 0, "some fouls must stay SHOOTING_FOUL");
     }
 

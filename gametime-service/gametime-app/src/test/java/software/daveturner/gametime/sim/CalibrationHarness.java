@@ -411,6 +411,9 @@ class CalibrationHarness {
                 if (outcome.startsWith("MADE")) {
                     lastMadeShotType = shotTypeSuffix(outcome);
                 }
+                // §3.17 (#040 C): every SHOT event is one CHARGED attempt and every
+                // outcome vocabulary (MADE / MISSED / BLOCKED) carries the type suffix.
+                agg.chargedByShotType.merge(shotTypeSuffix(outcome), 1L, Long::sum);
                 flushStoppedShot(pendingFoul, pendingFreeThrows, agg);
                 pendingFoul = null;
                 pendingFreeThrows = 0;
@@ -434,22 +437,37 @@ class CalibrationHarness {
     }
 
     /**
-     * §3.12: classify a completed SHOOTING_FOUL by its free-throw run — 3 FTs means
-     * the foul stopped a THREE, anything else a two-point attempt.
+     * §3.12: classify a completed {@code SHOOTING_FOUL} by its free-throw run — 3 FTs
+     * means the foul stopped a THREE, anything else a two-point attempt.
      *
-     * <p>⚠ <b>THIS UNDER-COUNTS BY ~2× SINCE §3.16 — the two rows it feeds are a BROKEN
-     * INSTRUMENT, not an engine regression. Do NOT re-tune {@code sim.foul-mult-three}
-     * against them.</b> The FT run was a faithful proxy for the shot type only while
-     * every stopped shot awarded free throws. A §3.16 {@code COMMON_FOUL} awards
-     * <b>0</b> outside the penalty and <b>2</b> inside it, never 3 — so a fouled three
-     * that converts is either invisible (the {@code freeThrowCount == 0} early return)
-     * or miscounted as a two. At the shipped 0.50 share this sees about half of them:
-     * measured 1.50% of 3PA against a true ~3.0%, and 1.50 ≈ 3.0 × (1 − 0.50) matches to
-     * two decimals, which is what identifies it as an artifact.
+     * <p><b>§3.17 Step 0 (decisions.md #040 G) — THE INSTRUMENT IS FIXED, BUT NOT THE
+     * WAY THE PLAN EXPECTED, AND THE DIFFERENCE IS WORTH READING.</b> #040 G called for
+     * "read the {@link ShotType} off the event". <b>That is not possible from the event
+     * log</b>: a stopped shot emits <i>no</i> SHOT event (the foul branch returns before
+     * {@code recordFieldGoalAttempt}), and neither {@code SHOOTING_FOUL} nor
+     * {@code NON_SHOOTING_FOUL} carries a type suffix the way {@code MADE_*} /
+     * {@code MISSED_*} / {@code BLOCKED_*} do. Adding one would be an <i>engine</i>
+     * change to the permanent play-by-play vocabulary — outside a step #040 G scoped as
+     * test-only, and outside the single rename #040 M authorises.
      *
-     * <p><b>The fix is to read {@link ShotType} off the event</b> ({@code shotTypeOf} is
-     * right here) rather than counting free throws — a backlog chore, test-only, and
-     * worth doing before §3.17 needs these rows.
+     * <p><b>The correction applied instead is EXACT, not an estimate</b>, and it is
+     * available because of how §3.16 built the composition roll:
+     * {@link FoulResolver#isNonShootingFoul} is a <b>flat, shot-type-independent</b>
+     * draw at {@code sim.non-shooting-foul-share} (#039 E deliberately refused to
+     * skill-weight or type-weight it). So the fouls that stay {@code SHOOTING_FOUL} are
+     * an <b>unbiased sample</b> of all stopped shots, taken at rate
+     * {@code (1 - share)} — and the true count is the observed count divided by
+     * {@code (1 - share)}. This method keeps counting the OBSERVED (visible) fouls; the
+     * report applies the divisor once, at the point of print, so the raw tally stays
+     * readable next to the corrected one.
+     *
+     * <p>The arithmetic that identifies the artifact is the same one that now undoes it:
+     * at the shipped 0.50 share the instrument saw 1.50% of 3PA against a true ~3.0%,
+     * and 1.50 = 3.0 × (1 − 0.50) to two decimals.
+     *
+     * <p>⚠ <b>Do NOT re-tune {@code sim.foul-mult-three} against these rows in §3.17</b>
+     * (#030 G's fence, restated by #040 G). The rate is anchored on ~2% of 3PA and is
+     * scale-free, so it stays correct as 3PA doubles.
      */
     private void flushStoppedShot(String pendingFoul, int freeThrowCount, Agg agg) {
         if (pendingFoul == null || freeThrowCount == 0) return;
@@ -590,6 +608,25 @@ class CalibrationHarness {
         // aggregate cannot hide WHICH multiplier is wrong. Stopped shots emit no
         // SHOT event, so they are classified by their FT run (3 ⇒ a fouled THREE).
         long stoppedThrees, stoppedTwos;
+
+        /**
+         * §3.17 (decisions.md #040 C/K): CHARGED field-goal attempts by {@link ShotType},
+         * read off the SHOT event's outcome suffix ({@code MADE_* / MISSED_* / BLOCKED_*}
+         * all carry it). This is the shot-mix line #040's follow-up list wanted and
+         * §3.17 needed: without it the four {@code sim.shot-share-*} values are tuned
+         * blind against 3PA alone, and a landing cannot be attributed to the share table
+         * rather than to something else moving.
+         *
+         * <p>⚠ <b>Charged attempts are NOT draws.</b> A stopped shot charges no FGA, and
+         * {@code sim.foul-mult-three} is 0.133 against DRIVE's 1.0, so the four types are
+         * stopped at very different rates (#040 E). The report prints the CHARGED mix
+         * (which is what 3PA/FGA is a share of) and, alongside it, the DRAW mix with the
+         * corrected stopped-shot counts added back — the number the share table actually
+         * sets. Only the two-point types share the stopped-two tally, so the draw mix
+         * splits it across them in their charged proportion rather than inventing a
+         * per-type figure the log cannot support.
+         */
+        final java.util.Map<String, Long> chargedByShotType = new java.util.HashMap<>();
         final java.util.Map<String, Long> andOnesByShotType = new java.util.HashMap<>();
 
         // §3.11 (#029 D/E): the FT split BY SOURCE, read straight off the
@@ -621,24 +658,38 @@ class CalibrationHarness {
                     "target 115.6 — sourced 2025-26, see calibration.md",
                     BASELINE_POINTS, baselineRun));
             lines.add(numbered("FG%:                   ", pct(fgm, fga), "%.1f%%",
-                    "target 47.1% — sourced 2025-26; engine is inside the noise band",
+                    "target 47.1% \u2014 sourced 2025-26. \u26a0 \u00a73.17 DROPPED THIS ON"
+                            + " PURPOSE (46.7 -> 43.5): the old two-heavy mix HID a 2P% error"
+                            + " (~48.7 vs a real 55.0), because at a 21% three share FG% ~= 2P%."
+                            + " NOT drift \u2014 \u00a73.19's, via base-drive/base-post/base-perimeter."
+                            + " base-three must NOT move (#040 F)",
                     BASELINE_FG_PCT, baselineRun));
             lines.add(numbered("3P%:                   ", pct(tpm, tpa), "%.1f%%",
                     "target 36.0% — sourced 2025-26", BASELINE_3P_PCT, baselineRun));
             lines.add(String.format("FGA / team / game:      %.1f   (target 89.1 — SOURCED"
-                    + " 2025-26. \u26a0 THE BINDING CONSTRAINT since \u00a73.16: only ~0.3 of"
-                    + " headroom, and #039 C's dead-possession concession exists to protect"
-                    + " it. If this climbs, a foul branch started returning the ball.)",
+                    + " 2025-26. \u26a0 \u00a73.17 SPENT THE HEADROOM AND WENT OVER: 88.80 ->"
+                    + " 92.28. A stopped shot charges no FGA and foul-mult-three is 0.133 vs"
+                    + " DRIVE's 1.0, so more threes => fewer stopped shots => MORE FGA"
+                    + " (#040 E \u2014 predicted ~89.9, under-modelled by 2.4). \u00a73.19's, it"
+                    + " owns pace. #039 C's dead-possession concession is NOT reopened.)",
                     fga / tg));
             lines.add(String.format("3PA / team / game:      %.1f   (target 37.0 — SOURCED"
-                    + " 2025-26; \u00a73.17 owns the gap)", tpa / tg));
+                    + " 2025-26. \u2705 \u00a73.17 LANDED IT: 19.96 -> 37.26 at 5 seeds, via the"
+                    + " sim.shot-share-* table (#040 C/K). THE ONE NUMBER \u00a73.17 IS JUDGED"
+                    + " ON)", tpa / tg));
             lines.add(numbered("Assists / team / game: ", assists / tg, "%.1f",
                     "target 26.7 — sourced 2025-26", BASELINE_ASSISTS, baselineRun));
             lines.add(numbered("Turnovers / team / game:", turnovers / tg, "%.1f",
                     "target 14.5 — sourced 2025-26", BASELINE_TURNOVERS, baselineRun));
             lines.add(String.format("Off reb / team / game:  %.1f", offReb / tg));
             lines.add(String.format("Def reb / team / game:  %.1f", defReb / tg));
-            lines.add(String.format("Blocks / team / game:   %.1f   (target 4.8 — sourced 2025-26)", blocks / tg));
+            lines.add(String.format("Blocks / team / game:   %.1f   (target 4.8 — sourced"
+                    + " 2025-26. \u26a0 \u00a73.17 PREDICTED THIS WOULD FALL TO ~2.6 AND IT"
+                    + " DID NOT — it barely moved. PROB_FLOOR (0.02) is 4x base-block-three"
+                    + " (0.005), so a three's block chance is FLOORED, not based. Shifting"
+                    + " attempts to threes moves them 0.056 -> 0.02, not -> 0.005. A \u00a73.19"
+                    + " finding: the four base-block-* cannot be reasoned about without the"
+                    + " floor. See decisions.md #040's implementation note)", blocks / tg));
             lines.add(String.format("OOB / team / game:      %.1f   (§3.8, no target)", oob / tg));
             lines.add(String.format("Reconciliation (ast+blk):%s",
                     reconciliationMismatches == 0 ? " OK (all games match)"
@@ -700,7 +751,10 @@ class CalibrationHarness {
             System.out.printf("  FTA / team / game:       %.1f   (target ~23.5 — SOURCED"
                             + " 2025-26; §3.16 landed it from 34.0 via sim.non-shooting-"
                             + "foul-share. ⚠ TUNE THAT SHARE AGAINST THIS LINE, never"
-                            + " against points)%n",
+                            + " against points. \u26a0 \u00a73.17 UNDERSHOT IT to ~19.8: fewer"
+                            + " stopped shots AND a lower penalty rate (55.7%% -> 46.1%%), so"
+                            + " the share is mispriced at the new foul rate. \u00a73.19's —"
+                            + " do NOT re-tune the share here, #040 F / #038)%n",
                     freeThrows / tg);
 
             // §3.11 (decisions.md #029 E) and-1 rate + FT-source split. §3.11 is a
@@ -738,19 +792,79 @@ class CalibrationHarness {
             // targets). Judge against them; do not calibrate to them.
             // docs/calibration.md carries all of these, targets and ballparks alike.
             System.out.println("--- All-shot-type contact fouls (§3.12) ---");
+            // §3.17 Step 0 (#040 G): the visible SHOOTING_FOULs are an UNBIASED SAMPLE
+            // of all stopped shots, taken at rate (1 - sim.non-shooting-foul-share),
+            // because §3.16's composition roll is flat and type-independent (#039 E).
+            // Dividing by the visible fraction recovers the true count exactly. The
+            // divisor is read from the ACTIVE config, so an era profile that moves the
+            // share keeps the instrument honest. See flushStoppedShot.
+            double visibleFraction = 1.0 - config.nonShootingFoulShare();
+            double stoppedThreesTrue = visibleFraction <= 0
+                    ? Double.NaN : stoppedThrees / visibleFraction;
+            double stoppedTwosTrue = visibleFraction <= 0
+                    ? Double.NaN : stoppedTwos / visibleFraction;
+            double totalStoppedTrue = stoppedThreesTrue + stoppedTwosTrue;
             long totalStopped = stoppedThrees + stoppedTwos;
-            System.out.printf("  Stopped shots / team:    %.2f   (%.2f two-pt + %.2f three-pt)%n",
+            System.out.printf("  Stopped shots / team:    %.2f   (%.2f two-pt + %.2f three-pt)"
+                            + "   [CORRECTED for the %.0f%% invisible to the FT run —"
+                            + " raw visible %.2f (%.2f + %.2f)]%n",
+                    totalStoppedTrue / tg, stoppedTwosTrue / tg, stoppedThreesTrue / tg,
+                    100.0 * config.nonShootingFoulShare(),
                     totalStopped / tg, stoppedTwos / tg, stoppedThrees / tg);
             // THE number the THREE multiplier is set from. Anchor on the RATE (~2% of
             // 3PA), NOT the count: this engine shoots ~20 3PA/team/game against the
             // NBA's ~35, so the same rate necessarily yields fewer trips than the
             // real-league ~0.7. "Fixing" 0.40 up to 0.7 would silently undo #030 G.
             System.out.printf("  3-FT trips / team / game:%.2f   (%.2f%% of 3PA — the RATE is the"
-                            + " anchor, ~2%%. \u26a0 BROKEN INSTRUMENT SINCE \u00a73.16: this counts"
-                            + " FREE THROWS, and a COMMON_FOUL awards 0 or 2 but never 3, so"
-                            + " it sees only ~half of them. The true rate is ~2x this. Do NOT"
-                            + " re-tune foul-mult-three against it \u2014 see flushStoppedShot)%n",
-                    stoppedThrees / tg, tpa == 0 ? 0.0 : 100.0 * stoppedThrees / tpa);
+                            + " anchor, ~2%%. CORRECTED for \u00a73.16's invisible share"
+                            + " (\u00a73.17 Step 0, #040 G): the FT run cannot see a stopped shot"
+                            + " whose foul became NON_SHOOTING_FOUL, so the visible tally is"
+                            + " divided by (1 - non-shooting-foul-share). Raw visible: %.2f"
+                            + " (%.2f%% of 3PA). \u26a0 Do NOT re-tune foul-mult-three against"
+                            + " this \u2014 scale-free by construction, #030 G / #040 G)%n",
+                    stoppedThreesTrue / tg,
+                    tpa == 0 ? 0.0 : 100.0 * stoppedThreesTrue / tpa,
+                    stoppedThrees / tg,
+                    tpa == 0 ? 0.0 : 100.0 * stoppedThrees / tpa);
+            // §3.17 (decisions.md #040 C/K): THE SHOT-MIX LINE. #040's follow-up list
+            // called this a backlog chore; §3.17 needs it, because the four
+            // sim.shot-share-* values cannot be attributed from 3PA alone. Two mixes,
+            // and the distinction is #040 E's central finding:
+            //   CHARGED — the share of FGA, which is what the 3PA/FGA target reads.
+            //   DRAW    — the share the share table actually sets, i.e. charged plus
+            //             the stopped shots that charged no FGA. Threes are stopped
+            //             7.5x less often than drives (foul-mult-three 0.133 vs 1.0),
+            //             so the three DRAW share is necessarily LOWER than its CHARGED
+            //             share. That gap is exactly why the share table's three value
+            //             must exceed the target share of attempts.
+            // The stopped-TWO tally is not resolvable per type from the event log (a
+            // stopped shot emits no SHOT event), so it is apportioned across the three
+            // two-point types in their CHARGED proportion. That is an approximation and
+            // is labelled as one; the THREE row, which is the one being tuned, is exact.
+            long chargedTotal = chargedByShotType.values().stream()
+                    .mapToLong(Long::longValue).sum();
+            long chargedTwos = chargedTotal
+                    - chargedByShotType.getOrDefault(ShotType.THREE.name(), 0L);
+            double drawTotal = chargedTotal + totalStoppedTrue;
+            System.out.println("--- Shot-type mix (§3.17, #040 C — CHARGED vs DRAW) ---");
+            for (ShotType t : ShotType.values()) {
+                long charged = chargedByShotType.getOrDefault(t.name(), 0L);
+                double stoppedForType = t == ShotType.THREE
+                        ? stoppedThreesTrue
+                        : (chargedTwos == 0 ? 0.0 : stoppedTwosTrue * charged / chargedTwos);
+                double draws = charged + stoppedForType;
+                System.out.printf("  %-10s charged %5.1f%%  (%5.2f / team / game)"
+                                + "   draw %5.1f%%  (%5.2f)%n",
+                        t.name(),
+                        chargedTotal == 0 ? 0.0 : 100.0 * charged / chargedTotal,
+                        charged / tg,
+                        drawTotal == 0 ? 0.0 : 100.0 * draws / drawTotal,
+                        draws / tg);
+            }
+            System.out.printf("  (THREE charged share is the 3PA/FGA number: target 41.5%%"
+                            + " of attempts \u2014 3PA 37.0 of FGA 89.1, sourced 2025-26."
+                            + " The two-point DRAW rows are apportioned, not measured.)%n");
+
             System.out.print("  And-1s by shot type:    ");
             for (ShotType t : ShotType.values()) {
                 System.out.printf(" %s %.2f", t.name().charAt(0) + t.name().substring(1, 3).toLowerCase(),
@@ -777,8 +891,11 @@ class CalibrationHarness {
                             + " 2025-26. ALL foul events incl. §3.14a technicals;"
                             + " flagrants REPLACE a foul event so add nothing here."
                             + " §3.16's charge fix added ~1.2 — charges are personal"
-                            + " fouls (#039 G); its COMMON_FOUL re-partition adds NOTHING,"
-                            + " by construction)%n",
+                            + " fouls (#039 G); its NON_SHOOTING_FOUL re-partition adds NOTHING,"
+                            + " by construction. \u26a0 \u00a73.17 took it 20.53 -> 18.18 WITHOUT"
+                            + " TOUCHING A FOUL CONSTANT — the shot mix moved draws from"
+                            + " foul-mult 1.0 to 0.133. PERSONAL_FOULS_PER_TEAM_GAME was"
+                            + " re-measured to 17.82 in the same pass, #034 G)%n",
                     totalFouls / tg);
             // §3.12's genuinely NEW instrument (#030 G): the foul-out mechanism has
             // been live since §3.5 but its rate has NEVER been observed. The
@@ -786,7 +903,10 @@ class CalibrationHarness {
             // below the threshold before it crosses it.
             System.out.printf("  Foul-outs / team / game: %.3f  (target ~0.39 — §3.13's landing,"
                             + " a SOFT target; see calibration.md. §3.16 raised it to ~0.52:"
-                            + " charges now count, #039 G)%n",
+                            + " charges now count, #039 G. \u00a73.17's lower foul rate took it"
+                            + " back DOWN to ~0.31 — a by-product of the shot mix, not a"
+                            + " re-tune; the \u00a73.13 sit curve is untouched and measured"
+                            + " saturated, #031)%n",
                     foulOuts / tg);
             System.out.printf("  Players at 4 / 5 / 6 fouls per team/game: %.2f / %.2f / %.2f"
                             + "   (of %.1f who played)%n",

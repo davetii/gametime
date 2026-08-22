@@ -8,7 +8,7 @@
 ' `plantuml -checkonly` is unaffected (it parses, it does not lay out), so a
 ' green checkonly does NOT tell you the PNG is complete. Verify the rendered
 ' height if you add a partition.
-title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals,\n§3.14b flagrants, §3.16 shooting-foul composition + charges)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals,\n§3.14b flagrants, §3.16 shooting-foul composition + charges,\n§3.17 shot mix / 3PA)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -114,8 +114,56 @@ partition "RotationState — between-possession sub (§3.5, §3.13, §3.14a)" {
 repeat
 :ShotSelector
   pick shooter (offensive-weight draw)
-  pick shot type (skill-weight draw
-  //× offensiveScheme shot-mix lean §3.4//);
+  pick shot type (**§3.17 — per-type SHARE table × avg-10 skill modifier**
+  //DRIVE / PERIMETER / POST / THREE, sim.shot-share-* (#040 C)//
+  //THREE × offensiveScheme lean · PERIMETER × its RECIPROCAL (#040 D)//);
+note right
+  **§3.17 (decisions.md #040 A/C/D/E) — THE SHOT MIX, and the only
+  place in this engine where the LEAGUE's shot distribution is set.**
+  **No new branch and no new RNG draw** — `pickShotType` still takes
+  exactly one `nextDouble()` and still returns one of four types. What
+  §3.17 changes is how the four WEIGHTS are computed, which is why this
+  is a node and not a fork. It nonetheless moves nearly every possession.
+  **The cause it fixes** (A/B): `shotTypeWeight` gave **DRIVE the SUM of
+  two skills** (`drive + finishing`) while the other three got one each,
+  so at an average player — which every SkillCalculator is built to
+  produce — the draw was **DRIVE 40 · PER 20 · POST 20 · THREE 20**.
+  Measured draw share 20.9% against a real **41.5%**. Not the player
+  population: an artifact of #021 D naming **five** skills for **four**
+  shot types, argued nowhere. The accuracy path `offenseSkillForShot`
+  averages the same two skills and is **CORRECT and UNTOUCHED** — 3P%
+  is 37.8 vs a sourced 36.0. **This pass changes how OFTEN a three is
+  taken, never how often it goes in.**
+  **The lean SPLITS** (D): `shotMixLean` used to scale PERIMETER and
+  THREE **together**, so it could not raise threes while lowering
+  mid-range — #036 D's named blocker. THREE now takes the lean and
+  PERIMETER takes its **reciprocal**, which is the actual
+  modern-vs-traditional axis. `CoachModifiers` is unchanged.
+  ⚠ **THIS PASS DOES NOT HOLD FGA — the opposite of a §3.9/§3.16
+  re-partition, and #040 E's central finding.** A stopped shot charges
+  **no FGA** (the foul branch below returns before recordFieldGoalAttempt),
+  and `foul-mult-three` is **0.133** against DRIVE's **1.0** — so a draw
+  moved to a three is **7.5× less likely to be stopped** and more likely
+  to become a charged attempt. **SHIPPED: FGA 88.80 -> 92.28**, past its
+  sourced 89.1 — the mechanism was right, the magnitude was
+  under-modelled (~89.9 predicted). **#039 C's dead-possession
+  concession is therefore NOT revisitable here** — it passes to §3.19.
+  ⚠ **FG% fell 46.68 -> 43.52 and that is §3.19's, not drift** (F): the
+  engine's **2P% is ~48.7 against a real 55.0**, an error the old
+  two-heavy mix HID because FG% ~= 2P% at a 21% three share. §3.17 makes
+  the shape final; §3.19 re-solves `base-drive`/`base-post`/
+  `base-perimeter`. ⚠ **`base-three` must NOT move** — 3P% is 35.8 vs a
+  sourced 36.0 and it HELD across a 1.9x volume change.
+  ✅ **SHIPPED 2026-08: 3PA 19.96 -> 37.22** (target 37.0) at shares
+  **1.0 / 0.55 / 0.55 / 1.23**; charged three share 40.3% vs a real
+  41.5%. **The lean split was measured separately and moved 3PA by
+  ZERO**, exactly as D predicted — it is a per-coach lever, not a
+  volume lever.
+  ⚠ **BLOCKS DID NOT FALL as #040 E predicted (~2.6); they stayed at
+  4.80.** `PROB_FLOOR` (0.02) is **4x `base-block-three` (0.005)**, so a
+  three's block chance is FLOORED, not based — `base-block-three` is
+  currently INERT. A §3.19 finding, not a §3.17 miss.
+end note
 
 partition "TurnoverResolver (§3.9 causes — decisions.md #027)" {
   if (turnover?\n//ballSecurity vs stealing/individualDefense//\n//× defensiveScheme pressure §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
@@ -187,8 +235,10 @@ partition "FoulResolver" {
     off-switch (the #029 zero-base finding).
   end note
   if (foul?\n//foulDrawing vs (20 − foulProne)//\n//× foulMultiplier(shotType) §3.12 A1//\n//× fatigueFactor per player §3.5//) then (yes)
-    :FOUL — SHOOTING_FOUL
-    charge defender foul;
+    :**defender.recordFoul()** — the foul is CHARGED here
+    //NO event is emitted yet — the two rolls below decide WHICH//
+    //foul event this becomes. Exactly ONE is ever emitted (#039 A),//
+    //and the charge is what holds the foul TOTAL by construction//;
     note right
       foul rate × defensiveScheme pressure §3.4.
       This is the **pre-shot** foul — the shot is stopped,
@@ -200,6 +250,15 @@ partition "FoulResolver" {
       returns before recordFieldGoalAttempt() — so it removes
       points without moving FG% directly, but it DOES change
       the shot mix FG% is computed over (§3.12 E).
+      ⚠ **READ THE THREE-WAY SHAPE BELOW CAREFULLY — it is ONE
+      foul with THREE possible labels, not three fouls.**
+      ``recordFoul()`` has ALREADY run above, so neither roll
+      below moves the foul RATE; they only decide the outcome
+      STRING and what free throws follow. **SHOOTING_FOUL is the
+      FALL-THROUGH** — the label a foul gets when both rolls miss,
+      which is why it appears LAST here even though it is the
+      most common. A flagrant **REPLACES** it (#034 C); a
+      non-shooting foul **REPLACES** it (#039 A). They never compose.
     end note
 
     if (**§3.14b — FLAGRANT?**\n//P = FLAGRANT_FOULS_PER_TEAM_GAME ÷ personal fouls//\n//layered ON TOP of the foul — no rate re-partitioned//) then (yes)
@@ -235,8 +294,8 @@ partition "FoulResolver" {
       stop
     endif
 
-    if (**§3.16 — COMMON (non-shooting) FOUL?**\n//flat sim.non-shooting-foul-share, NO skill input (#039 E)//\n//a SECOND roll on the foul already charged above//) then (yes)
-      :FOUL — COMMON_FOUL
+    if (**§3.16 — NON-SHOOTING FOUL?**\n//flat sim.non-shooting-foul-share, NO skill input (#039 E)//\n//a SECOND roll on the foul already charged above//) then (yes)
+      :FOUL — **NON_SHOOTING_FOUL** //(§3.17 renamed it from COMMON_FOUL, #040 M)//
       //the foul was ALREADY charged above — this only re-labels it//
       counts toward the bonus AND FOUL_OUT_LIMIT (B);
       note right
@@ -280,6 +339,8 @@ partition "FoulResolver" {
       stop
     endif
 
+    :FOUL — **SHOOTING_FOUL** //— THE FALL-THROUGH: both rolls above missed//
+    //the same already-charged foul; this is just the label it keeps//;
     repeat
       if (free throw made?\n//freeThrows skill//) then (yes)
         :FREE_THROW — MADE_SHOOTING (source-tagged §3.11 D)
