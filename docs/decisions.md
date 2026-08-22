@@ -1107,13 +1107,97 @@ The only shared machinery is `awardFreeThrows` (already shared by three situatio
 
 **Status of §3.17 decisions**: A–N all resolved by this entry. **Net schema change: NONE. Net OpenAPI change: NONE.** New engine pieces: four `SimConfig` tunables (`sim.shot-share-{drive,perimeter,post,three}`), one `public static final SHOT_MIX_SENSITIVITY`, a rewritten `PlayerGameState.shotTypeWeight` (share × avg-10 skill modifier), a rewritten `ShotSelector.leanedWeight` (two independent leans), four lines in `application-nineties.properties`, and the `COMMON_FOUL` → `NON_SHOOTING_FOUL` outcome rename (M/N — behavior-neutral, no schema change, no migration). **`offenseSkillForShot` is UNTOUCHED** (B). **Determinism: RNG order is UNCHANGED** — `pickShotType` takes exactly one `nextDouble()` before and after, and no draw is added or removed anywhere; but the *outcome* of that draw changes for nearly every possession, so every seed-pinned assertion downstream re-baselines. **Open-at-execution**: the four starting share values (K gives 1.0/0.55/0.55/1.30 — measure at 5 seeds and adjust until 3PA lands ~37.0; the landing is the target, not the constant) and `SHOT_MIX_SENSITIVITY`'s value (start at **0.5**, the engine's general sensitivity, and sanity-check that a `longRange`-20 specialist shoots visibly more threes than a `longRange`-5 big without either reaching a degenerate share). The execute-ready task sequence is todo.md's §3.17 execution plan.
 
+**Implementation note (from execution, 2026-08).** Shipped as A–N specify, with **one
+divergence (G) and three wrong predictions worth reading**. Final constants:
+`sim.shot-share-drive/perimeter/post/three = 1.0 / 0.55 / 0.55 / **1.23**` (K predicted
+1.30 — the closest a starting value has come yet), `SHOT_MIX_SENSITIVITY = 0.5`
+unchanged, `nineties` = 1.0 / 1.15 / 0.95 / 0.30 (illustrative, uncalibrated).
+`PERSONAL_FOULS_PER_TEAM_GAME` **re-measured 20.15 → 17.82** (see below). Tunables
+58 → 62, statics 26 → 27. 621 tests green, JaCoCo gate green.
+
+**Landing (5 seeds, 102 games each, `local,baseline`), pre → post:** **3PA 19.96 →
+37.22** (target 37.0) · charged three share 22.5% → **40.3%** (real 41.5%) · FGA 88.80 →
+92.28 · FG% 46.68 → 43.52 · 3P% 36.70 → 35.76 · points 109.64 → 110.00 · blocks 4.94 →
+4.80 · off reb 9.94 → 11.18 · def reb 27.44 → 30.48 · FTA 23.60 → 19.76 · fouls 20.53 →
+18.18 · foul-outs 0.517 → 0.304 · penalty 55.7% → 46.1% · flagrants 0.162 → 0.141.
+**Steps 1 and 2 were measured separately: Step 1 alone landed 3PA 38.56, and Step 2's
+lean split moved it to 38.56 — bit-for-bit unchanged in the aggregate**, exactly as D
+predicted. Step 2 is a per-coach lever, not a 3PA lever, and now has the measurement to
+say so. Step 3b's rename was landing-neutral.
+
+**⚠ DIVERGENCE (G) — "read the ShotType off the event" IS NOT POSSIBLE, and the fix is
+better than the plan.** A stopped shot emits **no SHOT event** (the foul branch returns
+before `recordFieldGoalAttempt()`), and neither foul outcome carries a type suffix the
+way `MADE_*`/`MISSED_*`/`BLOCKED_*` do; adding one is an **engine** change to the
+permanent play-by-play vocabulary, outside a step scoped test-only. **What shipped is an
+EXACT correction**: `isNonShootingFoul` is a **flat, type-independent** draw (#039 E
+refused to weight it), so the surviving `SHOOTING_FOUL`s are an **unbiased sample** at
+rate `(1 − share)` — divide by it. The divisor is read from the **active** config, so an
+era profile keeps the instrument honest. Corrected fouled-three rate **2.93% of 3PA**,
+and it **held at 2.92% → 2.93% across a 1.9× volume change** — the scale-free property
+`foul-mult-three` was built on, now measured rather than argued.
+
+**⚠ WHERE THE PREDICTIONS WERE WRONG.**
+1. **BLOCKS — the only WRONG-WAY miss, and a genuinely new finding.** E predicted
+   4.8 → **~2.6**; measured **4.80**, essentially flat. **`PROB_FLOOR` (0.02) is 4×
+   `base-block-three` (0.005)**, so a three's block probability is **floored, not
+   based**: moving attempts to threes takes them 0.056 → **0.02**, not → 0.005. E's model
+   used the bases and never saw the clamp. ⚠ **The four `base-block-*` cannot be reasoned
+   about without the floor**, and `base-block-three` is currently **inert**. A §3.19 note.
+2. **FGA and FG% — right mechanism, under-modelled magnitude.** FGA predicted ~89.9,
+   landed **92.28** (+2.4 beyond); FG% predicted ~44.5, landed **43.5**. Both are E/F's
+   predicted *direction* and both are §3.19's. **FGA is now 3.2 over its sourced 89.1**,
+   so §3.17 spent more headroom than it forecast — **#039 C's dead-possession concession
+   is emphatically NOT reopened**.
+3. **POINTS — I predicted ~113, it stayed FLAT at 110.0.** The FG half was right (+3.8
+   against ~+4.2 modelled); **the FTA loss was under-sized**: FTA fell 3.84, not the
+   ~2.2 modelled, costing **−3.0 points** rather than −1.7. Net ≈ +0.4. **Points remains
+   §3.19's** (#038, #040 I) — this changes nothing about the ordering, only the size of
+   what §3.19 inherits.
+4. **REBOUNDS — better than predicted, both rows.** H predicted off ~10.6 / def ~28.9;
+   landed **11.18** (row CLOSED) and **30.48** (3.0 of the 5.0 gap, vs 1.5 predicted).
+   Only ~1.9 def-reb survives, and it is a rate question for §3.19.
+
+**⚠ `PERSONAL_FOULS_PER_TEAM_GAME`, decided in writing (#034 G).** **Moved 20.15 →
+17.82.** §3.17 touches **no foul constant at all** — but shifting ~17 draws/team/game
+from `foul-mult` 1.0 to 0.133 means far fewer draw contact, so personal fouls fell
+20.18 → 17.82 (**−11.5%**, the largest drift this constant has taken). ⚠ **The drift was
+already visible in the output**: flagrants ran **0.119 against a ~0.16 ballpark = 74%**,
+precisely the 17.82/20.15 ratio. Re-measuring restored them to 0.141. **Nothing failed** —
+which is #032 B2's whole point. It is now a shot-mix-derived quantity; §3.19 must
+re-measure it again.
+
+**Resolved open-at-execution items.** Share values: tuned in one step from K's 1.30 to
+**1.23** (Step 1 alone landed 38.56; 1.23 landed 37.22). `SHOT_MIX_SENSITIVITY` kept at
+**0.5**, sanity-checked **per player, not aggregate** as C's trade-off requires: a
+`longRange`-19 specialist vs a `longRange`-6 big, with both bounds pinned as tests —
+neither degenerate. `nineties` shares set two-heavy and left untuned (#035 D).
+**Test re-pinning was smaller than expected** — RNG order is unchanged, and only
+`ShotSelectorTest` + `PlayerGameStateTest` carried assertions that pinned the old
+formula. Two of them **pinned the bug itself** (`shotTypeWeight(DRIVE) == drive +
+finishing`), which is why it survived four phases. Step 3b touched 14 references, inside
+N's ~6-main/~11-test estimate.
+
+**⚠ Two things #040 did NOT anticipate but that shipped, both instruments.** The harness
+now prints a **four-way shot-type mix** (CHARGED vs DRAW shares) — #040's follow-up
+called it a backlog chore, but tuning four shares against 3PA alone makes a landing
+unattributable, so it was promoted. Its one honest limit is labelled in the report: the
+stopped-**two** tally is not resolvable per type from the log, so it is apportioned
+across the three two-point types by charged proportion; **the THREE row is exact**.
+⚠ **The Step-0 correction is itself a trap-#2 hazard**: `Stopped shots / team` reads
+**12.43** post against **7.65** pre and looks doubled. **Like-for-like on raw visible it
+FELL, 7.39 → 6.24**, matching E's predicted 7.93 → 6.41. Compare raw-to-raw across this
+boundary.
+
 **§3.17 follow-up (carry forward)**:
-- **⚠ FG% ~44.5 AND 2P% ~49.2 vs a real 55.0 ARE §3.19'S, AND THEY ARE THE MAIN THING §3.17 HANDS ON** (F). The lever is `base-drive`/`base-post`/`base-perimeter`. ⚠ **`base-three` must NOT move** — 3P% is correct.
-- **⚠ FGA lands ~89.9 OVER its sourced 89.1** (E), so §3.17 leaves less headroom than it found. **#039 C's dead-possession concession is therefore NOT revisited by this phase** — the §3.16 follow-up that hoped it might is answered **no**. It passes to §3.19, which owns pace.
-- **Blocks fall ~4.8 → ~2.6** (E) against a sourced 4.8, because `base-block-three` is 0.005 against DRIVE's 0.056. **A new §3.19 row, and a genuinely new finding** — a three-heavy league blocks less, but not by 45%. The lever is the four `base-block-*`, untouched since #025 C.
-- **Defensive rebounds close only to ~28.9 of 32.4** (H) — ~3.5 of the 5.0 gap survives the mix change and is a rate question for §3.19, not a new sub-phase.
-- **`SHOT_MIX_SENSITIVITY` is an unsourced feel constant** whose error is invisible in the aggregates by construction (C trade-off). Worth a per-player spread instrument in the harness if anyone ever tunes it.
-- **The harness still prints no shot-type mix line.** §3.17 is tuned against 3PA/FGA, which is sufficient, but a four-way draw-share row (including stopped shots, which charge no FGA) would make the next mix question measurable directly instead of back-solved. **A backlog chore, not this phase.**
+- **⚠ FG% 43.5 AND 2P% ~48.7 vs a real 55.0 ARE §3.19'S, AND THEY ARE THE MAIN THING §3.17 HANDS ON** (F — landed, measured). The lever is `base-drive`/`base-post`/`base-perimeter`. ⚠ **`base-three` must NOT move** — 3P% is 35.8 vs a sourced 36.0 and it **held across a 1.9× volume change**. ⚠ **2PA and 3PA are now BOTH correct (55.1 and 37.2), so the entire remaining FG% gap is 2P%** — the separation this pass existed to produce.
+- **⚠ FGA landed 92.28, OVER its sourced 89.1 by 3.2** (E predicted ~89.9 — right mechanism, under-modelled by 2.4). §3.17 leaves **less** headroom than it found, and more than it forecast. **#039 C's dead-possession concession is emphatically NOT revisited** — the §3.16 follow-up that hoped it might is answered **no**. It passes to §3.19, which owns pace.
+- **⚠ BLOCKS DID NOT FALL — E's prediction (4.8 → ~2.6) WAS WRONG, and the reason is the single most useful thing this pass found.** Measured **4.80**, essentially flat. **`PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005)**, so a three's block probability is **FLOORED, NOT BASED**: shifting attempts to threes moves them 0.056 → **0.02**, not → 0.005. E's model used the bases and never saw the clamp. ⚠ **`base-block-three` is currently INERT — lowering it changes nothing, and the four `base-block-*` cannot be reasoned about without the floor.** A §3.19 row, and the clamp must be part of whatever §3.19 does there.
+- **Rebounds landed BETTER than H predicted, both rows.** Off reb **11.18** vs a target 11.3 — **row CLOSED** (predicted ~10.6). Def reb **30.48** of 32.4 — 3.0 of the 5.0 gap closed (predicted 1.5), so only **~1.9 survives**. Still a rate question for §3.19, not a new sub-phase.
+- **`SHOT_MIX_SENSITIVITY` = 0.5, still an unsourced feel constant** whose error is invisible in the aggregates by construction (C trade-off). §3.17 pinned both bounds as **per-player tests** (a `longRange`-19 specialist vs a `longRange`-6 big, neither degenerate) rather than leaving it unchecked — but a per-player spread instrument in the harness is still what a real tuning pass would need.
+- **⚠ FTA UNDERSHOT to 19.76 against a sourced 23.5, and the cause is NOT just fewer stopped shots.** §3.17 also dropped the penalty rate **55.7% → 46.1%**, and `sim.non-shooting-foul-share` is **priced by the penalty rate** (§3.16's execution finding) — inside the bonus the foul still awards 2 FTs. **0.50 is mispriced at the new foul rate.** §3.19's; do not re-tune it against a moving mix.
+- **⚠ `PERSONAL_FOULS_PER_TEAM_GAME` is now a SHOT-MIX-derived quantity.** §3.17 moved it 20.15 → 17.82 without touching a foul constant. **§3.19 must re-measure it again** (#034 G), and any later pass that moves the mix inherits the same obligation.
+- ~~**The harness still prints no shot-type mix line.**~~ ✅ **BUILT during execution** — the report now prints CHARGED and DRAW shares per type. Promoted out of "backlog chore" because tuning four shares against 3PA alone makes a landing unattributable. ⚠ **One labelled limit:** the stopped-**two** tally is not resolvable per type from the event log, so it is apportioned across the three two-point types by charged proportion. **The THREE row — the tuned one — is exact.**
 
 ---
 

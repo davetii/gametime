@@ -36,22 +36,37 @@ public class PossessionEngine {
      * §3.16 (decisions.md #039 B/E): the foul that awards no free throws outside the
      * bonus — {@link FoulResolver#isNonShootingFoul}'s outcome.
      *
-     * <p><b>⚠ The event outcome is {@code COMMON_FOUL} while the config key is {@code
-     * sim.non-shooting-foul-share}, and the divergence is INTENTIONAL, not drift</b>
-     * (#039 E). This string sits in a play-by-play list of basketball terms
-     * ({@code SHOOTING_FOUL}, {@code REBOUNDING_FOUL_*}, {@code TECHNICAL_FOUL},
-     * {@code FLAGRANT_FOUL_*}) where the jargon reads correctly and
-     * {@code NON_SHOOTING_FOUL} would read as a clumsy negation; the config key is
-     * read by a tuner with no such surrounding vocabulary, so it defines itself
-     * against {@code SHOOTING_FOUL} instead. Different audiences, named for different
-     * readers.
+     * <p><b>⚠ RENAMED FROM {@code COMMON_FOUL} BY §3.17 (decisions.md #040 M, user
+     * call) — this REVERSES #039 E, deliberately and not by drift.</b> #039 E kept the
+     * outcome string as {@code COMMON_FOUL} while renaming the config key to
+     * {@code sim.non-shooting-foul-share}, arguing that config keys and play-by-play
+     * vocabulary serve different audiences. #040 M finds that argument real but
+     * outweighed: the criticism that justified the key rename — <i>"common" tells a
+     * cold reader nothing about what the thing DOES</i> — applies just as hard to the
+     * outcome string, and #039 E stopped at the vocabulary boundary without arguing
+     * why the boundary belonged there. {@code NON_SHOOTING_FOUL} is the correct
+     * complement of {@code SHOOTING_FOUL}, which sits beside it in the log: reading the
+     * pair now tells a cold reader the whole partition.
+     *
+     * <p>The name is <b>true in both branches</b> — outside the penalty this awards
+     * nothing, inside it awards <i>bonus</i> FTs, which are a penalty-status
+     * consequence rather than a shooting award. It stays deliberately silent on the
+     * possession ending: that is #039 C's known-wrong-as-basketball concession, still
+     * standing after #040 E, and encoding it would bake a behavior the project intends
+     * to revisit into the permanent event vocabulary.
+     *
+     * <p>⚠ <b>The vocabulary has a CUTOVER DATE and there is no migration</b> (#040 N,
+     * user call): {@code game_event.outcome} holds {@code COMMON_FOUL} for games
+     * simulated before §3.17 and {@code NON_SHOOTING_FOUL} after. Pre-launch rows are
+     * test data, so they were left as-is — but anyone querying across the boundary must
+     * match both strings.
      *
      * <p>Like the flagrant outcomes above it lives HERE rather than on {@link
-     * GameData}: a common foul <b>counts</b> toward the penalty (#039 B), so {@code
-     * GameData} needs no entry for it — only the technical, the one excluded outcome,
-     * must be recognised on both sides of that agreement.
+     * GameData}: a non-shooting foul <b>counts</b> toward the penalty (#039 B), so
+     * {@code GameData} needs no entry for it — only the technical, the one excluded
+     * outcome, must be recognised on both sides of that agreement.
      */
-    static final String COMMON_FOUL_OUTCOME = "COMMON_FOUL";
+    static final String NON_SHOOTING_FOUL_OUTCOME = "NON_SHOOTING_FOUL";
 
     private final ShotSelector shotSelector;
     private final ShotResolver shotResolver;
@@ -286,7 +301,7 @@ public class PossessionEngine {
                     // Emit-then-count (#028 A1): the event goes in the log FIRST, so
                     // the Nth foul — this one — sends its own team to the line.
                     data.addEvent(offTeamId, defTeamId, period, sequence,
-                            PlayType.FOUL, COMMON_FOUL_OUTCOME, defender.getPlayerId(),
+                            PlayType.FOUL, NON_SHOOTING_FOUL_OUTCOME, defender.getPlayerId(),
                             null, defTeamId);
                     sequence++;
 

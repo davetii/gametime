@@ -35,16 +35,19 @@ class SimConfigProfileBindingTest {
             "PERIODS", "MINUTES_PER_PERIOD", "OT_MINUTES", "FREE_THROWS_PER_FOUL",
             "AND_ONE_FREE_THROWS", "TECHNICAL_FREE_THROWS", "FLAGRANT_FREE_THROWS",
             "TECHNICAL_EJECTION_LIMIT", "FLAGRANT_EJECTION_LIMIT",
-            // model machinery (16)
+            // model machinery (17)
             "SCALE_AVG", "MAX_ENERGY", "PROB_FLOOR", "PROB_CEILING", "SENSITIVITY",
             "FT_SENSITIVITY", "BLOCK_SENSITIVITY", "REBOUND_FOUL_SENSITIVITY",
             "AND_ONE_SENSITIVITY", "TO_CAUSE_SENSITIVITY", "COACH_SENSITIVITY",
             "ASSIST_SENSITIVITY", "ACUMEN_SENSITIVITY", "TEAM_EFFICIENCY_SENSITIVITY",
             "ENDURANCE_DRAIN_SENSITIVITY", "FOUL_TROUBLE_VALUE_SENSITIVITY",
+            // §3.17 (#040 J): shot-mix machinery, NOT a tunable — the shares are
+            // (sim.shot-share-*), this is how hard a player's skill bends them.
+            "SHOT_MIX_SENSITIVITY",
             // measured (1)
             "PERSONAL_FOULS_PER_TEAM_GAME");
 
-    private static final int EXPECTED_TUNABLE = 58;
+    private static final int EXPECTED_TUNABLE = 62;
 
     /** Every tunable field is final and takes its value only from the properties file. */
     @Test
@@ -104,7 +107,7 @@ class SimConfigProfileBindingTest {
      * class that reads it - a test could assert one value while the engine ran another.
      */
     @Test
-    void onlyTheTwentySixRulesAndMachineryConstantsAreStatic() {
+    void onlyTheTwentySevenRulesAndMachineryConstantsAreStatic() {
         TreeSet<String> actual = new TreeSet<>();
         for (Field f : SimConfig.class.getDeclaredFields()) {
             if (!Modifier.isStatic(f.getModifiers()) || f.isSynthetic()) {

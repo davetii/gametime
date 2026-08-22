@@ -320,9 +320,62 @@ public class PlayerGameState {
         return drive + finishing + perimeter + post + longRange;
     }
 
+    /**
+     * §3.17 (decisions.md #040 B/C/J): this shooter's weight for one {@link ShotType}
+     * in {@link ShotSelector#pickShotType}'s four-way draw — <b>the league's base share
+     * from the properties file, bent by the shooter's own skill</b>:
+     *
+     * <pre>{@code share(type) * (1 + SHOT_MIX_SENSITIVITY * (skill - 10) / 10)}</pre>
+     *
+     * <p><b>⚠ WHAT THIS REPLACED, AND WHY IT WAS WRONG.</b> Until §3.17 this returned
+     * the raw skills — {@code DRIVE -> drive + finishing} (a <b>SUM</b>) against one
+     * skill each for the other three. That double weight was never argued: #021 D
+     * specified the draw over <i>"drive/finishing/perimeter/post/longRange"</i>,
+     * <b>five skills for four shot types</b>, and the code collapsed two onto DRIVE by
+     * adding them — exactly as {@link #offensiveWeight()} three lines up sums all five
+     * for the <i>shooter</i> draw, where summing is correct because there is no
+     * per-type normalization. At an average player (every skill ≈ 10 by construction —
+     * every {@code SkillCalculator} centres there) that structurally predicts
+     * <b>DRIVE 40 / PERIMETER 20 / POST 20 / THREE 20</b>, and the engine measured a
+     * 20.9% three draw share against a real 41.5%. <b>The gap was the formula, not the
+     * player population</b> (#040 A/B).
+     *
+     * <p>⚠ <b>{@code finishing} NO LONGER DECIDES HOW OFTEN A DRIVE IS ATTEMPTED.</b>
+     * It is a <i>make-the-shot</i> skill — dunks, layups, finishing through contact —
+     * and it entered the selection path only through that 5-into-4 collapse. It
+     * survives here <b>only inside DRIVE's modifier, halved</b>, because a drive's
+     * quality genuinely blends attacking and finishing. How <i>often</i> a drive is
+     * attempted is {@code sim.shot-share-drive}'s job now.
+     *
+     * <p>⚠ <b>Do not confuse this with {@link #offenseSkillForShot}</b>, which is the
+     * <b>ACCURACY</b> path and is <b>untouched</b> (#040 B): its {@code /2.0} was always
+     * the right form, and 3P% reads 37.8 against a sourced 36.0. After §3.17 the two
+     * methods finally agree on how {@code drive} and {@code finishing} combine.
+     *
+     * <p>The modifier is what keeps shot selection reading the player model: without it
+     * every player on the floor shoots the identical league mix. <b>A shooter's skills
+     * still decide who shoots what; they no longer decide what the LEAGUE shoots</b>
+     * (#040 C). Floored at zero so an extreme low-skill deviation can never produce a
+     * negative weight and corrupt the draw.
+     */
     public double shotTypeWeight(ShotType type) {
+        double modifier = 1.0 + SimConfig.SHOT_MIX_SENSITIVITY
+                * (shotSelectionSkill(type) - SimConfig.SCALE_AVG) / SimConfig.SCALE_AVG;
+        return config.shotShare(type) * Math.max(0.0, modifier);
+    }
+
+    /**
+     * §3.17 (#040 C): the skill that bends this shooter's share of one {@link ShotType}.
+     * Deliberately the <b>identical expression</b> {@link #offenseSkillForShot} uses —
+     * the sum-vs-average asymmetry between selection and accuracy was #040 B's bug, and
+     * the two agreeing is the fix. Kept as its own method rather than calling
+     * {@code offenseSkillForShot} directly because the two answer different questions
+     * (how often vs how well) and a future phase may legitimately move one without the
+     * other; the shared value today is a finding, not a coincidence to be collapsed.
+     */
+    private double shotSelectionSkill(ShotType type) {
         return switch (type) {
-            case DRIVE -> drive + finishing;
+            case DRIVE -> (drive + finishing) / 2.0;
             case PERIMETER -> perimeter;
             case POST -> post;
             case THREE -> longRange;

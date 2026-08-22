@@ -664,29 +664,41 @@ re-running the loop and re-agreeing the numbers, not a red build.
       flagrant divisor, and #034 G forbids letting it drift. **A pass that moves the foul
       rate must decide it again**, deliberately.
 
-- [ ] **§3.17 — Shot mix / the 3PA gap** *(**design RESOLVED as `decisions.md` #040**,
-      Decisions A–L; the execute-ready plan is todo.md's §3.17 plan)*. **The engine takes
-      19.6 3PA against the NBA's 37.0 — 54% of real, the largest single divergence and
-      ~60% of the composition error.** 3P% itself is fine (37.8 vs 36.0), so this is
-      **volume, not accuracy**.
-      ✅ **#036 D's gating question is SETTLED — it IS an engine pass** (#040 A). Measured:
-      `shotTypeWeight` gives DRIVE the **sum of two** skills while the other three types
-      get **one each**, predicting a 20% three share at an average player; the engine
-      measures **20.9%**. Every `SkillCalculator` centres on ~10 by construction, so no
-      population shift closes 20% → 41.5%. **The gap is the formula**, and the sum is an
-      **oversight** traceable to #021 D naming *five* skills for *four* shot types (#040 B).
-      **The fix** (#040 C/D): four tunable shares in `application-baseline.properties`
-      (`sim.shot-share-*`) modulated by an avg-10 skill multiplier, with `shotMixLean`
-      **split** so THREE takes the lean and PERIMETER takes its reciprocal — removing the
-      PERIMETER/THREE conflation #036 D named as the blocker. No new branch, no new RNG
-      draw, no schema or OpenAPI change.
-      ⚠ **THIS PHASE WILL LAND FG% AND FGA VISIBLY WORSE, ON PURPOSE — the #039 H shape
-      again.** FGA rises past its sourced 89.1 to **~89.9** because a three is stopped
-      7.5× less often than a drive (#040 E), and FG% falls **46.7 → ~44.5** because the
-      engine's **2P% is 49.2 against a real 55.0** — an error the two-heavy mix has been
-      *hiding*, since at a 21% three share FG% ≈ 2P% (#040 F). **Both are §3.19's**, by
-      #038's rule. **§3.17 is judged on 3PA and nothing else.** Blocks (~4.8 → ~2.6) and
-      the residual defensive-rebound gap join §3.19's list too.
+- [x] **§3.17 — Shot mix / the 3PA gap** *(shipped 2026-08; `decisions.md` **#040**,
+      Decisions A–N + implementation note)*.
+      _Shipped: **3PA 19.96 → 37.22** against a sourced target of **37.0** (5 seeds), and
+      the charged three share **22.5% → 40.3%** against a real 41.5%. The shot mix stops
+      being an emergent property of the player calculators and becomes **four tunable
+      shares** in `application-baseline.properties` (`sim.shot-share-*` = 1.0 / 0.55 /
+      0.55 / **1.23**) modulated by an avg-10 skill multiplier, with `shotMixLean` **split**
+      so THREE takes the lean and PERIMETER its reciprocal (#040 C/D). Also: the
+      `COMMON_FOUL` → `NON_SHOOTING_FOUL` rename (#040 M/N, no migration), the
+      fouled-three instrument fixed (#040 G), and a new shot-type mix line in the harness.
+      Tunables 58 → 62. 621 tests, JaCoCo gate green._
+      ⚠ **THIS PHASE LANDED FG% AND FGA VISIBLY WORSE, ON PURPOSE — the #039 H shape
+      again, and the roadmap says so plainly rather than letting a later reader call it
+      drift.** **FGA 88.80 → 92.28**, over its sourced 89.1 (a three is stopped 7.5× less
+      often than a drive, so more threes ⇒ fewer stopped shots ⇒ **more** charged
+      attempts, #040 E). **FG% 46.68 → 43.52**, because the engine's **2P% is ~48.7
+      against a real 55.0** — an error the old two-heavy mix was *hiding*, since at a 21%
+      three share FG% ≈ 2P% (#040 F). **Both are §3.19's**, by #038's rule. ⚠ **`base-three`
+      must NOT move**: 3P% is 35.8 vs a sourced 36.0 and it **held across a 1.9× volume
+      change**. ⚠ **FTA also undershot (23.60 → 19.76)** — the penalty rate fell 55.7% →
+      46.1% and `sim.non-shooting-foul-share` is priced by it. §3.19's.
+      ✅ **What the pass PROVED.** #036 D's gating question was settled and the answer was
+      the **engine, not the population** (#040 A): `shotTypeWeight` gave DRIVE the **sum**
+      of two skills against one each for the other three types — an oversight traceable to
+      #021 D naming *five* skills for *four* shot types — structurally predicting a 20%
+      three share against a measured 20.9% and a real 41.5%.
+      ⚠ **THREE PREDICTIONS WERE WRONG, and one is a finding worth carrying.** **Blocks did
+      NOT fall to ~2.6 — they stayed at 4.80**, because **`PROB_FLOOR` (0.02) is 4×
+      `base-block-three` (0.005)**: a three's block chance is **floored, not based**, so
+      `base-block-three` is currently **inert**. **Points did not rise to ~113 — it stayed
+      flat at 110.0**, because the FTA loss cost 3.0 points against 1.7 modelled. **Rebounds
+      landed better than predicted** (off reb **closed** at 11.18; def reb 30.48, leaving
+      ~1.9). Also: `PERSONAL_FOULS_PER_TEAM_GAME` re-measured **20.15 → 17.82** (#034 G,
+      decided in writing) — §3.17 moved the foul rate hard **without touching a foul
+      constant**, and a stale divisor was already running flagrants 26% light.
 
 - [ ] **§3.18 — The steal as a first-class event** *(needs its own design pass; added
       2026-08 by user call)*. **A steal is the only contested defensive play the event

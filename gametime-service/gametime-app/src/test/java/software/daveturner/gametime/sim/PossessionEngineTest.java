@@ -2404,7 +2404,7 @@ class PossessionEngineTest {
 
     /**
      * #039 B/C, THE POINT OF THE PHASE: a common foul outside the bonus emits the
-     * {@code COMMON_FOUL} event and <b>no free throws at all</b>.
+     * {@code NON_SHOOTING_FOUL} event and <b>no free throws at all</b>.
      *
      * <p>⚠ And it <b>ENDS the possession</b> — no retention. That is deliberately wrong
      * as basketball (a real common foul is a side inbound and the offense keeps the
@@ -2426,7 +2426,7 @@ class PossessionEngineTest {
         assertEquals(1, events.size(),
                 "a common foul outside the bonus is ONE event — the foul, nothing else");
         assertEquals(PlayType.FOUL, events.get(0).playType());
-        assertEquals(PossessionEngine.COMMON_FOUL_OUTCOME, events.get(0).outcome());
+        assertEquals(PossessionEngine.NON_SHOOTING_FOUL_OUTCOME, events.get(0).outcome());
         assertEquals(0, events.stream()
                         .filter(e -> e.playType() == PlayType.FREE_THROW).count(),
                 "NO free throws outside the bonus — the whole point of §3.16 (#039 C)");
@@ -2495,7 +2495,7 @@ class PossessionEngineTest {
     }
 
     /**
-     * #039 B: a {@code COMMON_FOUL} is a PERSONAL foul — it counts toward the period
+     * #039 B: a {@code NON_SHOOTING_FOUL} is a PERSONAL foul — it counts toward the period
      * penalty tally exactly as a {@code SHOOTING_FOUL} does. The contrast with §3.14a's
      * technical (excluded, #032 E) is the reason this is asserted rather than assumed:
      * a foul type handled in one derivation but not the other makes the harness
@@ -2511,7 +2511,7 @@ class PossessionEngineTest {
                 foulPossessionRng(0.0));
 
         assertEquals(1, data.periodFoulCount("DEF", 1),
-                "COMMON_FOUL counts toward the bonus tally (#039 B)");
+                "NON_SHOOTING_FOUL counts toward the bonus tally (#039 B)");
         assertEquals("DEF", data.getEvents().get(0).committingTeamId(),
                 "the committer is the DEFENDER at this site, as on a shooting foul");
     }
@@ -2535,7 +2535,7 @@ class PossessionEngineTest {
                 .filter(e -> e.playType() == PlayType.FOUL).count());
         assertEquals(1, shooting.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.FOUL).count());
-        assertEquals(PossessionEngine.COMMON_FOUL_OUTCOME,
+        assertEquals(PossessionEngine.NON_SHOOTING_FOUL_OUTCOME,
                 common.getEvents().get(0).outcome());
         assertEquals("SHOOTING_FOUL", shooting.getEvents().get(0).outcome(),
                 "the roll re-partitions the OUTCOME; the foul total holds by "
@@ -2563,7 +2563,7 @@ class PossessionEngineTest {
         List<String> foulOutcomes = data.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.FOUL)
                 .map(GameData.EventRecord::outcome).toList();
-        assertFalse(foulOutcomes.contains(PossessionEngine.COMMON_FOUL_OUTCOME),
+        assertFalse(foulOutcomes.contains(PossessionEngine.NON_SHOOTING_FOUL_OUTCOME),
                 "a flagrant short-circuits the composition roll (#039 F) — the two "
                         + "must never compose");
         assertTrue(foulOutcomes.stream().anyMatch(o -> o.startsWith("FLAGRANT_FOUL")),

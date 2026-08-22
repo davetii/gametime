@@ -81,18 +81,85 @@ class PlayerGameStateTest {
         assertEquals(50.0, p.offensiveWeight());
     }
 
+    /**
+     * §3.17 (decisions.md #040 B/C). ⚠ <b>THESE TWO TESTS PINNED THE BUG.</b> They
+     * asserted the weight WAS the raw skill — {@code drive + finishing = 27} for DRIVE
+     * and {@code longRange = 18} for THREE. That SUM on DRIVE against one skill each
+     * elsewhere is #040 B's 5-into-4 collapse, the structural cause of the 20%-vs-41.5%
+     * three-share gap. The weight is now the league share table bent by skill:
+     * {@code share(type) * (1 + SHOT_MIX_SENSITIVITY * (skill - 10) / 10)}, over
+     * {@code (drive + finishing) / 2.0} for DRIVE — the same expression
+     * {@code offenseSkillForShot} uses, which is the whole point of the fix.
+     */
     @Test
-    void shotTypeWeightForDrive() {
+    void shotTypeWeightForDriveIsTheShareBentByTheDriveFinishingAVERAGE() {
+        SimConfig config = SimConfig.baseline();
         PlayerGameState p = TestPlayerFactory.create("p1", "T1",
                 15, 12, 8, 5, 3, 10, 10, 10, 10, 10, 10, 10, 10);
-        assertEquals(27.0, p.shotTypeWeight(ShotType.DRIVE)); // drive + finishing
+        // (15 + 12) / 2 = 13.5 -> modifier 1 + 0.5 * (13.5 - 10) / 10 = 1.175
+        double expected = config.shotShareDrive() * 1.175;
+        assertEquals(expected, p.shotTypeWeight(ShotType.DRIVE), 1e-9);
     }
 
     @Test
-    void shotTypeWeightForThree() {
+    void shotTypeWeightForThreeIsTheShareBentByLongRange() {
+        SimConfig config = SimConfig.baseline();
         PlayerGameState p = TestPlayerFactory.create("p1", "T1",
                 5, 5, 5, 5, 18, 10, 10, 10, 10, 10, 10, 10, 10);
-        assertEquals(18.0, p.shotTypeWeight(ShotType.THREE));
+        // longRange 18 -> modifier 1 + 0.5 * (18 - 10) / 10 = 1.4
+        double expected = config.shotShareThree() * 1.4;
+        assertEquals(expected, p.shotTypeWeight(ShotType.THREE), 1e-9);
+    }
+
+    /**
+     * §3.17 (#040 C): at an average player every modifier is exactly 1.0, so the
+     * weights ARE the league share table. This is what makes {@code sim.shot-share-*}
+     * a readable calibration surface — its meaning does not depend on the population.
+     */
+    @Test
+    void anAveragePlayerWeightsAreExactlyTheLeagueShares() {
+        SimConfig config = SimConfig.baseline();
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1", SimConfig.SCALE_AVG);
+        for (ShotType t : ShotType.values()) {
+            assertEquals(config.shotShare(t), p.shotTypeWeight(t), 1e-9,
+                    t + " at an average player must be exactly its raw share");
+        }
+    }
+
+    /**
+     * §3.17 (#040 C): the modifier is floored at zero, so no skill value can produce a
+     * negative weight and corrupt the weighted draw. At SHOT_MIX_SENSITIVITY 0.5 the
+     * modifier stays positive across the whole 1-20 skill range, so this pins the guard
+     * rather than a reachable case — which is exactly why it is worth pinning.
+     */
+    @Test
+    void anExtremelyLowSkillNeverProducesANegativeWeight() {
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1",
+                1, 1, 1, 1, 1, 10, 10, 10, 10, 10, 10, 10, 10);
+        for (ShotType t : ShotType.values()) {
+            assertTrue(p.shotTypeWeight(t) >= 0.0,
+                    t + " weight must never go negative");
+        }
+    }
+
+    /**
+     * §3.17 (#040 B): selection and accuracy finally AGREE on how drive and finishing
+     * combine. Before this pass {@code shotTypeWeight} summed them and
+     * {@code offenseSkillForShot} averaged them — the asymmetry that was the bug. The
+     * accuracy path is UNTOUCHED; it is the selection path that moved to meet it.
+     */
+    @Test
+    void selectionAndAccuracyNowAgreeOnDrivePlusFinishing() {
+        SimConfig config = SimConfig.baseline();
+        PlayerGameState p = TestPlayerFactory.create("p1", "T1",
+                16, 12, 8, 5, 3, 10, 10, 10, 10, 10, 10, 10, 10);
+        double accuracySkill = p.offenseSkillForShot(ShotType.DRIVE);   // (16+12)/2 = 14
+        double expectedWeight = config.shotShareDrive()
+                * (1.0 + SimConfig.SHOT_MIX_SENSITIVITY
+                        * (accuracySkill - SimConfig.SCALE_AVG) / SimConfig.SCALE_AVG);
+        assertEquals(expectedWeight, p.shotTypeWeight(ShotType.DRIVE), 1e-9,
+                "the selection weight must be built from the SAME drive/finishing "
+                        + "combination the accuracy path uses (#040 B)");
     }
 
     @Test

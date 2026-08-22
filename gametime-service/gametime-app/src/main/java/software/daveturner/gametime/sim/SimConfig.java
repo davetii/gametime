@@ -132,9 +132,9 @@ public class SimConfig {
     // Two kinds of constant live here, and the declaration form tells them apart:
     //
     //   public static final       a RULE of basketball or the SHAPE of the model.
-    //                             Not a knob. 26 of them.
+    //                             Not a knob. 27 of them.
     //   private final + accessor  a tunable knob, bound by Spring from
-    //                             application-baseline.properties. 58 of them.
+    //                             application-baseline.properties. 62 of them.
     //
     // The instance fields take NO INITIALIZERS: the values exist only in the
     // properties file, and a missing key fails the context at startup. Adding a
@@ -654,16 +654,24 @@ public class SimConfig {
     // --- Shooting-foul composition (§3.16, decisions.md #039 A/B/D/E) ---
     //
     // What fraction of the fouls FoulResolver.isFoul has ALREADY rolled and charged
-    // are COMMON (non-shooting) fouls rather than SHOOTING_FOUL. A SECOND roll layered
+    // are NON-SHOOTING fouls rather than SHOOTING_FOUL. A SECOND roll layered
     // on the foul, the isFlagrant shape three fields up: isFoul keeps its rate, skills
     // and RNG draw, recordFoul() has already run, so THE FOUL TOTAL HOLDS BY
     // CONSTRUCTION and this knob re-partitions the outcome only (#039 A).
     //
-    // ⚠ The key is sim.non-shooting-foul-share, NOT common-foul-share, and the
-    // divergence from the COMMON_FOUL event outcome is DELIBERATE (#039 E): a config
-    // key is read by a tuner and defines itself against SHOOTING_FOUL, while the event
-    // outcome sits in a play-by-play list of basketball terms. Different audiences,
-    // named for different readers.
+    // ⚠ THE KEY AND THE EVENT OUTCOME NOW AGREE (§3.17, #040 M). #039 E deliberately
+    // diverged them — key sim.non-shooting-foul-share, outcome COMMON_FOUL — on a
+    // different-audiences argument. #040 M reverses that by user call: the criticism
+    // that killed common-foul-share applies just as hard to the outcome string, and
+    // NON_SHOOTING_FOUL is the correct complement of SHOOTING_FOUL beside it in the log.
+    // See PossessionEngine.NON_SHOOTING_FOUL_OUTCOME for the full reasoning and for the
+    // no-migration cutover this rename leaves in game_event.outcome.
+    //
+    // ⚠ THE SHARE IS PRICED BY THE PENALTY RATE, not by the foul rate alone (§3.16's
+    // execution finding): inside the bonus a non-shooting foul still awards 2 FTs, so
+    // what this knob removes per conversion depends on how often teams are in the
+    // penalty. Any pass that moves the foul rate must RE-CHECK FTA rather than assume
+    // this value still lands it.
     //
     // ⚠ BACK-SOLVED, NOT SOURCED (#039 D). The real NBA shooting-foul share is not in
     // a league-averages row and needs play-by-play derivation; this is the value that
@@ -681,6 +689,63 @@ public class SimConfig {
     //
     // NO skill input by design (#039 E) — see FoulResolver.isNonShootingFoul.
     private final double nonShootingFoulShare;
+
+    // §3.17 (decisions.md #040 C/J/K): THE SHOT-MIX SHARE TABLE — the league's base
+    // distribution over the four ShotTypes, as RAW WEIGHTS normalized at the call site
+    // (the to-weight-* / block-* / oob-* convention: only RATIOS matter, so a profile
+    // author never has to make them sum to 1).
+    //
+    // ⚠ WHY THIS EXISTS. Before §3.17 the mix was an EMERGENT property of the four
+    // skill calculators and nothing in the sim could tune it — and it was emergently
+    // wrong by 20 points. PlayerGameState.shotTypeWeight gave DRIVE the SUM of two
+    // skills (drive + finishing) while the other three types got one each, an artifact
+    // of #021 D's five-skills-for-four-types wording collapsing 5 into 4 (#040 B). At
+    // an average player that structurally predicts DRIVE 40 / PERIMETER 20 / POST 20 /
+    // THREE 20, and the engine measured a 20.9% three DRAW share against a real 41.5%.
+    // The gap was the formula, not the player population — every SkillCalculator
+    // centres on ~10 by construction, so no population shift could close it (#040 A).
+    //
+    // ⚠ THE MIX IS NO LONGER EMERGENT, AND THAT IS A REAL TRADE (#040 C). The league
+    // now imposes the base mix and players bend it via the skill modifier below; a
+    // future player-generation change can move a PLAYER's share within the mix but no
+    // longer moves the LEAGUE's. Accepted because an emergent property nobody can tune
+    // is not a feature when it is emergently wrong.
+    //
+    // ⚠ THE SHARES ARE SHARES OF *DRAWS*, NOT OF CHARGED ATTEMPTS, and the two differ
+    // (#040 E). A stopped shot charges NO FGA, and foul-mult-three (0.133) is 7.5x
+    // below DRIVE's 1.0, so a three is stopped far less often and converts to a charged
+    // attempt at a higher rate. The three DRAW share must therefore sit BELOW the
+    // target share of ATTEMPTS. Do not set these to the target percentages and expect
+    // them back out. TUNE AGAINST THE MEASURED 3PA LINE AT 5 SEEDS — the landing is the
+    // target, not the constant (the §3.16 lesson: #039's share came out 0.50 against a
+    // predicted 0.43).
+    private final double shotShareDrive;
+    private final double shotSharePerimeter;
+    private final double shotSharePost;
+    private final double shotShareThree;
+
+    /**
+     * §3.17 (decisions.md #040 C/J): how hard a shooter's own skill bends the league
+     * share table — the avg-10 deviation multiplier the whole engine already uses,
+     * {@code 1 + SHOT_MIX_SENSITIVITY * (skill - 10) / 10}.
+     *
+     * <p><b>Model machinery, NOT a tunable</b> — the class of {@link #BLOCK_SENSITIVITY}
+     * and {@link #AND_ONE_SENSITIVITY}, so it stays {@code public static final} and out
+     * of the properties file (CLAUDE.md's declaration-form convention, #040 J).
+     *
+     * <p>Its job is that shot selection keeps reading the player model: without it every
+     * player on the floor shoots the identical mix, a {@code longRange}-19 sniper and a
+     * {@code longRange}-6 centre alike. <b>A shooter's skills still decide who shoots
+     * what; they no longer decide what the LEAGUE shoots</b> (#040 C).
+     *
+     * <p>⚠ <b>UNSOURCED FEEL CONSTANT whose error is INVISIBLE IN THE AGGREGATES BY
+     * CONSTRUCTION</b> (#040 C trade-off): the shares are normalized, so raising or
+     * lowering this moves who takes which shot without moving the league mix at all.
+     * The only honest check is per-player, not aggregate — verify a high-{@code
+     * longRange} specialist visibly out-shoots a low-{@code longRange} big without
+     * either reaching a degenerate share.
+     */
+    public static final double SHOT_MIX_SENSITIVITY = 0.5;
 
     // ONE flagrant-2 is an automatic ejection (#034 E/F). Named rather than inlined as
     // `>= 1` so the third disqualification threshold reads identically to the other two
@@ -716,10 +781,24 @@ public class SimConfig {
     // taking the measured rate to 20.50 all-events MINUS ~0.35 technicals = 20.15
     // (5 seeds, 2026-08). Left at 19.0 the flagrant rate would have run ~6% high.
     //
-    // §3.16's COMMON_FOUL re-partition does NOT enter this number: it re-labels a
+    // §3.16's NON_SHOOTING_FOUL re-partition does NOT enter this number: it re-labels a
     // foul that was already rolled and charged, so it moves composition, not the
     // total (#039 A). Only the charge fix moved the rate.
-    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 20.15;
+    //
+    // ⚠ §3.17 RE-MEASURED IT AGAIN AND MOVED IT: 20.15 -> 17.82 (5 seeds, 2026-08).
+    // #034 G forbids BOTH treating this as a tunable AND letting it drift, so a pass
+    // that moves the foul rate must decide it IN WRITING. §3.17 moves the foul rate
+    // hard and INDIRECTLY: it touches no foul constant at all, but shifting ~17 draws
+    // per team-game from DRIVE/POST (foul-mult 1.0) to THREE (0.133) means far fewer of
+    // them draw contact. All-foul events fell 20.53 -> 18.18, personal fouls
+    // 20.18 -> 17.82 — a -11.5% drift, and the largest this constant has ever taken.
+    //
+    // ⚠ THE DRIFT WAS ALREADY VISIBLE IN THE OUTPUT, WHICH IS WHY IT IS NOT LEFT: the
+    // measured flagrant rate ran 0.119 against its ~0.16 ballpark — 74%, i.e. precisely
+    // the 17.82/20.15 ratio. Leaving the divisor stale would have understated flagrants
+    // by ~13% permanently, and #032 B2's warning is that NOTHING WOULD HAVE FAILED.
+    // ⚠ This is a SHOT-MIX-derived quantity now, so §3.19 must re-measure it once more.
+    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 17.82;
 
     // Base probability that a made field goal is assisted, at an average passing
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
@@ -1135,6 +1214,10 @@ public class SimConfig {
             @DecimalMin("0.0") double flagrantFoulsPerTeamGame,
             @DecimalMin("0.0") @DecimalMax("1.0") double flagrantTwoShare,
             @DecimalMin("0.0") @DecimalMax("1.0") double nonShootingFoulShare,
+            @DecimalMin("0.0") double shotShareDrive,
+            @DecimalMin("0.0") double shotSharePerimeter,
+            @DecimalMin("0.0") double shotSharePost,
+            @DecimalMin("0.0") double shotShareThree,
             @DecimalMin("0.0") @DecimalMax("1.0") double baseAssist) {
         this.defaultPossessionsPerPeriod = defaultPossessionsPerPeriod;
         this.otPossessionsPerPeriod = otPossessionsPerPeriod;
@@ -1193,6 +1276,10 @@ public class SimConfig {
         this.flagrantFoulsPerTeamGame = flagrantFoulsPerTeamGame;
         this.flagrantTwoShare = flagrantTwoShare;
         this.nonShootingFoulShare = nonShootingFoulShare;
+        this.shotShareDrive = shotShareDrive;
+        this.shotSharePerimeter = shotSharePerimeter;
+        this.shotSharePost = shotSharePost;
+        this.shotShareThree = shotShareThree;
         this.baseAssist = baseAssist;
     }
 
@@ -1481,6 +1568,40 @@ public class SimConfig {
         return nonShootingFoulShare;
     }
 
+    /** sim.shot-share-drive — §3.17 (#040 C). A RAW WEIGHT, normalized at the call site. */
+    public double shotShareDrive() {
+        return shotShareDrive;
+    }
+
+    /** sim.shot-share-perimeter — §3.17 (#040 C). A RAW WEIGHT, normalized at the call site. */
+    public double shotSharePerimeter() {
+        return shotSharePerimeter;
+    }
+
+    /** sim.shot-share-post — §3.17 (#040 C). A RAW WEIGHT, normalized at the call site. */
+    public double shotSharePost() {
+        return shotSharePost;
+    }
+
+    /** sim.shot-share-three — §3.17 (#040 C). A RAW WEIGHT, normalized at the call site. */
+    public double shotShareThree() {
+        return shotShareThree;
+    }
+
+    /**
+     * §3.17 (decisions.md #040 C): the league's base weight for one {@link ShotType},
+     * before the shooter's skill modifier and before the coach's lean. RAW — the caller
+     * normalizes, so only ratios matter.
+     */
+    public double shotShare(ShotType type) {
+        return switch (type) {
+            case DRIVE -> shotShareDrive;
+            case PERIMETER -> shotSharePerimeter;
+            case POST -> shotSharePost;
+            case THREE -> shotShareThree;
+        };
+    }
+
     /** sim.base-assist */
     public double baseAssist() {
         return baseAssist;
@@ -1494,7 +1615,7 @@ public class SimConfig {
      * <p><b>It reads {@code application-baseline.properties} — the same file, through
      * the same Spring binder, that the application context binds from.</b> That is the
      * whole point: the values exist in exactly ONE place (#035 A), so a test using this
-     * factory and a running engine can never disagree. Hard-coding the 58 values here
+     * factory and a running engine can never disagree. Hard-coding the 62 values here
      * would reintroduce precisely the second source of truth this design eliminates,
      * and every test would still pass.
      *
@@ -1509,7 +1630,7 @@ public class SimConfig {
         } catch (IOException e) {
             throw new IllegalStateException(
                     "Could not read " + BASELINE_PROFILE_RESOURCE
-                            + " — it is the only copy of the 58 profilable constants", e);
+                            + " — it is the only copy of the 62 profilable constants", e);
         }
         StandardEnvironment env = new StandardEnvironment();
         env.getPropertySources().addFirst(new PropertiesPropertySource("baseline", props));
@@ -1519,6 +1640,6 @@ public class SimConfig {
                         "Could not bind sim.* from " + BASELINE_PROFILE_RESOURCE));
     }
 
-    /** The baseline profile file — the single copy of the 58 profilable values. */
+    /** The baseline profile file — the single copy of the 62 profilable values. */
     public static final String BASELINE_PROFILE_RESOURCE = "application-baseline.properties";
 }

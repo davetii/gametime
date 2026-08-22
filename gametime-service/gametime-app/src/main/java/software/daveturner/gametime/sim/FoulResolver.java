@@ -196,7 +196,7 @@ public class FoulResolver {
 
     /**
      * §3.16 (decisions.md #039 A/B/C/E): was a foul that <b>already happened</b> a
-     * COMMON (non-shooting) foul rather than a {@code SHOOTING_FOUL}? A flat {@link
+     * <b>non-shooting</b> foul rather than a {@code SHOOTING_FOUL}? A flat {@link
      * SimConfig#nonShootingFoulShare()} roll, {@link #isFlagrant}'s sibling and
      * deliberately its twin in shape.
      *
@@ -225,7 +225,7 @@ public class FoulResolver {
      * roll fires — so weighting the <i>kind</i> of foul by it too would apply one
      * signal twice (#034 E). It is also the honest position: the engine has no
      * representation of <i>where on the floor</i> the contact happened, which is the
-     * thing that actually decides shooting vs. common, so any skill weighting here
+     * thing that actually decides shooting vs. non-shooting, so any skill weighting here
      * would manufacture a signal the model does not have.
      *
      * <p><b>⚠ Rolled only AFTER {@link #isFlagrant} misses</b> (#039 F). A flagrant

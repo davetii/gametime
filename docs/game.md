@@ -45,7 +45,7 @@ through §3.16 and this doc now documents both:
   flat 15%) ejects immediately, still as a **derived** predicate
 
 - **§3.16** shooting-foul composition + the charge fix — a second roll re-partitions
-  the stopped-shot foul into a free-throw-free **`COMMON_FOUL`**, and the **charge**
+  the stopped-shot foul into a free-throw-free **`NON_SHOOTING_FOUL`**, and the **charge**
   becomes a real personal foul emitting its own `FOUL` event (decisions.md #039)
 
 ⚠ **THIS DOC ONCE CLAIMED PHASE 3'S POSSESSION MODEL WAS FEATURE-COMPLETE AFTER
@@ -60,7 +60,7 @@ final."*
    #031, #032, #034 and #035 still means RECALIBRATION**; roadmap.md carries the
    mapping callout. Read the phase *name*, never the number alone.
 2. **"Structurally final" was never safe to assert forward.** §3.16 added the
-   `COMMON_FOUL` fork and the charge's `FOUL`; §3.17 and §3.18 may add more.
+   `NON_SHOOTING_FOUL` fork and the charge's `FOUL`; §3.17 and §3.18 may add more.
 
 `possession-flow.puml` **is** current as of §3.16 — both new forks are drawn — but it is
 current because it was updated, not because the flow is finished.
@@ -135,7 +135,7 @@ section above; decisions.md #020).
   it too, where it is **load-bearing rather than merely uniform**: a flagrant's
   possession fork is decided by *which side committed it* (#034 C), so it is the first
   foul kind that genuinely **reads** this column rather than only filling it in.
-  **§3.16 adds two more** (#039): `COMMON_FOUL` carries the defender's team like a
+  **§3.16 adds two more** (#039): `NON_SHOOTING_FOUL` carries the defender's team like a
   shooting foul, and the charge's `OFFENSIVE_FOUL` carries the **offense** — making it
   the **second** outcome after `REBOUNDING_FOUL_OFFENSE` where the committer is on
   offense, and the second path that can put the **defensive** team in the bonus.
@@ -175,9 +175,9 @@ decides *who* the possession is played with.
 | # | Phase / resolver | What it decides | On a hit |
 |---|---|---|---|
 | 0 | **`RotationState.advancePossession()`** — **both teams**, before every possession | drain/recover energy, **roll a technical (§3.14a)**, force off fouled-out **or ejected**, **foul-trouble sub (§3.13)**, fatigue sub | a `FOUL`/`TECHNICAL_FOUL` + **1 FT** on a technical hit — emitted by `PossessionEngine`, which the step returns the committer to (**three RNG draws**†) |
-| 1 | **`ShotSelector`** | picks the shooter, then the shot type | — |
+| 1 | **`ShotSelector`** | picks the shooter, then the shot type — **§3.17: the type is a per-type SHARE TABLE (`sim.shot-share-*`) × an avg-10 skill modifier, with the coach's lean applied to THREE and its RECIPROCAL to PERIMETER** (#040 C/D) | — |
 | 2 | **`TurnoverResolver`** | turnover? then a 9-way cause draw; **§3.16: an `OFFENSIVE_FOUL` cause also charges a personal foul** | possession **ends** — and on a charge a **second** `FOUL` event is emitted for the same occurrence (§3.16) |
-| 3 | **`FoulResolver.isFoul`** | foul that **stops** the shot (no basket), then **§3.14b: was it flagrant?**, then **§3.16: was it a non-shooting (COMMON) foul?** | FTs, possession **ends** — *unless flagrant: 2 FTs and the offense **RETAINS***; *if common: **no FTs at all** outside the penalty, 2 bonus FTs inside it, possession ends either way* |
+| 3 | **`FoulResolver.isFoul`** | foul that **stops** the shot (no basket), then **§3.14b: was it flagrant?**, then **§3.16: was it a non-shooting foul?** | FTs, possession **ends** — *unless flagrant: 2 FTs and the offense **RETAINS***; *if non-shooting: **no FTs at all** outside the penalty, 2 bonus FTs inside it, possession ends either way* |
 | 4 | **`BlockResolver`** (via `ShotResolver`) | block carved off the top | loose-ball recovery |
 | 5 | **`ShotResolver.isMade`** | make / miss | — |
 | 6 | **`FoulResolver.isAndOne`** — *on a make only* | foul the shot **survived**, then **§3.14b: was it flagrant?** | +1 FT, possession ends — *unless flagrant: basket **+** 2 FTs **+** the offense **RETAINS*** |
@@ -212,8 +212,8 @@ multiplies by (§3.12's per-shot-type foul multiplier), so it must precede the f
   §3.12 renamed the constant to `BASE_NO_BASKET_FOUL` (#030 F). **§3.16 then split its
   outcome**: a second roll (`sim.non-shooting-foul-share`, shipped at **0.50**)
   re-partitions the already-charged foul into a `SHOOTING_FOUL` (free throws follow) or
-  a **`COMMON_FOUL`** (no free throws outside the penalty). The engine's non-shooting
-  fouls are therefore now **step 3's `COMMON_FOUL`**, step 7's rebounding fouls, and
+  a **`NON_SHOOTING_FOUL`** (no free throws outside the penalty). The engine's non-shooting
+  fouls are therefore now **step 3's `NON_SHOOTING_FOUL`**, step 7's rebounding fouls, and
   step 2's `OFFENSIVE_FOUL` charge — the last of which §3.16 also made a real personal
   foul (#039 G).
 - **§3.16's composition roll is the flagrant's twin, and the ORDER is load-bearing**
@@ -222,7 +222,7 @@ multiplies by (§3.12's per-shot-type foul multiplier), so it must precede the f
   existing rate moves (#039 A — #034 A's argument, reused). Flagrant is asked **first**:
   a flagrant common foul is simply a flagrant, so the two never compose and there is no
   "flagrant that awards nothing" case.
-- **⚠ A `COMMON_FOUL` ENDS THE POSSESSION — the ball does NOT come back**, and that is
+- **⚠ A `NON_SHOOTING_FOUL` ENDS THE POSSESSION — the ball does NOT come back**, and that is
   **deliberately wrong as basketball** (#039 C). A real common foul is a side inbound
   and the offense keeps the ball. It is not modelled that way because every returning
   variant re-enters the loop at `ShotSelector` and yields a live attempt worth ~0.76
@@ -349,9 +349,9 @@ always resolved — by a `REBOUND` event, an actual rebound or an OOB, **or** by
 - `TURNOVER` (`OFFENSIVE_FOUL`) → `FOUL` (`OFFENSIVE_FOUL`) — a **charge**: TWO events
   for ONE occurrence (§3.16, #039 G). The foul carries
   `committing_team_id` = the **offense**, so it moves the **defense** toward the bonus
-- `FOUL` (`COMMON_FOUL`) — **no free throws at all**; the non-shooting foul outside the
+- `FOUL` (`NON_SHOOTING_FOUL`) — **no free throws at all**; the non-shooting foul outside the
   penalty, and the point of §3.16. Possession ends (the ball does **not** come back)
-- `FOUL` (`COMMON_FOUL`) → `FREE_THROW` ×**2** (`*_BONUS`) — the same foul committed
+- `FOUL` (`NON_SHOOTING_FOUL`) → `FREE_THROW` ×**2** (`*_BONUS`) — the same foul committed
   **in the penalty**; possession ends (§3.16)
 - `FOUL` (`SHOOTING_FOUL`) → `FREE_THROW` ×**2** (both `*_SHOOTING`) — any shot type
   except a three (§3.12)
@@ -449,8 +449,12 @@ reacts to foul *trouble* rather than foul-*out*:
 `base × (1 + COACH_SENSITIVITY·(attr−10)/10)`):
 - **`pace`** scales the **possession count** — a faster coach runs more
   possessions per game (more events), a slower coach fewer.
-- **`offensiveScheme`** leans the shot-type draw (perimeter/three vs. inside/post)
-  in `ShotSelector`.
+- **`offensiveScheme`** leans the shot-type draw in `ShotSelector`. ⚠ **§3.17 (#040 D)
+  changed the AXIS: it is now three vs. MID-RANGE, not jumper vs. interior.** `THREE` is
+  scaled by the multiplier and `PERIMETER` by its **reciprocal**; `DRIVE`/`POST` are
+  unscaled. A high-`offensiveScheme` coach shoots more threes **and fewer mid-range
+  jumpers**. ⚠ **It no longer sets the LEAGUE's mix** — that is the four
+  `sim.shot-share-*` tunables (#040 C) — only a given team's tilt on it.
 - **`defensiveScheme`** scales the defense's turnover/foul pressure.
 - Team chemistry skills also enter resolution: **`acumen`** is a small make-rate
   nudge in `ShotResolver`, and **`teamOffense`/`teamDefense`** a single
@@ -484,8 +488,8 @@ reacts to foul *trouble* rather than foul-*out*:
 | `TURNOVER` | `3_SECONDS_VIOLATION` | Offensive three-seconds-in-the-lane violation (§3.9) |
 | `TURNOVER` | `8_SECONDS_BACKCOURT_VIOLATION` | Failed to advance the ball past half-court in time (§3.9) |
 | `TURNOVER` | `OVER_AND_BACK` | Ball returned to the backcourt after crossing half (§3.9 — a sliver, ~2%) |
-| `FOUL` | `SHOOTING_FOUL` | Defensive foul that **stopped** a shot of **any** type (§3.12); free throws follow — **3 if it stopped a `THREE`**, else 2. `committing_team_id` = the defense (§3.10). **§3.16: no longer the only outcome of that roll** — a flat `sim.non-shooting-foul-share` (**0.50**) re-partitions it into `COMMON_FOUL` below |
-| `FOUL` | `COMMON_FOUL` | A **non-shooting** foul (§3.16, `decisions.md` #039) — the same stopped-shot roll as `SHOOTING_FOUL`, re-partitioned by a second flat roll layered on the **already-charged** foul, so **the foul total holds by construction** and no existing rate moves (#039 A). **Awards NO free throws outside the penalty** — the point of the phase, which took FTA from 34.0 to 23.5 — and **2 bonus FTs inside it** (`committing_team_id` = the defense, emit-then-count, #028 A1). **It IS a personal foul**: `recordFoul()`, the 6-foul limit, the foul-trouble curve and the period bonus tally, all normally (contrast the technical, the one excluded outcome). ⚠ **The possession ENDS either way — the ball does NOT come back**, which is deliberately wrong as basketball and is what protects the FGA budget (#039 C). ⚠ **The config key is `sim.non-shooting-foul-share` while the outcome is `COMMON_FOUL`** — the divergence is intentional (#039 E): a tuner reading a key has no surrounding basketball vocabulary, a play-by-play does |
+| `FOUL` | `SHOOTING_FOUL` | Defensive foul that **stopped** a shot of **any** type (§3.12); free throws follow — **3 if it stopped a `THREE`**, else 2. `committing_team_id` = the defense (§3.10). **§3.16: no longer the only outcome of that roll** — a flat `sim.non-shooting-foul-share` (**0.50**) re-partitions it into `NON_SHOOTING_FOUL` below |
+| `FOUL` | `NON_SHOOTING_FOUL` | A **non-shooting** foul (§3.16, `decisions.md` #039) — the same stopped-shot roll as `SHOOTING_FOUL`, re-partitioned by a second flat roll layered on the **already-charged** foul, so **the foul total holds by construction** and no existing rate moves (#039 A). **Awards NO free throws outside the penalty** — the point of the phase, which took FTA from 34.0 to 23.5 — and **2 bonus FTs inside it** (`committing_team_id` = the defense, emit-then-count, #028 A1). **It IS a personal foul**: `recordFoul()`, the 6-foul limit, the foul-trouble curve and the period bonus tally, all normally (contrast the technical, the one excluded outcome). ⚠ **The possession ENDS either way — the ball does NOT come back**, which is deliberately wrong as basketball and is what protects the FGA budget (#039 C). ⚠ **RENAMED FROM `COMMON_FOUL` BY §3.17 (#040 M, user call), reversing #039 E.** #039 E kept the outcome as `COMMON_FOUL` while the key became `sim.non-shooting-foul-share`, arguing config keys and play-by-play serve different audiences. #040 M finds that real but outweighed: the criticism that killed `common-foul-share` — *"common" tells a cold reader nothing about what the thing DOES* — applies just as hard to the outcome, and `NON_SHOOTING_FOUL` is the correct complement of `SHOOTING_FOUL` beside it. ⚠ **NO MIGRATION: `game_event.outcome` holds `COMMON_FOUL` for games simulated before §3.17 and `NON_SHOOTING_FOUL` after** — pre-launch rows are test data, so a query crossing the boundary must match both |
 | `FOUL` | `OFFENSIVE_FOUL` | The **charge**, as a foul rather than only a turnover (§3.16, #039 G). Emitted **in addition to** the `TURNOVER` event above, for the same occurrence. `primary_player` = the ball-handler, who is charged `recordFoul()`; **`committing_team_id` = the OFFENSE** — the only site besides `REBOUNDING_FOUL_OFFENSE` where that is true, and therefore the only other path that moves the **defense** toward the bonus. Counts toward the bonus and the 6-foul limit; **not flagrant-eligible** (the flagrant roll lives in `FoulResolver` and this path never reaches it). No free throws — the possession has already ended as a turnover |
 | `FOUL` | `REBOUNDING_FOUL_DEFENSE` | Defensive box-out push during the rebound phase — the **offense** is fouled, so it retains for a second chance, or shoots **bonus** FTs if the defense is in the penalty. `committing_team_id` = the defense (§3.10) |
 | `FOUL` | `REBOUNDING_FOUL_OFFENSE` | Offensive over-the-back during the rebound phase — the **defense** is fouled and the **possession ends** for the offense (defense's ball, or defense's **bonus** FTs if the offense is in the penalty). `committing_team_id` = the **offense** (§3.10) |
@@ -493,7 +497,7 @@ reacts to foul *trouble* rather than foul-*out*:
 | `FOUL` | `TECHNICAL_FOUL` | A **behavioral** foul with no contest behind it (§3.14a) — rolled **between possessions** in `RotationState`, not on the possession path. `primary_player` = the committer, drawn `foulProne`-weighted from the **on-floor five**; `committing_team_id` = his team. **One** free throw to the other team and **the possession is UNCHANGED** — no fork, no switch, even when the offense commits it. Charged to a **separate `technicalFouls` counter**: it does **not** feed the 6-foul limit and is **excluded from the period bonus tally** (#032 D/E) |
 | `FOUL` | `FLAGRANT_FOUL_1` / `FLAGRANT_FOUL_2` | An **excessive-contact** foul (§3.14b, `decisions.md` #034), rolled as a severity question **on top of** a foul that already happened, at **all three** foul sites (stopped shot · and-1 · rebounding foul) — so no existing foul rate moves (#034 A). **Always exactly 2 free throws, which REPLACE the underlying foul's award rather than adding to it** (#034 C — a flagrant stopped `THREE` is **2** FTs, not 3, and not 5). **Unlike a technical it IS a personal foul**: `recordFoul()`, the 6-foul limit, the foul-trouble curve **and** the period bonus tally, all normally (#034 I). **The possession forks on WHO committed, not on which site**: a **defensive** flagrant awards the FTs **and returns the ball** (the first FT path in the model that does not end the possession — #030 B's invariant, broken); an **offensive** one (only possible at the rebounding site) sends the **defense** to the line and flips the possession. `_2` is a flat **15%** of flagrants and **ejects the committer immediately** (#034 E/F) |
 | `FREE_THROW` | `MADE_SHOOTING` / `MISSED_SHOOTING` | Free throw from a shooting foul that **stopped** the shot — **2 per trip, or 3 if the stopped shot was a `THREE`** (§3.11 D, §3.12 C) |
-| `FREE_THROW` | `MADE_BONUS` / `MISSED_BONUS` | Free throw from a **bonus (penalty)** trip — after a rebounding foul (§3.11 D) or, since §3.16, after a `COMMON_FOUL` committed in the penalty (2 per trip either way). ⚠ **§3.16 made this source much larger** — it rose from ~4% to ~22% of all FTA, because half of all stopped-shot fouls now route here-or-nowhere instead of always awarding shooting FTs |
+| `FREE_THROW` | `MADE_BONUS` / `MISSED_BONUS` | Free throw from a **bonus (penalty)** trip — after a rebounding foul (§3.11 D) or, since §3.16, after a `NON_SHOOTING_FOUL` committed in the penalty (2 per trip either way). ⚠ **§3.16 made this source much larger** — it rose from ~4% to ~22% of all FTA, because half of all stopped-shot fouls now route here-or-nowhere instead of always awarding shooting FTs |
 | `FREE_THROW` | `MADE_AND_ONE` / `MISSED_AND_ONE` | The single free throw riding a made basket (§3.11 D) |
 | `FREE_THROW` | `MADE_TECHNICAL` / `MISSED_TECHNICAL` | The single free throw from a technical (§3.14a). **The only FT source where nobody was fouled**, so the shooter is a **deterministic highest-`freeThrows` pick from the on-floor five** — *not* the `foulDrawing`-weighted draw the bonus uses (#032 G). Consequence to expect: the same player shoots essentially all of his team's technical FTs all game |
 | `FREE_THROW` | `MADE_FLAGRANT` / `MISSED_FLAGRANT` | The **two** free throws from a flagrant (§3.14b, #034), at any of the three sites. Shot by **the player who was fouled** — *not* §3.14a's best-shooter pick, whose premise (nobody was fouled) does not hold here (#034 D). A distinct source rather than reusing `SHOOTING` because the harness reads FT source off this suffix (#029 D), so reuse would inflate a real source's share on the very line §3.14b is judged by — and it would be factually wrong at the rebounding site, which is not a shooting foul at all |
@@ -548,14 +552,17 @@ indistinguishable. That test exists (`flagrantFoulsCountTowardTheBonusTallyUnlik
 and the penalty rate duly stayed flat (51.9% of team-periods, against §3.14a's 51.2%).
 
 **§3.16 then faced the question TWICE and answered "counts" both times** (#039 B/G):
-`COMMON_FOUL` and the charge's `OFFENSIVE_FOUL` are both personal fouls by rule, so
+`NON_SHOOTING_FOUL` and the charge's `OFFENSIVE_FOUL` are both personal fouls by rule, so
 neither is excluded and `countsTowardBonus` was **not touched** — the technical remains
 the only exclusion. Each is pinned by its own test, following #034 I's discipline.
 ⚠ **Unlike §3.14b, this was NOT a non-change in effect**: the charge adds ~1.2 fouls
 per team-game to the tally that had previously counted toward nothing, and the penalty
-rate rose **51.9% → 55.7%**, with fouls/team/period now sitting at **5.15 against a
-threshold of 5**. That jump has a second-order consequence worth knowing:
-**it re-prices `sim.non-shooting-foul-share`**, because a `COMMON_FOUL` awards 2 bonus
+rate rose **51.9% → 55.7%**, with fouls/team/period sitting at **5.15 against a
+threshold of 5**. ⚠ **§3.17 then REVERSED most of that without touching a foul
+constant** — the three-heavy shot mix drew far less contact, taking the penalty rate
+back to **46.1%** and fouls/team/period below the threshold (#040). That jump, and its
+partial reversal, has a second-order consequence worth knowing:
+**it re-prices `sim.non-shooting-foul-share`**, because a `NON_SHOOTING_FOUL` awards 2 bonus
 FTs in the penalty and none outside it — which is why the share shipped at 0.50 rather
 than the 0.43 its design predicted from a pre-charge-fix measurement.
 

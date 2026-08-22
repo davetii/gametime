@@ -72,7 +72,7 @@ Each skill is computed by a dedicated `SkillCalculator` Spring bean. 23 skills.
 |-------|----------------|
 | **drive** | Attacking the basket off the dribble — handle/quickness carry it, verticality finishes through contact, big men and aging legs penalized |
 | **freeThrows** | Free-throw shooting — mostly raw shot skill, with composure for the repetition/pressure element |
-| **longRange** | Three-point shooting — shot selection and shot skill dominate; big men a touch less efficient from deep |
+| **longRange** | Three-point shooting — shot selection and shot skill dominate; big men a touch less efficient from deep. ⚠ Since §3.17 (#040 C) it drives **both** halves separately: it **nudges** the THREE share off the league base (`sim.shot-share-three`) via `SHOT_MIX_SENSITIVITY`, and it decides accuracy unchanged. It no longer *sets* how often the league shoots threes |
 | **perimeter** | Mid-range and perimeter shot-making — shot skill dominates, quickness contributes |
 | **post** | Back-to-basket scoring — strength and size carry it, gated by combinations (skilled bigs and strong-willed bigs both score) |
 | **teamOffense** | Playing within a system — ball movement, spacing, unselfish play; ego is a double-edged penalty |
@@ -103,7 +103,7 @@ Each skill is computed by a dedicated `SkillCalculator` Spring bean. 23 skills.
 
 | Skill | What it models |
 |-------|----------------|
-| **finishing** | Scoring at the rim — dunks, contested layups, lob catching, finishing through contact. Declines with age |
+| **finishing** | Scoring at the rim — dunks, contested layups, lob catching, finishing through contact. Declines with age. ⚠ **§3.17 (#040 B/C) got it OUT of shot SELECTION**: it is a make-the-shot skill and entered selection only through #021 D's five-into-four collapse, where it gave DRIVE double weight and caused the 3PA gap. It now survives in selection only inside DRIVE's modifier, **halved** — `(drive + finishing) / 2`, the same form the accuracy path always used |
 | **transition** | Fast-break scoring, decision-making and execution in the open court; big men lag |
 
 #### Active Defense
@@ -211,7 +211,10 @@ the attributes feeding a given skill live in its calculator class.
 
 This is the **design map** of which skills *should* back each possession decision —
 it is broader than what the engine resolves today. As of §3.4, the engine wires:
-shot selection (`drive`/`finishing`/`perimeter`/`post`/`longRange`), shot contest
+shot selection (⚠ **§3.17 changed this — see below**; the `drive`/`finishing`/
+`perimeter`/`post`/`longRange` phrasing here is #021 D's original wording, and its
+**five skills for four shot types** is exactly what produced the bug #040 B fixed),
+shot contest
 (`shotContest`/`individualDefense`/`rimProtection`), turnovers (`ballSecurity` vs
 `stealing`), shooting fouls (`foulDrawing` vs `foulProne`), free throws
 (`freeThrows`), rebounding (`offenseRebound`/`defenseRebound`), assists (`passing`,
@@ -228,6 +231,32 @@ without moving the count, #027). §3.10 adds **rebounding fouls** (`foulProne` /
 post-make foul roll on the same `foulDrawing`-vs-`foulProne` wiring (#029).
 §3.12 extends the stopped-shot foul to **all four shot types** with a per-type
 multiplier, on the same `foulDrawing`-vs-`foulProne` contest (#030).
+
+**⚠ §3.17 (`decisions.md` #040 B/C) CHANGED WHAT "SHOT SELECTION" MEANS, and this
+section's original wording is where the bug came from.** #021 D specified the draw
+over *"`drive`/`finishing`/`perimeter`/`post`/`longRange`"* — **five skills for four
+shot types** — and the code collapsed the extra one by giving `DRIVE` the **sum** of
+`drive + finishing` while the other three types got one skill each. At an average
+player (which every `SkillCalculator` is built to produce) that structurally
+predicted a **20%** three share; the engine measured 20.9% against a real **41.5%**.
+
+Since §3.17 the split is explicit, and it is worth holding as **two separate
+questions**:
+
+- **HOW OFTEN a type is shot — the LEAGUE's job, not the player's.** The base
+  distribution is four tunables in `application-baseline.properties`
+  (`sim.shot-share-{drive,perimeter,post,three}`), and a player's own skill only
+  **nudges** it: `share(type) × (1 + SHOT_MIX_SENSITIVITY × (skill − 10) / 10)`.
+  A `longRange`-19 sniper shoots visibly more threes than a `longRange`-6 big, but
+  neither moves what the *league* shoots.
+- **HOW WELL it goes in — still purely the player's.** `offenseSkillForShot` is
+  **unchanged**, including its `(drive + finishing) / 2.0` for DRIVE. 3P% reads 37.8
+  against a sourced 36.0, and §3.17 deliberately touched no make rate.
+
+⚠ **The trade is real and was accepted knowingly** (#040 C): the shot mix used to be
+an *emergent* property of the calculators and is now imposed by the league. A future
+player-generation change can move a **player's** share within the mix, but no longer
+moves the mix itself.
 
 **§3.14a is the exception that proves the pattern: a foul with NO skill contest at
 all.** Every foul above is a by-product of a contest — a defender is drawn, two skills
@@ -257,10 +286,10 @@ the same one #032 B accepted for technicals.
 **§3.16's composition roll (#039) is the THIRD skill-free mechanic, and its reason is
 the most interesting of the three — the model is MISSING A DIMENSION, not spending a
 used-up signal.** Asked of a foul that has already been rolled and charged: *was it a
-`SHOOTING_FOUL` or a non-shooting `COMMON_FOUL`?* It inherits §3.14b's argument in full
+`SHOOTING_FOUL` or a non-shooting `NON_SHOOTING_FOUL`?* It inherits §3.14b's argument in full
 — `pickDefender` chose the committer before this roll fires, so `foulProne` has had its
 say and grading him again would double-count it (#039 E). **But there is a second,
-stronger reason, and it is the one to remember**: what actually decides shooting-vs-common
+stronger reason, and it is the one to remember**: what actually decides shooting-vs-non-shooting
 in real basketball is **where on the floor the contact happened** — a reach-in at the
 top of the key versus body contact on a drive. **This engine has no floor position at
 all.** There is no `ShotType`-adjacent spatial model, no off-ball concept, nothing. So
@@ -270,10 +299,10 @@ the #017 don't-fabricate-a-constraint rule applied to a probability rather than 
 column.
 
 **Net: a foul's KIND is independent of who committed it.** The consequence to expect is
-that a player's `SHOOTING_FOUL`-to-`COMMON_FOUL` ratio is the same league-wide constant
+that a player's `SHOOTING_FOUL`-to-`NON_SHOOTING_FOUL` ratio is the same league-wide constant
 (≈50/50 at the shipped `sim.non-shooting-foul-share` = 0.50), so **no player draws
 disproportionately many free-throw-awarding fouls**. That is a real fidelity ceiling —
-in the NBA a rim protector's fouls skew shooting and a perimeter pest's skew common —
+in the NBA a rim protector's fouls skew shooting and a perimeter pest's skew non-shooting —
 and lifting it needs floor position, not a tuning constant.
 
 ⚠ **§3.16's other half runs the opposite way and is worth flagging here**: the **charge**
@@ -293,6 +322,11 @@ over eight skills the engine already holds:
 value = (individualDefense + rimProtection + defenseRebound + offense + offense) / 5
 where offense = mean(drive, finishing, perimeter, post, longRange)
 ```
+
+⚠ **This `mean` is the foul-trouble VALUE formula and is unrelated to shot
+selection** — do not read it as the shot-mix weighting. Since §3.17 (#040 C) shot
+selection is a **share table nudged by skill**, not a draw over these five: see the
+note under "shot selection" above.
 
 Offense is deliberately **double-weighted** (~60/40 defense-leaning), because foul
 trouble bites defenders and bigs hardest. It is **derived, never stored** — no new
@@ -324,7 +358,7 @@ the engine does read.
 | And-1 (foul on a MADE shot)? | foulDrawing vs foulProne again — a **second, post-make** roll on its own thin rate; made DRIVE/POST only until §3.12 | ✅ §3.11 |
 | Rebounding foul? | foulDrawing vs foulProne (two-sided — either team can commit; `foulProne` also weights *who* commits it) | ✅ §3.10 |
 | **Was that foul FLAGRANT?** | **NONE — no skill, coach or situation input at all** (#034 A/E). A flat rate on **any** of the three fouls above, and a flat 15% severity sub-roll for flagrant-2. `foulProne` had its say **already**, in picking the committer — grading him again would apply one signal twice | ✅ §3.14b |
-| **Was that foul NON-SHOOTING (`COMMON_FOUL`)?** | **NONE — and here the missing input is the MODEL's, not the signal's** (#039 E). A flat `sim.non-shooting-foul-share` (0.50) on the stopped-shot foul, rolled only after the flagrant question misses. `foulProne` has already had its say (as above), **and** what truly decides this is *floor position*, which the engine does not represent at all — so weighting it would fabricate a dimension. Consequence: **a foul's kind is independent of who committed it** | ✅ §3.16 |
+| **Was that foul NON-SHOOTING (`NON_SHOOTING_FOUL`)?** | **NONE — and here the missing input is the MODEL's, not the signal's** (#039 E). A flat `sim.non-shooting-foul-share` (0.50) on the stopped-shot foul, rolled only after the flagrant question misses. `foulProne` has already had its say (as above), **and** what truly decides this is *floor position*, which the engine does not represent at all — so weighting it would fabricate a dimension. Consequence: **a foul's kind is independent of who committed it** | ✅ §3.16 |
 | **Charge (offensive foul) → a personal foul** | `teamOffense`↓ leans the `OFFENSIVE_FOUL` turnover cause (#027 C); the committer is the **ball-handler** from `pickShooter`. ⚠ **The only foul in the model charged to an OFFENSIVE player, and the only one whose rate responds to an offensive skill** (#039 G) | ✅ §3.16 |
 | Free throws | freeThrows; clutch (late game) | ✅ §3.2 (clutch ⬜) |
 | Rebound | offenseRebound / defenseRebound | ✅ §3.3 |
@@ -339,7 +373,7 @@ the engine (the rotation step, `RotationState.advancePossession()`):
 |-----------------|-------------|--------|
 | Fatigue drain / recovery | endurance (slows drain), energy (speeds recovery) | ✅ §3.5 |
 | Fatigue sub | `currentEnergy` vs a coach-scaled threshold; starters tolerate MORE | ✅ §3.5 |
-| Foul-out (forced off) | none — a derived predicate over the foul counter. ⚠ **§3.16 fed that counter a new source**: a charge is a personal foul, so a player can now foul out on fouls committed **on offense** (#039 G), and the rate rose 0.358 → 0.517 | ✅ §3.5 |
+| Foul-out (forced off) | none — a derived predicate over the foul counter. ⚠ **§3.16 fed that counter a new source**: a charge is a personal foul, so a player can now foul out on fouls committed **on offense** (#039 G), and the rate rose 0.358 → 0.517. ⚠ **§3.17's lower foul rate then took it to 0.304** — neither move touched this predicate or §3.13's (saturated) sit curve | ✅ §3.5 |
 | **Foul-trouble sub** | the **value composite** (individualDefense, rimProtection, defenseRebound + the five offense skills) × foul count × coach × roster slot; better players benched **sooner** | ✅ §3.13 |
 | **Technical foul** | **none for the RATE** — deliberately random, no causal model (#032 B); `foulProne` weights only **who** commits it, over the on-floor five (#032 C) | ✅ §3.14a |
 | **Technical FT shooter** | `freeThrows` — a **deterministic** highest-on-the-floor pick, *not* the `foulDrawing`-weighted draw bonus FTs use (#032 G) | ✅ §3.14a |

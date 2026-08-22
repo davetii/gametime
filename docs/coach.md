@@ -58,7 +58,7 @@ phase reads each — **all five are now live**: §3.4 wired the scheme/pace trio
 | Attribute | Drives | Consumed by | Status |
 |-----------|--------|-------------|--------|
 | **pace** | Possessions per game (scales the possession **count**) | §3.4 possession flow | ✅ read |
-| **offensiveScheme** | Shot distribution — perimeter/3pt lean vs. inside/post | §3.4 `ShotSelector` lean | ✅ read |
+| **offensiveScheme** | Shot distribution — **three-point lean vs. mid-range** (⚠ §3.17 split the lean: `THREE` × the multiplier, `PERIMETER` × its **reciprocal**, `DRIVE`/`POST` unscaled — #040 D. It is NOT jumper-vs-interior) | §3.4 `ShotSelector` lean, split by §3.17 | ✅ read |
 | **defensiveScheme** | Aggressiveness — turnover/foul pressure vs. contain | §3.4 turnover/foul pressure; §3.9 also leans the shot-clock **turnover cause**; §3.10 scales **rebounding fouls** (→ bonus exposure); §3.11 scales **and-1s**. ⚠ §3.16 scales the **parent** foul but not its composition, and **not** the charge (which leans on the offense's `teamOffense` instead) | ✅ read |
 | **rotationDepth** | How many players see real minutes (tight 7 vs. deep 10) | §3.5 minutes allocation | ✅ read |
 | **substitutionAggressiveness** | How early/eagerly fatigued starters are pulled | §3.5 sub triggers | ✅ read |
@@ -105,12 +105,12 @@ his players cross the line.
 
 **§3.16 (shooting-foul composition, `decisions.md` #039) makes it three passes running,
 by the same argument — and adds one asymmetry worth knowing.** The composition roll
-(`sim.non-shooting-foul-share`, "was this foul a `COMMON_FOUL` rather than a
+(`sim.non-shooting-foul-share`, "was this foul a `NON_SHOOTING_FOUL` rather than a
 `SHOOTING_FOUL`?") is a flat constant with **no coach input and no skill input at all**
 (#039 E), for §3.14b's exact reason: it is a *grade* on a foul whose committer was
 already chosen by a `foulProne`-weighted `pickDefender`, so weighting it again would
 apply one signal twice. There is also nothing honest to weight it *by* — what really
-decides shooting-vs-common is **where on the floor the contact happened**, which this
+decides shooting-vs-non-shooting is **where on the floor the contact happened**, which this
 engine does not represent. **The coach's influence still flows through the parent
 foul**, which `defensivePressure` scales as always: an aggressive scheme concedes more
 fouls, so it concedes proportionally more of both kinds.
@@ -155,7 +155,7 @@ numbers on one scale with no translation layer. Concretely:
 
 ```
 basePace        × f(pace)                 → team possessions  (scales the possession COUNT, §3.4)
-baseShotMix     × f(offensiveScheme)      → perimeter vs. interior shot share  (§3.4 ShotSelector lean)
+baseShotMix     × f(offensiveScheme)      → THREE vs. MID-RANGE shot share      (§3.4 lean, SPLIT by §3.17)
 basePressure    × f(defensiveScheme)      → turnover/foul pressure on defense   (§3.4, §3.9–§3.11)
 benchDepth      × f(rotationDepth)        → how far down rotationOrder the bench plays  (input: #014; §3.5)
 subThreshold    × f(substitutionAggr.)    → energy level at which a tired starter is pulled  (§3.5)
@@ -168,11 +168,23 @@ Three mechanical details worth knowing before tuning any of these:
   `PossessionEngine` averages the two `paceMultiplier`s — a fast coach against a
   slow one lands in between, and *neither* coach gets their own pace. There is no
   per-team possession count to scale.
-- **`offensiveScheme` multiplies only the `PERIMETER` + `THREE` shot weights.**
-  `DRIVE` and `POST` keep the player's own weight; the weighted draw then
-  re-normalizes, so leaning *out* is what pushes the inside share down. There is no
-  separate inside/post lean — the "vs. inside/post" in the table is the emergent
-  effect, not a second knob.
+- **⚠ `offensiveScheme` SPLITS `THREE` and `PERIMETER` IN OPPOSITE DIRECTIONS
+  (§3.17, `decisions.md` #040 D). The axis is mid-range-vs-three, NOT
+  jumper-vs-interior.** `THREE` is scaled by `shotMixLean` and `PERIMETER` by its
+  **reciprocal**; `DRIVE` and `POST` are unscaled. So a high-`offensiveScheme` coach
+  shoots more threes **and fewer mid-range jumpers**, and a low one does the inverse —
+  the actual modern-vs-traditional axis.
+  ⚠ **Until §3.17 this scaled `PERIMETER` and `THREE` TOGETHER**, so a jump-shooting
+  coach raised mid-range and threes in lockstep — the one shape the real game forbids,
+  and #036 D's named blocker on the 3PA gap. **If you are reading an older doc or
+  decision that says "perimeter vs. interior", that is the pre-§3.17 behavior.**
+  There is still no separate inside/post lean: `DRIVE`/`POST` move only because the
+  weighted draw re-normalizes, which is an emergent effect, not a second knob.
+- **⚠ The coach no longer sets the LEAGUE's mix — only their own team's tilt on it**
+  (§3.17, #040 C). The base distribution is now the four `sim.shot-share-*` tunables
+  in `application-baseline.properties`, and `offensiveScheme` is centred on 10 across
+  the league, so the two lean directions roughly cancel in the aggregate. The split
+  exists so a *given* coach means something, not to move league 3PA.
 - **`substitutionAggressiveness` scales the threshold, but starters get a flat
   bonus on top.** `subEnergyThreshold` subtracts `STARTER_SUB_THRESHOLD_BONUS`
   (8.0) for starters, so a starter is always pulled later than a bench player at
