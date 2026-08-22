@@ -393,9 +393,11 @@ planned features), see [ideas.md](ideas.md).
       FLOW.** *(raised 2026-08 by the user; **post-Phase-3**, alongside the `decisions.md`
       condense pass below — both are "the docs outgrew their format" problems and both are
       cheapest once the possession path stops changing.)*
-      ⚠ **MEASURE FIRST, AND THE MEASUREMENT ALREADY CONTRADICTS THE OBVIOUS FIX.** Counted
-      2026-08 at 822 lines / 10,926px rendered: **note blocks 349 lines · legend 208 lines ·
-      actual flow 265 lines.** **68% of the file is prose.** The flow — the part a split
+      ⚠ **MEASURE FIRST, AND THE MEASUREMENT ALREADY CONTRADICTS THE OBVIOUS FIX.**
+      Re-counted after §3.17 (2026-08) at **846 lines / 11,212px** rendered: **notes 369 ·
+      legend 208 · actual flow 269.** **68% of the file is prose** — and note that ratio
+      held exactly across a phase that added a fork and a rename, so it is structural, not
+      a one-off. (Prior count: 822 lines / 349 · 208 · 265, same 68%.) The flow — the part a split
       would divide — **is not the problem**, so splitting first produces four files that are
       each still 68% notes. Do it in this order:
       1. **Thin the notes.** Most re-argue the decision rather than describe the branch —
@@ -407,6 +409,30 @@ planned features), see [ideas.md](ideas.md).
          are identical on every branch. It is reference material, not flow; it belongs in
          `game.md` or its own small `.puml`.
       3. **Re-measure.** Steps 1–2 may well be enough.
+      ⚠ **STEP 0, ADDED 2026-08 AFTER THE USER FOUND A REAL DEFECT: AUDIT THE BOXES FOR
+      DRIFT BEFORE TOUCHING ANY PROSE. This chore is about SIZE and would NOT have caught
+      it.** The pre-shot foul drew `FOUL — SHOOTING_FOUL` as a step at the TOP — accurate
+      when it was the only outcome of that roll. §3.14b then inserted a flagrant fork above
+      it and §3.16 a non-shooting fork below; **each was added correctly and in the same
+      change**, and `SHOOTING_FOUL` silently became the **fall-through** while still being
+      drawn as the entry step. The picture claimed one foul could emit up to three events;
+      the engine emits exactly one. Fixed during §3.17 (the top box is now
+      `defender.recordFoul()` — the charge, which genuinely has no fork — and
+      `SHOOTING_FOUL` sits at the bottom labelled as the fall-through).
+      **The audit**: walk every partition where a LAYERED roll was added later — the three
+      foul sites are the known family — and ask *"does this still read as ONE event coming
+      out?"* The and-1 and rebounding sites were checked and are correct; the pre-shot site
+      was the only one carrying **two** stacked forks, which is why it drifted.
+      ⚠ **AND THIS CHANGES STEP 1, WHICH IS CURRENTLY WRONG ABOUT ITS OWN TARGET.** Step 1
+      treats notes that "re-argue the decision rather than describe the branch" as pure
+      verbosity. **Some of them are load-bearing corrections to WRONG BOXES** — the foul
+      branch's "REPLACES the 2/3 FTs above" and "the two never compose" existed precisely
+      because the boxes said otherwise. **Thinning those without fixing the boxes deletes
+      the only thing telling a reader the picture is wrong**, making the file smaller and
+      less correct. So: **fix the box, THEN cut the note that was compensating for it.**
+      **The general tell, worth keeping**: when a note is busy explaining that the boxes do
+      not mean what they appear to mean, that is a defect signal, not a clarification —
+      and it is the cheapest way to find drift like this. (Now also in CLAUDE.md.)
       4. **Only then split**, and **split by PHASE OF POSSESSION, not by sub-phase number** —
          the seams the engine already has: setup/rotation · turnover+foul · shot+block ·
          rebound+retention. A reader hunting "where does the and-1 fire" then knows which
@@ -451,7 +477,17 @@ planned features), see [ideas.md](ideas.md).
       this chore too, and running them together means one person holds both halves of that
       contract. **Behavior-neutral by definition: no test should change.**
 
-- [ ] **Harness: print the four-way SHOT-TYPE MIX, including stopped shots.** ⚠ **§3.17's
+- [x] **Harness: print the four-way SHOT-TYPE MIX, including stopped shots.**
+      **DONE by §3.17's execution (2026-08, `decisions.md` #040 C).** The report now
+      carries a `Shot-type mix` block printing BOTH shares per type: **CHARGED** (the
+      share of FGA, which is what the 3PA/FGA target reads) and **DRAW** (charged plus
+      the corrected stopped shots, which is what `sim.shot-share-*` actually sets). It
+      was promoted out of "not a §3.17 blocker" during execution: tuning four share
+      values against 3PA alone makes a landing unattributable, which is the expensive
+      failure this phase was warned about. ⚠ **One honest limit, labelled in the report:**
+      the stopped-TWO tally is not resolvable per type from the event log, so it is
+      apportioned across the three two-point types in their charged proportion. **The
+      THREE row — the one being tuned — is exact.** ⚠ **§3.17's
       design pass had to BACK-SOLVE the number its whole phase turns on** — the report has
       no shot-mix row, so the draw share was reconstructed as
       `(3PA + true stopped threes) ÷ (FGA + stopped shots)` = 20.9%, using a stopped-three
@@ -465,7 +501,7 @@ planned features), see [ideas.md](ideas.md).
       3PA/FGA, which is sufficient — but the next mix question should be measurable
       directly. Composes with the chore below; do them together.
 
-- [ ] **Harness: classify a stopped shot by `ShotType`, not by its free-throw count —
+- [x] **Harness: classify a stopped shot by `ShotType`, not by its free-throw count —
       the fouled-three rows have under-counted by ~2× since §3.16.** ⚠ **A BROKEN
       INSTRUMENT, NOT A BROKEN ENGINE — do not re-tune `sim.foul-mult-three` against
       these rows.**
@@ -480,14 +516,23 @@ planned features), see [ideas.md](ideas.md).
       **Fix**: read the `ShotType` off the shot/foul event instead of counting FTs — the
       harness already has `shotTypeOf(outcome)` for the shot vocabulary. **Test-only, no
       engine change.**
-      ⚠ **PROMOTED: this is now STEP 0 of §3.17's execution plan** (`decisions.md` #040 G,
-      todo.md). It stays a backlog chore because it is test-only and owns no engine change,
-      but §3.17 is **blocked on it**: a pass that roughly doubles three-point volume needs a
-      working fouled-three instrument to confirm it did not also double three-point *fouls*,
-      and FTA is one of that phase's tripwires. **The corrected pre-§3.17 rows are the
-      baseline §3.17's landing is compared against** — the current ones are evidence of
-      nothing in either direction. Also fixes the `3-FT trips` row, which under-counts for
-      the same reason.
+      ✅ **DONE by §3.17's Step 0 (2026-08), BUT NOT THE WAY THIS CHORE OR #040 G
+      SPECIFIED — and the divergence is worth reading.** Both said *"read the `ShotType`
+      off the shot/foul event"*. ⚠ **That is not possible from the event log.** A stopped
+      shot emits **no SHOT event at all** (the foul branch returns before
+      `recordFieldGoalAttempt()`), and neither `SHOOTING_FOUL` nor `NON_SHOOTING_FOUL`
+      carries a type suffix the way `MADE_*` / `MISSED_*` / `BLOCKED_*` do. Adding one
+      would be an **engine** change to the permanent play-by-play vocabulary — outside a
+      step scoped test-only, and outside the single rename #040 M authorises.
+      **What shipped instead is an EXACT correction, not an estimate**, and it is
+      available because of how §3.16 built the roll: `FoulResolver.isNonShootingFoul` is a
+      **flat, shot-type-independent** draw (#039 E deliberately refused to skill- or
+      type-weight it), so the fouls that stay `SHOOTING_FOUL` are an **unbiased sample**
+      of all stopped shots taken at rate `(1 − share)`. The harness divides the visible
+      tally by that fraction, reading the divisor from the **active** config so an era
+      profile that moves the share keeps the instrument honest. Both the raw visible and
+      the corrected figure are printed. Measured: raw 1.58% of 3PA → corrected 3.16%,
+      the predicted ~2×.
 
 - [ ] **Harness self-verification — assert the instrument's own invariants.**
       ⚠ **PARTIALLY DONE by §3.15 (#035 A/F): the load-bearing half below — "have the
@@ -581,3 +626,47 @@ planned features), see [ideas.md](ideas.md).
       mitigation done: roster-rule tests in `RosterLineupDelegateTest` now sign their
       own players instead of assuming seed roster sizes; remaining brittleness is the
       hardcoded team IDs themselves.
+
+- [ ] **The `project-docs` skill's routing table omits the FOUR domain-design docs, so
+      every phase has kept them current by NOTICING rather than by RULE.** Found 2026-08
+      by the user while reviewing §3.17's plan, and confirmed during that phase's
+      execution — §3.17 had to update `coach.md`, `player.md`, `game.md` and `roster.md`
+      as an explicitly-enumerated checklist item because no rule would have caught them.
+      The skill's table lists the six planning docs (`decisions.md`, `todo.md`,
+      `roadmap.md`, `backlog.md`, `ideas.md`, `risks.md`) plus `possession-flow.puml`,
+      and **names `game.md` / `player.md` / `coach.md` / `roster.md` nowhere**.
+      ⚠ **The failure mode is silent and it has a worked example.** `coach.md` line 171
+      said *"`offensiveScheme` multiplies only the `PERIMETER` + `THREE` shot weights"* —
+      **true from §3.4 until §3.17 made it exactly false** (#040 D split them in opposite
+      directions). Nothing would have flagged it. `player.md`'s line 214 was worse: it
+      carried #021 D's *five skills for four shot types* wording, **which is the origin
+      of the bug §3.17 spent a phase fixing** — the stale doc was not just wrong after
+      the fact, it had been describing the defect as the design for four phases.
+      **The fix**: add the four docs to the skill's routing table with the trigger that
+      routes to each — a shot-selection or coach-modifier change touches `coach.md` +
+      `player.md`, an event-vocabulary change touches `game.md` + `roster.md`, a
+      possession-branch change already routes to the `.puml`.
+      ⚠ **Deliberately NOT fixed inside §3.17** — a skill edit mid-execution is scope
+      creep, and the phase filed it rather than absorbing it. **Fixing the docs without
+      fixing the rule means the next phase rediscovers this**, which is the whole reason
+      it is written down here.
+
+- [ ] **`PROB_FLOOR` (0.02) silently dominates `sim.base-block-three` (0.005) — the
+      constant is INERT, and the same clamp may be flooring other rare rates.** Found
+      2026-08 by §3.17's execution (`decisions.md` #040 implementation note), where #040 E
+      predicted blocks would fall 4.8 → ~2.6 as the shot mix went three-heavy and they
+      **stayed at 4.80**. `SimConfig.blockProbability` computes
+      `base + BLOCK_SENSITIVITY × (blockSkill − finishing) / 10` and then **clamps to
+      `PROB_FLOOR`** — which is **4× larger than the THREE base**. So a three's block
+      probability is **floored, not based**: moving attempts onto threes takes them
+      0.056 → **0.02**, never → 0.005.
+      ⚠ **Two consequences, and the second is the broader one.** (1) `base-block-three`
+      cannot currently be tuned at all — lowering it changes nothing, raising it does
+      nothing until it clears 0.02. (2) **`PROB_FLOOR` is applied to every probability in
+      the engine**, so any other constant set below 0.02 is equally inert, and nothing
+      says so at the declaration site. **Audit which tunables sit under the floor** and
+      either annotate them or reconsider whether a single global floor is right for rates
+      that legitimately differ by an order of magnitude.
+      **Not §3.17's** (blocks are a §3.19 row, #038's rule) and **not a blocker** — but
+      §3.19 must not re-tune the four `base-block-*` without holding this, or it will tune
+      a constant that does nothing and conclude the lever is dead.
