@@ -267,3 +267,35 @@ into a graveyard.
   (coach progression/hiring), where a coach quality/development dimension first gets
   a real consumer — decisions.md #018 already notes the continuous model keeps
   progression open at zero cost today.
+
+- **`DOUBLE_DRIBBLE` as a tenth `TurnoverCause`** *(raised 2026-08 during §3.18's design
+  pass; parked by `decisions.md` #041's follow-up list)*. The §3.9 taxonomy has **nine**
+  causes (#027 B) and double dribble is not among them, though it is a real and common
+  live-ball turnover. **Structurally it is free**: one enum constant on `TurnoverCause`,
+  one weight in the properties file, and the `outcome` string rides the existing
+  `TURNOVER` event as free text (#020) — **no schema change, no OpenAPI change, no new
+  event**, and under #041 C it earns no second event either (one actor, one fact, no
+  second stat). ⚠ **It is NOT numerically free, which is why it is parked rather than
+  scheduled.** The cause weights **re-partition a frozen turnover count** (#027 A: the
+  gate is untouched, only the mix moves), so a tenth cause necessarily takes share from
+  the existing nine — **possibly from `STOLEN`**, which would move the steal rate #041 F
+  measured at **7.72** and routed to §3.19 as a derived quantity. **What would make it
+  real:** a pass that already owns rate movement — §3.19 (recalibration) is the natural
+  home, since it re-solves the turnover count and the cause mix together and would
+  absorb the re-partition in one place rather than perturbing a settled number. Adding it
+  in an attribution/parity pass is what #041 explicitly declined to do.
+
+- **The charge-drawer as a counterparty** *(raised 2026-08 in §3.18's design pass;
+  `decisions.md` #041 follow-up)*. A charge (`TurnoverCause.OFFENSIVE_FOUL`) has a real
+  second participant in basketball — the defender who planted his feet and drew it — and
+  under #041 A's contract he is a textbook `opponent_player_id` (opposite team from the
+  committing ball-handler). **The engine never picks him**: `pickCause` returns
+  `OFFENSIVE_FOUL` and no drawer is selected, so §3.18 leaves the column **deliberately
+  null** on both of the charge's events. **Why it was not built:** populating it needs a
+  new `pickChargeDrawer` RNG draw, which **shifts the RNG stream** and re-baselines every
+  seeded sim test (CLAUDE.md's standing warning) — forfeiting §3.18's defining property
+  that it moves no number, for a participant **nothing currently consumes** (the
+  #014/#017/#020 discipline). **What would make it real:** a consumer — a "charges drawn"
+  stat in Phase 4, or a defensive-fidelity pass that wants the drawer's `acumen` to bend
+  the charge rate. It is then a clean standalone: one new draw, one column already in
+  place, and a deliberate re-baselining of the seeded expectations.

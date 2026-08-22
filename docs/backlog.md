@@ -344,23 +344,66 @@ planned features), see [ideas.md](ideas.md).
       [risks.md](risks.md) (the gate stayed green because H2 accepted the mismatch),
       and it overlaps the Testcontainers item below (real-Postgres integration tests
       would have caught it).
-- [ ] **Harness: track and report STEALS, with a reconciliation check.** ⚠ **Steals are
-      the only contested credit the harness never prints.** It accumulates fga/fgm/tpa/
-      tpm/assists/turnovers/offReb/defReb/blocks — **but not steals** — and the
-      reconciliation invariant covers assists and blocks and **not** steals. Meanwhile
-      `SimConfig`'s `TO_WEIGHT_STOLEN = 56.0` javadoc says the weight is held at ~56% of
-      the cause mix precisely so **`BoxScore.steals` does not drift** — i.e. the constant
-      is protecting a number nothing has ever measured.
-      **The data is all there**: `PlayerGameState.recordSteal()` is called at
-      `PossessionEngine:176`, the `steals` column is populated, and a `STOLEN` TURNOVER
-      event is emitted. **A count-based reconciliation works TODAY with no engine
-      change** — `STOLEN` events vs. summed box-score steals, exactly the shape §3.7 uses
-      for blocks (which also name the victim, not the creditor, and reconcile by count).
-      **The real figure is 8.4/team/game** (sourced 2025-26, in calibration.md as
-      `observed`). The engine's value is **~7.67 by derivation** (13.8 turnovers × 55.6%
-      STOLEN) — ⚠ **a derivation, not a measurement**, which is the point of this chore.
-      Cheap: one accumulator, one report line, one reconciliation check. **Test-only, no
-      engine change.** Do it in whatever phase next touches the harness.
+- [x] **Harness: track and report STEALS, with a reconciliation check.** ✅ **The REPORT
+      HALF IS DONE** — the accumulator and the `Steals / team / game` row were added
+      2026-08 during §3.18's design pass (test-only, no engine change, as scoped) so the
+      design could be made against a measurement instead of a derivation. **The
+      derivation was very nearly right: measured 7.72** (5 seeds, sd 0.148) against the
+      **~7.67** this entry predicted — but ⚠ **the gap to the real 8.4 is 10.3 standard
+      errors, i.e. REAL and not seed noise**, which is exactly what a measurement buys and
+      a derivation cannot. It is routed to **§3.19** as a *derived* quantity (steals =
+      turnovers × STOLEN share, and both terms are already §3.19's) — see
+      `decisions.md` **#041 F** and the calibration.md row.
+      ⚠ **`TO_WEIGHT_STOLEN = 56.0`'s javadoc is now backed by a number**: the mix
+      measured **55.5%**, inside #027 B's intended 55–60% band, so the constant is doing
+      what it claims. **Do not tune it to chase 8.4** — the denominator moves in §3.19.
+      **The RECONCILIATION half is superseded, not dropped**: this entry scoped a
+      *count-based* check ("`STOLEN` events vs. summed box-score steals"), and §3.18
+      (#041 G) upgrades it to the strictly stronger **per-creditor** form —
+      `count(STOLEN events with opponentPlayerId = X) == box_score.steals(X)` for every X.
+      ⚠ **The count-based version passes even when the engine credits the WRONG player**,
+      because the sums still match; the per-creditor form is what the new
+      `opponent_player_id` column makes expressible. Tracked in todo.md's §3.18 plan,
+      Step 5.
+
+- [ ] **Review EVERY event and decide what `opponent_player_id` should hold on it**
+      *(user request, 2026-08, filed during §3.18's design pass)*. §3.18 (`decisions.md`
+      **#041 A**) adds the column and populates the **three** sites where a counterparty
+      was already in scope and being discarded — `TURNOVER`/`STOLEN` (the stealer),
+      `SHOT`/`BLOCKED_*` (the blocker), `FOUL`/`SHOOTING_FOUL` (the fouled shooter).
+      **It deliberately did NOT sweep the rest**, because §3.18 is a parity pass whose
+      defining property is that it moves no number. This chore is that sweep: walk the
+      **13 `addEvent` sites** in `PossessionEngine` (audited 2026-08 — 215, 247, 303, 326,
+      351, 390, 448, 570, 654, 695, 736, 845, 872) and record, per `(play_type, outcome)`,
+      whether an opponent is **meaningful**, **absent**, or **deliberately null**.
+      **The contract any answer must satisfy** (#041 A): `opponent_player_id` is the
+      **counterparty** — the player on the OTHER side of the play from
+      `primary_player_id` — and is therefore **always on the opposite team**. ⚠ **A
+      teammate never goes here**: an assister rides `assistPlayerId` (#041 D), and putting
+      a same-team player in this column breaks the invariant that lets a reader resolve
+      the opponent's team without decoding the `outcome` string. The Step-5 invariant test
+      will fail the build if a sweep violates it — which is the point.
+      **Known candidates, from #041's own follow-ups:**
+      - **The charge** (`OFFENSIVE_FOUL`, sites 215 + 247) — a real counterparty (the
+        defender who drew it) that the engine **never picks**. ⚠ Needs a **new
+        `pickChargeDrawer` RNG draw**, which shifts the stream and re-baselines every
+        seeded sim test. Parked in ideas.md with what would make it real.
+      - **`REBOUNDING_FOUL_*`** (570) and **`AND_ONE`** (695) — the fouled player is
+        identifiable at both sites; check whether it is in scope at the emit call.
+      - **`FLAGRANT_FOUL_*`** (654) — `awardFlagrant` already takes both the committer
+        and the fouled shooter as parameters.
+      - **`TECHNICAL_FOUL`** (736) — ⚠ likely **null by contract**: the FT shooter is
+        "whoever was picked to shoot", **not** a counterparty to the technical.
+      - **`REBOUND`** (872), **`FREE_THROW`** (845), the seven unforced turnover causes —
+        expected **null**; one actor, no opposition.
+      ⚠ **Do not populate a site just because a player is reachable** — the
+      #014/#017/#020 discipline applies: a counterparty with no consumer is a fabricated
+      field, and #041 declined the charge-drawer on exactly that basis. The output of this
+      chore is a **decision per event**, recorded in `docs/game-events.md`'s master table
+      (built by §3.18, #041 H) — including the deliberate nulls **with their reason**, so
+      a later reader does not "fix" one by accident.
+      **Best done AFTER §3.18 ships**, when the column, the invariant test and the master
+      table all exist to hang the answers on.
 
 - [ ] **The `project-docs` skill's routing table omits the four DOMAIN-DESIGN docs, so
       they are kept current by noticing rather than by rule.** *(found 2026-08 by the user

@@ -152,6 +152,7 @@ class CalibrationHarness {
             agg.offReb += nz(bs.getOffensiveRebounds());
             agg.defReb += nz(bs.getDefensiveRebounds());
             agg.blocks += nz(bs.getBlocks());
+            agg.steals += nz(bs.getSteals());
 
             // §3.12 (#030 G): the FOUL-OUT instrument — genuinely new. The mechanism
             // has been live since §3.5 (FOUL_OUT_LIMIT = 6, hasFouledOut(), the
@@ -541,7 +542,7 @@ class CalibrationHarness {
         int gameCount;
         int teamGames;
         long points;
-        long fga, fgm, tpa, tpm, assists, turnovers, offReb, defReb, blocks, oob;
+        long fga, fgm, tpa, tpm, assists, turnovers, offReb, defReb, blocks, steals, oob;
         long periods;
         int reconciliationMismatches;
 
@@ -690,6 +691,10 @@ class CalibrationHarness {
                     + " attempts to threes moves them 0.056 -> 0.02, not -> 0.005. A \u00a73.19"
                     + " finding: the four base-block-* cannot be reasoned about without the"
                     + " floor. See decisions.md #040's implementation note)", blocks / tg));
+            // §3.18: the steals row. calibration.md carried steals as 8.4 observed
+            // against an engine ~7.67 BY DERIVATION ONLY — never measured. This row is
+            // the measurement (test-only, no engine change; a standing backlog chore).
+            lines.add(String.format("Steals / team / game:   %.1f   (target 8.4 — sourced 2025-26)", steals / tg));
             lines.add(String.format("OOB / team / game:      %.1f   (§3.8, no target)", oob / tg));
             lines.add(String.format("Reconciliation (ast+blk):%s",
                     reconciliationMismatches == 0 ? " OK (all games match)"

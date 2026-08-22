@@ -57,7 +57,7 @@ target, reported for visibility.
 | Off rebounds | **TARGET (SOURCED)** | **11.3** | 11.18 | ✅ **CLOSED by §3.17** — more misses at a lower make rate. Predicted ~10.6; landed better (#040 H) |
 | Def rebounds | **TARGET (SOURCED)** | **32.4** | 30.48 | 🟡 **most of the way — 3.0 of the 5.0 gap closed by §3.17**, better than #040 H's predicted ~28.9. The residual ~1.9 is a **rate** question for §3.19, not a new sub-phase |
 | Pace (poss/48) | **TARGET (SOURCED)** | **99.4** | ~100 nominal | ✅ |
-| Steals | observed | **8.4** | *not in the report* | ⚪ **harness never prints it** — backlog chore; engine ~7.67 *by derivation only* |
+| Steals | observed | **8.4** | **7.72** | 🔴 **−0.68 (10.3 se)** — MEASURED 2026-08 (§3.18, #041 F; 5 seeds, sd 0.148). Real, not seed noise. **§3.19's, as a DERIVED quantity**: steals = turnovers × STOLEN share, and *both* terms are already §3.19's (TO 13.90 vs 14.5; share 55.5%, inside #027 B's 55–60% band). ⚠ **Fixing TO to 14.5 alone yields 8.05** — re-measure after it lands, do **not** tune the share independently |
 | **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.304** | ⚠️ **§3.17's lower foul rate took it back DOWN, 0.517 → 0.304** — a by-product of the shot mix, **not a re-tune**. The §3.13 sit curve is untouched and measured saturated (#031) |
 | Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.31 / 0.63 / 0.52 | the real diagnostic for foul-outs |
 | **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.350** | ⚠️ **judge at 5 SEEDS ONLY** — see below |
