@@ -654,26 +654,39 @@ re-running the loop and re-agreeing the numbers, not a red build.
 
       ⚠ **The possession ENDS on a common foul — the ball does not come back** (#039 C),
       which is deliberately wrong as basketball. A retaining variant is capped at a ~6%
-      share by FGA's 0.7 of headroom, which moves FTA by less than 1.0. **Revisit only
-      if §3.17's shot-mix work buys FGA headroom.**
+      share by FGA's 0.7 of headroom, which moves FTA by less than 1.0. ~~Revisit only
+      if §3.17's shot-mix work buys FGA headroom.~~ **ANSWERED NO by #040 E: §3.17
+      SPENDS headroom rather than buying it** — a three is stopped 7.5× less often than a
+      drive, so more threes means *fewer* stopped shots and MORE FGA (~89.9 against a
+      sourced 89.1). **The question passes to §3.19**, which owns pace.
 
       ⚠ **`PERSONAL_FOULS_PER_TEAM_GAME` was re-measured to 20.15** (from 19.0) — the
       flagrant divisor, and #034 G forbids letting it drift. **A pass that moves the foul
       rate must decide it again**, deliberately.
 
-- [ ] **§3.17 — Shot mix / the 3PA gap** *(needs its own design pass; **deliberately
-      UNSCOPED** — `decisions.md` **#036 D**)*. **The engine takes 19.9 3PA against the
-      NBA's 37.0 — 54% of real, the largest single divergence and ~60% of the
-      composition error.** 3P% itself is fine (36.7 vs 36.0), so this is **volume, not
-      accuracy**.
-      ⚠ **THE FIRST DESIGN QUESTION IS WHETHER THIS IS AN ENGINE PROBLEM AT ALL.**
-      `ShotSelector.pickShotType` draws on `PlayerGameState.shotTypeWeight(type)` — i.e.
-      **per-player skills** — leaned by the coach's `offensiveScheme` through
-      `shotMixLean`. **That lean scales PERIMETER and THREE together**, so it cannot
-      raise threes while lowering mid-range, which is the shape the real gap needs. If
-      the gap traces to the generated player population's skill distribution, the fix is
-      **upstream of the possession engine** (player generation / seeded rosters) and this
-      is not a `SimConfig` phase. **Answer that before designing any knob.**
+- [ ] **§3.17 — Shot mix / the 3PA gap** *(**design RESOLVED as `decisions.md` #040**,
+      Decisions A–L; the execute-ready plan is todo.md's §3.17 plan)*. **The engine takes
+      19.6 3PA against the NBA's 37.0 — 54% of real, the largest single divergence and
+      ~60% of the composition error.** 3P% itself is fine (37.8 vs 36.0), so this is
+      **volume, not accuracy**.
+      ✅ **#036 D's gating question is SETTLED — it IS an engine pass** (#040 A). Measured:
+      `shotTypeWeight` gives DRIVE the **sum of two** skills while the other three types
+      get **one each**, predicting a 20% three share at an average player; the engine
+      measures **20.9%**. Every `SkillCalculator` centres on ~10 by construction, so no
+      population shift closes 20% → 41.5%. **The gap is the formula**, and the sum is an
+      **oversight** traceable to #021 D naming *five* skills for *four* shot types (#040 B).
+      **The fix** (#040 C/D): four tunable shares in `application-baseline.properties`
+      (`sim.shot-share-*`) modulated by an avg-10 skill multiplier, with `shotMixLean`
+      **split** so THREE takes the lean and PERIMETER takes its reciprocal — removing the
+      PERIMETER/THREE conflation #036 D named as the blocker. No new branch, no new RNG
+      draw, no schema or OpenAPI change.
+      ⚠ **THIS PHASE WILL LAND FG% AND FGA VISIBLY WORSE, ON PURPOSE — the #039 H shape
+      again.** FGA rises past its sourced 89.1 to **~89.9** because a three is stopped
+      7.5× less often than a drive (#040 E), and FG% falls **46.7 → ~44.5** because the
+      engine's **2P% is 49.2 against a real 55.0** — an error the two-heavy mix has been
+      *hiding*, since at a 21% three share FG% ≈ 2P% (#040 F). **Both are §3.19's**, by
+      #038's rule. **§3.17 is judged on 3PA and nothing else.** Blocks (~4.8 → ~2.6) and
+      the residual defensive-rebound gap join §3.19's list too.
 
 - [ ] **§3.18 — The steal as a first-class event** *(needs its own design pass; added
       2026-08 by user call)*. **A steal is the only contested defensive play the event

@@ -42,16 +42,17 @@ target, reported for visibility.
 | Measure | Type | Target / range | Current | Status |
 |---|---|---|---|---|
 | **Points** | **TARGET (SOURCED)** | **115.6** | **109.6** | ⚠️ **−6.0 BY DESIGN — §3.16 removed ~10 FTA; §3.19 recovers it** (#039 H) |
-| **FG%** | **TARGET (SOURCED)** | **47.1%** | **46.7%** | ✅ **inside the noise band — no work owed** (#036 A) |
+| **FG%** | **TARGET (SOURCED)** | **47.1%** | **46.7%** | ⚠️ **green ONLY AT THE WRONG SHOT MIX — §3.17 will un-hide a 2P% error and drop this to ~44.5** (#040 F). See below |
+| **2P%** *(derived — not a harness row)* | **TARGET (SOURCED)** | **55.0%** | **49.2%** | 🔴 **−5.8, and INVISIBLE today** — at a 21% three share FG% ≈ 2P%. **§3.19's** (#040 F) |
 | 3P% | **TARGET (SOURCED)** | **36.0%** | 36.7% | ✅ |
 | Assists | **TARGET (SOURCED)** | **26.7** | 26.9 | ✅ |
 | Turnovers | **TARGET (SOURCED)** | **14.5** | 13.6 | ✅ |
-| Blocks | **TARGET (SOURCED)** | **4.8** | 4.9 | ✅ (#025 C) |
+| Blocks | **TARGET (SOURCED)** | **4.8** | 4.9 | ✅ (#025 C) ⚠️ **predicted to fall to ~2.6 when §3.17 lands** — `base-block-three` is 0.005 vs DRIVE's 0.056 (#040 E). A §3.19 row |
 | Top-starter minutes | TARGET | ~34–36 | ~36.1 | ✅ (#023; §3.13 cost 0.5) |
 | Minutes ceiling | TARGET | nobody over ~42 | ok | ✅ (#023) |
 | Fouls | **TARGET (SOURCED)** | **19.9** | 20.53 | ✅ **§3.16's charge fix added ~1.2** — charges are personal fouls (#039 G) |
 | **FTA** | **TARGET (SOURCED)** | **23.5** | **23.60** | ✅ **§3.16 landed it** (was 34.0 = 145%) — see the share note below |
-| **3PA** | **TARGET (SOURCED)** | **37.0** | **20.0** | 🔴 **54% of real — §3.17 owns it** |
+| **3PA** | **TARGET (SOURCED)** | **37.0** | **20.0** | 🔴 **54% of real — §3.17 owns it; design resolved as #040** |
 | FGA | **TARGET (SOURCED)** | **89.1** | 88.80 | ✅ ⚠️ **§3.16's binding tripwire — only 0.3 of headroom left** (#039 C) |
 | Off rebounds | **TARGET (SOURCED)** | **11.3** | 9.9 | 🟡 low |
 | Def rebounds | **TARGET (SOURCED)** | **32.4** | 27.4 | 🟡 low — likely a 3PA symptom (#036) |
@@ -282,6 +283,42 @@ event. **So subtract only the technicals line** to compare against §3.13's 19.0
 
 ---
 
+## ⚠ THE FG% ROW IS GREEN AT THE WRONG SHOT MIX — a 2P% error §3.17 will un-hide
+
+**Found by §3.17's design pass, 2026-08 (`decisions.md` #040 F). Nothing has changed in
+the engine; what changed is that the error became visible.**
+
+#036 A retired FG% as CONTESTED on a sound measurement — real 47.1%, engine 46.9%, inside
+the ±0.14 standard error. **That reading is correct and also incomplete**, because it was
+taken at a shot mix that is wrong by 20 points. Decomposed:
+
+| | engine | real 2025-26 |
+|---|---|---|
+| 2PA | 69.1 | 52.1 |
+| **2P%** | **49.2%** | **55.0%** |
+| 3PA | 19.6 | 37.0 |
+| 3P% | 37.8% | 36.0% |
+| **FG% (the aggregate)** | **46.7%** | **47.1%** |
+
+**At a 21% three share, FG% ≈ 2P% — so a 5.8-point 2P% deficit and a correct 3P% average
+out to an aggregate that looks fine.** At a *correct* 41.5% three share the engine would
+need **2P% 53.7%** to land FG% 47.1; it has 49.2, so **FG% is predicted to fall to ~44.5
+when §3.17 lands**.
+
+⚠ **This is #036 B's cancelling-errors finding recurring one level down, in the one place
+#036 B did not look** — it decomposed *points* by source (2-pt / 3-pt / FT) but not
+*percentages* by shot type. **The lesson generalizes: an aggregate that matches can be two
+errors cancelling, at every level, and the only defense is to decompose before declaring a
+row green.**
+
+**Who owns it: §3.19.** The lever is `sim.base-drive` / `sim.base-post` /
+`sim.base-perimeter`. ⚠ **`sim.base-three` must NOT move — 3P% is correct (37.8 vs a
+sourced 36.0), and §3.17 changes how OFTEN a three is taken, never how often it goes in.**
+**§3.17 must not tune any of the four**: while the mix and the rates are both moving, the
+pass cannot tell "the mix moved" from "the rates were wrong" (#038's ordering rule).
+
+---
+
 ## ⚠ BROKEN INSTRUMENT — the fouled-three rows under-count by ~2× since §3.16
 
 **The engine is fine. The measurement is not.** Do **not** re-tune
@@ -292,7 +329,7 @@ event. **So subtract only the technicals line** to compare against §3.13's 19.0
 every stopped shot awarded free throws, so the FT run was a faithful proxy for the shot
 type.
 
-**§3.16 broke that proxy.** A `COMMON_FOUL` awards **0** free throws outside the
+**§3.16 broke that proxy.** A `COMMON_FOUL` (⚠ **renamed `NON_SHOOTING_FOUL` by §3.17**, #040 M) awards **0** free throws outside the
 penalty and **2** inside it, and it never awards 3. So every fouled three that converts
 to a common foul is either **invisible** (`freeThrowCount == 0` returns early) or
 **miscounted as a two**. With the share at 0.50 the harness sees roughly half of them:

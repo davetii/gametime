@@ -302,6 +302,12 @@ planned features), see [ideas.md](ideas.md).
       `#020`, derive-don't-store `#023 F`/`#028 A1`, don't-fabricate-ahead-of-a-consumer
       `#014`/`#017`, reuse-the-play-type-vocabulary `#025 F`/`#026 E`, verify-neutrality
       `#026 D`, rare-events-need-their-own-sensitivity `#025`/`#028`).
+      ⚠ **TWO SIBLING CHORES ARE NOW PARKED ABOVE AND SHARE THIS ONE'S CAUSE** (added
+      2026-08): **thinning `possession-flow.puml`** (68% of it is prose, not flow) and
+      **sweeping the `sim` package's Java comments**. All three are the same problem —
+      reasoning restated at every site instead of cited once — and the Java sweep in
+      particular should run in the **same pass** as this one, because Java comments cite
+      `decisions.md` **by number** and the never-renumber constraint below protects both.
       **Constraints**: keep it to **ONE file** (a `decisions.md` / `decisions-sim.md`
       split was tried 2026-07 and reverted — user wants one file; the split also moved
       volume around without reducing it). Never renumber; `#NNN` refs are cited from
@@ -356,6 +362,82 @@ planned features), see [ideas.md](ideas.md).
       Cheap: one accumulator, one report line, one reconciliation check. **Test-only, no
       engine change.** Do it in whatever phase next touches the harness.
 
+- [ ] **`possession-flow.puml` has outgrown one page — thin the PROSE before splitting the
+      FLOW.** *(raised 2026-08 by the user; **post-Phase-3**, alongside the `decisions.md`
+      condense pass below — both are "the docs outgrew their format" problems and both are
+      cheapest once the possession path stops changing.)*
+      ⚠ **MEASURE FIRST, AND THE MEASUREMENT ALREADY CONTRADICTS THE OBVIOUS FIX.** Counted
+      2026-08 at 822 lines / 10,926px rendered: **note blocks 349 lines · legend 208 lines ·
+      actual flow 265 lines.** **68% of the file is prose.** The flow — the part a split
+      would divide — **is not the problem**, so splitting first produces four files that are
+      each still 68% notes. Do it in this order:
+      1. **Thin the notes.** Most re-argue the decision rather than describe the branch —
+         the §3.16 note is ~40 lines restating #039 C's FGA arithmetic, which already lives
+         in #039 C in better prose. **The diagram needs the pointer, not the argument**:
+         phase + decision letters + the one-line crux + the ⚠ trap. Expect this alone to
+         roughly halve the file.
+      2. **Move the legend out** — 208 lines of probability formulas and clamp rules that
+         are identical on every branch. It is reference material, not flow; it belongs in
+         `game.md` or its own small `.puml`.
+      3. **Re-measure.** Steps 1–2 may well be enough.
+      4. **Only then split**, and **split by PHASE OF POSSESSION, not by sub-phase number** —
+         the seams the engine already has: setup/rotation · turnover+foul · shot+block ·
+         rebound+retention. A reader hunting "where does the and-1 fire" then knows which
+         file without opening all four.
+      ⚠ **THE COST OF SPLITTING, AND WHY IT IS LAST:** CLAUDE.md makes this diagram the
+      place that records **branch ORDER within a partition**, which is load-bearing (the
+      flagrant roll precedes the common-foul roll; the block roll is carved off the top).
+      **Split across files and the CROSS-FILE ordering becomes invisible** — you would need
+      an index diagram just to restore what one file gives for free. The second risk is the
+      living-spec rule ("a new branch must be drawn in the same change"): one file makes
+      that unambiguous, four files make a design pass guess which — **and that failure is
+      silent**, the same shape as the §3.16 harness-instrument break.
+      **Keep whatever shape ships**: the render command with `-DPLANTUML_LIMIT_SIZE=16384`
+      and the truncation warning (a plain `-tpng` silently cuts at 4096px, and `-checkonly`
+      does not catch it), and the rule that a new branch or event is drawn in the same change.
+
+- [ ] **Sweep the Java comments in the `sim` package for the same bloat `decisions.md` has.**
+      *(raised 2026-08 by the user; **post-Phase-3**, and best run in the SAME pass as the
+      `decisions.md` condense below — the two share a cause and, more importantly, a
+      constraint.)*
+      Every sub-phase since §3.7 has left long block comments in the engine re-arguing its
+      decision at the call site — `PossessionEngine`'s foul block alone carries ~40 lines of
+      §3.16 prose restating #039 C, and `FoulResolver` / `SimConfig` / `ShotResolver` are
+      comparable. **Measure the ratio before deciding anything** (the `.puml` chore above
+      turned out to be 68% prose, which changed the recommended fix — do the same here).
+      ⚠ **DO NOT RUN THIS AS A BLANKET STRIP, AND THE PROJECT ALREADY HAS EVIDENCE WHY.**
+      `SimConfig`'s javadoc carries the tuning *history* — the `BASE_NO_BASKET_FOUL`
+      wrong-way-lever finding (#028), the `PROB_FLOOR` trap (#028), the per-rare-event
+      sensitivity reasoning (#025/#029) — and **those comments have repeatedly stopped real
+      mistakes** (the profiles entry above says so in its own words). The §3.12 `clampRare`
+      comment is the clearest case: it explains why the floor is deliberately absent, and a
+      reader who "tidied" it would re-break a fixed bug.
+      **The rule to apply is the same one the `project-docs` skill now applies to entries:**
+      keep the **crux**, the **final constants** and the **traps**; cut the **re-argued
+      alternatives**, the **restated trade-offs**, and the **narration of what the code
+      plainly does**. A call site should say *what invariant holds here and what breaks if
+      you move it*, then cite `#NNN` for the argument. **The `#NNN` citation is what makes
+      the cut safe** — the reasoning is not being deleted, it is being de-duplicated against
+      the entry that owns it.
+      ⚠ **Java comments cite `decisions.md` by NUMBER, not by path** (e.g. `#026 E` in
+      `MissedShotResolverTest`) — so the condense pass's never-renumber constraint protects
+      this chore too, and running them together means one person holds both halves of that
+      contract. **Behavior-neutral by definition: no test should change.**
+
+- [ ] **Harness: print the four-way SHOT-TYPE MIX, including stopped shots.** ⚠ **§3.17's
+      design pass had to BACK-SOLVE the number its whole phase turns on** — the report has
+      no shot-mix row, so the draw share was reconstructed as
+      `(3PA + true stopped threes) ÷ (FGA + stopped shots)` = 20.9%, using a stopped-three
+      figure that itself needed the broken-instrument correction below. **A four-way row
+      (DRIVE / PERIMETER / POST / THREE) would have made it a reading.**
+      ⚠ **It must count DRAWS, not attempts** — a stopped shot charges no FGA (the foul
+      branch returns before `recordFieldGoalAttempt()`), so an attempts-only row understates
+      the drive/post share by exactly the amount that matters. Read the `ShotType` off the
+      SHOT event and off the stopped-shot FOUL event (the same fix the chore below makes).
+      **Test-only, no engine change.** Not a §3.17 blocker — that phase is tuned against
+      3PA/FGA, which is sufficient — but the next mix question should be measurable
+      directly. Composes with the chore below; do them together.
+
 - [ ] **Harness: classify a stopped shot by `ShotType`, not by its free-throw count —
       the fouled-three rows have under-counted by ~2× since §3.16.** ⚠ **A BROKEN
       INSTRUMENT, NOT A BROKEN ENGINE — do not re-tune `sim.foul-mult-three` against
@@ -371,11 +453,14 @@ planned features), see [ideas.md](ideas.md).
       **Fix**: read the `ShotType` off the shot/foul event instead of counting FTs — the
       harness already has `shotTypeOf(outcome)` for the shot vocabulary. **Test-only, no
       engine change.**
-      ⚠ **Worth doing BEFORE §3.17**, which is the phase that will actually read these
-      rows: a pass that doubles three-point volume needs a working fouled-three
-      instrument to confirm it did not also double three-point *fouls*, and FTA is one of
-      that phase's tripwires. Also fixes the `3-FT trips` row, which under-counts for the
-      same reason.
+      ⚠ **PROMOTED: this is now STEP 0 of §3.17's execution plan** (`decisions.md` #040 G,
+      todo.md). It stays a backlog chore because it is test-only and owns no engine change,
+      but §3.17 is **blocked on it**: a pass that roughly doubles three-point volume needs a
+      working fouled-three instrument to confirm it did not also double three-point *fouls*,
+      and FTA is one of that phase's tripwires. **The corrected pre-§3.17 rows are the
+      baseline §3.17's landing is compared against** — the current ones are evidence of
+      nothing in either direction. Also fixes the `3-FT trips` row, which under-counts for
+      the same reason.
 
 - [ ] **Harness self-verification — assert the instrument's own invariants.**
       ⚠ **PARTIALLY DONE by §3.15 (#035 A/F): the load-bearing half below — "have the
