@@ -35,8 +35,19 @@ say so.
 ## Everything, in one table
 
 All figures are **per team per game** unless noted. Current = the **5-seed mean, seeds
-1000–5000** (2026-08) on the `baseline` profile. **Target column: sourced rows are
-Basketball-Reference league averages, per game, 2025-26.**
+1000–5000**, re-measured 2026-08 at the end of §3.19 on the `baseline` profile — **this
+is §3.20's input**. §3.19 was test-side only and moved no engine number (proven
+same-seed before/after); the rows that moved against the previous reading were stale, not
+new. **Target column: sourced rows are Basketball-Reference league averages, per game,
+2025-26.**
+
+✅ **The harness now self-verifies three identities, and all three read OK on every one
+of those five seeds** — assists+blocks vs. the box score (pre-existing), **FT sources**
+(the per-source counts sum to total FTs with an empty `UNKNOWN` bucket) and **points**
+(events = box score = final score), both added by §3.19. A number below is therefore not
+lying about *what it counted*; whether the engine should produce it is §3.20's question.
+⚠ **A `MISMATCH(es)` on any of those lines invalidates the rows it feeds — fix the
+instrument before reading anything.**
 
 **Type** — `TARGET` = calibrated, steer by it. `ballpark` = a plausibility range: judge
 against it but **do not calibrate to it**. `observed` = no target, reported for
@@ -62,17 +73,17 @@ visibility.
 | Pace (poss/48) | **TARGET (SOURCED)** | **99.4** | ~100 nominal | ✅ |
 | Steals | observed | **8.4** | **7.72** | 🔴 **−0.68 (10.3 se) — real, not seed noise.** ⚠ **A DERIVED quantity**: steals = turnovers × STOLEN share, and *both* terms are §3.20's (TO 13.90 vs 14.5; share 55.5%, inside the intended 55–60% band). **Fixing TO to 14.5 alone yields 8.05** — re-measure after it lands, do **not** tune the share independently |
 | **Foul-outs** | **TARGET** (soft, **UNSOURCED**) | **~0.39** | **0.304** | ⚠ **A LANDING, not a benchmark** — see *Foul-outs* |
-| Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.31 / 0.63 / 0.52 | **the real diagnostic for foul-outs** — judge by this, not the headline count |
-| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.350** | ⚠️ **judge at 5 SEEDS ONLY** — see *Technicals* |
+| Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 0.94 / 0.46 / 0.30 | **the real diagnostic for foul-outs** — judge by this, not the headline count |
+| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.358** | ⚠️ **judge at 5 SEEDS ONLY** — see *Technicals* |
 | **Flagrants** | ballpark (**UNSOURCED**) | **~0.13–0.20** (~0.25–0.40 league-wide) | **0.141** | ⚠️ **the COARSEST row here — 5 SEEDS ONLY.** ⚠ Its divisor is a **measured foul rate**: any pass that moves fouls must re-measure it, or this row silently reads low |
-| Flagrant-2s | *(no target — a 15% share)* | — | **0.035** | the ejection driver |
-| **Ejections** | *(no target — an outcome)* | — | **0.044** | both causes (technicals alone: 0.014) |
-| Fouled-three rate | ballpark | **~2% of 3PA** | **2.93%** *(corrected)* | ✅ scale-free: held across a 1.9× volume change. ⚠ Raw visible tally reads **1.47%** — the corrected figure is the one to judge |
+| Flagrant-2s | *(no target — a 15% share)* | — | **0.023** | the ejection driver |
+| **Ejections** | *(no target — an outcome)* | — | **0.033** | both causes (technicals alone: ~0.00) |
+| Fouled-three rate | ballpark | **~2% of 3PA** | **2.93%** *(corrected)* | ✅ scale-free: held across a 1.9× volume change. ⚠ Raw visible tally reads **1.46%** — the corrected figure is the one to judge |
 | 3-FT trips | ballpark | ~0.3–0.6 *here* | **1.09** *(corrected)* | the **count** tripled with 3PA while the **rate** above held. ⚠ The 0.3–0.6 range was set at half the current 3PA |
-| And-1s | ballpark | ~4–6% of made FG | 1.88 (4.5%) | ✅ |
-| Fouls / team / period | observed | — | 5.15 | bonus at 5 — ⚠️ **AT the threshold**, which is why the penalty rate is volatile |
+| And-1s | ballpark | ~4–6% of made FG | 1.55 (3.9%) | 🟡 just under the band; moves with the shot mix (§3.20's) |
+| Fouls / team / period | observed | — | 4.58 | bonus at 5 — ⚠️ **AT the threshold**, which is why the penalty rate is volatile |
 | Team-periods in penalty | observed | — | 46.1% | ⚠️ **a result, not a knob — but it PRICES the FTA share above** |
-| Out of bounds | observed | — | 2.8 | |
+| Out of bounds | observed | — | 3.1 | |
 | Turnover cause mix | observed | STOLEN dominant | 55.5% | no per-cause target |
 | Period-by-period FG% | observed | flat, not sagging | flat | correct fatigue behavior |
 

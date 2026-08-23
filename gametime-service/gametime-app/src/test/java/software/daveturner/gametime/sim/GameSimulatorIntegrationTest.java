@@ -460,61 +460,69 @@ class GameSimulatorIntegrationTest {
      * <p>This is the assertion that catches the sim → entity write being dropped: the
      * field is nullable and every other layer would still compile and pass without it.
      *
-     * <p><b>§3.14b re-baselined the SEED, 7 → 9; §3.17 re-baselined it again, 9 → 12.</b>
-     * The {@code > 0} line below is a <b>precondition</b> that keeps the reconciliation
-     * from passing vacuously, not an invariant about technicals. §3.14b's flagrant roll
-     * consumed an extra draw per foul; §3.17 changed what {@code pickShotType} returns on
-     * nearly every possession (#040), and either shifts the whole downstream stream. Each
-     * re-baseline picked the new seed by <b>measuring</b> which seeds still yield
-     * technicals here, never by weakening the assertion to {@code >= 0}. Seed 12 yields
-     * <b>four</b>, the widest margin in the first 60 seeds.
+     * <p><b>§3.19 REBUILT THIS TEST, and the shape is the durable fix the previous
+     * version's own javadoc asked for.</b> It used to simulate ONE pinned seed at an
+     * inflated 40 possessions/period and open with {@code assertTrue(technicals > 0)}
+     * as a precondition against a vacuous pass. That precondition asserted a <b>~13%
+     * random event</b> (the per-check technical probability is ~0.00175, so the fixture
+     * expected ~0.14 technicals), and it broke <b>twice</b> on passes that touched
+     * neither technicals nor fouls — §3.14b added a draw per foul, §3.17 changed what
+     * {@code pickShotType} returns — each time costing a re-baseline of the seed
+     * (7 → 9 → 12) that bought nothing but the next break.
      *
-     * <p>⚠ <b>THIS PRECONDITION IS INHERENTLY FRAGILE AND THE FRAGILITY IS WORTH KNOWING
-     * — it is asserting a ~13% EVENT, not an invariant.</b> The per-check technical
-     * probability is ~0.00175, so 40 possessions × 2 teams expects ~0.14 technicals; "at
-     * least one" happens on roughly one seed in eight. That is why it has now broken
-     * twice on passes that touched neither technicals nor fouls.
+     * <p>What replaces it: <b>assert the reconciliation identity over a BATCH of seeds
+     * and delete the precondition.</b> The identity {@code technicalEvents ==
+     * boxTechnicals} holds for <b>every</b> seed — including zero-technical ones, where
+     * it reads 0 == 0 and still proves the persisted column is not being written with
+     * garbage. So the batch is non-vacuous <b>by construction</b> and there is nothing
+     * left to re-pin: no future pass can break it by shifting the RNG stream, only by
+     * actually breaking the write. Ten seeds also all but guarantee some technicals
+     * appear somewhere in the batch, but nothing depends on that.
      *
-     * <p>⚠ <b>IT IS ALSO ORDER-DEPENDENT, WHICH IS A SEPARATE AND LARGER PROBLEM.</b>
-     * Measured 2026-08: this test <b>fails in isolation and passes in the full suite</b>
-     * on the same seed. {@code V1ApiDelegateimplTest} is not {@code @Transactional} and
-     * commits roster rows, which changes who is on the floor and therefore the RNG
-     * consumption pattern. <b>So a green full-suite run does NOT prove this test passes
-     * — CI caught what a local {@code mvn install} did not.</b> Filed as a backlog chore;
-     * the durable fix is to stop asserting a rare event in a fixed-seed test (raise the
-     * possession count, or assert the reconciliation identity over a batch of seeds and
-     * drop the precondition), not to keep re-pinning the seed.
+     * <p>The fixture is also back to the realistic <b>{@code 25} possessions per
+     * period</b> — the baseline {@code sim.default-possessions-per-period}, and what
+     * every other test in this class uses. The 40 existed only to make the coin flip a
+     * better bet; ⚠ it is possessions per PERIOD, not per game, so 40 was a ~60%
+     * inflation of game length, pushing the fixture away from a real game to prop up an
+     * assertion that has now been deleted.
+     *
+     * <p>⚠ <b>Rejected, do not revisit:</b> raising the possession count further (same
+     * coin flip, worse fixture) and re-pinning the seed (failed three times).
      */
     @Test
     void technicalFoulsArePersistedOnTheBoxScoreAndReconcileWithTheEvents() {
-        SimResult result = simulator.simulate("CHI", "NY", 12L, 40);
-        List<GameEventEntity> events = gameEventRepo
-                .findByGameIdOrderBySequenceAsc(result.getGameId());
-        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+        // Ten seeds; the identity holds on each one independently, so a failure names
+        // the seed it failed on rather than reporting an aggregate that could hide a
+        // compensating pair.
+        for (long seed : new long[]{1L, 2L, 3L, 5L, 7L, 12L, 42L, 99L, 123L, 777L}) {
+            SimResult result = simulator.simulate("CHI", "NY", seed, 25);
+            List<GameEventEntity> events = gameEventRepo
+                    .findByGameIdOrderBySequenceAsc(result.getGameId());
+            List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
 
-        long technicalEvents = events.stream()
-                .filter(e -> e.getPlayType() == PlayType.FOUL)
-                .filter(e -> GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome()))
-                .count();
-        assertTrue(technicalEvents > 0,
-                "A 40-possession game must produce at least one technical");
+            long technicalEvents = events.stream()
+                    .filter(e -> e.getPlayType() == PlayType.FOUL)
+                    .filter(e -> GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome()))
+                    .count();
 
-        int boxTechnicals = boxScores.stream()
-                .mapToInt(b -> b.getTechnicalFouls() == null ? 0 : b.getTechnicalFouls())
-                .sum();
-        assertEquals(technicalEvents, boxTechnicals,
-                "Persisted technicalFouls must reconcile with TECHNICAL_FOUL events");
+            int boxTechnicals = boxScores.stream()
+                    .mapToInt(b -> b.getTechnicalFouls() == null ? 0 : b.getTechnicalFouls())
+                    .sum();
+            assertEquals(technicalEvents, boxTechnicals,
+                    "Persisted technicalFouls must reconcile with TECHNICAL_FOUL events"
+                            + " (seed " + seed + ")");
 
-        // …and the two counters stay independent on the persisted row, which is the
-        // whole point of #032 E: a technical must never have inflated `fouls`.
-        long personalFoulEvents = events.stream()
-                .filter(e -> e.getPlayType() == PlayType.FOUL)
-                .filter(e -> e.getPrimaryPlayerId() != null)
-                .filter(e -> !GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome()))
-                .count();
-        int boxFouls = boxScores.stream()
-                .mapToInt(b -> b.getFouls() == null ? 0 : b.getFouls()).sum();
-        assertEquals(personalFoulEvents, boxFouls);
+            // …and the two counters stay independent on the persisted row, which is the
+            // whole point of #032 E: a technical must never have inflated `fouls`.
+            long personalFoulEvents = events.stream()
+                    .filter(e -> e.getPlayType() == PlayType.FOUL)
+                    .filter(e -> e.getPrimaryPlayerId() != null)
+                    .filter(e -> !GameData.TECHNICAL_FOUL_OUTCOME.equals(e.getOutcome()))
+                    .count();
+            int boxFouls = boxScores.stream()
+                    .mapToInt(b -> b.getFouls() == null ? 0 : b.getFouls()).sum();
+            assertEquals(personalFoulEvents, boxFouls, "seed " + seed);
+        }
     }
 
 

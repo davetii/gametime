@@ -420,49 +420,6 @@ planned features), see [ideas.md](ideas.md).
       this chore too, and running them together means one person holds both halves of that
       contract. **Behavior-neutral by definition: no test should change.**
 
-- [ ] **Harness self-verification — assert the instrument's own invariants.**
-      ⚠ **PROMOTED TO A §3.19 PREREQUISITE ("Step 0") — user call, 2026-08.** Do NOT pick this up as a standalone chore: it must be resolved **in §3.19's design pass, before any tuning**, because §3.19 tunes against the very instrument this entry says is unreliable. See roadmap.md's §3.19 bullet.
-      ⚠ **PARTIALLY DONE by §3.15 (#035 A/F): the load-bearing half below — "have the
-      harness print the constants it actually ran with" — is BUILT.** The report now
-      names the active profile list and dumps every tunable constant's effective value.
-      It has already earned its place: it caught §3.15's own harness bug, where a
-      hardcoded `POSSESSIONS_PER_PERIOD = 25` shadowed the profile's pace key, which is
-      exactly misfire (1) below in a new guise. **What remains open:** the FT-source
-      counts summing to total FTs with no `UNKNOWN`, and points reconciling with the
-      event log. The original text follows.
-      The
-      known risk is that `CalibrationHarness` *reports* and doesn't gate
-      ([risks.md](risks.md)); this is the narrower, cheaper problem underneath it: **the
-      harness can confidently print a wrong baseline**, and nothing catches that. §3.11
-      hit it twice in one session:
-      (1) a `-DandOneBaseOverride=0` flag was passed to disable the new feature for a
-      baseline run — `AND_ONE_BASE` is a compile-time constant, so the flag was silently
-      ignored and three "baseline" runs measured the *shipped* config;
-      (2) the assumption that a zero base disables a rare event turned out false — a
-      zeroed `AND_ONE_BASE` still produced ~0.44 and-1s/team/game, because
-      `rareEventProbability`'s skill term alone stays positive off an even contest
-      (now recorded in `#029`'s implementation note and guarded by a unit test).
-      Both were caught only because the numbers looked *odd* — a recalibration steered
-      off either would have been silently wrong, and the §3.x cadence tunes each phase
-      against the previous phase's baseline.
-      **The pattern to generalize** is already proven in-tree: §3.11's FT-source split
-      carries an `UNKNOWN` bucket, so an untagged free throw shows up as a visible row
-      instead of being mis-attributed to a real source. Do the same for the harness's own
-      assumptions — assert, per batch, that the FT-source counts **sum to** total FTs with
-      no `UNKNOWN`; that points reconcile with the event log; and above all that a
-      **"baseline" run's config is the config it claims** — have the harness *print the
-      constants it actually ran with*, so a run is self-describing the way an event is.
-      That last one is the load-bearing fix: it catches misfire (1) directly, and it is
-      the honest form of the check, because misfire (2) proved that "feature off" is
-      **not** the same as "base = 0" for a rare event (only the caller's gate truly
-      disables one). A run that prints `AND_ONE_BASE = 0.11` when the operator believed
-      they had zeroed it is immediately visible; asserting "zero events" would instead
-      have baked in the very assumption that turned out false. Cheap, and it would have
-      caught both §3.11 misfires.
-      *Distinct from the risks.md tolerance-band gate* — that one asks "are the aggregates
-      still on target"; this asks "is the harness measuring what it says it is." The
-      tolerance-band gate is reconsidered at §3.12's close-out; this is worth doing
-      **before** §3.12's recalibration, since that pass steers off a 115.9 baseline.
 - [ ] **Clear the 5 open Dependabot alerts — all in `gametime-frontend`, none in the
       Maven service.** *(Surfaced 2026-08 on a `git push`; GitHub reports them against
       the default branch. Filed here rather than in a phase: it is dependency hygiene,
@@ -557,59 +514,10 @@ planned features), see [ideas.md](ideas.md).
       **Not §3.17's** (blocks are a §3.19 row, #038's rule) — but §3.19 must not re-tune
       the four `base-block-*` without holding this, or it will tune a constant that does
       nothing and conclude the lever is dead.
-      ⚠ **PROMOTED TO A §3.19 PREREQUISITE ("Step 0") — user call, 2026-08.** Do NOT pick this up as a standalone chore: it must be resolved **in §3.19's design pass, before any tuning**, because §3.19 tunes against the very instrument this entry says is unreliable. See roadmap.md's §3.19 bullet.
-
-- [ ] **A test asserts a ~13% RANDOM EVENT on a pinned seed, and it is ALSO order-dependent
-      — so a green local `mvn install` does not prove it passes.** Found 2026-08 when CI
-      failed on §3.17's branch after two clean local full builds.
-      ⚠ **PROMOTED TO A §3.19 PREREQUISITE ("Step 0") — user call, 2026-08.** Do NOT pick this up as a standalone chore: it must be resolved **in §3.19's design pass, before any tuning**, because §3.19 tunes against the very instrument this entry says is unreliable. See roadmap.md's §3.19 bullet.
-      ⚠ §3.19 moves the RNG stream more than any pass since §3.17, so **re-pinning the
-      seed a third time is the default outcome unless this is fixed first.**
-      `GameSimulatorIntegrationTest.technicalFoulsArePersistedOnTheBoxScoreAndReconcileWithTheEvents`
-      opens with a **precondition** — *"a 40-possession game must produce at least one
-      technical"* — that keeps its reconciliation from passing vacuously. ⚠ **That is not
-      an invariant.** The per-check technical probability is **~0.00175**, so 40
-      possessions × 2 teams expects **~0.14** technicals: "at least one" fires on roughly
-      **one seed in eight**. It has now broken **twice** on passes that touched neither
-      technicals nor fouls — §3.14b (flagrant roll consumed an extra draw, seed 7 → 9) and
-      §3.17 (the shot mix changed `pickShotType`'s result on nearly every possession, seed
-      9 → 12). Each time the fix was to re-measure and re-pin, which works and does not
-      scale.
-      ⚠ **THE ORDER-DEPENDENCE IS THE BIGGER HALF, AND IT DEFEATS THE LOCAL GATE.**
-      Measured: the test **fails in isolation and passes in the full suite on the same
-      seed**. `V1ApiDelegateimplTest` is **not** `@Transactional` and commits roster rows;
-      that changes who is on the floor, which changes the RNG consumption pattern
-      downstream. **So the suite passing is the lucky ordering, not the honest result** —
-      exactly how §3.17 shipped a red branch after `mvn clean install` reported
-      `BUILD SUCCESS` twice.
-      ⚠ **THIS ENTRY CONFLATES THREE THINGS — separate them before choosing a fix**
-      *(clarified 2026-08 by a user question: "is this really just about the test case?").*
-      **(1)** the precondition is a **coin flip**; **(2)** the fixture is **inflated to win
-      that flip**; **(3)** test *order* changes simulation output. (3) is independent of
-      the other two.
-      ⚠ **On (2) — the parameter is possessions PER PERIOD, not per game.** The baseline is
-      **25** (`sim.default-possessions-per-period`), which is what most sim tests use and
-      what a real game plays. **This test passes 40 — a deliberately inflated ~1.6× game —
-      purely to make a rare event likely enough to assert.**
-      **The durable fix:** ⚠ **NOT "raise the possession count"** — that pushes 40 to 60 or
-      100 and makes the fixture *less* like a real game to win a probability bet, and it
-      needs raising again every time the technical rate moves. **It is not a
-      test-quality fix; it trades one problem for another.**
-      **Instead: assert the reconciliation identity over a BATCH OF SEEDS and drop the
-      precondition entirely.** The identity (`events == box-score column`) is what the test
-      is actually for; it holds at zero technicals too, it just proves nothing there. ⚠ **A
-      batch also lets the test run at the REALISTIC 25** — ten seeds there is
-      non-vacuous by construction, with no seed pinning and no inflated fixture. That is
-      the option that fixes (1) and (2) together. **Also worth fixing independently:**
-      make `V1ApiDelegateimplTest` `@Transactional`, or give the sim tests their own
-      fixture, so test order stops changing simulation output.
-      ✅ **CHECKED 2026-08 — `@Transactional` is the recommendation, and the "is it
-      deliberately non-transactional?" question is ANSWERED NO.** The class carries no
-      `@Transactional`, no `@DirtiesContext`, no ordering annotation and no explanatory
-      comment, across 15 independent test methods — an oversight, not a choice to exercise
-      real commit behavior. ⚠ **The risk when applying it:** a method silently depending on
-      committed state from an earlier one will start failing. That is the fix **surfacing**
-      a latent coupling, not causing it; if it happens, give the sim tests their own
-      fixture instead.
-      ⚠ **Audit for siblings before closing**: any other fixed-seed test whose assertion
-      depends on a rare event firing. Grep for seed literals in `sim` tests.
+      ⚠ **NOT resolved by §3.19 (instrumentation) — that phase was test-side only and
+      deliberately did not reroute `blockProbability`.** The effect was SIZED and closed on
+      that basis: **~half a blocked three per team-game**, on a row already on target, with
+      no consumer for the per-type split. **Carry it as a footnote for §3.20**: if a pass
+      ever tunes `base-block-*`, reroute through `clampRareProbability` FIRST, or that lever
+      reads dead. The broader half — auditing which other tunables sit under the floor —
+      is still open and still homeless.

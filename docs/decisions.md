@@ -1286,11 +1286,14 @@ number.
 spread across five entries — a cold session would have to read #036, #039, #040 and #041
 to assemble it. **This block is an INDEX, not a new decision**: each row cites the entry
 that owns it, and that entry stays authoritative. Live values are in `calibration.md`;
-the design questions are in `todo.md`; the phase's Step 0 is in `roadmap.md`.*
+**the design questions are in `roadmap.md`'s §3.20 bullet** — they were parked there
+deliberately so they survive todo.md's per-phase rewrite, which happened at §3.19's
+close-out (2026-08). ⚠ **todo.md holds no §3.20 questions until that pass opens and
+rewrites it.***
 
 **§3.20 is the LAST Phase-3 sub-phase and adds NO mechanic.** Every pass before it
 settled the *shape* — foul mix (§3.16), shot mix (§3.17), event vocabulary (§3.18) — and
-§3.19 re-solves the *numbers* now that the shape is final (#038). ⚠ **If the pass finds
+**§3.20** re-solves the *numbers* now that the shape is final (#038). ⚠ **If the pass finds
 itself adding a branch, it has grown beyond recalibration.**
 
 | Gap | Owner | The constraint that is easy to miss |
@@ -1298,12 +1301,12 @@ itself adding a branch, it has grown beyond recalibration.**
 | **2P% ~48.7 vs sourced 55.0** — the largest | **#040 F** | ⚠ **`base-three` must NOT move** — 3P% is correct and held across a 1.9× volume change. Lever is `base-drive`/`base-post`/`base-perimeter`. The error was always there; §3.17 made it *visible* by fixing the mix that hid it |
 | **Points 110.0 vs 115.6** | **#039 H** | ⚠ **The ~8-point drop was deliberate** — §3.16 removed ~10 FTA on purpose. **Not drift.** #039 H sized the recovery as roughly a 5% pace bump |
 | **FTA 19.76 vs 23.5** | **#039 D**, re-priced by **#040** | ⚠ `sim.non-shooting-foul-share` is **priced by the PENALTY RATE, not the foul rate alone** (46.1%, down from 55.7%). **Tune against the FTA line, never against points.** The share is DERIVED, not sourced |
-| **FGA 92.28 vs 89.1 (OVER)** | **#040 E** | ⚠ §3.17 *spent* FGA headroom knowingly. **#039 C's dead-possession concession is NOT reopened** — that was asked and answered no. §3.19 owns pace |
+| **FGA 92.28 vs 89.1 (OVER)** | **#040 E** | ⚠ §3.17 *spent* FGA headroom knowingly. **#039 C's dead-possession concession is NOT reopened** — that was asked and answered no. **§3.20** owns pace |
 | **Def rebounds 30.48 vs 32.4** | **#040 H** | ⚠ A **rate** question, **not a new sub-phase**. §3.17 closed ~3.0 of the 5.0 gap; the residual is `sim.base-offensive-rebound` and the paths that divert misses from the rebound draw |
-| **Steals 7.72 vs 8.4** | **#041 F** | ⚠ **DERIVED**: steals = turnovers × STOLEN share, and *both* terms are §3.19's. Fixing turnovers to 14.5 alone yields ~8.05. **Re-measure after turnovers land; do not tune the share independently** |
-| **Blocks 4.80 — green for the WRONG reason** | **#040** impl. note | ⚠ **`PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005), so the constant is INERT.** The lever will read as dead. **A Step 0 prerequisite** |
+| **Steals 7.72 vs 8.4** | **#041 F** | ⚠ **DERIVED**: steals = turnovers × STOLEN share, and *both* terms are **§3.20's**. Fixing turnovers to 14.5 alone yields ~8.05. **Re-measure after turnovers land; do not tune the share independently** |
+| **Blocks 4.80 — green for the WRONG reason** | **#040** impl. note | ⚠ **`PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005), so the constant is INERT.** The lever will read as dead. ⚠ **CLOSED, NOT DEFERRED** — §3.19 SIZED it at ~half a blocked three per team-game on a row already on target, with no consumer for the per-type split. **A footnote, not work**: only if this pass tunes `base-block-*`, reroute through `clampRareProbability` first |
 
-**⚠ Three things §3.19 must NOT do**, each already argued and closed:
+**⚠ Three things §3.20 must NOT do**, each already argued and closed:
 - **Do not re-tune §3.13's foul-trouble sit curve** — measured **saturated** (#031).
 - **Do not touch the turnover count, gate or cause weights** — frozen (#027 A).
 - **Do not read a moved number as an engine change without asking which** — *did the

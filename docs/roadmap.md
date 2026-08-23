@@ -753,10 +753,40 @@ re-running the loop and re-agreeing the numbers, not a red build.
       reconciliation (`STOLEN` events vs. box-score steals) already works today**. Do the
       cheap measurement first; it may show the rate is fine and this phase is pure parity.
 
-- [ ] **§3.19 — Instrumentation: make the harness and the seeded tests trustworthy
+- [x] **§3.19 — Instrumentation: make the harness and the seeded tests trustworthy
       BEFORE recalibration tunes against them** *(added 2026-08 by user call, splitting
       what had been bolted onto recalibration as a "Step 0"; **recalibration moves to
-      §3.20**)*. ⚠ **Nearly design-free — it is execute-ready and its plan is in
+      §3.20**)*.
+      _Shipped (execution 2026-08, **no `#NNN` — the phase resolved no design question**;
+      all three tasks landed exactly as planned, so there was nothing to diverge from).
+      **The defining property held: it moved NO engine number** — the harness run on seed
+      1000 before and after is identical line for line across all 150 report lines, the
+      only difference being the two new reconciliation lines themselves.
+      **(1)** Two checks joined the existing `Agg.reconciliationMismatches` mechanism as
+      their own named counters, so a failure says WHICH instrument broke:
+      `Reconciliation (ft-src)` (per-source FT counts sum to total `FREE_THROW` events
+      **and** the `UNKNOWN` bucket is empty — a sum-only check would pass with every FT
+      tagged `UNKNOWN`, the exact failure it exists to catch) and
+      `Reconciliation (points)` (2/3 per made SHOT + 1 per made FREE_THROW from the event
+      log **= box-score total = final score**, all three, since `agg.points` is read off
+      the score while every other row is derived from events). Both read **OK on all five
+      seeds**. **(2)** The technicals test now asserts `technicalEvents == boxTechnicals`
+      over **ten seeds** at the realistic **25** possessions/period, with the
+      `assertTrue(technicals > 0)` precondition **deleted** — the identity holds on every
+      seed including zero-technical ones (0 == 0 still proves the persisted column is
+      written), so the batch is non-vacuous **by construction** and there is nothing left
+      to re-pin after three seed re-baselines. An audit of every other fixed-seed sim
+      assertion found **no siblings**: the remaining preconditions ride fouls (~18/game),
+      shooting fouls (~6.5/team/game) and and-1s (~1.6/team/game), none a coin flip.
+      **(3)** `@Transactional` on `V1ApiDelegateimplTest` — **no method failed**, so no
+      latent coupling surfaced and the sim tests kept their shared fixture. Sim classes now
+      green **run alone**, which is what the annotation was for. 576 + 52 tests green,
+      JaCoCo gate met. **Exit condition met**: the 5-seed mean (seeds 1000–5000) is
+      recorded in [calibration.md](calibration.md)'s Current column and is §3.20's input;
+      the rows that moved against the previous reading were **stale, not new** (4/5/6
+      fouls 0.94/0.46/0.30, and-1s 1.55, fouls/period 4.58, OOB 3.1, ejections 0.033).
+      **Delete CLAUDE.md's "until §3.19 lands" warning — it has landed.**_
+      ⚠ **Nearly design-free — it is execute-ready and its plan is in
       [todo.md](todo.md).** The decisions are already made; do not run a design pass for it.
       **Why it is its own phase rather than a preamble:** §3.20 reads **every** number it
       tunes from `CalibrationHarness`, and a wrong reading does not announce itself — it
