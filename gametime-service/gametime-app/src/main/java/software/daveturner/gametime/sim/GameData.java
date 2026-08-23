@@ -43,16 +43,32 @@ public class GameData {
     }
 
     /**
-     * §3.10 (decisions.md #028 D): the full overload carrying {@code
-     * committingTeamId} — the team that COMMITTED the event (set on FOUL events
-     * only; see {@link EventRecord}).
+     * §3.10 (decisions.md #028 D): the overload carrying {@code committingTeamId} —
+     * the team that COMMITTED the event (set on FOUL events only; see
+     * {@link EventRecord}).
      */
     public void addEvent(String offTeamId, String defTeamId, int period,
                          int sequence, PlayType playType, String outcome,
                          String primaryPlayerId, String assistPlayerId,
                          String committingTeamId) {
+        addEvent(offTeamId, defTeamId, period, sequence, playType, outcome,
+                primaryPlayerId, assistPlayerId, committingTeamId, null);
+    }
+
+    /**
+     * §3.18 (decisions.md #041 A): the full overload, carrying {@code
+     * opponentPlayerId} — the COUNTERPARTY, the player on the other side of the
+     * play from {@code primaryPlayerId} and therefore ALWAYS on the opposite team.
+     * A teammate never goes here; an assister rides {@code assistPlayerId} (#041 D).
+     * See {@link EventRecord} for the three sites that populate it.
+     */
+    public void addEvent(String offTeamId, String defTeamId, int period,
+                         int sequence, PlayType playType, String outcome,
+                         String primaryPlayerId, String assistPlayerId,
+                         String committingTeamId, String opponentPlayerId) {
         events.add(new EventRecord(offTeamId, defTeamId, period, sequence,
-                playType, outcome, primaryPlayerId, assistPlayerId, committingTeamId));
+                playType, outcome, primaryPlayerId, assistPlayerId, committingTeamId,
+                opponentPlayerId));
     }
 
     public void addScore(String teamId, int points) {
@@ -143,9 +159,17 @@ public class GameData {
      * {@code REBOUNDING_FOUL_*}), null elsewhere. It exists because a rebounding
      * foul can be committed by the offense, so the committer is not recoverable
      * from the offense/defense orientation the way a shooting foul's is.
+     *
+     * <p>{@code opponentPlayerId} (§3.18, #041 A) is the COUNTERPARTY — the player
+     * on the other side of the play from {@code primaryPlayerId}, and therefore
+     * ALWAYS on the opposite team. Populated on {@code TURNOVER}/{@code STOLEN}
+     * (the stealer), {@code SHOT}/{@code BLOCKED_*} (the blocker) and {@code
+     * FOUL}/{@code SHOOTING_FOUL} (the fouled shooter); null elsewhere — including,
+     * deliberately, on {@code OFFENSIVE_FOUL}, whose drawer is not modelled. A
+     * teammate never goes here: an assister rides {@code assistPlayerId} (#041 D).
      */
     public record EventRecord(String offTeamId, String defTeamId, int period,
                                int sequence, PlayType playType, String outcome,
                                String primaryPlayerId, String assistPlayerId,
-                               String committingTeamId) {}
+                               String committingTeamId, String opponentPlayerId) {}
 }

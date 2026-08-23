@@ -621,9 +621,9 @@ re-running the loop and re-agreeing the numbers, not a red build.
       (2026-08)**, which sourced the five §3.4 targets against Basketball-Reference
       2025-26. *(This line said "§3.16 owns target sourcing" when §3.16 meant
       recalibration; #038 renumbered that to §3.19, and the sourcing landed earlier.)*
-      **Timing**: placed after the fidelity arc per backlog.md's "do NOT do this mid-arc"
-      note — changing how constants load *while* actively tuning them forfeits exact
-      reproducibility of a prior landing. Placed *before* §3.16 deliberately: the
+      **Timing**: placed after the fidelity arc deliberately — changing how constants
+      load *while* actively tuning them forfeits exact reproducibility of a prior
+      landing. Placed *before* §3.16 deliberately: the
       recalibration is the largest multi-config sweep the project will run, and this is the
       tool for it. **Validation gate**: §3.15 must reproduce **§3.14b's** shipped landing
       **exactly — per-seed, on the BASELINE profile** — before any §3.16 number is read off
@@ -700,8 +700,34 @@ re-running the loop and re-agreeing the numbers, not a red build.
       decided in writing) — §3.17 moved the foul rate hard **without touching a foul
       constant**, and a stale divisor was already running flagrants 26% light.
 
-- [ ] **§3.18 — The steal as a first-class event** *(needs its own design pass; added
-      2026-08 by user call)*. **A steal is the only contested defensive play the event
+- [x] **§3.18 — The steal as a first-class event** *(added 2026-08 by user call)*.
+      _Shipped (`decisions.md` #041, design + execution 2026-08): **ONE additive nullable
+      column, `game_event.opponent_player_id`** — the **counterparty**, always on the
+      opposite team from `primary_player_id` — populated at the three sites that already
+      held the player in scope and discarded them: the **stealer** (`TURNOVER`/`STOLEN`),
+      the **blocker** (`SHOT`/`BLOCKED_*`, closing #025 F2), and the **fouled shooter**
+      (`FOUL`/`SHOOTING_FOUL`). No `PlayType.STEAL`, no second event (#041 B/C); assists
+      stay on `assist_player_id`, a migration having been pursued and **reversed**
+      (#041 D). **The phase's defining property held: it moved NO number.** No new RNG
+      draw, no `SimConfig` change (still 62 tunables / 27 statics), no seeded test
+      re-baselined — verified by running the harness on the same seed before and after,
+      which reads identically line for line (points 109.7, FG% 43.1, 3PA 37.4, blocks
+      4.8, steals 7.7 at 1 seed). **Scope widened during execution by user review**: the
+      participant sweep was folded IN rather than deferred, so `opponent_player_id` is now
+      populated **wherever a real contest identified an individual victim**
+      (`SHOOTING_FOUL`, `NON_SHOOTING_FOUL`, `AND_ONE`, `FLAGRANT_*` at the shot sites) and
+      **null by contract** everywhere else, stated at each emit site — ⚠ notably at the
+      REBOUNDING site, where the foul is against the TEAM contesting the board and its FT
+      shooter is a weighted draw, not the victim. Also pinned the previously
+      inspection-only rule that **`primaryPlayerId` on a `FOUL` is ALWAYS the committer**.
+      Delivered the **per-creditor** reconciliation for both
+      steals and blocks (#041 G) — the old total-count check passed even on a
+      wrong-player bug — plus a structural counterparty invariant covering every present
+      and future site. Also closed **#028 D's open follow-up** by surfacing
+      `committingTeamId` on the OpenAPI `GameEvent`, and extracted **`docs/game-events.md`**
+      (#041 H) from `game.md`, which drops 67.6k → 45.8k chars. ⚠ **The steal RATE
+      (7.72 vs a sourced 8.4) was deliberately NOT fixed** — it is §3.19's, as a derived
+      quantity. 574 + 52 tests green, JaCoCo gate met._ **A steal is the only contested defensive play the event
       log does not attribute.** At `PossessionEngine:174–181` the stealer is picked
       (`pickStealer`), credited in the box score (`recordSteal()`), and then **dropped**:
       the emitted `TURNOVER` event carries `primaryPlayerId = shooter` — **the player who
@@ -727,41 +753,107 @@ re-running the loop and re-agreeing the numbers, not a red build.
       reconciliation (`STOLEN` events vs. box-score steals) already works today**. Do the
       cheap measurement first; it may show the rate is fine and this phase is pure parity.
 
-- [ ] **§3.19 — Recalibration against verified targets** *(needs its own design pass;
-      **was §3.16, then §3.18** — see the mapping callout above and `decisions.md` #036 F
-      / #037. **THE LAST Phase-3 sub-phase, and it must stay last**: every pass before it
-      settles the SHAPE of the game — the foul mix (§3.16), the shot mix (§3.17), the
-      event vocabulary (§3.18) — and recalibration re-solves the numbers **once that
-      shape is final**. A different KIND of pass: it adds no mechanic.)*. **A second §3.4.** See [calibration.md](calibration.md).
-      ✅ **Job (1) — sourcing — is DONE** (Basketball-Reference league averages, per game,
-      **2025-26**), and it made this pass **smaller than it was scoped for**:
-      **FG% was never contested** — real 47.1% vs the engine's 46.9%, a gap **inside the
-      ±0.14 standard error** of the 5-seed mean, so the *target* was wrong and no engine
-      work is owed (#036 A). Points' target moves ~112 → **115.6**, leaving a **+2.7**
-      gap that is itself **largely an artifact** of three cancelling composition errors
-      (2-pt +10.9, 3-pt −18.0, FT +7.1 — #036 B).
-      **Sequenced LAST on the calibration-blast-radius principle**: §3.16 moves FTA by
-      ~10 and §3.17 moves 3PA by ~17, so recalibrating first would tune against a
-      baseline both invalidate — the same stale-anchor error three passes already paid
-      for (§3.10/§3.11/§3.12).
-      **Still unsourced and owed:** foul-outs (its ~0.39 "target" came from §3.13's own
-      landing — circular), technicals, flagrants, the minutes distribution, and the real
-      shooting-foul share. **Exit condition:** every `calibration.md` row is either a
-      `TARGET` with a named source and season, or deliberately `observed`/`ballpark`.
+- [ ] **§3.19 — Instrumentation: make the harness and the seeded tests trustworthy
+      BEFORE recalibration tunes against them** *(added 2026-08 by user call, splitting
+      what had been bolted onto recalibration as a "Step 0"; **recalibration moves to
+      §3.20**)*. ⚠ **Nearly design-free — it is execute-ready and its plan is in
+      [todo.md](todo.md).** The decisions are already made; do not run a design pass for it.
+      **Why it is its own phase rather than a preamble:** §3.20 reads **every** number it
+      tunes from `CalibrationHarness`, and a wrong reading does not announce itself — it
+      looks like a calibration gap, so you tune a constant to chase a measurement error.
+      §3.11 hit exactly that twice in one session (a `-D` override silently ignored, so
+      three "baseline" runs measured the shipped config), caught only because the numbers
+      looked *odd*. ⚠ **Bolting this onto §3.20 would also make a DESIGN session open by
+      writing code**, breaking the design→execution rhythm fifteen sub-phases have held.
+      **Precedent: §3.15 was itself promoted from a backlog chore to a numbered phase** for
+      the same reason — tooling a tuning pass depends on deserves its own slot.
+      **Scope (three tasks, all test-side — it must move NO engine number):**
+      1. **Finish harness self-verification.** The harness already checks itself on two
+         things (`Reconciliation (ast+blk)`, per game across all 102). Add two more to the
+         same `Agg` mechanism: **FT-source counts must sum to total FTs with zero
+         `UNKNOWN`** (sources are read off an outcome suffix; a mis-tag silently distorts
+         the FT-source percentages §3.20 reads), and **points must reconcile with the event
+         log** (a headline §3.20 target that nothing currently verifies).
+      2. **Fix the brittle technicals test** — assert `technicalEvents == boxTechnicals`
+         over a **batch of ~10 seeds**, delete the `assertTrue(technicals > 0)`
+         precondition, and drop the fixture to the realistic **25** possessions/period from
+         today's inflated 40. It asserts a ~13% random event on a pinned seed and has
+         broken **twice** on passes that touched neither technicals nor fouls.
+      3. **Add `@Transactional` to `V1ApiDelegateimplTest`** — it commits roster rows,
+         changing who is on the floor and therefore RNG consumption downstream, so a green
+         local `mvn clean install` does **not** prove CI passes.
+      **Exit condition: a clean 5-seed harness run whose numbers become §3.20's input.**
+      ⚠ **If any of the three moves an engine number, stop and find out why** — test-side
+      changes have no business altering engine output.
 
-_(A future defensive-fidelity or Phase-4 stats pass may surface more; add new
-numbered sub-phases here rather than reopening a catch-all deferred bucket.)_
+- [ ] **§3.20 — Recalibration against verified targets** *(needs its own design pass.
+      ⚠ **FOURTH NUMBER FOR THIS PASS**: it was §3.16, then §3.18, then §3.19, and is now
+      **§3.20** — see the mapping callout above. **Read the phase NAME, never the number.**
+      **THE LAST Phase-3 sub-phase, and it must stay last**: every pass before it settles
+      the SHAPE of the game — foul mix (§3.16), shot mix (§3.17), event vocabulary (§3.18),
+      instruments (§3.19) — and recalibration re-solves the numbers **once that shape is
+      final**. A different KIND of pass: it adds no mechanic.)*
+      See [calibration.md](calibration.md) for live values and the assembled handoff block
+      at the end of [decisions.md](decisions.md) for what it inherits.
+      ⚠ **ITS DESIGN PASS OPENS WITH A MEASUREMENT, NOT WITH QUESTIONS — this inverts every
+      prior phase.** §3.4–§3.18 each added a mechanic, so design reasoned about behavior
+      that did not exist yet and the harness ran afterwards. **§3.20 adds no mechanic, so
+      the measurement is an INPUT.** Take a **5-seed mean** (per-seed noise is ±1.5 points;
+      technicals and flagrants need 5 seeds as a hard floor), with the profile from the
+      **environment** (`SPRING_PROFILES_ACTIVE=local,baseline` — confirm the `Profiles:`
+      line), then argue the questions against those fresh numbers.
+      ⚠ **THE CORE PROBLEM — one problem in three rows, not three problems.** **2P% is 6.3
+      points LOW** (~48.7 vs a sourced 55.0) and **FTA is 3.7 attempts LOW** (19.76 vs
+      23.5). Both must go **UP**. But the 2P% fix is worth **~+7 points** and the FTA fix
+      **~+2.8**, against a points gap of only **5.6** — **combined ~+9.8, which overshoots
+      points to ~120 vs a target of 115.6.** ⚠ **So 2P%, FTA and points are
+      OVER-DETERMINED and cannot all be hit independently. Deciding which target yields is
+      this pass's real work.**
+      ⚠ **The recovery must come from MAKING more shots, not TAKING more** — **FGA is the
+      one row already too high** (92.28 vs 89.1), so a pace bump is the obvious-looking
+      lever and the wrong one.
+      ⚠ **`base-three` must NOT move** — 3P% is correct at 35.8 vs 36.0 and held across a
+      1.9× volume change. The 2P% lever is `base-drive` / `base-post` / `base-perimeter`.
+      **The other open questions**, smaller: **FTA's mechanism** (does
+      `sim.non-shooting-foul-share` move, the foul rate, or both? ⚠ the share is priced by
+      the **penalty rate**, not the foul rate alone, and moving the foul rate stales the
+      flagrant divisor); **def rebounds** 30.48 vs 32.4, a residual rate question;
+      **sourcing** — foul-outs (its ~0.39 is circular, from a prior landing), technicals,
+      flagrants, the minutes distribution, the real shooting-foul share; and a **stop
+      condition** per row, given ±1.5-point noise.
+      ⚠ **Do NOT reopen frozen decisions**: §3.13's foul-trouble sit curve is measured
+      **saturated**, the turnover count/gate/cause weights are **frozen**, and #039 C's
+      dead-possession concession is **not** reopened.
+      ⚠ **Footnote, not work:** `PROB_FLOOR` (0.02) makes `sim.base-block-three` (0.005)
+      **inert**. Sized at ~half a blocked three per team-game on a row already on target —
+      **closed, not deferred.** But if this pass tunes `base-block-*`, reroute through
+      `clampRareProbability` first or that one lever reads dead.
+      **Exit condition:** every `calibration.md` row is either a `TARGET` with a named
+      source and season, or deliberately `observed`/`ballpark`.
 
----
-
-### Phase 3 → Phase 4 gate: the documentation condense pass
-
-**Deliberately NOT numbered `§3.17`** (user call, 2026-08). Every `§3.x` in this
-section is an **engine mechanic**, and §3.14b was on record as *the last new mechanic
-in Phase 3* (⚠ **amended by #036 G** — §3.16 adds one, and **it shipped: two branches**,
-the `COMMON_FOUL` fork and the charge's `FOUL`) (#034) — numbering a docs pass alongside them would imply the possession
-arc continues and would contradict that. It is **Phase 4 pre-work**: an explicit exit
-criterion on Phase 3, not an optional chore that slides.
+- [ ] **A documentation pass, post-§3.19 / pre-Phase-4** *(user, 2026-08 — planned during
+      §3.18)*. The place to land the doc work §3.18 surfaced but deliberately did not do
+      mid-phase. **Batch it with the condense entry below** — both are "the docs outgrew
+      their format" problems and both are cheapest once the possession path stops moving.
+      **Already measured, so this pass does not re-derive it:**
+      - **`game.md` ↔ `possession-flow.puml` describe the SAME flow twice** — `game.md` is
+        45.6k with a **22.5k** `### The calculation sequence` subsection walking the branch
+        order in prose, against a 50.5k diagram that draws it. ~72k for one flow. ⚠ **Thin
+        them TOGETHER**; fixing one side leaves the duplicate authoritative-looking. The
+        backlog entry carries the how, including a **Step 0 drift audit** before any prose
+        is touched.
+      - ⚠ **`game.md`'s 253 `#NNN` references are NOT bloat** — unlike `calibration.md`'s
+        were. They annotate **live mechanics**, and cutting them removes navigation. **The
+        job is de-duplication, not de-citation.**
+      - ⚠ **The irreversible mistake available here is deleting an ORDERING RATIONALE.**
+        CLAUDE.md calls branch order load-bearing and the diagram the place that records
+        why. Decide deliberately what only prose can carry.
+      **Precedent set during §3.18** *(three files, same session)*: `calibration.md` 35k →
+      13k (history removed, **operative rules kept** — judge at N seeds, don't back-solve
+      X, this knob is priced by Y); `backlog.md` 65k → 47k (completed chores **removed**,
+      not checked off); `game.md` 67.6k → 45.6k (the event vocabulary extracted to
+      `game-events.md`). **All three conventions are now in the `project-docs` skill**, so
+      this pass enforces them rather than re-inventing them.
 
 - [ ] **Condense `decisions.md` before Phase 4 starts.** The plan already exists — it
       is [backlog.md](backlog.md)'s parked "Condense `decisions.md`" entry, which

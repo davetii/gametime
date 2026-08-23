@@ -11,7 +11,8 @@ gametime/
 │   ├── roadmap.md             Phased roadmap (Phases 3–8; 1–2 shipped, see "What Exists Today")
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
-│   ├── todo.md                Tactical task list (current phase only)
+│   ├── todo.md                Tactical task list (current phase only — CURRENTLY:
+│   │                          §3.19 INSTRUMENTATION, execute-ready)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
 │   ├── ideas.md               Parking lot — untriaged future-improvement ideas
 │   ├── calibration.md         Calibration targets — THE source of truth for them
@@ -19,6 +20,9 @@ gametime/
 │   ├── roster.md              Roster & lineup domain (player↔team, lineups)
 │   ├── coach.md               Coach domain design (5 decision attributes)
 │   ├── game.md                Game domain + possession engine (models + flow)
+│   ├── game-events.md         The event vocabulary — every (play_type, outcome) the
+│   │                          engine emits, with who is on each row (game.md keeps
+│   │                          the models + flow)
 │   └── possession-flow.puml   Possession-flow diagram (kept in sync with the engine)
 │                              (.png gitignored — render with `plantuml
 │                              -DPLANTUML_LIMIT_SIZE=16384 -tpng`; plain -tpng
@@ -42,39 +46,36 @@ Before starting work, review these for context:
 - **`docs/player.md`** — player domain reference: attributes, derived skills, calculator design
 - **`docs/coach.md`** — coach domain design: 5 continuous decision attributes + engine interface
 - **`docs/game.md`** — game domain + the possession engine: Game/GameEvent/BoxScore
-  models and the event vocabulary + flow the engine actually runs
+  models, the possession flow the engine actually runs, and the API surface
+- **`docs/game-events.md`** — **the event vocabulary, and the single per-event
+  reference.** Every `(play_type, outcome)` pair the engine emits, in ONE master table
+  with explicit participant columns (`primary` · `opponent` · `assist` ·
+  `committing_team`), plus the three rules that let you derive most of it (the emission
+  rule, the counterparty invariant, and free-text `outcome` vs. the closed `play_type`
+  enum). ⚠ **A new outcome, or a change to who is on a row, must land here in the same
+  change** — and **do not start a second per-event table anywhere.**
+
 - **`docs/possession-flow.puml`** — **the possession flow as a diagram, and the
   fastest way to understand the engine.** Read it before changing anything in the
-  `sim` package: it shows every branch in order (turnover → foul → block →
-  make/miss → and-1 → rebound-foul → missed-shot outcome), which fork each
-  sub-phase added, and carries inline notes citing the decision behind each one.
-  ⚠ **Branch ORDER within a partition is often load-bearing** — the diagram is the
-  place that records why. Read it there rather than re-deriving it.
-  A new branch or event **must** be reflected here in the same change — it is a
-  living spec, not an illustration.
-  ⚠ **ADDING A BRANCH CORRECTLY CAN STILL BREAK THE DIAGRAM: check what your new fork
-  did to the boxes ALREADY THERE.** Found 2026-08 by the user. The pre-shot foul drew
-  `FOUL — SHOOTING_FOUL` as a step at the TOP, which was accurate when it was the only
-  outcome of that roll. Then §3.14b inserted a flagrant fork above it and §3.16 a
-  non-shooting fork below that — each added correctly — and `SHOOTING_FOUL` silently
-  became the **fall-through** while still being drawn as the entry step. The picture
-  then claimed one foul emits up to three events; the engine emits exactly one. **Each
-  change was locally right and the whole drifted.**
-  **The tell, and it generalizes: when a node's NOTES are busy explaining that the
-  boxes do not mean what they appear to mean** — here "REPLACES the FTs above", "no
-  rate re-partitioned", "the two never compose" — **the boxes are wrong.** Prose
-  compensating for a diagram is a defect, not a clarification. After adding a fork,
-  re-read the branch top-to-bottom as a cold reader and ask "does this still say one
-  event comes out?"
-  Validate edits with
-  `plantuml -checkonly docs/possession-flow.puml`; render a viewable copy with
-  **`plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng docs/possession-flow.puml`**
-  (the `.png` is gitignored, so the `.puml` is the artifact that matters).
-  ⚠ **The size flag is REQUIRED, not optional**: the diagram is far taller than
-  PlantUML's default 4096px ceiling, so a plain `-tpng` **silently truncates it**
-  with no warning. `-checkonly` parses without laying out, so **a green checkonly
-  does not prove the PNG is complete** — after rendering, confirm the image is
-  taller than 4096px whenever you add a partition.
+  `sim` package: every branch in order, with inline notes citing the decision behind
+  each fork. ⚠ **Branch ORDER within a partition is often load-bearing** — this is the
+  place that records why. **A new branch or event must be reflected here in the same
+  change** — it is a living spec, not an illustration.
+  ⚠ **ADDING A BRANCH CORRECTLY CAN STILL BREAK THE BOXES ALREADY THERE.** §3.14b and
+  §3.16 each inserted a fork above an existing step, and `SHOOTING_FOUL` silently became
+  the *fall-through* while still being drawn as the entry step — the picture claimed one
+  foul emits three events; the engine emits one. **Each change was locally right and the
+  whole drifted.** **The tell, and it generalizes: when a node's NOTES are busy
+  explaining that the boxes do not mean what they appear to mean, the boxes are wrong.**
+  After adding a fork, re-read the branch cold and ask "does this still say ONE event
+  comes out?"
+  Validate with `plantuml -checkonly docs/possession-flow.puml`; render with
+  **`plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng`** — ⚠ **the size flag is REQUIRED**: a
+  plain `-tpng` **silently truncates** at 4096px. `-checkonly` does not lay out, so a
+  green check does **not** prove the PNG is complete; confirm the height after rendering.
+  ⚠ **It is 53k and 45% inline notes** — a thinning chore is filed in `backlog.md`,
+  paired with `game.md` (the two describe the same flow twice).
+
 - **`docs/calibration.md`** — **the calibration targets, and the single source of
   truth for them.** What the simulation is tuned toward (points, FG%, 3P%, assists,
   turnovers), the minutes targets, the soft foul-out target, the per-phase rates, and
@@ -97,26 +98,37 @@ pass, an execute-ready plan, moving deferred work, parking an idea), invoke the
 **`project-docs`** skill first — it captures the house format, the cross-file
 routing rules, and the design-pass→decision→plan rhythm the docs follow.
 
+⚠ **THESE DOCS BLOAT, AND THE SKILL NOW CARRIES THREE CONVENTIONS THAT SAY HOW TO STOP
+IT** *(all three established 2026-08 by user call, after measuring; `decisions.md` is
+already under a condense gate)*. Follow them rather than re-deriving:
+- **`calibration.md` is a REFERENCE, not a history** — keep the **operative rules**
+  (*judge at N seeds*, *don't back-solve X*, *this knob is priced by Y*, *this row is
+  green because a clamp holds it*); the narrative of which pass argued what belongs in
+  its `#NNN`. *(35k → 13k; it had 242 `#NNN`/§X.Y citations and headers like "✅ HISTORY".)*
+- **In `backlog.md`, a completed chore is REMOVED, not checked off** — it has a phase home
+  by definition. Confirm the record lives in a `#NNN` or roadmap landing first, then grep
+  for inbound references to the deleted text. *(65k → 47k; 30% was done work.)*
+- **One vocabulary, one place.** The per-event vocabulary lives in `game-events.md`
+  alone; a second table anywhere WILL drift. *(`game.md` 67.6k → 45.6k.)*
+⚠ **The distinction that decides whether a citation is bloat:** in `calibration.md` the
+`#NNN`s marked *history* sitting in a *targets* reference — cut. In `game.md` they
+annotate *live mechanics* and are how a reader finds the argument — **keep**; that file's
+problem is duplication against `possession-flow.puml`, not citation. **A post-§3.19 /
+pre-Phase-4 documentation pass owns that one** (roadmap.md's Phase 4 pre-work).
+
 When adding or changing production code under `gametime-app/src/main/java`,
 invoke the **`test-coverage`** skill — the JaCoCo gate is per-package and runs at
 `install`, not `test`, so a green `mvn test` does not prove it passes.
 
-⚠ **AND A GREEN `mvn clean install` DOES NOT PROVE CI WILL PASS EITHER.** Measured
-2026-08: §3.17 shipped a branch that failed in GitHub Actions after **two** clean local
-full builds. `GameSimulatorIntegrationTest` **fails in isolation and passes in the full
-suite on the same seed**, because `V1ApiDelegateimplTest` is not `@Transactional` and
-commits roster rows — which changes who is on the floor and therefore the RNG
-consumption pattern downstream. **The suite passing was the lucky ordering.**
-**After any change that moves the sim's RNG stream** — a new draw, a changed draw
-result, anything touching `PossessionEngine`/`ShotSelector`/`RotationState` — **also run
-the sim test classes ALONE**, which is the stricter check:
+⚠ **Until §3.19 lands, a green `mvn clean install` does NOT prove CI will pass.**
+`V1ApiDelegateimplTest` is not `@Transactional` and commits roster rows, which shifts the
+sim's RNG consumption downstream — so sim tests can pass in the full suite and fail in
+isolation. **§3.19 fixes this** (see todo.md); **delete this note when it does.**
+Meanwhile, after any change touching `PossessionEngine`/`ShotSelector`/`RotationState`,
+also run the sim classes alone:
 ```
 JAVA_HOME=... mvn -pl gametime-app -f gametime-service/pom.xml test -Dtest='GameSimulatorIntegrationTest' -DfailIfNoTests=false
 ```
-⚠ Several sim tests pin a seed and assert something that is **probabilistic, not
-invariant** (the technicals precondition asserts a ~13% event). Those re-baseline
-whenever the stream shifts — measure a new seed, never weaken the assertion. See
-backlog.md for the durable fix.
 
 ### How a phase moves (read this before starting work)
 
@@ -138,44 +150,52 @@ so far has found real design questions the one-liner hid.
 
 ### ⚠ Three traps that bite EVERY session — read these before trusting a doc
 
-**1. SUB-PHASE NUMBERS HAVE BEEN REUSED. `§3.16` IN AN OLDER DOC DOES NOT MEAN
-§3.16.** Recalibration was §3.16, then briefly §3.18, and is now **§3.19** (#038).
-The §3.16 slot was reassigned to shooting-foul composition, which has shipped. So
-**every "§3.16" written before 2026-08 means RECALIBRATION** — including in #030,
-#031, #032, #034, #035, and in scattered lines of roadmap.md, backlog.md, ideas.md,
-risks.md and game.md. A literal reading sends you three sub-phases too early, to a
-phase that already shipped and does something else entirely.
-**Rule: read the phase NAME, never the number alone.** roadmap.md carries the
-mapping callout. When you find a stale one, annotate it rather than silently
-rewriting — the history is worth keeping legible.
+**1. SUB-PHASE NUMBERS HAVE BEEN REUSED — A NUMBER IN AN OLDER DOC MAY NAME A
+DIFFERENT PHASE.** Recalibration has been renumbered **four times**: §3.16 → §3.18 →
+§3.19 → **§3.20**. Both vacated slots were reassigned — **§3.16** to shooting-foul
+composition (shipped) and **§3.19** to instrumentation. So in anything written before
+2026-08, **"§3.16" and "§3.19" both mean RECALIBRATION**, and a literal reading sends you
+to a different phase entirely. Stale references remain throughout `decisions.md`,
+`roadmap.md`, `backlog.md` and `ideas.md` — **left deliberately**, because most sit in
+`#NNN` entries, which are history and must never be retro-edited. **Annotate what you
+touch; do not mass-rewrite.**
+**Rule: read the phase NAME, never the number alone.** roadmap.md carries the mapping.
 
 **2. A NUMBER CAN MOVE — OR FAIL TO MOVE — FOR REASONS THAT ARE NOT THE ENGINE, and no
 test will catch any of them.** `CalibrationHarness` infers meaning from what an event
-*awards*, and `SimConfig` constants are not always what sets a rate. **No test asserts an
+*awards*, and a `SimConfig` constant is not always what sets a rate. **No test asserts an
 instrument's meaning**, so re-read calibration.md row by row against a fresh harness run
 whenever a phase changes what an event awards or what the shot mix is. Three shapes, all
 found the hard way:
 
-- **The instrument broke.** The harness classified a stopped shot as a three by counting
-  **3 free throws**; §3.16 added a foul awarding 0 or 2 but never 3, so the row silently
-  under-counted by ~2× while the engine stayed correct. ✅ **Fixed by §3.17 Step 0**
-  (#040 G) — kept here because it is the cleanest example, not because it is open.
-- **⚠ THE FIX TO AN INSTRUMENT ALSO MOVES NUMBERS, AND LOOKS LIKE A REGRESSION.** After
-  §3.17, `Stopped shots / team` reads **12.43** against a pre-§3.17 **7.65** and appears
-  to have doubled. **It fell** — 7.39 → 6.24 like-for-like on the raw visible tally.
+- **The instrument broke.** A harness row classified a stopped shot by counting **3 free
+  throws**; a later phase added a foul awarding 0 or 2 but never 3, so the row silently
+  under-counted by ~2× while the engine stayed correct.
+- **⚠ FIXING an instrument also moves numbers, and looks like a regression.** After that
+  fix, `Stopped shots / team` read **12.43** against a pre-fix **7.65** and appeared to
+  have doubled. **It had fallen** — 7.39 → 6.24 like-for-like on the raw tally.
   **Compare raw-to-raw across an instrument change; never compare a corrected number to
   an uncorrected one.**
-- **⚠ A CLAMP CAN DO WHAT A CONSTANT APPEARS TO DO, and the tell is a number that DOESN'T
-  move.** §3.17 predicted blocks would fall 4.8 → ~2.6 as the mix went three-heavy; they
-  stayed at **4.80**. `PROB_FLOOR` (0.02) is **4× `sim.base-block-three` (0.005)**, so a
-  three's block chance is **floored, not based** — and `base-block-three` is currently
-  **inert**. ⚠ **The blocks row is green for the wrong reason**: two mechanisms cancel,
-  which is the #036 B cancelling-errors pattern §3.17 spent a phase un-hiding for FG%.
-  **`PROB_FLOOR` applies to every probability**, so any constant set below 0.02 is
-  equally inert and nothing says so at its declaration. See backlog.md.
+- **⚠ A CLAMP CAN DO WHAT A CONSTANT APPEARS TO DO, and the tell is a number that
+  DOESN'T move.** §3.17 predicted blocks would fall 4.8 → ~2.6 as the mix went
+  three-heavy; they stayed at **4.80**. `PROB_FLOOR` (0.02) is **4×
+  `sim.base-block-three` (0.005)**, so a three's block chance is **floored, not based**
+  — the constant is **inert**, and `PROB_FLOOR` applies to *every* probability.
+  ⚠ **How that one was CLOSED is the reusable lesson: it was SIZED.** The effect is
+  **~half a blocked three per team-game**, on a row already on target, with no consumer
+  for the per-type split. It had been pattern-matched to §3.17's FG% finding — *a green
+  total hiding a wrong composition* — but that gap was **6 points on a sourced target**
+  and this one is half a block: same SHAPE, two orders of magnitude less consequence.
+  **SIZE A FINDING BEFORE PROMOTING IT.**
 
 **The question to ask of ANY moved number, before tuning it: "did the engine change, did
 the measurement change, or is a clamp holding it?"**
+
+⚠ **AND THE CHEAPEST WAY TO PROVE A PASS MOVED NOTHING** — use it whenever a change
+claims to be non-behavioral: run the harness, `git stash` the tree, run it again on the
+same seed, and diff. **Identical line for line, or the claim is false.** ⚠ Note a plan's
+figures are usually **5-SEED MEANS**, while a 1-seed run prints different numbers —
+**before/after on the SAME seed is the check that means something.**
 
 **3. THE HARNESS NEEDS ITS PROFILE IN THE ENVIRONMENT — `-Dspring.profiles.active` DOES
 NOT REACH THE FORKED SUREFIRE JVM.** The context comes up with `activeProfiles = []`,
@@ -219,6 +239,15 @@ JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn verify -Ptest
 - **Schema**: All app tables live in the `gametime` schema (not `public`).
 - **Liquibase**: Manages schema creation and migrations. Changelog at `src/main/resources/db/changelog.yml`.
 - Postgres-specific features (triggers, plpgsql functions) are gated with `dbms:postgresql` in Liquibase changesets.
+- ⚠ **NEVER edit a changeset that has already run — APPEND a new one.** Liquibase fixes a
+  checksum on first run and will refuse to start against a changed one. §3.6 (`1.04.2`),
+  §3.10 (`1.04.3`), §3.14a (`1.04.4`) and §3.18 (`1.04.5`) each appended for exactly this
+  reason; `1.04.1` is untouchable. **Additive nullable column + its FK, no `dbms` gate**
+  is the established shape — see `release.1.0.4.game.sql` for the house comment style.
+- ⚠ **The H2 test DB runs the SAME changelog as Postgres**
+  (`spring.liquibase.change-log` in `src/test/resources/application-local.properties`), so
+  **a malformed changeset fails the whole test suite immediately** — no Docker needed to
+  verify one.
 - Audit columns (`create_user`, `create_date`, `update_user`, `update_date`) have defaults for H2 compatibility; Postgres triggers override them.
 
 ## Local dev setup
@@ -270,6 +299,20 @@ push a branch just because it's ahead of origin.
   `SimConfigProfileBindingTest.EXPECTED_TUNABLE` (which asserts **both** constructor
   arity and instance-field count, so a missed accessor fails loudly). Currently **62
   tunables / 27 statics**.
+- **`game_event` has TWO participant columns and they are different KINDS of fact.**
+  `assist_player_id` is the **teammate** who helped; `opponent_player_id` is the
+  **counterparty** — the player on the other side of the play, and therefore **ALWAYS on
+  the opposite team**, which is what lets a reader resolve their team without decoding
+  `outcome`. ⚠ **A teammate never goes in the opponent column**; a migration merging them
+  was pursued and **reversed** (#041 D). It is populated **only where a real contest
+  identified an individual victim** (the stealer, the blocker, the fouled shooter) and is
+  **null by contract** elsewhere — ⚠ **do NOT populate a site just because a player is
+  reachable**; a rebounding foul's FT shooter is a weighted *draw*, not the victim. Both
+  invariants are enforced by tests in `GameSimulatorIntegrationTest`. Full per-event
+  detail: **`docs/game-events.md`**.
+- **On every `FOUL` event, `primary_player_id` is the COMMITTER** (charged `recordFoul()`,
+  on `committing_team_id`) — the *inverse* of `SHOT`/`TURNOVER`, where primary is the
+  victim. Test-enforced.
 - OpenAPI delegate pattern: generated `V1ApiDelegate` interface, hand-written `V1ApiDelegateimpl` implements it.
 - Entities use Lombok `@Data` for boilerplate reduction.
 - Entity `@Table` annotations include `schema = "gametime"`.

@@ -227,16 +227,22 @@ display/API open questions below, not engine work.
 | 8. **§3.4 effects** — `pace`/`offensiveScheme`/`defensiveScheme` → engine | ✅ decisions.md #022 (`CoachModifiers` + `TeamContext`) |
 | 9. **§3.5 effects** — `rotationDepth`/`substitutionAggressiveness` → minutes/fatigue | ✅ decisions.md #023 (`CoachModifiers.rotationDepthFactor()`/`subAggressivenessFactor()` + `RotationState`) |
 | 10. **§3.9–§3.11 reach** — `defensiveScheme` extended to the new foul/turnover rolls | ✅ no new coach code; each sub-phase scales its own roll by the existing `defensivePressure` (#027 C, #028 C, #029 C) |
-| 11. **§3.14a/§3.14b/§3.16 — three passes that read NO coach attribute** | ✅ deliberate, not an oversight: a technical is behavioral (#032 B), a flagrant grade is inert (#034 E), and a foul's *kind* has no floor-position signal to weight it by (#039 E). Coach influence reaches all three through the **parent** event |
+| 11. **§3.14a/§3.14b/§3.16/§3.18 — four passes that read NO coach attribute** | ✅ deliberate, not an oversight: a technical is behavioral (#032 B), a flagrant grade is inert (#034 E), a foul's *kind* has no floor-position signal to weight it by (#039 E), and **§3.18 is pure attribution — it records WHO was on an event a coach-influenced roll already decided** (#041). Coach influence reaches all four through the **parent** event |
+| 12. **§3.17 — `offensiveScheme`'s reach CHANGED (the one post-§3.5 coach-side change)** | ✅ the attribute is unchanged, but **what it scales is not**: the lean now splits `THREE` × the multiplier against `PERIMETER` × its **reciprocal**, with `DRIVE`/`POST` unscaled (#040 D). ⚠ **It also stopped setting the LEAGUE's mix** — four `sim.shot-share-*` tunables do that now (#040 C), and the coach only tilts a given team off it. See the attribute table |
 
 All five effects (`f(...)` in the interface above) are implemented as the
 `CoachModifiers` value object, threaded through `PossessionEngine` via
 `TeamContext`. The §3.4 scheme/pace effects bend the possession flow; the §3.5
 rotation effects drive the between-possession substitution check in
 `RotationState` (who is on the floor, and when a tired starter is pulled).
-**No coach-side code has changed since §3.5** — §3.9–§3.11 each reused
-`defensivePressure` as-is, and §3.14a/§3.14b/§3.16 each deliberately read nothing,
-which is the seam working as designed.
+**The seam has held: no pass since §3.5 has needed a NEW coach attribute.** §3.9–§3.11
+each reused `defensivePressure` as-is; §3.14a, §3.14b, §3.16 and §3.18 each deliberately
+read nothing. ⚠ **One thing did change, and it is worth not mis-reading as "nothing
+happened": §3.17 rewired what `offensiveScheme` scales** (rows 11–12 above) — the
+attribute and its range are untouched, but it now splits `THREE` against `PERIMETER`
+rather than leaning jumper-vs-interior, and it no longer sets the league's shot mix at
+all. **A coach attribute can be re-pointed without being re-designed**, and only the
+attribute table records that.
 
 ---
 

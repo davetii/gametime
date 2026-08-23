@@ -207,13 +207,26 @@ public class PossessionEngine {
                 // (recordTurnover, primaryPlayerId = shooter) exactly as today.
                 TurnoverCause cause = turnoverResolver.pickCause(
                         shooter, teamOffense, defensivePressure, rng);
+                // §3.18 (decisions.md #041 A/B): the stealer now lands on the EVENT
+                // as the counterparty, instead of surviving only in box_score.steals.
+                // ⚠ The DECLARATION is hoisted out of the branch so the value reaches
+                // addEvent below; the pickStealer DRAW is untouched — same call, same
+                // condition, same position after pickCause, so the RNG stream does not
+                // move (#041's central premise: this phase consumes no new draw).
+                String stealerId = null;
                 if (cause == TurnoverCause.STOLEN) {
                     PlayerGameState stealer = turnoverResolver.pickStealer(defense, rng);
                     stealer.recordSteal();
+                    stealerId = stealer.getPlayerId();
                 }
                 shooter.recordTurnover();
+                // opponentPlayerId = the stealer on STOLEN, null on the other eight
+                // causes — they have ONE actor and no counterparty (#041 C: second
+                // participant -> a column; second accounting -> an event; neither ->
+                // nothing).
                 data.addEvent(offTeamId, defTeamId, period, sequence,
-                        PlayType.TURNOVER, cause.outcome(), shooter.getPlayerId());
+                        PlayType.TURNOVER, cause.outcome(), shooter.getPlayerId(),
+                        null, null, stealerId);
                 sequence++;
 
                 // §3.16 (decisions.md #039 G, fixing #037): a CHARGE IS A PERSONAL
@@ -244,6 +257,15 @@ public class PossessionEngine {
                     // The outcome string is TurnoverCause's own — the FOUL event and
                     // the TURNOVER event describe one occurrence, so they must read
                     // the same word, and a literal here would be a second copy of it.
+                    //
+                    // ⚠ §3.18 (#041 follow-up): opponentPlayerId stays NULL on BOTH of
+                    // the charge's events, DELIBERATELY — not overlooked. A charge does
+                    // have a real counterparty (the defender who drew it), but the
+                    // engine never picks one, and picking one needs a NEW pickChargeDrawer
+                    // RNG draw. That would shift the stream and re-baseline every seeded
+                    // sim test, forfeiting this phase's "moves no number" property for a
+                    // participant nothing consumes. It belongs to a pass that owns rate
+                    // movement.
                     data.addEvent(offTeamId, defTeamId, period, sequence,
                             PlayType.FOUL, cause.outcome(), shooter.getPlayerId(),
                             null, offTeamId);
@@ -255,6 +277,22 @@ public class PossessionEngine {
             // 2. Foul check — a foul that STOPPED the shot (no basket), on ANY shot
             // type since §3.12 (#030 A1). The FT count graduates with the type:
             // a stopped THREE is 3 FTs, everything else 2 (#030 C).
+            //
+            // ⚠ THIS BRANCH RETURNS BEFORE recordFieldGoalAttempt() BELOW, SO A STOPPED
+            // SHOT CHARGES NO FGA — and that is correct by rule, not an oversight.
+            // Real basketball charges an FGA on RELEASE, not on contact, so a shot the
+            // contact prevented is a NON-ATTEMPT, not a miss. Three cases exist and they
+            // differ:
+            //   * fouled BEFORE release (contact stopped it)  -> no FGA   <- THIS BRANCH
+            //   * fouled during the motion, released & missed -> FGA, no FGM  <- ⬜ NOT
+            //     MODELLED: the engine treats every shooting foul as the first case, so
+            //     its FGA runs lower than a real league's by ~the shooting-foul rate.
+            //   * fouled on a MADE shot (the and-1)           -> FGA + FGM (handled far
+            //     below, AFTER the shot accounting, which is why an and-1 IS an attempt)
+            // ⚠ This is also why a shooting foul must NOT be folded into the SHOT event
+            // as an outcome: every SHOT event is an attempt, which is what makes
+            // count(SHOT) == sum(fieldGoalsAttempted) hold. See docs/game-events.md,
+            // "Why a stopped shot is not a field-goal attempt".
             if (foulResolver.isFoul(shotType, shooter, defender, defensivePressure, rng)) {
                 defender.recordFoul();
 
@@ -267,7 +305,8 @@ public class PossessionEngine {
                 // it (#034 C): a flagrant stopped THREE awards 2, not 3 and not 5. The
                 // ordinary award below is in the `else` path and never runs on a hit.
                 if (foulResolver.isFlagrant(rng)) {
-                    sequence = awardFlagrant(data, defender, shooter, offTeamId,
+                    sequence = awardFlagrant(data, defender, shooter,
+                            shooter.getPlayerId(), offTeamId,
                             offTeamId, defTeamId, period, sequence, rng);
                     if (!capReached) {
                         offensiveRetentions++;
@@ -300,9 +339,16 @@ public class PossessionEngine {
                 if (foulResolver.isNonShootingFoul(rng)) {
                     // Emit-then-count (#028 A1): the event goes in the log FIRST, so
                     // the Nth foul — this one — sends its own team to the line.
+                    //
+                    // The counterparty is the SHOOTER. This is a re-partition of the
+                    // very same stopped-shot roll as SHOOTING_FOUL below — same
+                    // contest, same shooter-vs-defender matchup — and only the AWARD
+                    // differs. The contact happened against this shooter, and the bonus
+                    // FTs below go to them directly rather than to a weighted draw,
+                    // which is the tell that they are the identified victim.
                     data.addEvent(offTeamId, defTeamId, period, sequence,
                             PlayType.FOUL, NON_SHOOTING_FOUL_OUTCOME, defender.getPlayerId(),
-                            null, defTeamId);
+                            null, defTeamId, shooter.getPlayerId());
                     sequence++;
 
                     // In the penalty: 2 bonus FTs, exactly as the rebounding foul
@@ -323,9 +369,14 @@ public class PossessionEngine {
                 // §3.10 (#028 D): a shooting foul's committer is always the
                 // DEFENDER, but the column is populated here too so the penalty
                 // derivation reads ONE uniform field across all FOUL events.
+                //
+                // §3.18 (#041 A): primaryPlayerId is the DEFENDER who committed it, so
+                // the counterparty is the FOULED SHOOTER — already in scope, no new
+                // draw. The two are on opposite teams by construction, satisfying the
+                // counterparty invariant.
                 data.addEvent(offTeamId, defTeamId, period, sequence,
                         PlayType.FOUL, "SHOOTING_FOUL", defender.getPlayerId(),
-                        null, defTeamId);
+                        null, defTeamId, shooter.getPlayerId());
                 sequence++;
 
                 sequence = awardFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
@@ -348,8 +399,14 @@ public class PossessionEngine {
             // FG%), no assist (F4), and a separate blocker.recordBlock() credit (F2).
             if (shotResolver.isBlocked(shotType, shooter, defender, rng)) {
                 defender.recordBlock();
+                // §3.18 (#041 A): the BLOCKER now rides the event as the counterparty.
+                // #025 F2 left them off BY DESIGN, "mirroring the stealer" — which
+                // copied the gap rather than closing it; both close here. primaryPlayerId
+                // stays the shooter (the victim), so the blocker is the opposite team by
+                // construction. No new draw: `defender` was already selected above.
                 data.addEvent(offTeamId, defTeamId, period, sequence,
-                        PlayType.SHOT, buildBlockOutcome(shotType), shooter.getPlayerId());
+                        PlayType.SHOT, buildBlockOutcome(shotType), shooter.getPlayerId(),
+                        null, null, defender.getPlayerId());
                 sequence++;
 
                 // Flat four-way loose-ball recovery (Decision D). Offense-recovered
@@ -426,7 +483,8 @@ public class PossessionEngine {
                     // ⚠ 2 FTs, NOT AND_ONE_FREE_THROWS (1) — replaces, doesn't add.
                     if (foulResolver.isFlagrant(rng)) {
                         defender.recordFoul();
-                        sequence = awardFlagrant(data, defender, shooter, offTeamId,
+                        sequence = awardFlagrant(data, defender, shooter,
+                                shooter.getPlayerId(), offTeamId,
                                 offTeamId, defTeamId, period, sequence, rng);
                         if (!capReached) {
                             offensiveRetentions++;
@@ -559,14 +617,25 @@ public class PossessionEngine {
             List<PlayerGameState> fouledFive = offenseCommitted ? defense : offense;
             String fouledTeamId = offenseCommitted ? defTeamId : offTeamId;
             PlayerGameState freeThrowShooter = pickFreeThrowShooter(fouledFive, rng);
+            // ⚠ NULL counterparty by contract: a rebounding foul is committed
+            // against the TEAM contesting the board, and the engine never identifies
+            // an individual victim. `freeThrowShooter` above is a foulDrawing-weighted
+            // DRAW from the fouled five (#028 B) — a stand-in for the award, not the
+            // player who was pushed. Passing it here would fabricate a participant.
             sequence = awardFlagrant(data, foul.committer(), freeThrowShooter,
-                    fouledTeamId, offTeamId, defTeamId, period, sequence, rng);
+                    null, fouledTeamId, offTeamId, defTeamId, period, sequence, rng);
             // Defense committed → the offense retains (while the loop has room).
             // Offense committed → the possession flips, exactly as an ordinary
             // offensive foul ends it.
             return new ReboundFoulResult(sequence, !offenseCommitted && !capReached);
         }
 
+        // ⚠ opponentPlayerId is NULL BY CONTRACT here, not unpopulated. A rebounding
+        // foul is committed against the TEAM contesting the board — the resolver picks
+        // a committer and a side, and never identifies an individual victim. The
+        // fouled five are known; which of them was pushed is not modelled. Populating
+        // this from the bonus/flagrant FT shooter would attribute the foul to a player
+        // the engine never decided was fouled (that shooter is a weighted draw).
         data.addEvent(offTeamId, defTeamId, period, sequence,
                 PlayType.FOUL, foul.side().outcome(), foul.committer().getPlayerId(),
                 null, committingTeamId);
@@ -636,15 +705,26 @@ public class PossessionEngine {
      *
      * @param committer      the player who committed it — already charged {@code
      *                       recordFoul()} by the caller
-     * @param freeThrowShooter the player who WAS FOULED, who shoots (#034 D) — never
+     * @param freeThrowShooter the player who shoots (#034 D) — never
      *                       {@link #pickTechnicalFreeThrowShooter}, whose premise is
      *                       that nobody was fouled (#032 G)
+     * @param fouledPlayerId the COUNTERPARTY for the event — the player who was
+     *                       fouled, or {@code null} where the contest identified no
+     *                       individual victim. ⚠ <b>Deliberately a SEPARATE parameter
+     *                       rather than {@code freeThrowShooter.getPlayerId()}</b>:
+     *                       at the shot sites the two are the same player, but at the
+     *                       REBOUNDING site the FT shooter is a {@code
+     *                       pickFreeThrowShooter} draw from the fouled five — a
+     *                       stand-in, not the person who was pushed. Deriving the
+     *                       counterparty from the shooter would therefore attribute
+     *                       the foul to a player the engine never decided was fouled.
      * @param shootingTeamId the team the free throws score for — the fouled player's
      *                       team, which at the rebounding site may be the DEFENSE
      * @return the next free sequence number
      */
     int awardFlagrant(GameData data, PlayerGameState committer,
-                      PlayerGameState freeThrowShooter, String shootingTeamId,
+                      PlayerGameState freeThrowShooter, String fouledPlayerId,
+                      String shootingTeamId,
                       String offTeamId, String defTeamId, int period, int sequence,
                       RandomGenerator rng) {
         boolean flagrantTwo = foulResolver.isFlagrantTwo(rng);
@@ -653,7 +733,7 @@ public class PossessionEngine {
         }
         data.addEvent(offTeamId, defTeamId, period, sequence, PlayType.FOUL,
                 flagrantTwo ? FLAGRANT_FOUL_2_OUTCOME : FLAGRANT_FOUL_1_OUTCOME,
-                committer.getPlayerId(), null, committer.getTeamId());
+                committer.getPlayerId(), null, committer.getTeamId(), fouledPlayerId);
         sequence++;
 
         return awardFreeThrows(data, freeThrowShooter, shootingTeamId,
@@ -692,8 +772,12 @@ public class PossessionEngine {
                     String offTeamId, String defTeamId, int period, int sequence,
                     RandomGenerator rng) {
         defender.recordFoul();
+        // The counterparty is the SHOOTER who was fouled — an individual the contest
+        // actually identified, not a stand-in. primaryPlayerId is the DEFENDER who
+        // committed it, so the two are on opposite teams by construction.
         data.addEvent(offTeamId, defTeamId, period, sequence,
-                PlayType.FOUL, "AND_ONE", defender.getPlayerId(), null, defTeamId);
+                PlayType.FOUL, "AND_ONE", defender.getPlayerId(), null, defTeamId,
+                shooter.getPlayerId());
         sequence++;
 
         return awardFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
@@ -733,6 +817,10 @@ public class PossessionEngine {
                            TeamContext committingTeam, TeamContext shootingTeam,
                            String offTeamId, String defTeamId,
                            int period, int sequence, RandomGenerator rng) {
+        // ⚠ opponentPlayerId is NULL BY CONTRACT: a technical is a BEHAVIORAL foul with
+        // no contest and no victim — nobody was fouled, which is the same premise that
+        // makes its FT shooter a deterministic best-shooter pick rather than a
+        // foulDrawing draw (#032 G). That shooter is emphatically NOT a counterparty.
         data.addEvent(offTeamId, defTeamId, period, sequence,
                 PlayType.FOUL, GameData.TECHNICAL_FOUL_OUTCOME, committer.getPlayerId(),
                 null, committingTeam.teamId());
@@ -830,6 +918,12 @@ public class PossessionEngine {
      *       ambiguity now that there are three sources).</li>
      * </ul>
      *
+     * <p>⚠ <b>{@code opponentPlayerId} is NULL BY CONTRACT on every {@code FREE_THROW}
+     * event</b>, at every source. A free throw is an uncontested act with one actor —
+     * whoever was on the other side belongs to the {@code FOUL} event that sent the
+     * shooter to the line, not to the attempt itself. Repeating them here would
+     * duplicate a fact the preceding event already carries.
+     *
      * @return the next free sequence number
      */
     int awardFreeThrows(GameData data, PlayerGameState shooter, String shootingTeamId,
@@ -855,6 +949,11 @@ public class PossessionEngine {
      * {@link PlayType#REBOUND} play type with OUT_OF_BOUNDS_* outcomes but credit NO
      * rebounder — so they are excluded from the rebound reconciliation invariant
      * (which exact-matches OFFENSIVE / DEFENSIVE), and record no box-score rebound.
+     *
+     * <p>⚠ <b>{@code opponentPlayerId} is NULL BY CONTRACT on every {@code REBOUND}
+     * event.</b> A board is a contest against the other four, not against an
+     * identified opponent — the resolver picks a winner, never a loser. On the two OOB
+     * outcomes there is no participant at all.
      */
     void emitMissedShotEvent(GameData data, MissedShotResolver.Result miss,
                              String offTeamId, String defTeamId, int period, int sequence) {

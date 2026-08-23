@@ -725,8 +725,32 @@ components:
           type: string
         assistPlayerId:
           type: string
-          description: Optional assister on a made-FG SHOT event (§3.4). Null on
-            unassisted makes and every non-SHOT event (#022 B, surfaced #024 D).
+          description: >-
+            The TEAMMATE participant — an optional assister on a made-FG SHOT event
+            (§3.4). Null on unassisted makes and every non-SHOT event (#022 B,
+            surfaced #024 D). Deliberately NOT the same column as opponentPlayerId
+            (#041 D): an assister collaborates and is on the SAME team, a
+            counterparty opposes and is on the OTHER team.
+        opponentPlayerId:
+          type: string
+          description: >-
+            The COUNTERPARTY — the player on the other side of the play from
+            primaryPlayerId, and therefore ALWAYS on the opposite team, so a reader
+            resolves their team as whichever of offenseTeamId/defenseTeamId primary
+            is not on (§3.18, #041 A). Carries the stealer on TURNOVER/STOLEN, the
+            blocker on SHOT/BLOCKED_*, and the fouled shooter on FOUL/SHOOTING_FOUL
+            (where primaryPlayerId is the defender who committed it). Null on every
+            other event, including deliberately on OFFENSIVE_FOUL — the
+            charge-drawer is not modelled. A teammate never appears here (#041 D).
+        committingTeamId:
+          type: string
+          description: >-
+            Which team COMMITTED this event (§3.10, #028 D). Set on every FOUL event
+            — SHOOTING_FOUL carries the defender's team, and the two-sided
+            REBOUNDING_FOUL_* carries whichever side the roll picked, since a
+            rebounding foul can be an offensive over-the-back and the committer is
+            therefore not implied by defenseTeamId. Null on every non-foul event.
+            Surfaced by §3.18, closing #028 D's open follow-up.
 
     GameResult:
       type: object

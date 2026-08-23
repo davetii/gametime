@@ -5,6 +5,11 @@ that isn't a product feature and so doesn't belong in a roadmap phase. This file
 is stable across phases (unlike [todo.md](todo.md), which is rewritten each phase
 to track only the current one).
 
+**Completed chores are REMOVED, not checked off.** A finished chore has a phase home
+by definition — its reasoning and landing live in the `decisions.md` entry or roadmap
+phase that consumed it, so leaving it here duplicates that record and buries the open
+work. (Seven done items were cleared in 2026-08; the file was 30% completed work.)
+
 For deferred *gameplay* scope (sim-fidelity events the engine doesn't model yet),
 see the **§3.x Deferred sim-fidelity details** section of [roadmap.md](roadmap.md)
 — those have a phase home and live with the phase that will consume them. For
@@ -83,148 +88,6 @@ planned features), see [ideas.md](ideas.md).
       charge fix did exactly that, moving the value from a predicted 0.43 to 0.50).
       Sourcing it is the only thing that would tell us whether §3.16 is *right* or merely
       *self-consistent*.
-
-- [x] **PROMOTED OUT OF THE BACKLOG → `roadmap.md` §3.15** *(user call, 2026-08:
-      "profiles should be a numbered phase")*. **This is no longer a chore** — it is a
-      numbered Phase-3 sub-phase needing its own design pass. **Everything below stays
-      here as the design-pass input** (it is the accumulated reasoning, not a plan), so
-      read it before designing §3.15; the roadmap bullet points back at it.
-      **What changed beyond the promotion:** §3.15 is scope-fenced to the
-      **developer-facing substrate** (engine + harness, no schema/OpenAPI, consistent
-      with every §3.x sub-phase since §3.10). The **player-facing** side the note below
-      calls "a separable extension" — selectable **eras**, difficulty, custom rules — now
-      has a stated consumer (the user wants it) and is **Phase 4+**, not §3.15.
-      **The timing argument below still holds and got stronger:** §3.15 sits after the
-      fidelity arc (§3.13 foul trouble, §3.14 flagrants) but **before §3.16**, the
-      recalibration — which is the largest multi-config sweep the project will run and
-      is exactly what profiles are for. **Validation gate:** §3.15 must reproduce
-      **§3.14b's** shipped landing *exactly* before any §3.16 number is read off it (the
-      check that validated the §3.11 harness against §3.10's numbers). **That landing is
-      now on the board** (5-seed mean, seeds 1000–5000): flagrants **0.148**, points
-      **118.3**, FG% **46.9%**, 3P% **36.7%**, assists **27.1**, TO **13.6**, penalty rate
-      **51.9%**, foul-outs **0.358**, ejections **0.027**.
-      ⚠ **One §3.14b constant is NOT a tunable and must not be profiled as one:**
-      `PERSONAL_FOULS_PER_TEAM_GAME` (19.0) is a **measured** assumption about the
-      engine's current foul rate, used as the divisor that turns the game-level flagrant
-      rate into a per-foul probability (#034 G). A profile that varies it independently of
-      the actual foul rate silently breaks the flagrant rate. If §3.15 groups constants by
-      "what a tuner may vary", this one sits outside that set.
-      ⚠ **That gate got harder to satisfy at §3.14b, and the reason is worth knowing
-      before designing §3.15** (`decisions.md` #034, Status block): §3.14b's severity roll
-      is drawn **per foul, and its flagrant-2 sub-roll only on a hit** — a deliberate
-      exception to the unconditional-draw discipline §3.13/§3.14a follow, permissible
-      because it is nested inside an already-conditional branch. So "reproduce the landing
-      exactly" means reproducing a stream whose **draw count varies with how many fouls a
-      game happened to produce**. A profile mechanism that changes the *order* constants
-      are read in is still safe (they are read before the rolls); one that changes **how
-      many** draws a possession takes is not — and it would surface as a total
-      reproduction failure rather than a subtle drift, which is the good outcome.
-      **A third pass has now paid the cost:** §3.12 ran its `PERIMETER` sweep, its
-      `THREE` verification, its `BASE_*` exchange-rate measurement, and a
-      multipliers-zeroed triage baseline **all by hand** — editing constants and
-      rebuilding between every reading, ~28 harness runs. That is the evidence.
-
-- [x] **SHIPPED → `decisions.md` #035 (A–I) + its implementation note.** *(Design pass
-      and execution both 2026-08.)* **The gate held: the baseline profile reproduces
-      §3.14b's landing per-seed byte-for-byte.** Two things this chore's text did not
-      foresee, both worth carrying: `@Validated` needed a **Bean Validation
-      implementation added to the POM** (the project had none), and the harness's own
-      hardcoded `POSSESSIONS_PER_PERIOD = 25` **silently shadowed** the profile's pace
-      key — a caller passing its own copy of a tunable value is invisible to the
-      properties file, and the effective-config dump is the only instrument that shows
-      it. **The text below is the design-pass INPUT and is
-      now historical** — read #035 for what was actually decided. Where the two differ,
-      #035 wins. **Three things below were resolved differently or more sharply than the
-      entry anticipated:** (1) the entry frames this as a *file-format* problem; the real
-      obstacle was that `static final` primitives are **compile-time inlined into every
-      caller** (JLS §4.12.4), so the constants had to become **instance state** — 323 call
-      sites, #035 B; (2) the shape is **override-layer** as the entry leaned, but over
-      **57 profilable constants** (26 static), with only rules + model machinery + the
-      measured `PERSONAL_FOULS_PER_TEAM_GAME` left static (#035 C); (3) the doc-drift generator
-      below was decided **OUT** and remains a separate chore (#035 H).
-
-- [x] **Load the `SimConfig` constants from flat properties files, as SWAPPABLE
-      PROFILES the harness can be run against.** *(User direction, 2026-08 — **shipped
-      as roadmap.md §3.15**, see above. The text below is the design-pass input,
-      superseded by #035 and kept only as the accumulated reasoning.)*
-      **The profile framing is the point, and it is a bigger win than "avoid a
-      rebuild".** It turns tuning from *sequential edits* (change a constant,
-      rebuild, run, write the number down, change it again — the previous config now
-      gone unless someone remembered it) into **comparable experiments**: several
-      named profiles coexist as files, and the harness runs against each.
-      **It composes with the instrument that already exists:** `CalibrationHarness`
-      takes **`-DcalibrationSeed=NNNN`** (§3.11) precisely so one config can be
-      observed across seeds and tuned to the **mean** (#029 E). A
-      `-DcalibrationProfile=<name>` beside it yields the full **profile × seed
-      matrix** — which is exactly the sweep §3.11 ran *by hand* ("3-config × 5-seed")
-      and §3.12 will have to run again for the foul multipliers. That hand-run sweep
-      is the concrete evidence this chore has a real consumer.
-      **Natural profiles to start with:** the shipped baseline (whatever `SimConfig`
-      currently holds, so a landing stays reproducible), plus one per hypothesis
-      under test (e.g. a `THREE = 0.133` vs. `0.20` pair — the exact open question
-      §3.12 carries).
-      **A separable extension worth not foreclosing:** the same mechanism is how
-      **eras** (1990s low-pace/high-foul vs. modern three-heavy) or **difficulty
-      settings** would eventually be expressed. That is a *gameplay feature* needing
-      a consumer, not this chore (see the "not to be confused with" note below) — but
-      the tuning design shouldn't paint it out.
-      **The single-location goal is already met and should not be disturbed:** all
-      **83** tunable constants live in `SimConfig.java`, with **zero** defined
-      anywhere else in the `sim` package (re-verified 2026-08 post-§3.14b, which added
-      five flagrant constants; §3.13 added six foul-trouble ones). That invariant has
-      held from §3.2 through §3.14b — protect it. *(The only other `public static
-      final` in the package is `GameData.TECHNICAL_FOUL_OUTCOME` — an event-vocabulary
-      **string**, not a tunable, and §3.14b's two `FLAGRANT_FOUL_*` outcome strings sit
-      on `PossessionEngine` for the same reason. Event vocabulary is not profilable and
-      is out of scope.)* ⚠ **They are `public static final`
-      and read STATICALLY** from the engine, the resolvers and the tests — while
-      `SimConfig` is *also* already a Spring bean injected in 17 places for its 20
-      instance methods. **That split is the real design problem** (todo.md's Q2), not
-      the file format. What's missing is not a *location* but a
-      **workflow**: every calibration change (a `BASE_*` trim, a foul multiplier)
-      currently costs an edit + rebuild + re-run, which is real friction in a pass
-      that sweeps several values across several seeds.
-      **The open design question**, when this is picked up, is whether a profile is
-      a **full replacement** (each file carries all 83 constants — self-contained and
-      unambiguous, but 83 lines to change one knob, and a new constant must be added
-      to every file) or an **override layer** (the Java constants stay the defaults;
-      a profile lists only its deltas — far more readable as an experiment, "this
-      profile is baseline except `FOUL_MULT_THREE`", at the cost that a profile alone
-      no longer tells you the effective config). **The override shape looks better
-      for the stated purpose** — comparing hypotheses is exactly a deltas problem —
-      but decide it then, with the code in front of you.
-      Worth weighing at the same time: `SimConfig`'s javadoc carries the tuning
-      *history* — the `BASE_NO_BASKET_FOUL` wrong-way-lever finding (#028), the
-      `PROB_FLOOR` trap (#028), the per-rare-event sensitivity reasoning (#025/#029)
-      — and those comments have repeatedly stopped real mistakes, so any shape that
-      separates a knob from its reasoning, or gives up compile-time key safety, is
-      paying something for the convenience. (The override shape keeps the javadoc
-      intact by construction, which is a further point in its favour.)
-      **Record which profile produced a landing.** Once profiles exist, a harness
-      result is only meaningful paired with the profile that generated it — the
-      implementation notes in `decisions.md` should name it alongside the seed.
-      **A second, separable piece of the same problem: documentation drift.** Values
-      are currently restated by hand across `todo.md`, `decisions.md`, and
-      `possession-flow.puml` — the §3.12 design pass alone had to update a single
-      changed multiplier in five places. A reference table **generated from the
-      source** would make that drift structurally impossible; docs would link rather
-      than restate. Independent of the properties work and can land separately.
-      **Timing — do NOT do this mid-arc.** The window is **§3.15's own design pass**
-      (this entry was promoted there — see above): after §3.14 closes the fidelity arc
-      and before §3.16 reads any number off it. Changing how constants load *while*
-      actively tuning them would forfeit the ability to reproduce a prior landing
-      exactly — which is what validated the §3.11 harness (seed 1000 reproduced
-      §3.10's shipped numbers before any §3.11 figure was read off it). Same
-      one-moving-knob-at-a-time discipline the cap 3→5 idea cites.
-      **Not to be confused with** player-facing league/rules settings (difficulty,
-      custom rules, selectable eras) — those are *gameplay features* needing a
-      consumer, and belong in [ideas.md](ideas.md)/roadmap.md, not this chore. The
-      distinction is the audience: this chore serves **the developer at the harness**
-      (a real consumer today, evidenced by §3.11's hand-run 3-config sweep); a
-      player-facing profile picker serves an end user and has no consumer yet. The
-      mechanism could later be shared, which is why the extension is noted above —
-      but building for the second audience now would be fabricating ahead of a
-      consumer (#014/#017).
 
 - [ ] **A constants-reference table GENERATED FROM SOURCE, so docs link rather than
       restate.** *(Split out of the profiles entry above at §3.15's design pass, 2026-08 —
@@ -344,23 +207,82 @@ planned features), see [ideas.md](ideas.md).
       [risks.md](risks.md) (the gate stayed green because H2 accepted the mismatch),
       and it overlaps the Testcontainers item below (real-Postgres integration tests
       would have caught it).
-- [ ] **Harness: track and report STEALS, with a reconciliation check.** ⚠ **Steals are
-      the only contested credit the harness never prints.** It accumulates fga/fgm/tpa/
-      tpm/assists/turnovers/offReb/defReb/blocks — **but not steals** — and the
-      reconciliation invariant covers assists and blocks and **not** steals. Meanwhile
-      `SimConfig`'s `TO_WEIGHT_STOLEN = 56.0` javadoc says the weight is held at ~56% of
-      the cause mix precisely so **`BoxScore.steals` does not drift** — i.e. the constant
-      is protecting a number nothing has ever measured.
-      **The data is all there**: `PlayerGameState.recordSteal()` is called at
-      `PossessionEngine:176`, the `steals` column is populated, and a `STOLEN` TURNOVER
-      event is emitted. **A count-based reconciliation works TODAY with no engine
-      change** — `STOLEN` events vs. summed box-score steals, exactly the shape §3.7 uses
-      for blocks (which also name the victim, not the creditor, and reconcile by count).
-      **The real figure is 8.4/team/game** (sourced 2025-26, in calibration.md as
-      `observed`). The engine's value is **~7.67 by derivation** (13.8 turnovers × 55.6%
-      STOLEN) — ⚠ **a derivation, not a measurement**, which is the point of this chore.
-      Cheap: one accumulator, one report line, one reconciliation check. **Test-only, no
-      engine change.** Do it in whatever phase next touches the harness.
+- [ ] **A `BoxScoreReconciler`: derive from `game_event` what CAN be derived, and diff it
+      against the persisted `box_score` rows** *(user question, 2026-08, raised right
+      after §3.18 shipped — "does anything compute from events? should it?")*.
+      **The finding that prompted it:** the project already has the derive-don't-store
+      discipline as an established principle — **penalty/bonus status is computed on
+      demand from the FOUL log with no stored counter at all** (#028 A1, *"could only
+      ever disagree"*), foul-outs and ejections are derived predicates (#023 F, #034), and
+      #023 F's stored-state exception has been **refused twice**. ⚠ **The box score is the
+      EXCEPTION to that principle, not the rule** — and it is worth stating plainly,
+      because the codebase reads as if derivation were the norm.
+      **How it works today** (`GameSimulator`, confirmed 2026-08): every column is a
+      **populate-at-event-time copy** of an in-memory `PlayerGameState` accumulator —
+      `bs.setBlocks(p.getBlocks())` and so on. **Nothing queries `game_event`.** The
+      counter and the event are written as *siblings* from the same engine moment, so
+      neither derives from the other: that is why they cannot double-count (the question
+      that started this), and equally why **nothing structurally forces them to agree**.
+      **⚠ THE ANSWER TO "SHOULD IT ALL COMPUTE FROM EVENTS?" IS *PARTLY*, AND THE
+      *PARTLY* IS THE WHOLE FINDING.** A full rewrite is the wrong shape:
+      - **`minutes` is NOT derivable from any event** — it is a possession-share
+        projection in `GameSimulator` (`onFloorPossessions / teamPossessions × 5 ×
+        gameMinutes`, §3.5 A) and there is **no game clock and no event behind it**.
+        So "compute the box score from events" cannot be uniform: it yields a **hybrid**
+        where some columns derive and some do not, which is **worse than either pure
+        design** because no reader can tell which is which. **A reconciler that states
+        the split per column is the fix; a rewrite that hides it is not.**
+      - **Volume**: `isInBonus` scans a few hundred in-memory `EventRecord`s during one
+        sim. Deriving a box score means aggregating the persisted log per player per game
+        on **every read**, against a table that grows without bound once Phase 5 adds a
+        season. #019 declined pagination at current scale — this is the change that would
+        reopen that.
+      - **#020 already settled the ownership**: the box score is a *denormalized
+        convenience on the end-of-game snapshot* (the exact framing #033 used to surface
+        `technicalFouls`), **the events are the source of truth**, and a cache with a
+        defined source of truth is a legitimate pattern. The failure mode is only ever an
+        **undetected** divergence.
+      **So the deliverable is a RECONCILIATION, not a replacement.** Derive every
+      derivable column for a `gameId`, diff against the stored rows, report per column.
+      That buys three things nothing has today: **(1)** one place that records, per
+      column, whether it is derivable at all — documenting the hybrid instead of hiding
+      it; **(2)** a **repair path** (`game_event` → rebuild the row), which does not exist
+      — ⚠ **a box score cannot self-heal**: nothing recomputes, so a row written wrong
+      stays wrong on every future read; **(3)** the **per-creditor** form on the columns
+      that support it, not just totals.
+      ⚠ **§3.18 is what made blocks and steals derivable AT ALL** — before
+      `opponent_player_id`, the log could not name the creditor, so a wrong `blocks` value
+      was **unrecoverable from the events**. Arguably the phase's most durable outcome.
+      **Sketch of the per-column split** (verify before building — 17 columns, all but
+      `minutes` event-time copies):
+      - **Per-creditor derivable today**: `steals` (`TURNOVER`/`STOLEN` by
+        `opponent_player_id`), `blocks` (`SHOT`/`BLOCKED_*` by `opponent_player_id`) —
+        **both already asserted** by §3.18's tests, `assists` (`SHOT` by
+        `assist_player_id`), `fouls` (`FOUL` by `primary_player_id`, ⚠ **excluding
+        `TECHNICAL_FOUL`** — #032 E), `technicalFouls` (that exclusion's other half),
+        `turnovers`, `offensiveRebounds`/`defensiveRebounds` (⚠ **exact-match
+        `OFFENSIVE`/`DEFENSIVE` — the §3.8 `OUT_OF_BOUNDS_*` rows are NOT rebounds**,
+        #026 E), `points`, and the FG/3P/FT attempt+make pairs from the outcome strings.
+      - ⚠ **NOT derivable**: `minutes` (above). Any reconciler must **say so explicitly**
+        rather than silently skipping it.
+      ⚠ **Two traps this must not walk into.** First, it reads `outcome` strings, which are
+      **free text — and one has been renamed with NO migration**: §3.17 changed
+      `COMMON_FOUL` → `NON_SHOOTING_FOUL` (#040 M/N), so persisted rows hold the OLD
+      string before §3.17 and the new one after. ⚠ **Scope this precisely rather than
+      over-engineering it**: the engine emits only `NON_SHOOTING_FOUL` today (there is no
+      `COMMON_FOUL` left in engine logic), so **only a query reading persisted HISTORY is
+      affected** — and #040 N judged the pre-§3.17 rows to be **test data**, so the dual
+      match may be unnecessary if that history is declared disposable. **Decide which,
+      and say so**; the wrong outcome is a reconciler that silently under-counts fouls on
+      old games because nobody made the call. Second, deriving
+      `points` re-implements `pointsFromEntity`'s prefix reads; **a second copy of that
+      logic is exactly the drift `game-events.md` exists to prevent** — share it or cite it.
+      **Timing: Phase 4, NOT §3.19.** Phase 4's stats model aggregates box scores into
+      season totals, which is when a drifted row starts **compounding** — that is the
+      consumer that makes this real (#014/#017/#020: do not build it ahead of one).
+      ⚠ **§3.19 must not touch this** — recalibration needs the numbers to hold still.
+      Related: `decisions.md` **#041**'s open follow-up on the `box_score.steals`
+      denormalization, which this chore subsumes and generalizes to all 17 columns.
 
 - [ ] **The `project-docs` skill's routing table omits the four DOMAIN-DESIGN docs, so
       they are kept current by noticing rather than by rule.** *(found 2026-08 by the user
@@ -406,9 +328,30 @@ planned features), see [ideas.md](ideas.md).
          phase + decision letters + the one-line crux + the ⚠ trap. Expect this alone to
          roughly halve the file.
       2. **Move the legend out** — 208 lines of probability formulas and clamp rules that
-         are identical on every branch. It is reference material, not flow; it belongs in
-         `game.md` or its own small `.puml`.
+         are identical on every branch. It is reference material, not flow. ⚠ **Send it to
+         its OWN small `.puml` or a new reference doc, NOT into `game.md`** — see the
+         companion measurement below; `game.md` is already the other half of this problem
+         and must not absorb more.
       3. **Re-measure.** Steps 1–2 may well be enough.
+      ⚠ **THE OTHER HALF OF THE DUPLICATION IS `game.md`, MEASURED 2026-08** *(user
+      question during §3.18: "game.md has a lot of decision references as well — do we
+      need this?")*. `game.md` is **45.6k**, and its **`### The calculation sequence`
+      subsection alone is 22.5k — half the file** — walking the possession branch-by-branch
+      in prose. **That is the same branch order this diagram draws**, so the two are ~72k
+      of combined description of one flow, which is exactly the drift failure CLAUDE.md
+      names for this file. **Thin them TOGETHER or not at all** — fixing one side alone
+      leaves the duplicate authoritative-looking.
+      ⚠ **The 253 `#NNN`/§X.Y references in `game.md` are NOT the problem, and this is the
+      distinction that matters** *(contrast `calibration.md`, cut 35k → 13k in the same
+      session because its citations marked HISTORY sitting in a targets reference)*. In
+      `game.md` they mostly annotate **live mechanics** — *"the gate is unchanged, so the
+      draw re-partitions the label without moving the count (#027 A)"* is a current fact,
+      and the citation is how a reader finds the argument. **Cutting citations there would
+      remove navigation, not bloat.** The job is de-duplication against the diagram.
+      ⚠ **The hard part, and why this is a RESTRUCTURE rather than a trim:** decide what
+      only prose can carry — **the WHY behind an ordering, which CLAUDE.md explicitly calls
+      load-bearing** — versus what the picture already shows. Deleting an ordering
+      rationale is the one irreversible mistake available here.
       ⚠ **STEP 0, ADDED 2026-08 AFTER THE USER FOUND A REAL DEFECT: AUDIT THE BOXES FOR
       DRIFT BEFORE TOUCHING ANY PROSE. This chore is about SIZE and would NOT have caught
       it.** The pre-shot foul drew `FOUL — SHOOTING_FOUL` as a step at the TOP — accurate
@@ -477,64 +420,8 @@ planned features), see [ideas.md](ideas.md).
       this chore too, and running them together means one person holds both halves of that
       contract. **Behavior-neutral by definition: no test should change.**
 
-- [x] **Harness: print the four-way SHOT-TYPE MIX, including stopped shots.**
-      **DONE by §3.17's execution (2026-08, `decisions.md` #040 C).** The report now
-      carries a `Shot-type mix` block printing BOTH shares per type: **CHARGED** (the
-      share of FGA, which is what the 3PA/FGA target reads) and **DRAW** (charged plus
-      the corrected stopped shots, which is what `sim.shot-share-*` actually sets). It
-      was promoted out of "not a §3.17 blocker" during execution: tuning four share
-      values against 3PA alone makes a landing unattributable, which is the expensive
-      failure this phase was warned about. ⚠ **One honest limit, labelled in the report:**
-      the stopped-TWO tally is not resolvable per type from the event log, so it is
-      apportioned across the three two-point types in their charged proportion. **The
-      THREE row — the one being tuned — is exact.** ⚠ **§3.17's
-      design pass had to BACK-SOLVE the number its whole phase turns on** — the report has
-      no shot-mix row, so the draw share was reconstructed as
-      `(3PA + true stopped threes) ÷ (FGA + stopped shots)` = 20.9%, using a stopped-three
-      figure that itself needed the broken-instrument correction below. **A four-way row
-      (DRIVE / PERIMETER / POST / THREE) would have made it a reading.**
-      ⚠ **It must count DRAWS, not attempts** — a stopped shot charges no FGA (the foul
-      branch returns before `recordFieldGoalAttempt()`), so an attempts-only row understates
-      the drive/post share by exactly the amount that matters. Read the `ShotType` off the
-      SHOT event and off the stopped-shot FOUL event (the same fix the chore below makes).
-      **Test-only, no engine change.** Not a §3.17 blocker — that phase is tuned against
-      3PA/FGA, which is sufficient — but the next mix question should be measurable
-      directly. Composes with the chore below; do them together.
-
-- [x] **Harness: classify a stopped shot by `ShotType`, not by its free-throw count —
-      the fouled-three rows have under-counted by ~2× since §3.16.** ⚠ **A BROKEN
-      INSTRUMENT, NOT A BROKEN ENGINE — do not re-tune `sim.foul-mult-three` against
-      these rows.**
-      `CalibrationHarness.flushStoppedShot` infers *"was this a stopped THREE?"* from the
-      **free-throw run** (3 FTs ⇒ a three, else a two). That was a faithful proxy while
-      every stopped shot awarded free throws. **§3.16 broke it**: a `COMMON_FOUL` awards
-      **0** FTs outside the penalty and **2** inside it, never 3, so a fouled three that
-      converts is either invisible (`freeThrowCount == 0` returns early) or miscounted as
-      a two. At the shipped 0.50 share the harness sees about half of them — measured
-      **1.50%** of 3PA against a true **~3.0%**, and `1.50 ≈ 3.0 × (1 − 0.50)` matches to
-      two decimals, which is what identifies it as an artifact rather than a rate change.
-      **Fix**: read the `ShotType` off the shot/foul event instead of counting FTs — the
-      harness already has `shotTypeOf(outcome)` for the shot vocabulary. **Test-only, no
-      engine change.**
-      ✅ **DONE by §3.17's Step 0 (2026-08), BUT NOT THE WAY THIS CHORE OR #040 G
-      SPECIFIED — and the divergence is worth reading.** Both said *"read the `ShotType`
-      off the shot/foul event"*. ⚠ **That is not possible from the event log.** A stopped
-      shot emits **no SHOT event at all** (the foul branch returns before
-      `recordFieldGoalAttempt()`), and neither `SHOOTING_FOUL` nor `NON_SHOOTING_FOUL`
-      carries a type suffix the way `MADE_*` / `MISSED_*` / `BLOCKED_*` do. Adding one
-      would be an **engine** change to the permanent play-by-play vocabulary — outside a
-      step scoped test-only, and outside the single rename #040 M authorises.
-      **What shipped instead is an EXACT correction, not an estimate**, and it is
-      available because of how §3.16 built the roll: `FoulResolver.isNonShootingFoul` is a
-      **flat, shot-type-independent** draw (#039 E deliberately refused to skill- or
-      type-weight it), so the fouls that stay `SHOOTING_FOUL` are an **unbiased sample**
-      of all stopped shots taken at rate `(1 − share)`. The harness divides the visible
-      tally by that fraction, reading the divisor from the **active** config so an era
-      profile that moves the share keeps the instrument honest. Both the raw visible and
-      the corrected figure are printed. Measured: raw 1.58% of 3PA → corrected 3.16%,
-      the predicted ~2×.
-
 - [ ] **Harness self-verification — assert the instrument's own invariants.**
+      ⚠ **PROMOTED TO A §3.19 PREREQUISITE ("Step 0") — user call, 2026-08.** Do NOT pick this up as a standalone chore: it must be resolved **in §3.19's design pass, before any tuning**, because §3.19 tunes against the very instrument this entry says is unreliable. See roadmap.md's §3.19 bullet.
       ⚠ **PARTIALLY DONE by §3.15 (#035 A/F): the load-bearing half below — "have the
       harness print the constants it actually ran with" — is BUILT.** The report now
       names the active profile list and dumps every tunable constant's effective value.
@@ -667,13 +554,17 @@ planned features), see [ideas.md](ideas.md).
       says so at the declaration site. **Audit which tunables sit under the floor** and
       either annotate them or reconsider whether a single global floor is right for rates
       that legitimately differ by an order of magnitude.
-      **Not §3.17's** (blocks are a §3.19 row, #038's rule) and **not a blocker** — but
-      §3.19 must not re-tune the four `base-block-*` without holding this, or it will tune
-      a constant that does nothing and conclude the lever is dead.
+      **Not §3.17's** (blocks are a §3.19 row, #038's rule) — but §3.19 must not re-tune
+      the four `base-block-*` without holding this, or it will tune a constant that does
+      nothing and conclude the lever is dead.
+      ⚠ **PROMOTED TO A §3.19 PREREQUISITE ("Step 0") — user call, 2026-08.** Do NOT pick this up as a standalone chore: it must be resolved **in §3.19's design pass, before any tuning**, because §3.19 tunes against the very instrument this entry says is unreliable. See roadmap.md's §3.19 bullet.
 
 - [ ] **A test asserts a ~13% RANDOM EVENT on a pinned seed, and it is ALSO order-dependent
       — so a green local `mvn install` does not prove it passes.** Found 2026-08 when CI
       failed on §3.17's branch after two clean local full builds.
+      ⚠ **PROMOTED TO A §3.19 PREREQUISITE ("Step 0") — user call, 2026-08.** Do NOT pick this up as a standalone chore: it must be resolved **in §3.19's design pass, before any tuning**, because §3.19 tunes against the very instrument this entry says is unreliable. See roadmap.md's §3.19 bullet.
+      ⚠ §3.19 moves the RNG stream more than any pass since §3.17, so **re-pinning the
+      seed a third time is the default outcome unless this is fixed first.**
       `GameSimulatorIntegrationTest.technicalFoulsArePersistedOnTheBoxScoreAndReconcileWithTheEvents`
       opens with a **precondition** — *"a 40-possession game must produce at least one
       technical"* — that keeps its reconciliation from passing vacuously. ⚠ **That is not
@@ -691,12 +582,34 @@ planned features), see [ideas.md](ideas.md).
       downstream. **So the suite passing is the lucky ordering, not the honest result** —
       exactly how §3.17 shipped a red branch after `mvn clean install` reported
       `BUILD SUCCESS` twice.
-      **The durable fix (pick one, do not keep re-pinning):** raise the possession count
-      until at least one technical is near-certain; or assert the reconciliation identity
-      over a **batch of seeds** and drop the precondition entirely — the identity
-      (`events == box-score column`) is what the test is actually for and it holds at zero
-      technicals too, it just proves nothing there. **Also worth fixing independently:**
+      ⚠ **THIS ENTRY CONFLATES THREE THINGS — separate them before choosing a fix**
+      *(clarified 2026-08 by a user question: "is this really just about the test case?").*
+      **(1)** the precondition is a **coin flip**; **(2)** the fixture is **inflated to win
+      that flip**; **(3)** test *order* changes simulation output. (3) is independent of
+      the other two.
+      ⚠ **On (2) — the parameter is possessions PER PERIOD, not per game.** The baseline is
+      **25** (`sim.default-possessions-per-period`), which is what most sim tests use and
+      what a real game plays. **This test passes 40 — a deliberately inflated ~1.6× game —
+      purely to make a rare event likely enough to assert.**
+      **The durable fix:** ⚠ **NOT "raise the possession count"** — that pushes 40 to 60 or
+      100 and makes the fixture *less* like a real game to win a probability bet, and it
+      needs raising again every time the technical rate moves. **It is not a
+      test-quality fix; it trades one problem for another.**
+      **Instead: assert the reconciliation identity over a BATCH OF SEEDS and drop the
+      precondition entirely.** The identity (`events == box-score column`) is what the test
+      is actually for; it holds at zero technicals too, it just proves nothing there. ⚠ **A
+      batch also lets the test run at the REALISTIC 25** — ten seeds there is
+      non-vacuous by construction, with no seed pinning and no inflated fixture. That is
+      the option that fixes (1) and (2) together. **Also worth fixing independently:**
       make `V1ApiDelegateimplTest` `@Transactional`, or give the sim tests their own
       fixture, so test order stops changing simulation output.
+      ✅ **CHECKED 2026-08 — `@Transactional` is the recommendation, and the "is it
+      deliberately non-transactional?" question is ANSWERED NO.** The class carries no
+      `@Transactional`, no `@DirtiesContext`, no ordering annotation and no explanatory
+      comment, across 15 independent test methods — an oversight, not a choice to exercise
+      real commit behavior. ⚠ **The risk when applying it:** a method silently depending on
+      committed state from an earlier one will start failing. That is the fix **surfacing**
+      a latent coupling, not causing it; if it happens, give the sim tests their own
+      fixture instead.
       ⚠ **Audit for siblings before closing**: any other fixed-seed test whose assertion
       depends on a rare event firing. Grep for seed literals in `sim` tests.

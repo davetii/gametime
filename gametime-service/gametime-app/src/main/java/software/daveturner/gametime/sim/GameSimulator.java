@@ -86,6 +86,10 @@ public class GameSimulator {
             event.setAssistPlayerId(e.assistPlayerId());
             // §3.10 (#028 D): who committed it — set on FOUL events, null elsewhere.
             event.setCommittingTeamId(e.committingTeamId());
+            // §3.18 (#041 A): the counterparty — the stealer on TURNOVER/STOLEN, the
+            // blocker on SHOT/BLOCKED_*, the fouled shooter on FOUL/SHOOTING_FOUL.
+            // Always on the opposite team from primaryPlayerId; null elsewhere.
+            event.setOpponentPlayerId(e.opponentPlayerId());
             gameEventRepo.save(event);
         }
 

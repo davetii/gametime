@@ -159,6 +159,38 @@ alter table gametime.game_event
 alter table gametime.box_score
     add column technical_fouls SMALLINT;
 
+-- changeset 1.04.5 failOnError:true splitStatements:true
+
+-- §3.18 (decisions.md #041 A): the COUNTERPARTY on this event — the player on the
+-- OTHER SIDE of the play from `primary_player_id`, and therefore ALWAYS on the
+-- opposite team. That invariant is the whole contract: a reader resolves the
+-- opponent's team as "whichever of offense_team_id/defense_team_id primary is not
+-- on", with no need to decode the `outcome` string. A TEAMMATE never goes here —
+-- an assister rides `assist_player_id`, which is NOT deprecated (#041 D): the two
+-- columns hold different kinds of fact (collaboration vs. opposition).
+--
+-- Three day-one consumers, all sites where the engine already held the player in
+-- scope and discarded them:
+--   * TURNOVER / STOLEN      -> the STEALER   (credited by recordSteal(), §3.9)
+--   * SHOT   / BLOCKED_*     -> the BLOCKER   (credited by recordBlock(), §3.7 #025 F2)
+--   * FOUL   / SHOOTING_FOUL -> the FOULED SHOOTER (primary is the defender who fouled)
+-- Null on every other event. Deliberately null — not overlooked — on
+-- OFFENSIVE_FOUL (the charge): the drawer is not modelled and picking one would
+-- need a new RNG draw (#041 follow-up).
+--
+-- What it buys: the PER-CREDITOR reconciliation (#041 G) —
+-- count(TURNOVER/STOLEN with opponent_player_id = X) == box_score.steals(X) for
+-- every X — where the old total-count check passed even when the engine credited
+-- the wrong player. Nullable — plain column add, no Postgres-specific syntax, so
+-- no dbms gate.
+alter table gametime.game_event
+    add column opponent_player_id VARCHAR;
+
+alter table gametime.game_event
+    add constraint fk_game_event_opponent_player
+    foreign key (opponent_player_id)
+    REFERENCES gametime.player (id);
+
 -- changeset 1.04.1-triggers failOnError:true splitStatements:true dbms:postgresql
 
 CREATE TRIGGER on_new_row_game BEFORE INSERT ON gametime.game FOR EACH ROW EXECUTE FUNCTION gametime.on_new_row();
