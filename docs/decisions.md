@@ -1234,12 +1234,88 @@ boundary.
 
 **Status of §3.18 decisions**: A–H all resolved by this entry. **Net schema change: ONE additive nullable column** — `game_event.opponent_player_id`, appended to `release.1.0.4.game.sql` as a **NEW changeset `1.04.5`** (⚠ **never an edit to `1.04.1`** — it has already run against live dev databases and its checksum is fixed; §3.6/§3.10/§3.14a each appended for this reason). **OpenAPI: one new property** on `GameEvent` — and the pass **also closes #028 D's still-open follow-up** by surfacing `committingTeamId`, a one-line addition in the same file (see follow-ups). New engine pieces: **none** — no resolver, no constant, no `SimConfig` change (the count stays **62 tunables / 27 statics**), and **no new RNG draw**, so the RNG stream is **unmoved** and no seeded test re-baselines. Three emit sites gain an argument. **Determinism note: the stream is untouched by construction** — every populated value is a player already selected by an existing draw. Open-at-execution: the exact column/field spelling (`opponent_player_id` / `opponentPlayerId` is the decided name), and whether the master table is hand-written or generated from the emit sites.
 
+**Implementation note (from execution, 2026-08).** Shipped exactly as A–H specify, with **no divergence from the decisions** and one correction to the plan's *framing* (see below). The three emit sites now carry the counterparty; nothing else does.
+
+**The premise held, and it was verified rather than assumed.** #041's whole appeal is "the stream is untouched by construction". That was checked the only way that actually proves it: a **1-seed harness run against a stashed working tree**, before and after, reading **identically line for line** — points 109.7, FG% 43.1%, 3P% 35.4%, FGA 92.5, 3PA 37.4, assists 25.8, turnovers 13.5, blocks 4.8, steals 7.7, and the same turnover-cause mix and foul mix. The seeded `GameSimulatorIntegrationTest` expectations passed **unchanged** (the fragile seed-12 technicals precondition included), and `SimConfigProfileBindingTest.EXPECTED_TUNABLE` stayed at **62**. ⚠ **Note the Definition-of-done figures (110.0 / 43.5 / 37.22 / 4.80 / 7.72) are 5-SEED MEANS**, not what one seed prints; the 1-seed run reads 109.7 / 43.1 / 37.4 / 4.8 / 7.7. **Before/after on the same seed is the check that means something here — not before/after against a differently-averaged number.** That is CLAUDE.md trap 2 in its cheapest form.
+
+**The one thing that made "no new draw" non-trivial: the stealer was scoped inside its own `if`.** `pickStealer` runs in `if (cause == STOLEN)`, which closes before `addEvent`. The fix is to hoist **the declaration only** (`String stealerId = null;` above the branch), not the call — the draw stays in the same branch, at the same point in the stream. Hoisting the *call* would have consumed a draw on all nine causes and moved every number; the code carries a ⚠ comment saying so, because it is the one edit in this phase where a plausible-looking simplification breaks the premise.
+
+**Resolved open-at-execution items.** (1) The master table is **hand-written**, not generated — a generator is test code the phase does not otherwise need, and the Decision G invariant test already pins the participant rules against real events, which is the drift risk that mattered. (2) The `GameEventEntity` javadoc carries the contract as: *the player on the OTHER SIDE of the play from `primaryPlayerId`, therefore ALWAYS on the opposite team*, then the three sites, then the deliberate `OFFENSIVE_FOUL` null. (3) Column/field spelling shipped as decided.
+
+**Divergences from the todo.md plan (not from the decisions).**
+- **The plan's Step 2 said `GameEventEntityTest` "asserts a getter per column".** It did **not** — `assistPlayerId` and `committingTeamId` were both untested there. All three participant columns were added, so the gap closed wider than scoped.
+- **`GameData.addEvent` gained a 10-arg full overload**, with the 9-arg delegating to it. The two 7-arg sites (steal, block) call the full form with explicit nulls rather than getting a convenience overload — an 8-arg `(…, opponentPlayerId)` would be **ambiguous** with the existing 8-arg `(…, assistPlayerId)`, which is precisely the "two columns can hold a second player" trade-off D accepted, showing up in the type system.
+- **Step 6's line numbers were off by one** (the section ends at 724, not 723).
+
+**⚠ The trap worth not rediscovering: a YAML description that wraps onto a line starting with `- ` breaks OpenAPI codegen.** The `opponentPlayerId` description was first written as a plain multi-line scalar; a continuation line beginning `(#041 D) - collaboration…` parsed as a **block sequence**, and the build failed with a snakeyaml `expected <block end>` pointing at the *previous* property. **Use a `>-` block scalar for any description long enough to wrap** — the two neighbours it was modelled on are short enough to have never hit this.
+
+**Also closed in this pass.** #028 D's still-open follow-up: `committingTeamId` reached the OpenAPI `GameEvent` (it had been on the entity since §3.10 and never in the spec). And the backlog's harness-steals chore is now **fully** closed — its report half landed in the design pass, its reconciliation half is superseded by the per-creditor tests.
+
+**`game-events.md` was an EXTRACTION and the correction in H was right.** `game.md` drops **67.6k → 45.8k chars**; the new file is 32.9k (24k inherited, ~9k genuinely new: the three rules, the participant-column table, the steal and charge detail sections). ⚠ The inherited *Steal / block symmetry* table **documented the gap as designed** on both rows — it is now the current state, with a note recording that the symmetry is exactly how the gap propagated from §3.2 to §3.7 to #027 A.
+
+**Landing.** `mvn clean install` green — **574 + 52 tests**, `All coverage checks have been met.` The sim classes pass **alone** (the stricter check): `GameSimulatorIntegrationTest` **27/27**, including five new §3.18 tests. Diagram: `-checkonly` clean, PNG renders **2697 × 11371** (well past the 4096 ceiling). Steals left at **7.72** by design — §3.19's.
+
+**Implementation note addendum — the participant sweep, folded IN (user call, 2026-08).** The phase originally populated only the three sites Decision A named, filing the rest as a backlog chore. **A user review of the foul sites found the real smell and the scope was widened to close it here**, since Phase 3's goal is a complete possession engine and a half-populated column is exactly the "each call locally right, the whole drifts" failure this entry's rationale describes.
+
+**The finding: `primary` does NOT move — the RELATIONSHIP does.** All seven `FOUL` sites already passed the **committer** as `primaryPlayerId`. So on `SHOT`/`TURNOVER` primary is the **victim** and the opponent is the actor, while on every `FOUL` primary is the **actor** and the opponent is the victim. That inversion is forced by A's "other side of the play" definition and is the price of the always-opposite-team invariant; role-named columns (`actor`/`victim`) would read better per site but lose the one property that makes the column queryable without decoding `outcome`. **Kept as-is, now documented and tested rather than true-by-inspection.**
+
+**The sweep's rule, which is sharper than "is a player reachable":** populate **only where a real contest identified an individual victim**. That added three sites — `AND_ONE` and `NON_SHOOTING_FOUL` (both carry the fouled `shooter`, already in scope) and `FLAGRANT_FOUL_*` **at the two shot sites only**. ⚠ **The rebounding site is the instructive one: a rebounding foul is committed against the TEAM contesting the board, and the engine never identifies an individual victim.** Its bonus/flagrant FT shooter is a `foulDrawing`-weighted **draw standing in for the award** — populating from it would attribute the foul to a player the engine never decided was fouled. `awardFlagrant` therefore takes `fouledPlayerId` as a **separate parameter** rather than deriving it from `freeThrowShooter`: at the shot sites they are the same player, at the rebounding site they are not, and deriving it would have silently fabricated a participant.
+
+**Null-by-contract, now stated at each emit site and asserted:** `REBOUNDING_FOUL_*` (no individual victim), `TECHNICAL_FOUL` (behavioral, no contest — the same premise that makes its FT shooter a best-shooter pick), every `REBOUND` (a contest against four: a winner, no named loser), every `FREE_THROW` (uncontested; the other side belongs to the `FOUL` that caused it), the seven unforced turnover causes, and `OFFENSIVE_FOUL` (a real drawer, not modelled, needs a new draw).
+
+**Two new invariant tests.** `everyFoulEventCarriesTheCommitterAsPrimaryOnTheCommittingTeam` pins the committer-is-primary rule structurally (the committer must be on `committingTeamId`), and `theCounterpartyIsPopulatedExactlyWhereAnIndividualVictimIsIdentified` asserts the populated set **and** the by-contract nulls per outcome — so a later pass cannot quietly populate a reachable player.
+
+**Still moves no number.** The sweep consumed no new draw; the same before/after 1-seed harness run reads identically. **576 + 52 tests green**, coverage gate met. The backlog sweep chore is closed by this.
+
 **§3.18 follow-up (carry forward)**:
 - **The charge-drawer.** A charge has a real counterparty (the defender who drew it) and the engine **never picks one**. Populating `opponentPlayerId` on `OFFENSIVE_FOUL` needs a **new `pickChargeDrawer` RNG draw**, which would shift the stream and re-baseline every seeded sim test — forfeiting the "moves no number" property that is this phase's whole appeal, for a participant nothing consumes. **Deliberately null, not overlooked.**
 - **`DOUBLE_DRIBBLE` as a tenth `TurnoverCause`** (user-raised). Structurally free — one enum constant, one weight, free-text `outcome` (#020) — but **NOT numerically free**: the weights re-partition a frozen count (#027 A), so a tenth cause takes share from the nine, possibly from `STOLEN`, moving the very rate F just measured. Belongs to a pass that owns rate movement (§3.19 or its own), not here. Parked in ideas.md.
 - **The steal RATE (7.72 vs 8.4)** → **§3.19**, as a derived quantity: re-measure after turnovers land, do not tune independently (Decision F).
-- **`box_score.steals` per-player denormalization vs the event log** — the per-creditor check (G) is the first thing that could disagree; if it ever does, the events are the source of truth (#020).
+- **`box_score.steals` per-player denormalization vs the event log** — the per-creditor check (G) is the first thing that could disagree; if it ever does, the events are the source of truth (#020). ⚠ **GENERALIZED AT EXECUTION (user question, 2026-08): this is not a steals problem, it is all SEVENTEEN box-score columns.** Every one is a populate-at-event-time copy of a `PlayerGameState` accumulator; **nothing queries `game_event`** — which is why the counter and the event cannot double-count, and equally why nothing forces them to agree. ⚠ **And a full "derive it from events" rewrite is the WRONG shape: `minutes` is not derivable from any event** (a §3.5 possession-share projection, no game clock), so derivation yields a **hybrid** worse than either pure design. **The answer is a RECONCILER that states the split per column, not a replacement** — filed as a `backlog.md` chore for **Phase 4**, when the season-stats model makes a drifted row compound. ⚠ Note §3.18 is what made blocks and steals derivable **at all**: before `opponent_player_id` the log could not name the creditor, so a wrong value was unrecoverable from the events.
 - **A full sweep of what `opponent_player_id` should hold on EVERY event** *(user request, 2026-08)* — this pass populates only the **three** sites where a counterparty was already in scope. The remaining ten `addEvent` sites (`REBOUNDING_FOUL_*`, `AND_ONE`, `FLAGRANT_FOUL_*`, `TECHNICAL_FOUL`, `REBOUND`, `FREE_THROW`, the unforced turnover causes) have **not** been decided one way or the other, and several are expected to be **null by contract** rather than merely unpopulated. Filed as a **backlog.md** chore, to run **after** §3.18 ships so the column, the Step-5 invariant test and `game-events.md`'s master table exist to hang the answers on. ⚠ Its governing constraint is A's invariant plus the #014/#017/#020 discipline: **do not populate a site just because a player is reachable.**
+
+---
+
+## ⚠ WHAT §3.20 (RECALIBRATION) INHERITS — the handoff, assembled
+
+⚠ **Renumbered: this block was written when recalibration was §3.19. It is now §3.20** —
+the §3.19 slot became the instrumentation pass (2026-08). Read the phase name, not the
+number.
+
+*Added 2026-08 at §3.18's close-out, because the information below is CORRECT but was
+spread across five entries — a cold session would have to read #036, #039, #040 and #041
+to assemble it. **This block is an INDEX, not a new decision**: each row cites the entry
+that owns it, and that entry stays authoritative. Live values are in `calibration.md`;
+the design questions are in `todo.md`; the phase's Step 0 is in `roadmap.md`.*
+
+**§3.20 is the LAST Phase-3 sub-phase and adds NO mechanic.** Every pass before it
+settled the *shape* — foul mix (§3.16), shot mix (§3.17), event vocabulary (§3.18) — and
+§3.19 re-solves the *numbers* now that the shape is final (#038). ⚠ **If the pass finds
+itself adding a branch, it has grown beyond recalibration.**
+
+| Gap | Owner | The constraint that is easy to miss |
+|---|---|---|
+| **2P% ~48.7 vs sourced 55.0** — the largest | **#040 F** | ⚠ **`base-three` must NOT move** — 3P% is correct and held across a 1.9× volume change. Lever is `base-drive`/`base-post`/`base-perimeter`. The error was always there; §3.17 made it *visible* by fixing the mix that hid it |
+| **Points 110.0 vs 115.6** | **#039 H** | ⚠ **The ~8-point drop was deliberate** — §3.16 removed ~10 FTA on purpose. **Not drift.** #039 H sized the recovery as roughly a 5% pace bump |
+| **FTA 19.76 vs 23.5** | **#039 D**, re-priced by **#040** | ⚠ `sim.non-shooting-foul-share` is **priced by the PENALTY RATE, not the foul rate alone** (46.1%, down from 55.7%). **Tune against the FTA line, never against points.** The share is DERIVED, not sourced |
+| **FGA 92.28 vs 89.1 (OVER)** | **#040 E** | ⚠ §3.17 *spent* FGA headroom knowingly. **#039 C's dead-possession concession is NOT reopened** — that was asked and answered no. §3.19 owns pace |
+| **Def rebounds 30.48 vs 32.4** | **#040 H** | ⚠ A **rate** question, **not a new sub-phase**. §3.17 closed ~3.0 of the 5.0 gap; the residual is `sim.base-offensive-rebound` and the paths that divert misses from the rebound draw |
+| **Steals 7.72 vs 8.4** | **#041 F** | ⚠ **DERIVED**: steals = turnovers × STOLEN share, and *both* terms are §3.19's. Fixing turnovers to 14.5 alone yields ~8.05. **Re-measure after turnovers land; do not tune the share independently** |
+| **Blocks 4.80 — green for the WRONG reason** | **#040** impl. note | ⚠ **`PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005), so the constant is INERT.** The lever will read as dead. **A Step 0 prerequisite** |
+
+**⚠ Three things §3.19 must NOT do**, each already argued and closed:
+- **Do not re-tune §3.13's foul-trouble sit curve** — measured **saturated** (#031).
+- **Do not touch the turnover count, gate or cause weights** — frozen (#027 A).
+- **Do not read a moved number as an engine change without asking which** — *did the
+  engine change, did the MEASUREMENT change, or is a clamp holding it?* All three have
+  happened (#040 G's broken instrument, its correction that made a falling number look
+  doubled, and `PROB_FLOOR` above). **Compare raw-to-raw across an instrument change.**
+
+**⚠ The exit condition** is not "every row green": it is that **every `calibration.md`
+row is either a `TARGET` with a named source and season, or deliberately `observed` /
+`ballpark`.** Still unsourced (#036, narrowed since): foul-outs — whose ~0.39 came from a
+prior landing and is **circular** — technicals, flagrants, the minutes distribution, and
+the real shooting-foul share.
 
 ---
 

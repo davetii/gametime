@@ -7,7 +7,9 @@ import org.springframework.transaction.annotation.Transactional;
 import software.daveturner.gametime.entity.*;
 import software.daveturner.gametime.repo.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -28,6 +30,9 @@ class GameSimulatorIntegrationTest {
 
     @Autowired
     BoxScoreRepo boxScoreRepo;
+
+    @Autowired
+    PlayerTeamRepo playerTeamRepo;
 
     @Test
     void simulateProducesPersistedGameWithFinalStatus() {
@@ -510,6 +515,336 @@ class GameSimulatorIntegrationTest {
         int boxFouls = boxScores.stream()
                 .mapToInt(b -> b.getFouls() == null ? 0 : b.getFouls()).sum();
         assertEquals(personalFoulEvents, boxFouls);
+    }
+
+
+    // --- §3.18 the counterparty column (decisions.md #041) ---
+
+    /**
+     * §3.18 (#041 A/G): <b>the structural invariant that makes a generic
+     * {@code opponent_player_id} safe — wherever it is non-null, the opponent is on
+     * the OPPOSITE team from {@code primaryPlayerId}, and both are among the two
+     * teams on the row.</b>
+     *
+     * <p>This is the control #041 E chose <i>instead of</i> a stored OFFENSE/DEFENSE
+     * side flag. A flag would be written by the same emit site, from the same locals,
+     * in the same call as {@code primaryPlayerId} — so the two would fail together and
+     * agree wrongly. This assertion's expectation comes from the spec, not the emit
+     * site, and it covers <b>every present and future site</b>: a later phase that
+     * populates the column with a TEAMMATE fails the build here. That is what keeps
+     * the contract "resolve the opponent's team as whichever of offense/defense
+     * primary is not on" true without decoding {@code outcome}.
+     */
+    @Test
+    void opponentPlayerIsAlwaysOnTheOppositeTeamFromPrimary() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        Map<String, String> teamByPlayer = teamByPlayer("BOS", "LA");
+
+        long checked = 0;
+        for (GameEventEntity e : events) {
+            if (e.getOpponentPlayerId() == null) {
+                continue;
+            }
+            String primaryTeam = teamByPlayer.get(e.getPrimaryPlayerId());
+            String opponentTeam = teamByPlayer.get(e.getOpponentPlayerId());
+
+            assertNotNull(primaryTeam,
+                    "a counterparty event must carry a primary player: " + e.getOutcome());
+            assertNotNull(opponentTeam,
+                    "the opponent must be a known player: " + e.getOutcome());
+            assertNotEquals(primaryTeam, opponentTeam,
+                    "opponentPlayerId must be on the OPPOSITE team from primaryPlayerId "
+                            + "(#041 A) — a teammate belongs on assistPlayerId (#041 D). "
+                            + "Offending event: " + e.getPlayType() + "/" + e.getOutcome());
+            assertTrue(
+                    primaryTeam.equals(e.getOffenseTeamId())
+                            || primaryTeam.equals(e.getDefenseTeamId()),
+                    "primary must be on one of the two teams on the row");
+            assertTrue(
+                    opponentTeam.equals(e.getOffenseTeamId())
+                            || opponentTeam.equals(e.getDefenseTeamId()),
+                    "opponent must be on one of the two teams on the row");
+            checked++;
+        }
+
+        assertTrue(checked > 0,
+                "§3.18: the counterparty column must actually be populated — "
+                        + "a vacuous pass would hide the whole phase");
+    }
+
+    /**
+     * §3.18 (#041 G — the actual parity win): <b>the PER-CREDITOR steal
+     * reconciliation.</b>
+     *
+     * <p>The pre-§3.18 check was a TOTAL — {@code count(STOLEN events) ==
+     * sum(box_score.steals)} — which passes even when the engine credits the
+     * <b>wrong player</b>, because the sums still match. With the stealer on the event
+     * the identity holds per player X, which is only expressible now.
+     */
+    @Test
+    void stealsReconcilePerCreditorWithTheStolenEvents() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        Map<String, Integer> stealsByEvent = new HashMap<>();
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() == PlayType.TURNOVER
+                    && TurnoverCause.STOLEN.outcome().equals(e.getOutcome())) {
+                assertNotNull(e.getOpponentPlayerId(),
+                        "every STOLEN turnover must name its stealer (#041 A/B)");
+                stealsByEvent.merge(e.getOpponentPlayerId(), 1, Integer::sum);
+            } else if (e.getPlayType() == PlayType.TURNOVER) {
+                // The other eight causes have ONE actor and no counterparty (#041 C).
+                assertNull(e.getOpponentPlayerId(),
+                        "only STOLEN carries a counterparty among the turnover causes: "
+                                + e.getOutcome());
+            }
+        }
+
+        assertFalse(stealsByEvent.isEmpty(),
+                "§3.18: a 25-possession game must produce at least one steal");
+
+        for (BoxScoreEntity b : boxScores) {
+            int expected = b.getSteals() == null ? 0 : b.getSteals();
+            int actual = stealsByEvent.getOrDefault(b.getPlayerId(), 0);
+            assertEquals(expected, actual,
+                    "box_score.steals must reconcile PER CREDITOR with STOLEN events "
+                            + "for " + b.getPlayerId() + " (#041 G)");
+        }
+        // …and no event credits a player with no box-score row.
+        int boxTotal = boxScores.stream()
+                .mapToInt(b -> b.getSteals() == null ? 0 : b.getSteals()).sum();
+        assertEquals(boxTotal, stealsByEvent.values().stream().mapToInt(Integer::intValue).sum(),
+                "no STOLEN event may credit a player outside the box score");
+    }
+
+    /**
+     * §3.18 (#041 G): the same per-creditor shape for BLOCKS, expressible for the
+     * first time. #025 F4 only ever got the count-based version, because #025 F2 left
+     * the blocker off the event by design — "mirroring the stealer", which copied the
+     * gap rather than closing it. Both close here.
+     */
+    @Test
+    void blocksReconcilePerCreditorWithTheBlockedShotEvents() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(result.getGameId());
+
+        Map<String, Integer> blocksByEvent = new HashMap<>();
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() == PlayType.SHOT && e.getOutcome().startsWith("BLOCKED")) {
+                assertNotNull(e.getOpponentPlayerId(),
+                        "every BLOCKED_* shot must name its blocker (#041 A)");
+                blocksByEvent.merge(e.getOpponentPlayerId(), 1, Integer::sum);
+            }
+        }
+
+        assertFalse(blocksByEvent.isEmpty(),
+                "§3.18: a 25-possession game must produce at least one block");
+
+        for (BoxScoreEntity b : boxScores) {
+            int expected = b.getBlocks() == null ? 0 : b.getBlocks();
+            int actual = blocksByEvent.getOrDefault(b.getPlayerId(), 0);
+            assertEquals(expected, actual,
+                    "box_score.blocks must reconcile PER CREDITOR with BLOCKED_* events "
+                            + "for " + b.getPlayerId() + " (#041 G)");
+        }
+    }
+
+    /**
+     * <b>On every {@code FOUL} event, {@code primaryPlayerId} is the COMMITTER</b> —
+     * the player charged {@code recordFoul()}, counted toward the six-foul limit, and
+     * whose team is {@code committingTeamId}.
+     *
+     * <p>This holds at all seven foul sites and is a STRONGER rule than the general
+     * counterparty invariant: on {@code SHOT}/{@code BLOCKED_*} and {@code
+     * TURNOVER}/{@code STOLEN}, primary is the VICTIM and the actor is the opponent —
+     * on a {@code FOUL} the relationship inverts. Nothing enforced it until now; it
+     * was true across seven sites by inspection only, which is precisely the shape of
+     * the steal/block gap (locally-correct calls, no test, drift three sub-phases
+     * later).
+     *
+     * <p>Asserted structurally: the committer must be on {@code committingTeamId}. A
+     * site that ever put the fouled player in primary would flip that and fail here.
+     */
+    @Test
+    void everyFoulEventCarriesTheCommitterAsPrimaryOnTheCommittingTeam() {
+        SimResult result = simulator.simulate("CHI", "NY", 12L, 40);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        Map<String, String> teamByPlayer = teamByPlayer("CHI", "NY");
+
+        long fouls = 0;
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() != PlayType.FOUL) {
+                continue;
+            }
+            assertNotNull(e.getPrimaryPlayerId(), "every FOUL names a committer");
+            assertNotNull(e.getCommittingTeamId(),
+                    "every FOUL carries committingTeamId: " + e.getOutcome());
+            assertEquals(e.getCommittingTeamId(), teamByPlayer.get(e.getPrimaryPlayerId()),
+                    "a FOUL's primaryPlayerId must be the COMMITTER, i.e. on "
+                            + "committingTeamId — not the fouled player. Offending "
+                            + "outcome: " + e.getOutcome());
+            fouls++;
+        }
+        assertTrue(fouls > 0, "a 40-possession game must produce fouls");
+    }
+
+    /**
+     * The counterparty contract, stated per outcome over a whole game: exactly which
+     * events carry an opponent and which are <b>null by contract</b>.
+     *
+     * <p>The nulls are the point. Three different reasons produce one, and a later
+     * pass must not "fix" any of them by populating a reachable player:
+     * <ul>
+     *   <li><b>No victim is identified</b> — {@code REBOUNDING_FOUL_*} is committed
+     *       against the TEAM contesting the board; the FT shooter is a weighted draw
+     *       standing in for the award, not the player who was pushed.</li>
+     *   <li><b>No counterparty exists</b> — {@code TECHNICAL_FOUL} (behavioral, no
+     *       contest), {@code REBOUND}, {@code FREE_THROW}, the unforced turnovers.</li>
+     *   <li><b>One exists but is not modelled</b> — {@code OFFENSIVE_FOUL}: the
+     *       charge-drawer would need a new RNG draw.</li>
+     * </ul>
+     */
+    @Test
+    void theCounterpartyIsPopulatedExactlyWhereAnIndividualVictimIsIdentified() {
+        SimResult result = simulator.simulate("CHI", "NY", 12L, 40);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+
+        Map<String, Integer> withOpponent = new HashMap<>();
+        Map<String, Integer> withoutOpponent = new HashMap<>();
+        for (GameEventEntity e : events) {
+            String key = e.getPlayType() + "/" + e.getOutcome();
+            (e.getOpponentPlayerId() == null ? withoutOpponent : withOpponent)
+                    .merge(key, 1, Integer::sum);
+        }
+
+        // Populated wherever an individual victim was identified by a real contest.
+        for (String key : withOpponent.keySet()) {
+            assertTrue(
+                    key.equals("TURNOVER/STOLEN")
+                            || key.equals("FOUL/SHOOTING_FOUL")
+                            || key.equals("FOUL/AND_ONE")
+                            || key.equals("FOUL/NON_SHOOTING_FOUL")
+                            || key.startsWith("FOUL/FLAGRANT_FOUL_")
+                            || key.startsWith("SHOT/BLOCKED_"),
+                    "unexpected event carries a counterparty: " + key
+                            + " — populating a site because a player is REACHABLE is "
+                            + "the trap; it must be one the contest identified");
+        }
+
+        // Null by contract, for the three distinct reasons above.
+        for (String key : List.of("FOUL/TECHNICAL_FOUL", "FOUL/REBOUNDING_FOUL_DEFENSE",
+                "FOUL/OFFENSIVE_FOUL", "TURNOVER/OFFENSIVE_FOUL", "REBOUND/DEFENSIVE")) {
+            assertEquals(0, withOpponent.getOrDefault(key, 0),
+                    key + " is null BY CONTRACT — see the emit site's comment for why");
+        }
+        for (String key : withoutOpponent.keySet()) {
+            assertFalse(key.startsWith("FREE_THROW/") && withOpponent.containsKey(key),
+                    "a FREE_THROW never carries a counterparty: " + key);
+        }
+
+        // Precondition: the assertions above must not pass vacuously.
+        assertTrue(withOpponent.containsKey("TURNOVER/STOLEN"));
+        assertTrue(withOpponent.containsKey("FOUL/SHOOTING_FOUL"));
+        assertTrue(withOpponent.containsKey("FOUL/AND_ONE"),
+                "a 40-possession game must produce an and-1");
+    }
+
+    /**
+     * §3.18 (#041 A/C): the third day-one consumer, plus the DELIBERATE nulls.
+     * A {@code SHOOTING_FOUL}'s {@code primaryPlayerId} is the defender who committed
+     * it, so the counterparty is the fouled shooter. {@code OFFENSIVE_FOUL} (the
+     * charge) stays null on BOTH of its events — the drawer is not modelled and
+     * picking one needs a new RNG draw (#041 follow-up) — and so does the technical,
+     * whose free-throw shooter is not a counterparty.
+     */
+    @Test
+    void shootingFoulsCarryTheFouledShooterAndTheOtherFoulsStayNull() {
+        SimResult result = simulator.simulate("CHI", "NY", 12L, 40);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        Map<String, String> teamByPlayer = teamByPlayer("CHI", "NY");
+
+        long shootingFouls = 0;
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() != PlayType.FOUL) {
+                continue;
+            }
+            if ("SHOOTING_FOUL".equals(e.getOutcome())) {
+                assertNotNull(e.getOpponentPlayerId(),
+                        "a SHOOTING_FOUL must name the fouled shooter (#041 A)");
+                // The committer's team is the defense; the fouled shooter is on offense.
+                assertEquals(e.getDefenseTeamId(),
+                        teamByPlayer.get(e.getPrimaryPlayerId()),
+                        "a shooting foul's primary is the DEFENDER who committed it");
+                assertEquals(e.getOffenseTeamId(),
+                        teamByPlayer.get(e.getOpponentPlayerId()),
+                        "the fouled shooter is on offense");
+                shootingFouls++;
+            } else if ("AND_ONE".equals(e.getOutcome())
+                    || PossessionEngine.NON_SHOOTING_FOUL_OUTCOME.equals(e.getOutcome())
+                    || e.getOutcome().startsWith("FLAGRANT_FOUL_")) {
+                // Also individual-victim fouls: the fouled shooter is identified.
+                assertNotNull(e.getOpponentPlayerId(),
+                        e.getOutcome() + " names the player who was fouled");
+            } else {
+                assertNull(e.getOpponentPlayerId(),
+                        "the remaining fouls are null BY CONTRACT: a rebounding foul "
+                                + "identifies no individual victim, OFFENSIVE_FOUL's "
+                                + "drawer is not modelled, and a technical has no "
+                                + "counterparty at all. Saw: " + e.getOutcome());
+            }
+        }
+        assertTrue(shootingFouls > 0,
+                "a 40-possession game must produce at least one shooting foul");
+    }
+
+    /**
+     * §3.18 (#041 C): everything the phase did NOT touch stays null. REBOUND and
+     * FREE_THROW events have no counterparty, and a made SHOT carries its assister on
+     * {@code assistPlayerId} — the TEAMMATE column — never on the opponent column
+     * (#041 D, the migration that was pursued and reversed).
+     */
+    @Test
+    void nonCounterpartyEventsCarryNoOpponentAndAssistsStayOnTheirOwnColumn() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() == PlayType.REBOUND || e.getPlayType() == PlayType.FREE_THROW) {
+                assertNull(e.getOpponentPlayerId(),
+                        e.getPlayType() + " has no counterparty (#041 C)");
+            }
+            if (e.getPlayType() == PlayType.SHOT && !e.getOutcome().startsWith("BLOCKED")) {
+                assertNull(e.getOpponentPlayerId(),
+                        "only a BLOCKED_* shot carries a counterparty");
+            }
+            if (e.getAssistPlayerId() != null) {
+                assertNull(e.getOpponentPlayerId(),
+                        "an assisted make carries a TEAMMATE on assistPlayerId and no "
+                                + "opponent — the two columns are different kinds of "
+                                + "fact and were deliberately not merged (#041 D)");
+            }
+        }
+    }
+
+    /** Player → team, over the two teams on the game. */
+    private Map<String, String> teamByPlayer(String homeTeamId, String awayTeamId) {
+        Map<String, String> map = new HashMap<>();
+        for (String teamId : List.of(homeTeamId, awayTeamId)) {
+            playerTeamRepo.findByTeamId(teamId)
+                    .forEach(pt -> map.put(pt.getPlayerId(), teamId));
+        }
+        return map;
     }
 
     private int pointsFromEntity(GameEventEntity e) {

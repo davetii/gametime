@@ -236,6 +236,17 @@ The four live consumers:
   rolled and charged, so it feeds the same limit and the same bench rule as the
   `SHOOTING_FOUL` it replaced, by construction (#039 A). **Both are transient — no
   write-back to `player_team`.**
+- **The counterparty column** (§3.18, decisions.md #041) — **this domain contributes and
+  changes NOTHING**, stated so the next pass does not re-check it. §3.18 is pure
+  attribution: it records *who* was on the other side of an event — the stealer, the
+  blocker, the fouled shooter — where the engine already held that player and discarded
+  them. **Every player it names was selected by an existing draw from the on-floor five
+  this domain already supplies**, so there is no new pool, no new selection, no new
+  disqualification cause, and no write-back. It adds no RNG draw and moves no number.
+  ⚠ The one thing worth knowing here is a **guarantee** rather than a change: the column
+  is contractually **always the opposite team** from `primary_player_id`, which is
+  enforced by a test over every simulated event — so a future pass that tried to put a
+  **teammate** there (an assister belongs on `assist_player_id`) fails the build.
 
 ## Not yet built
 

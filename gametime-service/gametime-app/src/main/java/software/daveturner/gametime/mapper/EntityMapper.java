@@ -179,9 +179,13 @@ public class EntityMapper {
     }
 
     /**
-     * §3.6 (#024 D): map a play-by-play event. Surfaces assistPlayerId (the §3.4
-     * column, #022 B) — null on unassisted makes and every non-SHOT event. No
-     * time field — a display clock is derived on read (#024 E).
+     * §3.6 (#024 D): map a play-by-play event. Surfaces the two PARTICIPANT columns,
+     * which are different kinds of fact and must not be merged (#041 D):
+     * assistPlayerId (the §3.4 column, #022 B) is the TEAMMATE who helped — null on
+     * unassisted makes and every non-SHOT event; opponentPlayerId (the §3.18 column,
+     * #041 A) is the COUNTERPARTY, always on the OPPOSITE team — the stealer, the
+     * blocker or the fouled shooter, null on every other event. No time field — a
+     * display clock is derived on read (#024 E).
      */
     public GameEvent entityToGameEvent(GameEventEntity e) {
         GameEvent event = new GameEvent();
@@ -195,6 +199,7 @@ public class EntityMapper {
         event.setOutcome(e.getOutcome());
         event.setPrimaryPlayerId(e.getPrimaryPlayerId());
         event.setAssistPlayerId(e.getAssistPlayerId());
+        event.setOpponentPlayerId(e.getOpponentPlayerId());
         return event;
     }
 

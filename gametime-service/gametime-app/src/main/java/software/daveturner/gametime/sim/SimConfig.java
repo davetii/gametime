@@ -659,10 +659,12 @@ public class SimConfig {
     // and RNG draw, recordFoul() has already run, so THE FOUL TOTAL HOLDS BY
     // CONSTRUCTION and this knob re-partitions the outcome only (#039 A).
     //
-    // ⚠ THE KEY AND THE EVENT OUTCOME NOW AGREE (§3.17, #040 M). #039 E deliberately
-    // diverged them — key sim.non-shooting-foul-share, outcome COMMON_FOUL — on a
-    // different-audiences argument. #040 M reverses that by user call: the criticism
-    // that killed common-foul-share applies just as hard to the outcome string, and
+    // ⚠ THE KEY AND THE EVENT OUTCOME NOW AGREE (§3.17, #040 M): both read
+    // NON_SHOOTING_FOUL, and COMMON_FOUL survives nowhere in engine logic.
+    // HISTORY, so the reversal is not re-litigated: #039 E had deliberately diverged
+    // them — key sim.non-shooting-foul-share, outcome COMMON_FOUL — on a
+    // different-audiences argument. #040 M reversed that by user call: the criticism
+    // that killed common-foul-share applied just as hard to the outcome string, and
     // NON_SHOOTING_FOUL is the correct complement of SHOOTING_FOUL beside it in the log.
     // See PossessionEngine.NON_SHOOTING_FOUL_OUTCOME for the full reasoning and for the
     // no-migration cutover this rename leaves in game_event.outcome.

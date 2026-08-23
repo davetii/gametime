@@ -345,6 +345,13 @@ coverage stays visible, not a description of current behavior. Note that
 they feed calculators (`stealing`, `shotContest`, `foulProne`, …) whose outputs
 the engine does read.
 
+> ⚠ **This table answers "which SKILLS does each event read?" — for "who is ON each
+> event, and in which column?" see [`game-events.md`](game-events.md)**, the single
+> per-event vocabulary reference. **The two
+> cross-link deliberately: two per-event tables that do not point at each other WILL
+> drift** — the failure mode `CLAUDE.md` documents for `possession-flow.puml`. Rows
+> here stay about skills and formulas; participant columns stay there.
+
 | Possession Event | Skills Used | Status |
 |-----------------|-------------|--------|
 | Transition or half-court? | transition, awareness | ⬜ not modeled |
@@ -353,7 +360,7 @@ the engine does read.
 | Drive to basket | drive, finishing | ✅ §3.2/§3.4 |
 | Shot attempt (open) | longRange / perimeter / post | ✅ §3.2/§3.4 |
 | Shot contest | shotContest, individualDefense | ✅ §3.2/§3.4 |
-| Shot block attempt | rimProtection (rim) / shotContest (jumper) vs finishing (shooter) | ✅ §3.7 |
+| Shot block attempt | rimProtection (rim) / shotContest (jumper) vs finishing (shooter) — **the blocker this picks now rides the EVENT** as `opponent_player_id` (§3.18, #041 A), not only `box_score.blocks`. No new skill and no new draw: the same `pickDefender` selection, carried onto the row | ✅ §3.7/§3.18 |
 | Foul on attempt? | foulDrawing vs foulProne — all four shot types since §3.12, each with its own multiplier | ✅ §3.2/§3.4/§3.12 |
 | And-1 (foul on a MADE shot)? | foulDrawing vs foulProne again — a **second, post-make** roll on its own thin rate; made DRIVE/POST only until §3.12 | ✅ §3.11 |
 | Rebounding foul? | foulDrawing vs foulProne (two-sided — either team can commit; `foulProne` also weights *who* commits it) | ✅ §3.10 |
@@ -362,7 +369,7 @@ the engine does read.
 | **Charge (offensive foul) → a personal foul** | `teamOffense`↓ leans the `OFFENSIVE_FOUL` turnover cause (#027 C); the committer is the **ball-handler** from `pickShooter`. ⚠ **The only foul in the model charged to an OFFENSIVE player, and the only one whose rate responds to an offensive skill** (#039 G) | ✅ §3.16 |
 | Free throws | freeThrows; clutch (late game) | ✅ §3.2 (clutch ⬜) |
 | Rebound | offenseRebound / defenseRebound | ✅ §3.3 |
-| Turnover / steal | ballSecurity vs stealing (gate); §3.9 cause draw leans `SHOT_CLOCK_VIOLATION` on `acumen`↓ + defending `defensiveScheme`↑ and `OFFENSIVE_FOUL`/`BAD_PASS` on `teamOffense`↓ | ✅ §3.2/§3.9 |
+| Turnover / steal | ballSecurity vs stealing (gate); §3.9 cause draw leans `SHOT_CLOCK_VIOLATION` on `acumen`↓ + defending `defensiveScheme`↑ and `OFFENSIVE_FOUL`/`BAD_PASS` on `teamOffense`↓. **The stealer `stealing` picks now rides the EVENT** as `opponent_player_id` (§3.18, #041 A/B) — the same `pickStealer` draw, no longer discarded after `recordSteal()`. ⚠ The steal RATE is **§3.19's**, not a skill question (#041 F) | ✅ §3.2/§3.9/§3.18 |
 | Late-game pressure | clutch modifier on all actions | ⬜ not modeled |
 | Off-ball movement | offBallMovement, awareness | ⬜ not modeled |
 

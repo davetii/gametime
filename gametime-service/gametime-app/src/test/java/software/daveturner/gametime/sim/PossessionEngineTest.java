@@ -2012,7 +2012,8 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
-        engine.awardFlagrant(data, defense.get(0), offense.get(0), "OFF", "OFF", "DEF",
+        engine.awardFlagrant(data, defense.get(0), offense.get(0),
+                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF",
                 1, 50, new ScriptedRng(0.99, /*not a flagrant-2*/ 0.99));
 
         long freeThrows = data.getEvents().stream()
@@ -2032,7 +2033,8 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
-        engine.awardFlagrant(data, defense.get(0), offense.get(0), "OFF", "OFF", "DEF",
+        engine.awardFlagrant(data, defense.get(0), offense.get(0),
+                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF",
                 1, 50, new ScriptedRng(0.99, 0.99));
 
         long freeThrows = data.getEvents().stream()
@@ -2054,7 +2056,8 @@ class PossessionEngineTest {
         PlayerGameState committer = defense.get(0);
         PlayerGameState fouled = offense.get(2);
 
-        int next = engine.awardFlagrant(data, committer, fouled, "OFF", "OFF", "DEF",
+        int next = engine.awardFlagrant(data, committer, fouled,
+                fouled.getPlayerId(), "OFF", "OFF", "DEF",
                 1, 50, new ScriptedRng(0.99, 0.99));
 
         List<GameData.EventRecord> events = data.getEvents();
@@ -2092,7 +2095,8 @@ class PossessionEngineTest {
         GameData two = freshData();
         PlayerGameState ejected = defense.get(0);
         // 0.0 < FLAGRANT_TWO_SHARE ⇒ a flagrant-2.
-        engine.awardFlagrant(two, ejected, offense.get(0), "OFF", "OFF", "DEF", 1, 50,
+        engine.awardFlagrant(two, ejected, offense.get(0),
+                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF", 1, 50,
                 new ScriptedRng(0.99, 0.0));
         assertEquals(PossessionEngine.FLAGRANT_FOUL_2_OUTCOME, two.getEvents().get(0).outcome());
         assertEquals(1, ejected.getFlagrantTwos());
@@ -2101,7 +2105,8 @@ class PossessionEngineTest {
         GameData one = freshData();
         PlayerGameState stays = defense.get(1);
         // 0.99 >= FLAGRANT_TWO_SHARE ⇒ a flagrant-1.
-        engine.awardFlagrant(one, stays, offense.get(0), "OFF", "OFF", "DEF", 1, 50,
+        engine.awardFlagrant(one, stays, offense.get(0),
+                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF", 1, 50,
                 new ScriptedRng(0.99, 0.99));
         assertEquals(PossessionEngine.FLAGRANT_FOUL_1_OUTCOME, one.getEvents().get(0).outcome());
         assertEquals(0, stays.getFlagrantTwos());
@@ -2130,7 +2135,8 @@ class PossessionEngineTest {
         PlayerGameState committer = defense.get(0);
 
         committer.recordFoul(); // what every call site does before rolling the flagrant
-        engine.awardFlagrant(data, committer, offense.get(0), "OFF", "OFF", "DEF", 1, 50,
+        engine.awardFlagrant(data, committer, offense.get(0),
+                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF", 1, 50,
                 new ScriptedRng(0.99, 0.0));
 
         assertEquals(1, committer.getFouls(),
@@ -2160,7 +2166,8 @@ class PossessionEngineTest {
         seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod() - 1);
         assertFalse(data.isInBonus("DEF", 1, config), "precondition: one short of the penalty");
 
-        engine.awardFlagrant(data, defense.get(0), offense.get(0), "OFF", "OFF", "DEF",
+        engine.awardFlagrant(data, defense.get(0), offense.get(0),
+                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF",
                 1, 50, new ScriptedRng(0.99, 0.99));
 
         assertTrue(data.isInBonus("DEF", 1, config),

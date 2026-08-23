@@ -48,6 +48,15 @@ public class GameEventEntity {
      * unassisted makes and on every non-SHOT event. {@code BoxScore.assists}
      * reconciles against the count of SHOT events carrying this (decisions.md
      * #022 / #020 — events are the source of truth).
+     *
+     * <p>⚠ This is the TEAMMATE slot, and it is deliberately NOT the same column as
+     * {@link #opponentPlayerId} (§3.18, #041 D — a migration was pursued and
+     * REVERSED). The two hold different KINDS of fact: an assister collaborates
+     * with {@link #primaryPlayerId} and is on the SAME team; a counterparty opposes
+     * them and is always on the OTHER team. Folding assists in would break the
+     * counterparty invariant with its one same-team exception, and would force a
+     * reader to decode {@code outcome} to answer "which team is this player on?".
+     * {@code assistPlayerId} is NOT deprecated and has no removal phase.
      */
     @Column(name = "assist_player_id")
     private String assistPlayerId;
@@ -64,5 +73,40 @@ public class GameEventEntity {
      */
     @Column(name = "committing_team_id")
     private String committingTeamId;
+
+    /**
+     * §3.18 (decisions.md #041 A): the COUNTERPARTY — the player on the OTHER SIDE
+     * of this play from {@link #primaryPlayerId}.
+     *
+     * <p><b>The contract, and the whole reason a generic column is safe: whoever is
+     * here is ALWAYS on the opposite team from {@code primaryPlayerId}.</b> A reader
+     * therefore resolves their team as "whichever of {@link #offenseTeamId} /
+     * {@link #defenseTeamId} primary is not on", with no need to decode {@code
+     * outcome}. A TEAMMATE never goes here — an assister rides
+     * {@link #assistPlayerId} (#041 D).
+     *
+     * <p>Populated at the three sites where the engine already held the second
+     * participant in scope and discarded them:
+     * <ul>
+     *   <li>{@code TURNOVER} / {@code STOLEN} — the STEALER (the §3.9 {@code
+     *       pickStealer} draw, credited by {@code recordSteal()}); primary is the
+     *       ball-loser.</li>
+     *   <li>{@code SHOT} / {@code BLOCKED_*} — the BLOCKER (credited by {@code
+     *       recordBlock()}, §3.7 #025 F2); primary is the shooter (the victim).</li>
+     *   <li>{@code FOUL} / {@code SHOOTING_FOUL} — the FOULED SHOOTER; primary is
+     *       the defender who committed it.</li>
+     * </ul>
+     *
+     * <p>Null on every other event. ⚠ Deliberately null — not overlooked — on
+     * {@code OFFENSIVE_FOUL} (the charge): the drawer is not modelled, and picking
+     * one would need a new RNG draw (#041 follow-up).
+     *
+     * <p>Day-one consumer: the PER-CREDITOR reconciliation (#041 G) — {@code
+     * count(TURNOVER/STOLEN with opponentPlayerId = X) == box_score.steals(X)} for
+     * every X, where the old total-count check passed even when the engine credited
+     * the wrong player.
+     */
+    @Column(name = "opponent_player_id")
+    private String opponentPlayerId;
 
 }

@@ -11,7 +11,8 @@ gametime/
 │   ├── roadmap.md             Phased roadmap (Phases 3–8; 1–2 shipped, see "What Exists Today")
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
-│   ├── todo.md                Tactical task list (current phase only)
+│   ├── todo.md                Tactical task list (current phase only — CURRENTLY:
+│   │                          §3.19 INSTRUMENTATION, execute-ready)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
 │   ├── ideas.md               Parking lot — untriaged future-improvement ideas
 │   ├── calibration.md         Calibration targets — THE source of truth for them
@@ -19,6 +20,9 @@ gametime/
 │   ├── roster.md              Roster & lineup domain (player↔team, lineups)
 │   ├── coach.md               Coach domain design (5 decision attributes)
 │   ├── game.md                Game domain + possession engine (models + flow)
+│   ├── game-events.md         The event vocabulary — every (play_type, outcome) the
+│   │                          engine emits, with who is on each row (game.md keeps
+│   │                          the models + flow)
 │   └── possession-flow.puml   Possession-flow diagram (kept in sync with the engine)
 │                              (.png gitignored — render with `plantuml
 │                              -DPLANTUML_LIMIT_SIZE=16384 -tpng`; plain -tpng
@@ -42,7 +46,19 @@ Before starting work, review these for context:
 - **`docs/player.md`** — player domain reference: attributes, derived skills, calculator design
 - **`docs/coach.md`** — coach domain design: 5 continuous decision attributes + engine interface
 - **`docs/game.md`** — game domain + the possession engine: Game/GameEvent/BoxScore
-  models and the event vocabulary + flow the engine actually runs
+  models, the possession flow the engine actually runs, and the API surface
+- **`docs/game-events.md`** — **the event vocabulary, and the single per-event
+  reference.** Every `(play_type, outcome)` pair the engine emits, in ONE master table
+  with explicit participant columns (`primary` · `opponent` · `assist` ·
+  `committing_team`), plus the three rules that let you derive most of it: the
+  **emission rule** (second participant → a column, second accounting → an event,
+  neither → nothing — why a steal is one row and a charge is two), the **counterparty
+  invariant** (`opponent_player_id` is ALWAYS on the opposite team; a teammate rides
+  `assist_player_id`), and **`outcome` is free text while `play_type` is a closed
+  OpenAPI enum** (why new causes are free and new play types are expensive).
+  ⚠ **Do not start a second per-event table anywhere** — `player.md`'s "Possession
+  Event → Skills Used" is the only other one and the two cross-link deliberately.
+  A new outcome, or a change to who is on a row, **must** land here in the same change.
 - **`docs/possession-flow.puml`** — **the possession flow as a diagram, and the
   fastest way to understand the engine.** Read it before changing anything in the
   `sim` package: it shows every branch in order (turnover → foul → block →
@@ -97,6 +113,24 @@ pass, an execute-ready plan, moving deferred work, parking an idea), invoke the
 **`project-docs`** skill first — it captures the house format, the cross-file
 routing rules, and the design-pass→decision→plan rhythm the docs follow.
 
+⚠ **THESE DOCS BLOAT, AND THE SKILL NOW CARRIES THREE CONVENTIONS THAT SAY HOW TO STOP
+IT** *(all three established 2026-08 by user call, after measuring; `decisions.md` is
+already under a condense gate)*. Follow them rather than re-deriving:
+- **`calibration.md` is a REFERENCE, not a history** — keep the **operative rules**
+  (*judge at N seeds*, *don't back-solve X*, *this knob is priced by Y*, *this row is
+  green because a clamp holds it*); the narrative of which pass argued what belongs in
+  its `#NNN`. *(35k → 13k; it had 242 `#NNN`/§X.Y citations and headers like "✅ HISTORY".)*
+- **In `backlog.md`, a completed chore is REMOVED, not checked off** — it has a phase home
+  by definition. Confirm the record lives in a `#NNN` or roadmap landing first, then grep
+  for inbound references to the deleted text. *(65k → 47k; 30% was done work.)*
+- **One vocabulary, one place.** The per-event vocabulary lives in `game-events.md`
+  alone; a second table anywhere WILL drift. *(`game.md` 67.6k → 45.6k.)*
+⚠ **The distinction that decides whether a citation is bloat:** in `calibration.md` the
+`#NNN`s marked *history* sitting in a *targets* reference — cut. In `game.md` they
+annotate *live mechanics* and are how a reader finds the argument — **keep**; that file's
+problem is duplication against `possession-flow.puml`, not citation. **A post-§3.19 /
+pre-Phase-4 documentation pass owns that one** (roadmap.md's Phase 4 pre-work).
+
 When adding or changing production code under `gametime-app/src/main/java`,
 invoke the **`test-coverage`** skill — the JaCoCo gate is per-package and runs at
 `install`, not `test`, so a green `mvn test` does not prove it passes.
@@ -139,14 +173,20 @@ so far has found real design questions the one-liner hid.
 ### ⚠ Three traps that bite EVERY session — read these before trusting a doc
 
 **1. SUB-PHASE NUMBERS HAVE BEEN REUSED. `§3.16` IN AN OLDER DOC DOES NOT MEAN
-§3.16.** Recalibration was §3.16, then briefly §3.18, and is now **§3.19** (#038).
+§3.16.** ⚠ **Recalibration has now been renumbered FOUR times: §3.16 → §3.18 → §3.19 →
+**§3.20** (2026-08, when instrumentation took the §3.19 slot).**
 The §3.16 slot was reassigned to shooting-foul composition, which has shipped. So
 **every "§3.16" written before 2026-08 means RECALIBRATION** — including in #030,
 #031, #032, #034, #035, and in scattered lines of roadmap.md, backlog.md, ideas.md,
 risks.md and game.md. A literal reading sends you three sub-phases too early, to a
 phase that already shipped and does something else entirely.
 **Rule: read the phase NAME, never the number alone.** roadmap.md carries the
-mapping callout. When you find a stale one, annotate it rather than silently
+mapping callout. ⚠ **"§3.19" is now equally ambiguous** — before 2026-08 it meant
+recalibration; it now means **instrumentation** (the harness/test-trustworthiness pass).
+⚠ **~60 stale "§3.19 = recalibration" references remain** across `decisions.md`,
+`roadmap.md`, `backlog.md` and `ideas.md`. **They were left deliberately** — most sit in
+`#NNN` entries, which are history and must never be retro-edited. **Annotate what you
+touch; do not mass-rewrite.** When you find a stale one, annotate it rather than silently
 rewriting — the history is worth keeping legible.
 
 **2. A NUMBER CAN MOVE — OR FAIL TO MOVE — FOR REASONS THAT ARE NOT THE ENGINE, and no
@@ -172,10 +212,29 @@ found the hard way:
   **inert**. ⚠ **The blocks row is green for the wrong reason**: two mechanisms cancel,
   which is the #036 B cancelling-errors pattern §3.17 spent a phase un-hiding for FG%.
   **`PROB_FLOOR` applies to every probability**, so any constant set below 0.02 is
-  equally inert and nothing says so at its declaration. See backlog.md.
+  equally inert and nothing says so at its declaration. ✅ **The audit is now DONE
+  (2026-08): `sim.base-block-three` is the ONLY tunable below the floor**, and a
+  floor-free `clampRareProbability` already exists beside the flooring `clampProbability`.
+  ⚠ **CLOSED as not worth fixing (user call, 2026-08) — and HOW it was closed is the
+  lesson: it was SIZED.** The effect is **~half a blocked three per team-game** (0.74 vs
+  0.19 at ~37 3PA), on a row already **on target** (4.80 vs 4.8), with no consumer for the
+  per-type split. It had been pattern-matched to §3.17's FG% finding — *a green total
+  hiding a wrong composition* — but **that gap was 6 points on a sourced target and this
+  one is half a block: the same SHAPE, two orders of magnitude less consequence.**
+  ⚠ **SIZE A FINDING BEFORE PROMOTING IT.** Carry this one only as a footnote: **if a pass
+  ever tunes `base-block-*`, reroute through `clampRareProbability` first**, or that one
+  lever reads dead.
 
 **The question to ask of ANY moved number, before tuning it: "did the engine change, did
 the measurement change, or is a clamp holding it?"**
+
+⚠ **AND THE CHEAPEST WAY TO PROVE A PASS MOVED NOTHING — use it whenever a change claims
+to be non-behavioral.** §3.18 asserted it consumed no RNG draw. That was verified by
+running the harness, `git stash`-ing the whole working tree, running it again on the same
+seed, and diffing: **identical line for line.** ⚠ **Note the Definition-of-done figures in
+a plan are usually 5-SEED MEANS** (110.0 / 43.5 / 37.22), while a 1-seed run prints
+different numbers (109.7 / 43.1 / 37.4) — **before/after on the SAME seed is the check
+that means something; comparing a 1-seed run to a 5-seed mean proves nothing.**
 
 **3. THE HARNESS NEEDS ITS PROFILE IN THE ENVIRONMENT — `-Dspring.profiles.active` DOES
 NOT REACH THE FORKED SUREFIRE JVM.** The context comes up with `activeProfiles = []`,
@@ -219,6 +278,15 @@ JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn verify -Ptest
 - **Schema**: All app tables live in the `gametime` schema (not `public`).
 - **Liquibase**: Manages schema creation and migrations. Changelog at `src/main/resources/db/changelog.yml`.
 - Postgres-specific features (triggers, plpgsql functions) are gated with `dbms:postgresql` in Liquibase changesets.
+- ⚠ **NEVER edit a changeset that has already run — APPEND a new one.** Liquibase fixes a
+  checksum on first run and will refuse to start against a changed one. §3.6 (`1.04.2`),
+  §3.10 (`1.04.3`), §3.14a (`1.04.4`) and §3.18 (`1.04.5`) each appended for exactly this
+  reason; `1.04.1` is untouchable. **Additive nullable column + its FK, no `dbms` gate**
+  is the established shape — see `release.1.0.4.game.sql` for the house comment style.
+- ⚠ **The H2 test DB runs the SAME changelog as Postgres**
+  (`spring.liquibase.change-log` in `src/test/resources/application-local.properties`), so
+  **a malformed changeset fails the whole test suite immediately** — no Docker needed to
+  verify one.
 - Audit columns (`create_user`, `create_date`, `update_user`, `update_date`) have defaults for H2 compatibility; Postgres triggers override them.
 
 ## Local dev setup
@@ -270,6 +338,20 @@ push a branch just because it's ahead of origin.
   `SimConfigProfileBindingTest.EXPECTED_TUNABLE` (which asserts **both** constructor
   arity and instance-field count, so a missed accessor fails loudly). Currently **62
   tunables / 27 statics**.
+- **`game_event` has TWO participant columns and they are different KINDS of fact.**
+  `assist_player_id` is the **teammate** who helped; `opponent_player_id` is the
+  **counterparty** — the player on the other side of the play, and therefore **ALWAYS on
+  the opposite team**, which is what lets a reader resolve their team without decoding
+  `outcome`. ⚠ **A teammate never goes in the opponent column**; a migration merging them
+  was pursued and **reversed** (#041 D). It is populated **only where a real contest
+  identified an individual victim** (the stealer, the blocker, the fouled shooter) and is
+  **null by contract** elsewhere — ⚠ **do NOT populate a site just because a player is
+  reachable**; a rebounding foul's FT shooter is a weighted *draw*, not the victim. Both
+  invariants are enforced by tests in `GameSimulatorIntegrationTest`. Full per-event
+  detail: **`docs/game-events.md`**.
+- **On every `FOUL` event, `primary_player_id` is the COMMITTER** (charged `recordFoul()`,
+  on `committing_team_id`) — the *inverse* of `SHOT`/`TURNOVER`, where primary is the
+  victim. Test-enforced.
 - OpenAPI delegate pattern: generated `V1ApiDelegate` interface, hand-written `V1ApiDelegateimpl` implements it.
 - Entities use Lombok `@Data` for boilerplate reduction.
 - Entity `@Table` annotations include `schema = "gametime"`.

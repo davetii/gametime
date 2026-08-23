@@ -147,11 +147,11 @@ note right
   to become a charged attempt. **SHIPPED: FGA 88.80 -> 92.28**, past its
   sourced 89.1 — the mechanism was right, the magnitude was
   under-modelled (~89.9 predicted). **#039 C's dead-possession
-  concession is therefore NOT revisitable here** — it passes to §3.19.
-  ⚠ **FG% fell 46.68 -> 43.52 and that is §3.19's, not drift** (F): the
+  concession is therefore NOT revisitable here** — it passes to §3.20.
+  ⚠ **FG% fell 46.68 -> 43.52 and that is §3.20's, not drift** (F): the
   engine's **2P% is ~48.7 against a real 55.0**, an error the old
   two-heavy mix HID because FG% ~= 2P% at a 21% three share. §3.17 makes
-  the shape final; §3.19 re-solves `base-drive`/`base-post`/
+  the shape final; §3.20 re-solves `base-drive`/`base-post`/
   `base-perimeter`. ⚠ **`base-three` must NOT move** — 3P% is 35.8 vs a
   sourced 36.0 and it HELD across a 1.9x volume change.
   ✅ **SHIPPED 2026-08: 3PA 19.96 -> 37.22** (target 37.0) at shares
@@ -162,7 +162,7 @@ note right
   ⚠ **BLOCKS DID NOT FALL as #040 E predicted (~2.6); they stayed at
   4.80.** `PROB_FLOOR` (0.02) is **4x `base-block-three` (0.005)**, so a
   three's block chance is FLOORED, not based — `base-block-three` is
-  currently INERT. A §3.19 finding, not a §3.17 miss.
+  currently INERT. A §3.20 finding, not a §3.17 miss.
 end note
 
 partition "TurnoverResolver (§3.9 causes — decisions.md #027)" {
@@ -179,13 +179,47 @@ partition "TurnoverResolver (§3.9 causes — decisions.md #027)" {
     end note
     if (cause == STOLEN?\n//weighted nine-way draw//) then (yes)
       :TURNOVER — STOLEN
-      credit defender steal;
+      primaryPlayerId = the ball-handler (the victim)
+      **opponentPlayerId = the STEALER** //(§3.18 — #041 A/B)//
+      stealer.recordSteal() — the box-score credit, unchanged;
+      note right
+        **§3.18 (#041 A/B): the stealer now lands ON THE EVENT.**
+        Until §3.18 pickStealer chose them, recordSteal() credited
+        them, and the engine then DROPPED them — making the steal the
+        last contested defensive play the log could not attribute.
+        ONE row, not two: no PlayType.STEAL and no second event
+        (#041 B). The rule that decides it (#041 C): **second
+        PARTICIPANT -> a column; second ACCOUNTING -> an event;
+        neither -> nothing.** A steal has a participant, so it takes
+        the column; the charge below has an accounting consequence a
+        column cannot carry (isInBonus counts FOUL EVENTS), so it
+        keeps its two events.
+        ⚠ **NO NEW DRAW.** Only the declaration was hoisted so the
+        value reaches addEvent — pickStealer runs at the same point
+        in the stream, so §3.18 moves NO number. Same at the two
+        other counterparty sites (BLOCKED_*, SHOOTING_FOUL).
+        Buys the PER-CREDITOR reconciliation (#041 G):
+        count(STOLEN with opponent = X) == box_score.steals(X), forall X
+        — the old TOTAL check passed even on a wrong-player bug.
+      end note
     else (no)
       :TURNOVER — one of
       SHOT_CLOCK_VIOLATION / OFFENSIVE_FOUL / BAD_PASS /
       TRAVELLING / LOST_BALL_OUT_OF_BOUNDS / 3_SECONDS_VIOLATION /
       8_SECONDS_BACKCOURT_VIOLATION / OVER_AND_BACK
       //no stealer credited//;
+      note right
+        ⚠ **§3.18: opponentPlayerId is NULL on all eight of these,
+        and that is a DECISION, not an omission.** Seven have one
+        actor and no counterparty at all, so nothing is owed
+        (#041 C). OFFENSIVE_FOUL is the exception worth naming: a
+        charge HAS a real counterparty — the defender who drew it —
+        and the engine **never picks one**. Populating it needs a
+        NEW pickChargeDrawer draw, which would shift the stream and
+        re-baseline every seeded sim test, forfeiting §3.18's
+        "moves no number" property for a participant nothing
+        consumes. Parked as an #041 follow-up.
+      end note
       if (**§3.16 — cause == OFFENSIVE_FOUL?**\n//the charge / illegal screen — a PERSONAL FOUL by rule//) then (yes)
         :FOUL — OFFENSIVE_FOUL
         charge the BALL-HANDLER //recordFoul()// (G)
@@ -327,7 +361,7 @@ partition "FoulResolver" {
         ~56% of team-periods, so each conversion removes ~1.47 FTs and the
         share measured out at **0.50** (5 seeds, FTA 23.6). The LANDING is
         the target, not the constant.
-        ⚠ **Points falls ~8 to ~110 and §3.19 RECOVERS IT (H)** — not
+        ⚠ **Points falls ~8 to ~110 and §3.20 RECOVERS IT (H)** — not
         drift, and NOT to be chased here (#038's rule).
       end note
       if (committing team already in the penalty?\n//GameData.isInBonus — emit-then-count, §3.10 #028 A1//) then (yes)
@@ -340,7 +374,34 @@ partition "FoulResolver" {
     endif
 
     :FOUL — **SHOOTING_FOUL** //— THE FALL-THROUGH: both rolls above missed//
-    //the same already-charged foul; this is just the label it keeps//;
+    //the same already-charged foul; this is just the label it keeps//
+    primaryPlayerId = the DEFENDER who committed it; committingTeamId = defense
+    **opponentPlayerId = the FOULED SHOOTER** //(§3.18 — #041 A)//;
+    note right
+      ⚠ **The counterparty's ORIENTATION FLIPS here relative to the
+      steal and the block, and the invariant still holds.** At those
+      two, primary is the victim and the opponent is the defender who
+      acted. Here primary is the COMMITTER, so the opponent is on
+      OFFENSE. That is exactly why #041 A defines the column as "the
+      other side of the play" rather than "the defender": the rule
+      that survives every site is **opponent is ALWAYS the opposite
+      team from primary** — so a reader resolves their team without
+      decoding the outcome string. No new draw: `shooter` was already
+      in scope. A teammate never goes here (an assister rides
+      assistPlayerId, #041 D).
+      ⚠ **The SWEEP (#041 addendum): opponentPlayerId is populated wherever a
+      real contest identified an INDIVIDUAL victim — SHOOTING_FOUL,
+      NON_SHOOTING_FOUL, AND_ONE, and FLAGRANT_* at the two SHOT sites.**
+      It is NULL BY CONTRACT at the REBOUNDING site: that foul is committed
+      against the TEAM contesting the board and no individual victim is ever
+      identified. Its FT shooter is a foulDrawing-weighted DRAW standing in
+      for the award, so populating from it would attribute the foul to a
+      player the engine never decided was fouled.
+      ⚠ Also pinned by test, previously true by inspection only: on EVERY
+      FOUL event primaryPlayerId is the COMMITTER (the player charged
+      recordFoul(), on committingTeamId) — the inverse of SHOT/TURNOVER,
+      where primary is the victim.
+    end note
     repeat
       if (free throw made?\n//freeThrows skill//) then (yes)
         :FREE_THROW — MADE_SHOOTING (source-tagged §3.11 D)
@@ -373,8 +434,9 @@ partition "ShotResolver" {
     :SHOT — BLOCKED_*
     event: PlayType.SHOT, outcome BLOCKED_* (F1)
     primaryPlayerId = shooter (the victim)
+    **opponentPlayerId = the BLOCKER** //(§3.18 — #041 A, closing #025 F2)//
     shooter charged missed FGA (+3PA if THREE), 0 FGM (F3)
-    blocker.recordBlock() — separate credit, not on event (F2)
+    blocker.recordBlock() — the box-score credit, unchanged
     no assistPlayerId (F4);
     note right
       **Block = a field-goal outcome, exactly as a steal is a
@@ -382,6 +444,14 @@ partition "ShotResolver" {
       v3: one three-way MAKE/MISS/BLOCK draw — no double-count
       (probs sum to 1). No new PlayType.BLOCK. Reconciliation:
       count(SHOT outcome LIKE 'BLOCKED%') == sum(BoxScore.blocks).
+      ⚠ **§3.18 (#041 A) closed F2, and the symmetry above is WHY it
+      had to be closed twice.** F2 left the blocker off the event BY
+      DESIGN, "mirroring the stealer" — so §3.7 copied the gap
+      rather than closing it, and #027 A carried it forward. Each
+      call was locally right and the whole drifted. The blocker now
+      rides opponentPlayerId (no new draw — `defender` was already
+      selected), which upgrades the line above to the PER-CREDITOR
+      form: count(BLOCKED% with opponent = X) == blocks(X), forall X.
     end note
 
     partition "BlockResolver (§3.7 — #025 D)" {
@@ -837,9 +907,51 @@ legend bottom left
   is the precedent (its retained possessions outweighed its FTs).
   **Judge at 5 SEEDS ONLY — the coarsest row in calibration.md**
   (17.4% relative sd at 102 games, 7.8% at 5 seeds).
-  **This is the LAST new mechanic in Phase 3** — §3.15 (profiles)
-  and §3.16 (recalibration) add no branch, so this diagram is
-  structurally complete.
+  ⚠ **THIS LINE WAS WRITTEN AT §3.14b AND WAS WRONG TWICE OVER —
+  kept, corrected, as a worked example of CLAUDE.md's trap 1.**
+  It read "the LAST new mechanic in Phase 3 — §3.15 (profiles) and
+  §3.16 (recalibration) add no branch". Both halves failed:
+  (a) **the NUMBER moved** — recalibration was renumbered §3.16 ->
+  §3.18 -> **§3.20**, and the §3.16 slot was REUSED for shooting-foul
+  composition, so "§3.16 (recalibration)" now names a different phase
+  that DID add a branch; and (b) **three passes added or changed
+  branches afterwards** — §3.16 (the non-shooting-foul fork + the
+  charge's second FOUL event), §3.17 (the shot-share table), §3.18
+  (the counterparty column on three existing events).
+  **Read the phase NAME, never the number alone.**
+
+  == WHAT §3.20 (RECALIBRATION) INHERITS ==
+  ⚠ **Renumbered AGAIN in 2026-08: recalibration was §3.16, then
+  §3.18, then §3.19, and is now §3.20** — the §3.19 slot became the
+  INSTRUMENTATION pass (harness self-verification + seeded-test
+  trustworthiness), which runs first and hands this pass a clean
+  5-seed measurement. **Read the phase NAME, never the number.**
+  **§3.20 is the last Phase-3 sub-phase and adds NO mechanic** — it
+  re-solves NUMBERS now that the shape is final. So this diagram
+  should be structurally complete going into it; if §3.20 finds
+  itself adding a branch, that is a signal the pass has grown
+  beyond recalibration.
+  **The open gaps it owns** (see calibration.md for the live values
+  and todo.md for the design questions):
+  * **2P% ~48.7 vs a sourced 55.0** — the largest gap. Lever is
+    base-drive/base-post/base-perimeter. ⚠ **base-three must NOT
+    move**: 3P% is correct and held across a 1.9x volume change.
+  * **FTA 19.76 vs 23.5** — non-shooting-foul-share is mispriced,
+    and it is priced by the PENALTY RATE, not the foul rate alone.
+  * **FGA 92.28 vs 89.1** (over) and **points 110.0 vs 115.6**.
+  * **Steals 7.72 vs 8.4** — DERIVED (turnovers x STOLEN share);
+    re-measure after turnovers land, do not tune the share alone.
+  * ⚠ **2P%, FTA and POINTS are OVER-DETERMINED** — the 2P% fix is
+    worth ~+7 points and the FTA fix ~+2.8, against a points gap of
+    only 5.6. They cannot all be hit independently; deciding which
+    yields is the pass's real work.
+  * ⚠ **FGA (92.28 vs 89.1) is the ONE row too HIGH**, so recovery
+    must come from MAKING more shots, not TAKING more. A pace bump
+    is the obvious-looking lever and the wrong one.
+  * **PROB_FLOOR / base-block-three is a FOOTNOTE, not work** —
+    sized at ~half a blocked three per team-game on an on-target
+    row. Only matters if this pass tunes base-block-*.
+  See roadmap.md's §3.20 bullet.
 endlegend
 
 @enduml

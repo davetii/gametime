@@ -38,6 +38,13 @@ class GameEventEntityTest {
         e.setPlayType(PlayType.SHOT);
         e.setOutcome("made 2pt");
         e.setPrimaryPlayerId("p1");
+        // The three participant/attribution columns. assistPlayerId is the TEAMMATE
+        // slot (§3.4, #022 B); opponentPlayerId is the COUNTERPARTY, always the
+        // OPPOSITE team (§3.18, #041 A/D — the two are deliberately not one column);
+        // committingTeamId is who committed a FOUL (§3.10, #028 D).
+        e.setAssistPlayerId("p2");
+        e.setCommittingTeamId("LAL");
+        e.setOpponentPlayerId("p3");
 
         assertEquals("ev1", e.getId());
         assertEquals("g1", e.getGameId());
@@ -48,6 +55,9 @@ class GameEventEntityTest {
         assertEquals(PlayType.SHOT, e.getPlayType());
         assertEquals("made 2pt", e.getOutcome());
         assertEquals("p1", e.getPrimaryPlayerId());
+        assertEquals("p2", e.getAssistPlayerId());
+        assertEquals("LAL", e.getCommittingTeamId());
+        assertEquals("p3", e.getOpponentPlayerId());
     }
 
     private GameEventEntity createEvent(String id) {

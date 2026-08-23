@@ -25,6 +25,7 @@ engine: any sub-phase that adds a branch or event updates it in the same change.
 | **backlog.md** | Cross-phase infra/tooling/data-hygiene chores with no phase home | Gameplay scope (→ roadmap sub-phase), untriaged ideas (→ ideas.md) |
 | **ideas.md** | Untriaged future-improvement ideas, no phase home, not chores | Planned work, decided things |
 | **risks.md** | Known active risks and concerns | Decisions, tasks |
+| **calibration.md** | The TARGETS: what each number should be, where it sits now, and the **operative rules** for reading it (judge at N seeds, don't back-solve X, this knob is priced by Y) | The history of how a target was argued or which pass landed it (→ that `#NNN`); per-pass narrative |
 | **possession-flow.puml** | The possession flow as a diagram — every branch, in engine order, with inline notes citing the decision behind each fork | Prose reasoning (that's a `#NNN`), anything not on the possession path |
 
 **The cardinal rule: todo.md is current-phase-only.** When a phase closes, todo.md
@@ -175,9 +176,39 @@ later, and a note on the trigger/consumer that would promote it. Don't over-form
 match the existing entries. A parked idea should say what would make it real (its
 missing consumer), the same "ahead of a consumer" discipline the decisions use.
 
+⚠ **In backlog.md, a COMPLETED chore is REMOVED, not checked off** *(user call,
+2026-08, after the file was measured at **30% completed work** — 19.3k of 65k across
+seven `[x]` items, several carrying superseded pre-design-pass reasoning)*. A finished
+chore **has a phase home by definition**: its landing and reasoning belong to the
+`decisions.md` entry or roadmap phase that consumed it, so an `[x]` here is a duplicate
+record that buries the open work. **Before deleting, confirm the content is genuinely
+recorded elsewhere** — a `#NNN`, an implementation note, or a roadmap landing note — and
+if it is not, move what is worth keeping there *first*. Then check nothing points at the
+removed text (`grep` for it in `docs/` and `CLAUDE.md`); an inbound reference to a
+deleted anchor is the one real cost of this convention.
+
+⚠ **calibration.md is a REFERENCE, not a history.** *(User call, 2026-08 — the file was
+35k, carried **242** `#NNN`/§X.Y citations, and had section headers like "✅ RESOLVED",
+"✅ HISTORY" and "THE FIX IS NOT THE ONE THE PLAN SPECIFIED". Rewritten to 13k.)* A
+reader opens it to learn **what the engine is tuned toward and where it sits**, not which
+pass argued what. **Keep the operative rules** — *judge at 5 seeds*, *don't back-solve the
+constant*, *this share is priced by the penalty rate*, *this row is green because a clamp
+is holding it* — those are load-bearing and easy to lose in a trim. **Cut the narrative**:
+which phase landed it, what was predicted vs. measured, what a decision cost. That lives
+in the `#NNN`. ⚠ When a target changes, update the table **and** the
+`CalibrationHarness` `(target ~N)` strings together.
+
+⚠ **The same instinct applies everywhere: these docs bloat, and verbosity has a
+measured cost.** `decisions.md` is already under a condense gate. When adding to any
+planning doc, prefer a pointer to a restatement — the crux, the final constants and the
+traps are what later phases reach for; the argument that produced them lives in its
+`#NNN` and should be cited, not re-told.
+
 ## Before you finish
 
 - New `#NNN` appended (not renumbered), cross-refs resolve to real entries.
+- **backlog.md: completed chores REMOVED, not left as `[x]`** — after confirming the
+  record lives in a `#NNN` / roadmap landing, and that nothing links to the deleted text.
 - The note lives in the right file (routing table above); nothing phase-surviving
   left only in todo.md.
 - Rationale / Trade-off / Alternatives keyed to the Decisions; crux bolded.
