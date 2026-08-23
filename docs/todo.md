@@ -6,122 +6,49 @@ shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
 [backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
 **Possession-fidelity completion** section.
 
-Current focus: **§3.19 — instrumentation**. Phase 3's tail is now
-**§3.18 steals (SHIPPED) → §3.19 instrumentation → §3.20 recalibration**.
+Current focus: **§3.20 — recalibration**, which **needs a DESIGN PASS first**.
+Phase 3's tail is **§3.18 steals (SHIPPED) → §3.19 instrumentation (SHIPPED) → §3.20
+recalibration**.
 ⚠ **RECALIBRATION HAS BEEN RENUMBERED A FOURTH TIME** — it was §3.16, then §3.18, then
 §3.19, and is now **§3.20**. **Read the phase NAME, never the number alone.**
-§3.7–§3.18 have all shipped.
+§3.7–§3.19 have all shipped.
 
-> **✅ §3.19 IS A SMALL EXECUTION PHASE. IT NEEDS NO DESIGN PASS.**
-> **Three test-side tasks, all decided** — the only open detail is a seed count, picked
-> while writing the test. Expect **one sitting**, not a phase's worth of work: two
-> assertions added to an existing harness mechanism, one test rewritten to loop seeds, and
-> one annotation. **Do not run a design session for this**, and do not expand the scope to
-> justify the phase number. Add an implementation note only if something diverges, and
-> flip the roadmap bullet to `[x]`.
+> **§3.20 NEEDS ITS OWN DESIGN SESSION, AND IT OPENS WITH A MEASUREMENT RATHER THAN WITH
+> QUESTIONS.** That measurement is done: **§3.19's 5-seed run (seeds 1000–5000) is
+> recorded in [calibration.md](calibration.md)'s Current column** and is this pass's
+> first input. **This file has NOT been rewritten for §3.20** — that is the design
+> session's first job, and its content lives in **roadmap.md's §3.20 bullet** in the
+> meantime (see the pointer section below).
 >
-> ⚠ **THE REST OF THIS FILE'S CONTEXT IS ABOUT §3.20 (RECALIBRATION) AND IS DELIBERATELY
-> PARKED — DO NOT START IT.** §3.20 is the big pass: it needs **its own design session,
-> which opens with a MEASUREMENT rather than with questions**, and that measurement is
-> **this phase's exit condition.** So the order is:
-> **finish §3.19 → run the 5-seed harness → record the mean → THEN open §3.20's design
-> pass** (in a new session, with this file rewritten for it).
-> ⚠ **Do not bundle them.** §3.19 makes the instruments honest; §3.20 tunes against them.
-> Doing both at once is what this split exists to prevent — and it would put code changes
-> inside a design session, breaking the design→execution rhythm fifteen sub-phases have
-> held. **§3.20's content lives in [roadmap.md](roadmap.md)'s §3.20 bullet**, not here, so
-> it survives this file's rewrite; the thin pointer section at the bottom is intentional.
->
-> **Why it is a phase and not a footnote:** §3.20 reads **every** number it tunes from
-> `CalibrationHarness`, and a wrong reading does not announce itself — it looks like a
-> calibration gap, so you tune a constant to chase a measurement error. §3.11 hit exactly
-> that twice in one session and both were caught only because the numbers looked *odd*.
->
-> ⚠ **ALL THREE TASKS ARE TEST-SIDE AND MUST MOVE NO ENGINE NUMBER.** That is the phase's
-> defining property, exactly as §3.18's was. **Verify it the cheap way: run the harness on
-> one seed, `git stash` the tree, run it again, and diff — it must be identical line for
-> line.** If anything moved, stop and find out why.
+> ✅ **§3.19 (instrumentation) SHIPPED 2026-08 — no `#NNN`, because it resolved no design
+> question.** All three tasks landed as planned, and **the phase moved no engine number**
+> (same-seed harness run before/after, identical line for line). The full landing note is
+> on **roadmap.md's §3.19 bullet**; what §3.20 needs to know from it is short:
+> - **The harness now self-verifies THREE identities**, all reading `OK` on all five
+>   seeds: `ast+blk` (pre-existing), **`ft-src`** (per-source FT counts sum to total FTs
+>   **and** the `UNKNOWN` bucket is empty) and **`points`** (events = box score = final
+>   score). ⚠ **A `MISMATCH(es)` on any of them invalidates the rows it feeds — fix the
+>   instrument before reading a number.** That is the whole point of the phase: a wrong
+>   reading looks like a calibration gap, so you tune a constant to chase a measurement
+>   error.
+> - **The seeded tests are trustworthy now.** The technicals test asserts its identity
+>   over ten seeds at the realistic 25 possessions/period with the coin-flip precondition
+>   deleted, so **no §3.20 change can break it by shifting the RNG stream**. And
+>   `V1ApiDelegateimplTest` is `@Transactional`, so **a green `mvn clean install` finally
+>   does mean the sim tests pass in isolation** — run them alone anyway, it is cheap.
+> - **Some calibration.md rows moved against the previous reading. They were STALE, not
+>   new** (4/5/6 fouls 0.94/0.46/0.30, and-1s 1.55, fouls/period 4.58, OOB 3.1, ejections
+>   0.033). ⚠ Do not read them as drift and do not tune toward the old values.
 
 ---
 
-## §3.19 execution plan
+## §3.20 (recalibration) — the NEXT phase. Pointers only, until its design pass rewrites this file.
 
-**Build preamble.** Java 21 or Lombok breaks:
-`JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem`. The **JaCoCo gate is
-per-package and runs at `install`, not `test`** — invoke the `test-coverage` skill.
-Invoke `project-docs` before touching any doc. ⚠ **A green `mvn clean install` does not
-prove CI will pass** — run the sim classes **alone** too (CLAUDE.md); task 3 exists
-precisely because of that.
-
-**Task 1 — finish harness self-verification**
-- [ ] The harness already self-checks two things — `Reconciliation (ast+blk)`, per game
-      across all 102 (`CalibrationHarness`, the `Agg.reconciliationMismatches` counter).
-      **Extend that same mechanism; do not build a parallel one.**
-- [ ] **FT-source counts must sum to total FTs, with zero `UNKNOWN`.** Sources are read
-      off an outcome suffix (`MADE_SHOOTING`, `MISSED_BONUS`, …), so an untagged or
-      mis-tagged outcome lands in `UNKNOWN` and **silently distorts the FT-source
-      percentages §3.20 reads.** Nothing asserts that bucket is empty today.
-- [ ] **Points must reconcile with the event log** — sum 2/3 per made FG and 1 per made
-      FT from the events and check it against the box-score total. **Points is a headline
-      §3.20 target and nothing currently verifies the harness computes it consistently.**
-- [ ] Report the result on the existing reconciliation line (or beside it), in the same
-      `OK` / `N MISMATCH(es)` form.
-
-**Task 2 — fix the brittle technicals test**
-- [ ] `GameSimulatorIntegrationTest.technicalFoulsArePersistedOnTheBoxScoreAndReconcile...`
-      asserts a **~13% random event** on a pinned seed (`assertTrue(technicals > 0)`), and
-      has broken **twice** on passes that touched neither technicals nor fouls.
-- [ ] **Assert `technicalEvents == boxTechnicals` over a batch of ~10 seeds and DELETE the
-      precondition.** The identity holds for **every** seed — including zero-technical
-      ones — so a batch is non-vacuous by construction with nothing to re-pin.
-- [ ] **Drop the fixture to the realistic 25 possessions/period** (the baseline) from
-      today's inflated 40. ⚠ The parameter is possessions **per period**, not per game.
-- [ ] ⚠ **Rejected alternatives, do not revisit:** *raising the possession count* only
-      makes the coin flip a better bet while pushing the fixture further from a real game;
-      *re-pinning the seed* has already failed three times.
-- [ ] ⚠ **Audit for siblings**: any other fixed-seed sim test whose assertion depends on a
-      rare event firing. Grep for seed literals.
-
-**Task 3 — `@Transactional` on `V1ApiDelegateimplTest`**
-- [ ] It is not `@Transactional` and **commits roster rows**, changing who is on the floor
-      and therefore RNG consumption downstream — so **a green local `mvn clean install`
-      does NOT prove CI passes.** That is how §3.17 shipped a red branch after two clean
-      local builds.
-- [ ] ✅ **The "is it deliberately non-transactional?" question was CHECKED (2026-08):
-      no.** No `@Transactional`, no `@DirtiesContext`, no ordering annotation, no
-      explanatory comment, across 15 independent methods — an oversight.
-- [ ] ⚠ **Watch for**: a method silently depending on committed state from an earlier one
-      will start failing. That is the fix **surfacing** a latent coupling, not causing it.
-      If it happens, give the sim tests their own fixture instead.
-
-**Definition of done**
-- `mvn clean install` green (JaCoCo gate included), **and** the sim classes green run
-  **alone** — which task 3 should now make equivalent.
-- ⚠ **Proven to move no engine number** — same-seed harness run before/after, identical.
-- **A clean 5-seed harness run**, profile from the **environment**
-  (`SPRING_PROFILES_ACTIVE=local,baseline`, confirm the `Profiles:` line). ⚠ **Record the
-  mean in `calibration.md`'s Current column — it is §3.20's input.**
-- Roadmap §3.19 bullet flipped to `[x]`; an implementation note on a new `#042` **only if
-  something diverged** (this phase resolves no design questions).
-- ⚠ **Do NOT commit** — leave the work in the tree and wait (CLAUDE.md).
-
-**⚠ Do NOT** *(reference)*
-- **Do NOT tune anything.** No `SimConfig` change, no constant, no rate. This phase makes
-  instruments honest; **§3.20 does the tuning.**
-- **Do NOT reroute `blockProbability`** — closed as not worth it (~half a blocked three
-  per team-game on an on-target row). Footnote only, in the §3.20 bullet.
-- **Do NOT start §3.20's design pass here** — it opens with a measurement, and that
-  measurement is this phase's exit condition.
-
----
-
-## §3.20 (recalibration) — NOT THIS PHASE. Pointers only.
-
-⚠ **Do not start any of this until §3.19 above is done and the 5-seed harness run is
-recorded.** That run is §3.19's exit condition and §3.20's first input.
+✅ **The precondition is met: §3.19 has shipped and its 5-seed run is recorded** in
+[calibration.md](calibration.md)'s Current column. That run is §3.20's first input.
 ⚠ **This section is deliberately thin, and that is not an omission.** The content lives
 in **roadmap.md's §3.20 bullet** so it survives this file's rewrite — todo.md is
-current-phase-only, and it gets rewritten for §3.20 when that pass opens.
+current-phase-only, and **rewriting it for §3.20 is that design pass's first job**.
 
 **When you get there, read in this order:**
 1. **[roadmap.md](roadmap.md)'s §3.20 bullet** — the core problem (**2P%, FTA and points

@@ -12,7 +12,7 @@ gametime/
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list (current phase only — CURRENTLY:
-│   │                          §3.19 INSTRUMENTATION, execute-ready)
+│   │                          §3.20 RECALIBRATION, needs a DESIGN PASS)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
 │   ├── ideas.md               Parking lot — untriaged future-improvement ideas
 │   ├── calibration.md         Calibration targets — THE source of truth for them
@@ -120,12 +120,11 @@ When adding or changing production code under `gametime-app/src/main/java`,
 invoke the **`test-coverage`** skill — the JaCoCo gate is per-package and runs at
 `install`, not `test`, so a green `mvn test` does not prove it passes.
 
-⚠ **Until §3.19 lands, a green `mvn clean install` does NOT prove CI will pass.**
-`V1ApiDelegateimplTest` is not `@Transactional` and commits roster rows, which shifts the
-sim's RNG consumption downstream — so sim tests can pass in the full suite and fail in
-isolation. **§3.19 fixes this** (see todo.md); **delete this note when it does.**
-Meanwhile, after any change touching `PossessionEngine`/`ShotSelector`/`RotationState`,
-also run the sim classes alone:
+✅ **§3.19 closed the full-suite-vs-isolation gap** — `V1ApiDelegateimplTest` used to
+commit roster rows, shifting the sim's RNG consumption downstream, so sim tests could
+pass in the full suite and fail alone. It is `@Transactional` now. **Still cheap and
+still worth doing** after any change touching `PossessionEngine`/`ShotSelector`/
+`RotationState` — run the sim classes alone:
 ```
 JAVA_HOME=... mvn -pl gametime-app -f gametime-service/pom.xml test -Dtest='GameSimulatorIntegrationTest' -DfailIfNoTests=false
 ```

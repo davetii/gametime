@@ -3,13 +3,32 @@ package software.daveturner.gametime.api;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.context.*;
+import org.springframework.transaction.annotation.Transactional;
 import software.daveturner.gametime.exception.*;
 import software.daveturner.gametime.model.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 
+/**
+ * §3.19: {@code @Transactional} so each method rolls back, matching every other
+ * {@code @SpringBootTest} in the suite.
+ *
+ * <p><b>Why it is load-bearing rather than tidiness.</b> Without it these methods
+ * COMMIT roster rows (players created and assigned to teams), which changes who is on
+ * the floor in the sim tests that run afterwards — and therefore how the seeded RNG
+ * stream is consumed downstream. The visible symptom was a sim test that
+ * <b>passed in the full suite and failed in isolation on the same seed</b>, which is
+ * how §3.17 shipped a red branch after two clean local {@code mvn install} runs: a
+ * green full-suite build did not prove CI would pass.
+ *
+ * <p>The "is it deliberately non-transactional?" question was checked (2026-08):
+ * <b>no</b> — no {@code @Transactional}, no {@code @DirtiesContext}, no ordering
+ * annotation and no explanatory comment across 15 independent methods. It was an
+ * oversight, and each method is self-contained.
+ */
 @SpringBootTest
+@Transactional
 class V1ApiDelegateimplTest {
 
     // seed player already assigned to a team (team ATL)

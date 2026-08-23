@@ -213,6 +213,54 @@ class CalibrationHarness {
             agg.reconciliationMismatches++;
         }
 
+        // §3.19: FT-SOURCE reconciliation. The per-source FT split (#029 D) is read
+        // off an outcome SUFFIX, so an untagged or mis-tagged free throw lands in the
+        // UNKNOWN bucket and silently distorts the FT-source percentages §3.20 reads.
+        // Nothing asserted that bucket was empty. The check is the same shape as the
+        // two above — events are the source of truth — with two conditions: the
+        // per-source counts must SUM to the total FREE_THROW events, and the UNKNOWN
+        // bucket must be empty. A sum-only check would pass with every FT tagged
+        // UNKNOWN, which is precisely the failure it exists to catch.
+        long freeThrowEvents = 0;
+        long taggedFreeThrows = 0;
+        long unknownFreeThrows = 0;
+        for (GameEventEntity e : events) {
+            if (e.getPlayType() != PlayType.FREE_THROW) continue;
+            freeThrowEvents++;
+            if ("UNKNOWN".equals(freeThrowSource(e.getOutcome()))) {
+                unknownFreeThrows++;
+            } else {
+                taggedFreeThrows++;
+            }
+        }
+        if (unknownFreeThrows > 0 || taggedFreeThrows != freeThrowEvents) {
+            agg.freeThrowSourceMismatches++;
+        }
+
+        // §3.19: POINTS reconciliation. Points is a headline §3.20 target and nothing
+        // verified the harness computed it consistently — agg.points comes off the
+        // final SCORE, while every other row is derived from the event log. Sum 2/3
+        // per made SHOT and 1 per made FREE_THROW from the events and check that
+        // against both the box-score total and the final score. All three must agree:
+        // if they ever diverge, a target row is being read off a different quantity
+        // than the play-by-play describes.
+        long eventPoints = 0;
+        for (GameEventEntity e : events) {
+            String outcome = e.getOutcome();
+            if (outcome == null || !outcome.startsWith("MADE")) continue;
+            if (e.getPlayType() == PlayType.SHOT) {
+                eventPoints += ShotType.THREE.name().equals(shotTypeSuffix(outcome))
+                        ? ShotType.THREE.getPoints() : 2;
+            } else if (e.getPlayType() == PlayType.FREE_THROW) {
+                eventPoints++;
+            }
+        }
+        int boxPoints = boxScores.stream().mapToInt(b -> nz(b.getPoints())).sum();
+        int finalScore = result.getHomeScore() + result.getAwayScore();
+        if (eventPoints != boxPoints || boxPoints != finalScore) {
+            agg.pointsMismatches++;
+        }
+
         // §3.8 (decisions.md #026 D): count OUT_OF_BOUNDS_* REBOUND events so the OOB
         // rate is VISIBLE (no hard target) — sail-out is a genuinely new outcome that
         // removes a rebound chance, so its rate must be watchable to confirm the
@@ -545,6 +593,13 @@ class CalibrationHarness {
         long fga, fgm, tpa, tpm, assists, turnovers, offReb, defReb, blocks, steals, oob;
         long periods;
         int reconciliationMismatches;
+        // §3.19: the two checks that finish the harness's self-verification. Kept as
+        // their OWN counters rather than folded into the line above so a failure names
+        // WHICH instrument broke — the whole point is that a wrong reading does not
+        // announce itself, and "1 MISMATCH(es)" on a shared counter would not say
+        // whether the FT tags or the points arithmetic drifted.
+        int freeThrowSourceMismatches;
+        int pointsMismatches;
 
         // §3.5 per-slot minutes (slot 0 = biggest-minutes player per team-game).
         final long[] minutesBySlot = new long[MAX_TRACKED_SLOTS];
@@ -699,6 +754,16 @@ class CalibrationHarness {
             lines.add(String.format("Reconciliation (ast+blk):%s",
                     reconciliationMismatches == 0 ? " OK (all games match)"
                             : " " + reconciliationMismatches + " MISMATCH(es)"));
+            // §3.19: the two self-checks added to finish the mechanism. Same
+            // OK / N MISMATCH(es) form, one line each so the failing instrument is
+            // named. FT sources feed the per-source split below; points is a headline
+            // §3.20 target read off the score rather than off the event log.
+            lines.add(String.format("Reconciliation (ft-src):%s",
+                    freeThrowSourceMismatches == 0 ? " OK (all FTs tagged, no UNKNOWN)"
+                            : " " + freeThrowSourceMismatches + " MISMATCH(es)"));
+            lines.add(String.format("Reconciliation (points): %s",
+                    pointsMismatches == 0 ? "OK (events = box score = final)"
+                            : pointsMismatches + " MISMATCH(es)"));
 
             System.out.println();
             System.out.println("======== §3.4 + §3.5 + §3.7 CALIBRATION REPORT =========");
