@@ -1486,6 +1486,19 @@ when to stop.
 
 ## ⚠ WHAT §3.20 (RECALIBRATION) INHERITS — the handoff, assembled
 
+> ✅ **CONSUMED — §3.20's design pass ran (2026-08) and resolved every gap below as
+> [#042](#042) A–J.** This block did its job; it is kept as the record of what was handed
+> over, **not as open work**. ⚠ **Its pointers are STALE**: "the design questions are
+> indexed as Q1–Q7 in `todo.md`" — **that section is gone**, replaced by the execute-ready
+> plan; and **`roadmap.md`'s §3.20 bullet is annotated SUPERSEDED** (its
+> over-determination conclusion is disproved by #042 A). **For current work read #042 and
+> todo.md's §3.20 execution plan.**
+>
+> ⚠ **One row below is now known to be WRONG, not merely stale** — the *Points 110.0 vs
+> 115.6* row's "roughly a 5% pace bump" (#039 H). §3.20 does **not** touch pace: the knob
+> is an integer whose smallest step overshoots, and the recovery comes from `2P%` +
+> `non-shooting-foul-share` instead (#042 A/B/D).
+
 ⚠ **Renumbered: this block was written when recalibration was §3.19. It is now §3.20** —
 the §3.19 slot became the instrumentation pass (2026-08). Read the phase name, not the
 number.

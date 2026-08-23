@@ -323,8 +323,9 @@ not add "done" entries (those are the `#NNN` entry's job).
 
 - **The phase sequence and this phase's bullet** → [roadmap.md](roadmap.md). ⚠ **Its
   §3.20 bullet's "over-determination" framing is SUPERSEDED by #042 A** — the conflict was
-  an artifact of holding FGA and FT% fixed. The bullet is left as written (it is the
-  pre-design argument, and Q1–Q7 were an index over it); **#042 is authoritative.**
+  an artifact of holding FGA and FT% fixed. The bullet is **kept and ANNOTATED** rather
+  than rewritten (it is the pre-design argument, and #042 is largely a response to it);
+  **#042 and the plan above are authoritative.**
 - **Calibration targets** → [calibration.md](calibration.md), **the source of truth**.
   Update it *and* the `CalibrationHarness` `(target ~N)` strings together.
 - **Infra/tooling/data-hygiene chores**, and **the `decisions.md` condense pass** (a

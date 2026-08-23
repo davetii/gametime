@@ -816,8 +816,24 @@ re-running the loop and re-agreeing the numbers, not a red build.
       ⚠ **If any of the three moves an engine number, stop and find out why** — test-side
       changes have no business altering engine output.
 
-- [ ] **§3.20 — Recalibration against verified targets** *(needs its own design pass.
-      ⚠ **FOURTH NUMBER FOR THIS PASS**: it was §3.16, then §3.18, then §3.19, and is now
+- [ ] **§3.20 — Recalibration against verified targets**
+      > ✅ **ITS DESIGN PASS IS DONE — resolved as [decisions.md](decisions.md) #042
+      > (2026-08). The execute-ready plan is [todo.md](todo.md)'s §3.20 section; START
+      > THERE, not here.** The bullet below is the **pre-design argument**, kept because
+      > #042 is largely a response to it — but ⚠ **its central claim is SUPERSEDED.**
+      >
+      > ⚠ **"2P%, FTA and points are OVER-DETERMINED and cannot all be hit" is WRONG, and
+      > the design pass's measurement is what disproved it.** That arithmetic held **FGA
+      > and FT% fixed**, and neither should be: `non-shooting-foul-share` moves **FTA and
+      > FGA as one lever**, and **FT% was running at 82.56% against a real ~78%** while
+      > absent from `calibration.md` entirely. With both counted **every sourced row lands
+      > at once** — there is no target to sacrifice. **Do NOT start this phase looking for
+      > one** (#042 A).
+      >
+      > Still correct below, and still worth reading: the phase's *shape* (it adds no
+      > mechanic, it must stay last), the measurement-first instruction, `base-three` must
+      > not move, the recovery comes from MAKING not TAKING, and the frozen list.
+      *(⚠ **FOURTH NUMBER FOR THIS PASS**: it was §3.16, then §3.18, then §3.19, and is now
       **§3.20** — see the mapping callout above. **Read the phase NAME, never the number.**
       **THE LAST Phase-3 sub-phase, and it must stay last**: every pass before it settles
       the SHAPE of the game — foul mix (§3.16), shot mix (§3.17), event vocabulary (§3.18),
@@ -832,19 +848,29 @@ re-running the loop and re-agreeing the numbers, not a red build.
       technicals and flagrants need 5 seeds as a hard floor), with the profile from the
       **environment** (`SPRING_PROFILES_ACTIVE=local,baseline` — confirm the `Profiles:`
       line), then argue the questions against those fresh numbers.
-      ⚠ **THE CORE PROBLEM — one problem in three rows, not three problems.** **2P% is 6.3
+      ⚠ **THE CORE PROBLEM — one problem in three rows, not three problems.** ⛔ **THIS
+      PARAGRAPH IS SUPERSEDED BY #042 A — the conclusion is WRONG. Read it as the question
+      §3.20 was ASKED, never as the answer.** *(The gaps it states are real and reproduced;
+      the over-determination it infers from them does not exist.)* **2P% is 6.3
       points LOW** (~48.7 vs a sourced 55.0) and **FTA is 3.7 attempts LOW** (19.76 vs
       23.5). Both must go **UP**. But the 2P% fix is worth **~+7 points** and the FTA fix
       **~+2.8**, against a points gap of only **5.6** — **combined ~+9.8, which overshoots
       points to ~120 vs a target of 115.6.** ⚠ **So 2P%, FTA and points are
       OVER-DETERMINED and cannot all be hit independently. Deciding which target yields is
       this pass's real work.**
+      ⛔ **Why that is wrong (#042 A):** it holds **FGA and FT% fixed**. FGA is *already*
+      over (92.28 vs 89.1) and must come down anyway — and the **same** knob that raises
+      FTA is what lowers it (`non-shooting-foul-share`; a stopped shot charges no FGA). FT%
+      is running **82.56% against a real ~78%** and was **not in `calibration.md` at all**,
+      donating ~1.1 points/team/game. Count both and the ~+4.4 overshoot is absorbed:
+      **every sourced row lands together.**
       ⚠ **The recovery must come from MAKING more shots, not TAKING more** — **FGA is the
       one row already too high** (92.28 vs 89.1), so a pace bump is the obvious-looking
       lever and the wrong one.
       ⚠ **`base-three` must NOT move** — 3P% is correct at 35.8 vs 36.0 and held across a
       1.9× volume change. The 2P% lever is `base-drive` / `base-post` / `base-perimeter`.
-      **The other open questions**, smaller: **FTA's mechanism** (does
+      **The other open questions**, smaller — ✅ **all resolved in #042 B–J; listed here as
+      the questions asked, not as open work**: **FTA's mechanism** (does
       `sim.non-shooting-foul-share` move, the foul rate, or both? ⚠ the share is priced by
       the **penalty rate**, not the foul rate alone, and moving the foul rate stales the
       flagrant divisor); **def rebounds** 30.48 vs 32.4, a residual rate question;
