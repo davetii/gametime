@@ -590,11 +590,17 @@ class FoulResolverTest {
     @Test
     void theMultiplierIsAnchoredNotAProbability() {
         // The units hazard #030 records: these constants sit beside
-        // BASE_NO_BASKET_FOUL = 0.15 where everything LOOKS like a probability.
+        // base-no-basket-foul where everything LOOKS like a probability.
         // FOUL_MULT_THREE = 0.133 means "13.3% of the drive rate" (⇒ ~2%), not
         // "13.3% of threes are fouled". Pin the arithmetic so the meaning is
         // executable, not just documented.
-        assertEquals(0.15 * config.foulMultThree(),
+        //
+        // ⚠ §3.20: this read the base as a HARDCODED 0.15 on the left and through the
+        // accessor on the right, so it failed the moment recalibration moved the
+        // constant (0.15 → 0.1687) — reporting a units bug where there was only a new
+        // value. The assertion's job is the MULTIPLIER's meaning, so both sides now go
+        // through the accessor and the base is free to move.
+        assertEquals(config.baseNoBasketFoul() * config.foulMultThree(),
                 config.baseNoBasketFoul() * config.foulMultiplier(ShotType.THREE), 1e-9);
         assertTrue(config.baseNoBasketFoul() * config.foulMultThree() < 0.03,
                 "The THREE multiplier must resolve to a ~2% foul rate, not a 13% one");

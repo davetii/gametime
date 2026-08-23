@@ -86,8 +86,12 @@ class SimConfigTest {
 
     @Test
     void freeThrowProbabilityAverageSkill() {
+        // §3.20 (#042 C): ft-base 0.75 -> 0.705. Realized FT% was running 82.56%
+        // against a real ~78% — a row ABSENT from calibration.md that was donating
+        // ~1.1 points/team/game no target was watching. It is now a sourced TARGET
+        // and lands at 78.20%.
         double result = config.freeThrowProbability(10.0);
-        assertEquals(0.75, result, 0.001);
+        assertEquals(0.705, result, 0.001);
     }
 
     @Test
@@ -414,15 +418,22 @@ class SimConfigTest {
     /**
      * #034 G: the constant is the per-team-per-GAME rate, divided down by the
      * PERSONAL-FOUL rate because the roll fires per FOUL, not per possession or per
-     * check. ~0.16 / 17.82 ≈ 0.0090 (§3.17 re-measured the divisor — see below).
+     * check. ~0.16 / 18.52 ≈ 0.0086 (§3.20 re-measured the divisor — see below).
      */
     @Test
     void flagrantFoulProbabilityDividesTheGameRateByThePersonalFoulRate() {
+        // The INVARIANT: the probability is exactly the quotient. This holds whatever
+        // either term is, and is the assertion that carries the meaning.
         assertEquals(config.flagrantFoulsPerTeamGame()
                         / SimConfig.PERSONAL_FOULS_PER_TEAM_GAME,
                 config.flagrantFoulProbability(), 1e-12);
-        assertEquals(0.0090, config.flagrantFoulProbability(), 1e-4,
-                "The per-foul probability lands around 0.0090");
+        // A MAGNITUDE sanity check, deliberately loose: it exists to catch a units
+        // slip (a per-game rate used as a per-foul one would read ~0.16, not ~0.009),
+        // NOT to pin the divisor. ⚠ Its literal must follow the divisor — §3.20 moved
+        // it 17.82 -> 18.52 and this went 0.0090 -> 0.0086.
+        assertEquals(0.0086, config.flagrantFoulProbability(), 1e-4,
+                "The per-foul probability lands around 0.0086 — an order-of-magnitude "
+                        + "check on the units, not a pin on the divisor");
     }
 
     /**
@@ -447,10 +458,15 @@ class SimConfigTest {
      */
     @Test
     void theFlagrantDivisorIsTheMeasuredPersonalFoulRateNotAConfiguredCount() {
-        assertEquals(17.82, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
-                "§3.17 re-measured this deliberately (#034 G forbids letting it drift): "
-                        + "18.18 fouls/team/game over ALL foul events, minus ~0.36 "
-                        + "technicals, i.e. 17.82 personal fouls");
+        assertEquals(18.52, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
+                "§3.20 re-measured this at the recalibration landing (#034 G forbids "
+                        + "letting it drift): 18.864 fouls/team/game over ALL foul "
+                        + "events, minus 0.346 technicals, i.e. 18.52 personal fouls. "
+                        + "⚠ §3.20 moved it TWICE — its main pass changed only the foul "
+                        + "MIX (17.82 -> 17.77, a non-event), then its follow-up raised "
+                        + "base-no-basket-foul to land FGA, which moved the RATE "
+                        + "(17.77 -> 18.52, +4.2%). Re-measure on ANY change that "
+                        + "touches the foul rate: staleness is silent (#032 B2)");
         // The contrast that makes the coupling worth stating: the technical divisor is
         // derived from constants, so it moves only when a constant moves. This one does
         // not appear in any other formula — moving the foul rate moves flagrants
