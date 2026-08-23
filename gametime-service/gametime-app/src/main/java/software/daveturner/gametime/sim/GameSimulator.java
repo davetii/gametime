@@ -94,8 +94,21 @@ public class GameSimulator {
         }
 
         // §3.5: every player who took the floor gets a box-score row, not just the
-        // 5 starters. A player who never checked in (onFloorPossessions == 0) has
-        // nothing to reconcile, so they get no row.
+        // 5 starters.
+        //
+        // §3.20 — ⚠ THE PREDICATE IS tookFloor(), NOT onFloorPossessions == 0, AND
+        // THE DIFFERENCE IS A REAL BUG THIS FIXES. The old filter read "never
+        // checked in" off the minutes counter, but RotationState.advancePossession
+        // drains for the five on the floor at the TOP of the call and substitutes
+        // AFTERWARDS — so a substituted-in player could take the floor, SCORE, and
+        // still hold a count of 0, at which point his row (and his points) were
+        // silently dropped. Measured at ~1 game in 1200: box score 237 against an
+        // event log and final score that both read 240.
+        // ⚠ Caught ONLY by §3.19's points identity; no test failed. Today the
+        // damage is ~0.001 on FGA, but Phase 4's leaderboards read this table.
+        // ⚠ Do NOT "simplify" this back to the possession count: the two answer
+        // different questions, and onFloorPossessions must stay the pure minutes
+        // denominator (a row with points and 0 minutes is the other wrong answer).
         List<PlayerGameState> allPlayers = new ArrayList<>(homeSquad);
         allPlayers.addAll(awaySquad);
         int totalGameMinutes = SimConfig.PERIODS * SimConfig.MINUTES_PER_PERIOD
@@ -103,7 +116,7 @@ public class GameSimulator {
         int homePossessions = totalOnFloorPossessions(homeSquad);
         int awayPossessions = totalOnFloorPossessions(awaySquad);
         for (PlayerGameState p : allPlayers) {
-            if (p.getOnFloorPossessions() == 0) {
+            if (!p.tookFloor()) {
                 continue;
             }
             BoxScoreEntity bs = new BoxScoreEntity();

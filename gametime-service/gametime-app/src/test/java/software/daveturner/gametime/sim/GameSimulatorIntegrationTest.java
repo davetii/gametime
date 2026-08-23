@@ -798,11 +798,33 @@ class GameSimulatorIntegrationTest {
                         "the fouled shooter is on offense");
                 shootingFouls++;
             } else if ("AND_ONE".equals(e.getOutcome())
-                    || PossessionEngine.NON_SHOOTING_FOUL_OUTCOME.equals(e.getOutcome())
-                    || e.getOutcome().startsWith("FLAGRANT_FOUL_")) {
+                    || PossessionEngine.NON_SHOOTING_FOUL_OUTCOME.equals(e.getOutcome())) {
                 // Also individual-victim fouls: the fouled shooter is identified.
                 assertNotNull(e.getOpponentPlayerId(),
                         e.getOutcome() + " names the player who was fouled");
+            } else if (e.getOutcome().startsWith("FLAGRANT_FOUL_")) {
+                // §3.20 (#042): a flagrant is emitted at THREE sites and the victim
+                // column is NOT uniform across them, so it cannot be asserted as one
+                // bucket. At the two SHOT sites the fouled shooter is in scope and is
+                // named; at the REBOUNDING site awardFlagrant is passed a null
+                // fouledPlayerId BY CONTRACT — a loose-ball foul is committed against
+                // the team contesting the board and the engine never identifies an
+                // individual victim, so the foulDrawing-weighted pickFreeThrowShooter
+                // draw is a stand-in for the AWARD, not the person who was hit.
+                // Populating it would fabricate a participant (the #041 D trap).
+                //
+                // ⚠ THIS ASSERTION USED TO READ assertNotNull AND PASSED ONLY BY LUCK.
+                // A flagrant is rare (~0.14 / team-game) and rarer still at the
+                // rebounding site, so the seeded game simply never produced one until
+                // §3.20's tuning shifted RNG consumption. The engine never changed.
+                // Assert the COMMITTER instead — that IS uniform, and it is the fact
+                // this row is for (line ~695 asserts it for every FOUL; kept here as
+                // the flagrant-specific statement of the same contract).
+                assertNotNull(e.getPrimaryPlayerId(),
+                        e.getOutcome() + " always names the COMMITTER");
+                assertEquals(e.getCommittingTeamId(),
+                        teamByPlayer.get(e.getPrimaryPlayerId()),
+                        "a flagrant's primary is the committer, on committing_team_id");
             } else {
                 assertNull(e.getOpponentPlayerId(),
                         "the remaining fouls are null BY CONTRACT: a rebounding foul "
@@ -843,6 +865,56 @@ class GameSimulatorIntegrationTest {
                                 + "fact and were deliberately not merged (#041 D)");
             }
         }
+    }
+
+    /**
+     * §3.20: <b>the three point totals agree — event log, box score, final score.</b>
+     * §3.19's identity, asserted here as a TEST rather than only reported by the
+     * harness, because the bug it catches is a box-score row going missing and
+     * nothing in the suite asserted box-score completeness.
+     *
+     * <p>⚠ <b>This is the AGGREGATE guard and it is seed-dependent, so it is NOT the
+     * real regression test</b> — the underlying defect is ~1 game in 1200 and cannot
+     * be pinned by a seed here (the harness runs seeded league rosters; this class is
+     * {@code @Transactional} with different players, so the same seed is a different
+     * game). {@code RotationStateTest} owns the deterministic guard on the mechanism.
+     */
+    @Test
+    void pointsReconcileAcrossEventLogBoxScoreAndFinalScore() {
+        SimResult result = simulator.simulate("POR", "PHO", 4014L, 25);
+        List<GameEventEntity> events = gameEventRepo
+                .findByGameIdOrderBySequenceAsc(result.getGameId());
+        List<BoxScoreEntity> box = boxScoreRepo.findByGameId(result.getGameId());
+
+        Map<String, Integer> eventPointsByPlayer = new HashMap<>();
+        for (GameEventEntity e : events) {
+            String outcome = e.getOutcome();
+            if (outcome == null || !outcome.startsWith("MADE")) {
+                continue;
+            }
+            int value = e.getPlayType() == PlayType.SHOT
+                    ? (outcome.contains("3PT") ? 3 : 2)
+                    : (e.getPlayType() == PlayType.FREE_THROW ? 1 : 0);
+            if (value > 0) {
+                eventPointsByPlayer.merge(e.getPrimaryPlayerId(), value, Integer::sum);
+            }
+        }
+        Map<String, Integer> boxPointsByPlayer = new HashMap<>();
+        for (BoxScoreEntity b : box) {
+            boxPointsByPlayer.put(b.getPlayerId(), b.getPoints() == null ? 0 : b.getPoints());
+        }
+        for (Map.Entry<String, Integer> e : eventPointsByPlayer.entrySet()) {
+            assertTrue(boxPointsByPlayer.containsKey(e.getKey()),
+                    "a player who SCORED has no box-score row: " + e.getKey()
+                            + " scored " + e.getValue() + " in the event log");
+            assertEquals(e.getValue(), boxPointsByPlayer.get(e.getKey()),
+                    "box-score points disagree with the event log for " + e.getKey());
+        }
+        int eventTotal = eventPointsByPlayer.values().stream().mapToInt(Integer::intValue).sum();
+        int boxTotal = boxPointsByPlayer.values().stream().mapToInt(Integer::intValue).sum();
+        assertEquals(eventTotal, boxTotal, "event log vs box score");
+        assertEquals(boxTotal, result.getHomeScore() + result.getAwayScore(),
+                "box score vs final score");
     }
 
     /** Player → team, over the two teams on the game. */
