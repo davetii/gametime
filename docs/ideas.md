@@ -299,3 +299,64 @@ into a graveyard.
   stat in Phase 4, or a defensive-fidelity pass that wants the drawer's `acumen` to bend
   the charge rate. It is then a clean standalone: one new draw, one column already in
   place, and a deliberate re-baselining of the seeded expectations.
+
+- **The roster's FT-skill distribution** *(raised 2026-08 at §3.20's execution;
+  `decisions.md` #042 C / follow-up)*. `sim.ft-base` had to come **down to 0.705** to land
+  a realized FT% of 78%, because realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10`
+  and the **generated population's mean `freeThrows` sits near 13.8** — well above the
+  avg-10 scale midpoint. **The constant is correcting a population effect**, and it does
+  so **globally**: every free throw gets harder for every player, including the poor
+  shooters who should be missing already. **This is player-generation, not sim-config**,
+  which is why §3.20 fixed the symptom and parked the cause. ⚠ **It very likely is not
+  confined to `freeThrows`** — if the generator's mean sits high on one skill it may on
+  others, and every other `base-*` constant would be absorbing the same bias invisibly.
+  **What would make it real:** a pass that owns player generation, or simply a
+  measurement of the generated population's mean per skill against the avg-10 scale — that
+  measurement is cheap and would say at once whether this is one skill or a systemic
+  offset.
+
+- **A per-shot-type FG% instrument in `CalibrationHarness`** *(raised 2026-08 at §3.20's
+  execution)*. The harness reports FG% **in aggregate only**, so the three 2P bases
+  (`base-drive` / `base-post` / `base-perimeter`) can be tuned **only against the
+  aggregate** — their realized rim / post-up / mid-range make rates are invisible.
+  §3.20 set their split against real-basketball separation (rim ~66%, mid-range ~42–45%)
+  as an *argument*, and could not verify the result. ⚠ **This is exactly the blind spot
+  §3.17 spent a whole pass fixing for the shot MIX** — the mix became a calibration
+  surface only once the harness printed charged-vs-draw shares. The make rates are the
+  same problem one level down. **What would make it real:** any pass that wants to
+  re-shape the 2P split, or a "green aggregate hiding wrong composition" finding of the
+  kind §3.17 produced. It is test-side only and adds no engine surface.
+
+- **A rim-protection era profile** *(raised 2026-08 by the user during §3.20's execution)*.
+  A profile that dials **blocks up to ~5.5** (baseline lands 4.58 against a sourced 4.8),
+  as a deliberate stylistic delta over `baseline` — the same shape as the parked
+  1990s/three-heavy era profiles (#035). ⚠ **It must NOT be done by moving baseline**:
+  baseline is tuned to Basketball-Reference 2025-26 league averages, and bending a sourced
+  target toward a preference makes every later pass read a target that is not one.
+  ⚠ **Two mechanical traps** for whoever builds it. **(1) A block does NOT reduce FGA** —
+  `recordFieldGoalAttempt()` fires *before* the block fork, so a block is a charged miss,
+  not a removed attempt; it moves **FG%/2P%**, not the attempt count. Anyone reaching for
+  blocks to shave FGA or points is reaching for the wrong lever. **(2) `base-block-three`
+  is INERT** — `PROB_FLOOR` (0.02) is 4× it (0.005), so for the ~41% of attempts that are
+  threes the rate is **floored, not based**, and raising the constant does nothing. A
+  profile that wants more blocked threes must reroute through `clampRareProbability`
+  first (`calibration.md`'s standing footnote). **What would make it real:** the era-profile
+  work generally — it is a values-only delta once the floor question is settled.
+
+- **Derive the box score FROM the event log, as the single source of truth**
+  *(raised 2026-08 by the user, on §3.20's box-score bug; the risk write-up is in
+  [risks.md](risks.md), and Phase 4 carries a pointer)*. Today every stat is written
+  **twice** — `PlayerGameState.record*()` counters and the `GameEvent` for the same play
+  — and **the two agree only by convention**, because each call site remembers to do
+  both. Deriving one from the other collapses two write paths into one.
+  ⚠ **The motivating consumer is SINGLE-GAME SUMMARIZATION, not leaderboards** (user's
+  framing). A box score rendered for one game sits **next to the play-by-play the user
+  can also read**, so a disagreement between the two is **visible to the user** rather
+  than buried in a season aggregate — which is a sharper reason to want one source than
+  career-stat correctness is.
+  ⚠ **The blocker is `minutes`**: it has no event behind it — a possession-share
+  projection (#023 A) — so a full derivation needs either substitution/possession events
+  or minutes kept as the one deliberately non-derived field.
+  **What would make it real:** a game-summary/recap consumer, or Phase 4's design pass
+  choosing to take it on. ⚠ **Deliberately NOT scheduled and NOT a gate** — the acute bug
+  is fixed, and whether this is worth a refactor is an open question, not a decided one.

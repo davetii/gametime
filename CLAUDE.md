@@ -12,7 +12,7 @@ gametime/
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list (current phase only — CURRENTLY:
-│   │                          §3.20 RECALIBRATION, needs a DESIGN PASS)
+│   │                          §3.21 REBOUND POOL, needs a DESIGN PASS)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
 │   ├── ideas.md               Parking lot — untriaged future-improvement ideas
 │   ├── calibration.md         Calibration targets — THE source of truth for them

@@ -54,3 +54,83 @@ decisions.md entry. Keep every line here a *live* concern.
 **Severity**: Low  
 **Description**: The ~420 pre-loaded players have manually-assigned attributes. Partially validated: §3.4's calibration (~100 games) shows the seed roster produces **realistic team-level outcomes** in aggregate (see Skill formula balance). Still open: whether the *attribute distributions themselves* (vs. the formulas on top of them) are realistic at the individual level — same tails concern as above, hard to separate from formula balance until Phase 4 surfaces per-player season lines.  
 **Mitigation**: Compare per-player stat distributions to real-basketball benchmarks once Phase 4 stats exist; adjust seed data or formulas then. Related backlog.md chore: hand-tuning marquee/star players to 18–20 (backlog.md).
+
+## A scoring player can be dropped from the box score entirely (found 2026-08, §3.20)
+
+⚠ **`points` on the box score can under-count the real score, and the FT/assist
+reconciliations do NOT catch it** — only §3.19's **points** identity does, and only on the
+~1-game-in-1200 where it fires.
+
+**Symptom.** `CalibrationHarness`'s points reconciliation reported `1 MISMATCH(es)`:
+event log **240**, final score **240**, **box score 237**. The event log and the final
+score agree, so **the game's scoring is correct** — a player's box-score row is missing,
+taking his points with it. Isolated to one player who hit a `MADE_3PT` and had **no box
+score row at all**.
+
+**Cause.** `GameSimulator` skips any player whose `onFloorPossessions == 0`, on the stated
+assumption that they "never checked in" and so have "nothing to reconcile". **That
+assumption is false.** `RotationState.advancePossession` calls `drainForPossession()` —
+the only thing that increments `onFloorPossessions` — for the players on the floor **at
+the top of the call**, and runs substitutions **afterwards**. A player substituted in can
+therefore take the floor, participate in a scoring play, and still finish with a counter
+of 0, at which point `GameSimulator` silently drops him.
+
+**Severity: low frequency, but it corrupts a PERSISTED stat and it is silent.** Measured
+at ~**1 game in 1200+** (12 sweeps of 102 games across two configs). ⚠ **It is
+config-sensitive in appearance only** — it did not reproduce on the pre-§3.20 constants or
+on the §3.20 landing, and *did* on an experimental two-lever config, purely because the
+constants change which games reach the path. **Do not read it as caused by a constant.**
+
+**Why it matters more from Phase 4 on.** Today only the harness reads box scores in
+aggregate. **Phase 4 builds leaderboards and season totals on this table** — a silently
+missing player-game is a wrong career stat that nothing will flag.
+
+**The fix is not simply "drop the guard".** `onFloorPossessions` is also the **minutes
+denominator** (minutes are a possession-share projection), so a row with 0 would project 0
+minutes while showing points — visibly odd. The honest fix is to make the counter mean
+"took the floor", which is an ordering question in `advancePossession`. **Needs its own
+design pass** — it touches the rotation step, which is RNG-adjacent (#031 B), so a naive
+reorder risks re-baselining every seeded test.
+
+## ⚠ Stats are written TWICE, and the two paths agree only by convention
+
+**The architectural concern behind the box-score bug above** *(raised 2026-08 by the
+user)*. Every stat in this engine is recorded by **two independent mechanisms**:
+
+| path | what it is |
+|---|---|
+| `PlayerGameState.record*()` | counters incremented as the possession runs |
+| `data.addEvent(...)` | the `GameEvent` emitted for the same play |
+
+**Nothing structurally guarantees they agree.** They agree because each call site
+remembers to do both. That is a **convention, not an invariant**, and a convention that
+holds across ~14 sub-phases of engine work by discipline alone.
+
+⚠ **§3.20's dropped-box-score-row bug is one realisation of this, and there is no reason
+to assume it is the only one.** There, the event was emitted correctly *and* the counter
+was correct — but the row carrying the counter was never written, so the event log and
+final score stayed right while the box score silently lost a player. **A box score
+derived from the event log cannot fail that way**: one write path instead of two.
+
+⚠ **The corroborating evidence is §3.19 itself.** That pass had to *add* three
+reconciliation identities — `ast+blk`, `ft-src`, `points` — whose entire purpose is to
+detect the two sources disagreeing. **In a derived model those identities are
+tautologies, not tests.** Their existence is the measurement of this risk.
+
+**Why it is not fixed yet, and what blocks it.** It is a real refactor across every
+`record*` call site plus persistence. ⚠ **The specific blocker is `minutes`**: it has no
+event behind it — it is a possession-share projection (#023 A) — so deriving everything
+means either emitting substitution/possession events or keeping minutes as the one
+deliberately non-derived field.
+
+⚠ **The sharpest consumer is SINGLE-GAME SUMMARIZATION, not leaderboards** (the user's
+framing, 2026-08). A box score rendered for one game sits **beside the play-by-play the
+user can also read** — so a disagreement between the two is **visible to the user**,
+not buried in a season aggregate. Career-stat correctness is the weaker argument; "these
+two views of the same game disagree" is the strong one.
+
+**Status: NOT scheduled, and NOT a gate on anything.** The acute bug above is fixed.
+Whether this is worth the refactor is genuinely open. Parked in `ideas.md`;
+`roadmap.md`'s Phase 4 carries a pointer so its design pass sees it, since that phase
+would already be touching every stat path. **If it is ever taken on it wants a design
+pass and a `#NNN`** — it is an architecture call, not a chore.

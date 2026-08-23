@@ -109,7 +109,7 @@ unpopulated.
 |---|---|---|---|---|---|---|
 | `SHOT` | `MADE_2PT_DRIVE` · `MADE_2PT_PERIMETER` · `MADE_2PT_POST` · `MADE_3PT` | shooter | — | assister, if the roll hit | — | Made FG. The assister is a **teammate** — not a counterparty. An and-1 `FOUL` may follow for the same shot |
 | `SHOT` | `MISSED_2PT_DRIVE` · `MISSED_2PT_PERIMETER` · `MISSED_2PT_POST` · `MISSED_3PT` | shooter | — | — | — | Missed FG. A `REBOUND` event follows |
-| `SHOT` | `BLOCKED_2PT_DRIVE` · `BLOCKED_2PT_PERIMETER` · `BLOCKED_2PT_POST` · `BLOCKED_3PT` | shooter (the **victim**) | **the blocker** | — | — | Charges a missed FGA (no FGM; `+3PA` on a blocked three) and carries **no** assist. `BLOCKED_3PT` is rare (a closeout swat). See *Steal / block symmetry* |
+| `SHOT` | `BLOCKED_2PT_DRIVE` · `BLOCKED_2PT_PERIMETER` · `BLOCKED_2PT_POST` · `BLOCKED_3PT` | shooter (the **victim**) | **the blocker** | — | — | Charges a missed FGA (no FGM; `+3PA` on a blocked three) and carries **no** assist. `BLOCKED_3PT` is rare (a closeout swat). See *Steal / block symmetry*. ⚠ **NO `REBOUND` EVENT FOLLOWS — unlike the `MISSED_*` row above.** Recovery is a flat four-way `BlockRecovery` draw (#025 D) that forks the possession but **emits nothing and credits no rebounder** |
 | `TURNOVER` | `STOLEN` | ball-handler (the **victim**) | **the stealer** | — | — | ~56% of turnovers, kept dominant. See *The steal* |
 | `TURNOVER` | `OFFENSIVE_FOUL` | ball-handler | — *(the drawer is **not modelled**)* | — | — | The charge. ⚠ **Also emits a `FOUL` row below — two events, one occurrence.** ⚠ **`opponent` is null DELIBERATELY**: a charge has a real counterparty (the defender who drew it), but the engine never picks one and doing so requires a new RNG draw. See *The charge* |
 | `TURNOVER` | `SHOT_CLOCK_VIOLATION` · `BAD_PASS` · `TRAVELLING` · `LOST_BALL_OUT_OF_BOUNDS` · `3_SECONDS_VIOLATION` · `8_SECONDS_BACKCOURT_VIOLATION` · `OVER_AND_BACK` | ball-handler | — *(no counterparty exists)* | — | — | The seven unforced causes: one actor, one fact, nothing owed (rule 1). ⚠ `LOST_BALL_OUT_OF_BOUNDS` is **distinct** from `OUT_OF_BOUNDS_*` on `REBOUND` |
@@ -129,6 +129,26 @@ unpopulated.
 | `REBOUND` | `OFFENSIVE` | the rebounder | — *(a contest against four, no named loser)* | — | — | Ball stays with the shooting team for a second chance |
 | `REBOUND` | `DEFENSIVE` | the rebounder | — *(a contest against four, no named loser)* | — | — | Possession ends |
 | `REBOUND` | `OUT_OF_BOUNDS_OFFENSE` · `OUT_OF_BOUNDS_DEFENSE` | — *(**no rebounder**)* | — | — | — | The missed shot left the court. ⚠ Reuses the `REBOUND` play type but is **excluded from the rebound reconciliation**, which exact-matches `OFFENSIVE`/`DEFENSIVE`, so it never counts as a box-score rebound |
+
+> ⚠ **A BLOCKED SHOT PRODUCES NO `REBOUND` ROW AT ALL, AND BY THE NBA RULE IT SHOULD.**
+> A recovered block is a rebound for whoever comes up with the ball. The engine resolves
+> *which side* recovers — `BlockRecovery` is `RECOVERED_DEFENSE` 45% / `RECOVERED_OFFENSE`
+> 30% / `OOB_DEFENSE` 13% / `OOB_OFFENSE` 12%, and the possession forks correctly on it —
+> but **emits no event and credits no player**. Measured: **3.41 recovered in bounds per
+> team-game, credited to nobody** (2.04 defensive, 1.36 offensive); the 1.14 that go out of
+> bounds are correctly rebound-less.
+> ⚠ **The BLOCK-OOB slices emit nothing either.** `OOB_DEFENSE` (0.59) and `OOB_OFFENSE`
+> (0.54) are resolved inside `BlockRecovery` with **no event at all** — where the identical
+> situation off a *missed shot* does emit `REBOUND / OUT_OF_BOUNDS_*`. So the event log
+> under-counts ownerless possession changes by **~1.14/team-game**, which is what would
+> make a derived "team rebound" figure wrong today.
+> ⚠ **This is a KNOWN GAP, owned by §3.21** (the rebound pool — def rebounds run 27.90
+> against a sourced 32.4). **Do not "fix" it by adding a row here first**: crediting a
+> rebounder means *selecting* one, and #025 D made the recovery draw flat and
+> skill-independent **deliberately**, so the blocked ball would not inherit the board
+> contest. The vocabulary changes only once that design question is resolved — and when it
+> does, **the OOB slices should start emitting too**, so the log becomes complete.
+> *(Found 2026-08 while closing §3.20.)*
 
 ### What `opponent_player_id` holds
 
