@@ -46,10 +46,29 @@ recalibration**.
 
 ## §3.20 (recalibration) — THE OPEN QUESTIONS, and the order to take them in
 
-⚠ **This is a DESIGN PASS. Write no production code in this session.** Its output is a
-new `decisions.md #042` (Decisions A, B, C…) **plus** an execute-ready plan replacing this
-section. Resolving these questions IS the session; tuning happens in the execution session
-that follows.
+⚠ **This is a DESIGN PASS. Write no production code in this session.** Resolving these
+questions IS the session; tuning happens in the **execution** session that follows.
+
+**How to run it — the shape of a good design session here:**
+1. ⚠ **Invoke the `project-docs` skill first.** It carries the `#NNN` entry format
+   (Decisions A/B/C…, then Rationale / Trade-off / Alternatives **keyed by letter**), the
+   ~15–20k budget, and the routing rules. **Do not invent a structure.**
+2. **Run Step 0's harness measurement** (below) before arguing anything.
+3. **Work Q1–Q7 in order**, against the numbers you took. ⚠ **Q1 is a call for the USER,
+   not for you — see the box under it.**
+4. **Write `decisions.md #042`** — append at the bottom, never renumber. One Decision per
+   resolved question; cite the `#NNN` each constraint comes from rather than re-arguing it.
+5. **Replace this §3.20 section with the execute-ready plan** — a build preamble, then
+   `**Step N — title (#042 ref)**` headers with `- [ ]` sub-items, a **Definition of
+   done**, and a **⚠ Do NOT** block. For the shape, read the last one:
+   `git show f98459b^:docs/todo.md` (§3.19's plan, which used `Task N`).
+6. **Leave the roadmap bullet `[ ]`** — it flips at execution, not here.
+
+⚠ **What makes THIS pass different from the fifteen before it**: every one of those
+reasoned about a mechanic that did not exist yet, so the argument came first and the
+harness confirmed it afterwards. **§3.20 adds no mechanic.** The numbers already exist,
+so the measurement leads and the argument is about **which target yields** — a
+prioritization pass, not a modelling one.
 
 ### ⚠ STEP 0 — RUN THE HARNESS BEFORE ARGUING ANYTHING
 
@@ -106,6 +125,17 @@ not skip them either.
    FTA fix **~+2.8**, against a points gap of only **5.6** — **combined ~+9.8,
    overshooting points to ~120 vs 115.6.** They cannot all be hit independently.
    **Deciding which one yields, and by how much, is this pass.**
+
+   > ⚠ **STOP — Q1's ANSWER IS THE USER'S CALL, NOT THE SESSION'S.** Which target yields
+   > is a **product** question — what the simulated game should feel like — and the
+   > numbers cannot settle it: all three rows are sourced, so arithmetic says only that
+   > they conflict, never which one matters least. **Present the trade-off and ASK; do
+   > not resolve it alone.** Precedent: #027's turnover taxonomy and STOLEN share were
+   > both user calls for the same reason, and `project-docs` states the rule — *if a
+   > design pass surfaces a choice that is genuinely the user's, surface it, don't guess.*
+   > **What to bring them**: the three candidate landings (points on target with 2P%
+   > short · 2P% on target with points over · a split), each with its cost stated in the
+   > row that gives ground. **Q2–Q7 you can resolve yourself** within the answer they pick.
 2. **Where does the recovery come from?** ⚠ **From MAKING more shots, not TAKING more** —
    **FGA is the one row already too high** (92.28 vs 89.1), so a pace bump is the
    obvious-looking lever and the wrong one. ⚠ **`base-three` must NOT move** (3P% is
