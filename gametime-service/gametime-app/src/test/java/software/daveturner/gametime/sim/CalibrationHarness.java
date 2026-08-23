@@ -714,25 +714,30 @@ class CalibrationHarness {
                     "target 115.6 — sourced 2025-26, see calibration.md",
                     BASELINE_POINTS, baselineRun));
             lines.add(numbered("FG%:                   ", pct(fgm, fga), "%.1f%%",
-                    "target 47.1% \u2014 sourced 2025-26. \u26a0 \u00a73.17 DROPPED THIS ON"
-                            + " PURPOSE (46.7 -> 43.5): the old two-heavy mix HID a 2P% error"
-                            + " (~48.7 vs a real 55.0), because at a 21% three share FG% ~= 2P%."
-                            + " NOT drift \u2014 \u00a73.19's, via base-drive/base-post/base-perimeter."
-                            + " base-three must NOT move (#040 F)",
+                    "target 47.1% \u2014 sourced 2025-26. \u2705 \u00a73.20 LANDED IT"
+                            + " (43.5 -> 47.0) via base-drive/base-post/base-perimeter; 2P% went"
+                            + " 48.8 -> 55.0. base-three did NOT move (#040 F). \u26a0 The 2P"
+                            + " bases pass through at ~0.89, NOT 1.0 (#042 impl note) \u2014 the"
+                            + " base-to-realized wedge is MULTIPLICATIVE, so aim above the target"
+                            + " and size the next step off the MEASURED pass-through",
                     BASELINE_FG_PCT, baselineRun));
             lines.add(numbered("3P%:                   ", pct(tpm, tpa), "%.1f%%",
                     "target 36.0% — sourced 2025-26", BASELINE_3P_PCT, baselineRun));
             lines.add(String.format("FGA / team / game:      %.1f   (target 89.1 — SOURCED"
-                    + " 2025-26. \u26a0 \u00a73.17 SPENT THE HEADROOM AND WENT OVER: 88.80 ->"
-                    + " 92.28. A stopped shot charges no FGA and foul-mult-three is 0.133 vs"
-                    + " DRIVE's 1.0, so more threes => fewer stopped shots => MORE FGA"
-                    + " (#040 E \u2014 predicted ~89.9, under-modelled by 2.4). \u00a73.19's, it"
-                    + " owns pace. #039 C's dead-possession concession is NOT reopened.)",
+                    + " 2025-26. \u2705 \u00a73.20 LANDED IT at 89.22 via sim.base-no-basket-"
+                    + "foul 0.15 -> 0.1687. \u26a0 NOT via non-shooting-foul-share \u2014 that"
+                    + " knob does not move FGA AT ALL (both foul branches return before an"
+                    + " attempt is charged), disproving #042 B. \u26a0 IT IS BOUGHT AGAINST THE"
+                    + " FOULS ROW: each extra foul costs 1.49 FGA, so the two are"
+                    + " OVER-DETERMINED through one lever and landing fouls 19.9 would drop FGA"
+                    + " to ~87.8. #039 C's dead-possession concession is NOT reopened."
+                    + " See #042's implementation note, D6.)",
                     fga / tg));
             lines.add(String.format("3PA / team / game:      %.1f   (target 37.0 — SOURCED"
                     + " 2025-26. \u2705 \u00a73.17 LANDED IT: 19.96 -> 37.26 at 5 seeds, via the"
-                    + " sim.shot-share-* table (#040 C/K). THE ONE NUMBER \u00a73.17 IS JUDGED"
-                    + " ON)", tpa / tg));
+                    + " sim.shot-share-* table (#040 C/K). \u00a73.20 HELD IT at 37.20, bumping"
+                    + " shot-share-three 1.23 -> 1.256 to offset the attempts its turnover rise"
+                    + " removed \u2014 only that one value moves, #040 C)", tpa / tg));
             lines.add(numbered("Assists / team / game: ", assists / tg, "%.1f",
                     "target 26.7 — sourced 2025-26", BASELINE_ASSISTS, baselineRun));
             lines.add(numbered("Turnovers / team / game:", turnovers / tg, "%.1f",
@@ -749,7 +754,11 @@ class CalibrationHarness {
             // §3.18: the steals row. calibration.md carried steals as 8.4 observed
             // against an engine ~7.67 BY DERIVATION ONLY — never measured. This row is
             // the measurement (test-only, no engine change; a standing backlog chore).
-            lines.add(String.format("Steals / team / game:   %.1f   (target 8.4 — sourced 2025-26)", steals / tg));
+            lines.add(String.format("Steals / team / game:   %.1f   (target 8.4 — sourced 2025-26."
+                    + " \u26a0 DERIVED, NOT TUNED (#042 I): steals = turnovers x STOLEN share."
+                    + " \u00a73.20 landed TO on 14.5 and steals followed to 8.10, reproducing"
+                    + " the prediction to 0.05 with the share untouched. Do NOT chase 8.4 by"
+                    + " moving to-weight-stolen \u2014 the nine cause weights are frozen, #027 A)", steals / tg));
             lines.add(String.format("OOB / team / game:      %.1f   (§3.8, no target)", oob / tg));
             lines.add(String.format("Reconciliation (ast+blk):%s",
                     reconciliationMismatches == 0 ? " OK (all games match)"
@@ -819,12 +828,14 @@ class CalibrationHarness {
                         e.getValue() / tg);
             }
             System.out.printf("  FTA / team / game:       %.1f   (target ~23.5 — SOURCED"
-                            + " 2025-26; §3.16 landed it from 34.0 via sim.non-shooting-"
-                            + "foul-share. ⚠ TUNE THAT SHARE AGAINST THIS LINE, never"
-                            + " against points. \u26a0 \u00a73.17 UNDERSHOT IT to ~19.8: fewer"
-                            + " stopped shots AND a lower penalty rate (55.7%% -> 46.1%%), so"
-                            + " the share is mispriced at the new foul rate. \u00a73.19's —"
-                            + " do NOT re-tune the share here, #040 F / #038)%n",
+                            + " 2025-26. \u2705 \u00a73.20 LANDED IT at 23.08 via sim.non-"
+                            + "shooting-foul-share 0.50 -> 0.317. \u26a0 TUNE THAT SHARE"
+                            + " AGAINST THIS LINE, never against points. The response is DEAD"
+                            + " LINEAR at -20.46 FTA per unit share, but the two FT SOURCES"
+                            + " move in OPPOSITE directions (SHOOTING up, BONUS down), so net"
+                            + " FTA rises by LESS than the SHOOTING leg \u2014 read the split"
+                            + " below before adjusting. \u26a0 It does NOT move FGA: both foul"
+                            + " branches return before an attempt is charged, #042 impl note)%n",
                     freeThrows / tg);
 
             // §3.11 (decisions.md #029 E) and-1 rate + FT-source split. §3.11 is a
@@ -852,6 +863,23 @@ class CalibrationHarness {
                         e.getKey() + ":", freeThrows == 0 ? 0.0 : 100.0 * e.getValue() / freeThrows,
                         e.getValue() / tg, made / tg);
             }
+
+            // §3.20 (#042 C): FT% — a row that was MEASURED BY NOTHING until this pass.
+            // It reconciles off the per-source lines above (sum of made / sum of
+            // attempted) and had been running 82.6% against a real ~78%, donating ~1.1
+            // points/team/game that no target was watching. ⚠ THE GENERAL LESSON IS
+            // WORTH MORE THAN THE ROW: an ABSENT row cannot be audited by
+            // calibration.md's exit condition, which only asks that every row PRESENT
+            // be sourced or deliberately observed/ballpark.
+            long ftMadeAll = freeThrowsMadeBySource.values().stream()
+                    .mapToLong(Long::longValue).sum();
+            System.out.printf("  FT%%:                     %5.1f%%  (target ~78.0%% — SOURCED"
+                            + " 2025-26. Tuned by sim.ft-base, which is 0.705 and is NOT the"
+                            + " landing: realized FT%% is ftBase + 0.20 x (freeThrows - 10)/10"
+                            + " and the roster's mean freeThrows is ~13.8. ⚠ A GLOBAL knob"
+                            + " correcting a POPULATION effect — the roster's FT-skill"
+                            + " distribution is the real cause, parked in ideas.md)%n",
+                    freeThrows == 0 ? 0.0 : 100.0 * ftMadeAll / freeThrows);
 
             // §3.12 (decisions.md #030 E/G). Two new instruments plus the per-type
             // breakdown the multipliers are actually tuned against.
@@ -964,16 +992,24 @@ class CalibrationHarness {
                             + " fouls (#039 G); its NON_SHOOTING_FOUL re-partition adds NOTHING,"
                             + " by construction. \u26a0 \u00a73.17 took it 20.53 -> 18.18 WITHOUT"
                             + " TOUCHING A FOUL CONSTANT — the shot mix moved draws from"
-                            + " foul-mult 1.0 to 0.133. PERSONAL_FOULS_PER_TEAM_GAME was"
-                            + " re-measured to 17.82 in the same pass, #034 G)%n",
+                            + " foul-mult 1.0 to 0.133. \u00a73.20 took it 18.10 -> 18.84 via"
+                            + " sim.base-no-basket-foul, closing 40%% of the gap. \u26a0 IT"
+                            + " CANNOT CLOSE FURTHER WITHOUT UN-LANDING FGA \u2014 each extra"
+                            + " foul costs 1.49 FGA and FGA is now in band, so the pair is"
+                            + " OVER-DETERMINED through one lever (#042 D6). A design pass must"
+                            + " pick which yields. PERSONAL_FOULS_PER_TEAM_GAME re-measured to"
+                            + " 18.52, #034 G)%n",
                     totalFouls / tg);
             // §3.12's genuinely NEW instrument (#030 G): the foul-out mechanism has
             // been live since §3.5 but its rate has NEVER been observed. The
             // DISTRIBUTION matters more than the count — it shows pressure building
             // below the threshold before it crosses it.
-            System.out.printf("  Foul-outs / team / game: %.3f  (target ~0.39 — §3.13's landing,"
-                            + " a SOFT target; see calibration.md. §3.16 raised it to ~0.52:"
-                            + " charges now count, #039 G. \u00a73.17's lower foul rate took it"
+            System.out.printf("  Foul-outs / team / game: %.3f  (BALLPARK ~0.1-0.25 real;"
+                            + " \u26a0 NOT A TARGET since \u00a73.20 (#042 J) \u2014 the old"
+                            + " ~0.39 was a LANDING promoted to a target, i.e. circular, and"
+                            + " real basketball sits BELOW where the engine does. Judge by the"
+                            + " 4/5/6 distribution below, not this count. See calibration.md."
+                            + " \u00a73.16 raised it to ~0.52: charges now count, #039 G. \u00a73.17's lower foul rate took it"
                             + " back DOWN to ~0.31 — a by-product of the shot mix, not a"
                             + " re-tune; the \u00a73.13 sit curve is untouched and measured"
                             + " saturated, #031)%n",

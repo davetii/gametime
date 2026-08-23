@@ -210,7 +210,8 @@ multiplies by (§3.12's per-shot-type foul multiplier), so it must precede the f
 - **"No basket" ≠ "non-shooting", and since §3.16 step 3 produces BOTH.** The roll at
   step 3 is named for *stopping the shot*, not for being non-shooting — which is why
   §3.12 renamed the constant to `BASE_NO_BASKET_FOUL` (#030 F). **§3.16 then split its
-  outcome**: a second roll (`sim.non-shooting-foul-share`, shipped at **0.50**)
+  outcome**: a second roll (`sim.non-shooting-foul-share`, **0.3766 since §3.20**;
+  §3.16 shipped it at 0.50)
   re-partitions the already-charged foul into a `SHOOTING_FOUL` (free throws follow) or
   a **`NON_SHOOTING_FOUL`** (no free throws outside the penalty). The engine's non-shooting
   fouls are therefore now **step 3's `NON_SHOOTING_FOUL`**, step 7's rebounding fouls, and
@@ -274,7 +275,8 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      Possession ends after free throws.
    - **This branch is only the "contact STOPPED the shot" case** — hence the
      constant's name (`BASE_NO_BASKET_FOUL`, renamed from `BASE_FOUL` in §3.12,
-     #030 F; value unchanged at 0.15). A foul on a shot that still goes in is the
+     #030 F — §3.12 left the value at 0.15; **§3.20 raised it to 0.1687 to land FGA**,
+     #042 D6). A foul on a shot that still goes in is the
      **and-1**, rolled after the make in step 3 (§3.11), and it is **not** reachable
      from here — this branch returns.
 3. **Shot** — if no turnover and no foul. The shooter is charged an FGA (+3PA if a

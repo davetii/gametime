@@ -97,6 +97,95 @@ class RotationStateTest {
         }
     }
 
+    // --- §3.20: tookFloor vs onFloorPossessions ---
+
+    /**
+     * §3.20: <b>a substituted-in player is marked as having TAKEN THE FLOOR
+     * immediately, before any possession is drained against him.</b>
+     *
+     * <p>⚠ <b>This is the regression guard for a shipped bug.</b> {@code
+     * GameSimulator} wrote a box-score row only for players with {@code
+     * onFloorPossessions > 0}, treating that as "checked in". But {@link
+     * RotationState#advancePossession} drains for the five on the floor at the TOP of
+     * the call and substitutes AFTERWARDS, so a player subbed in on possession N has
+     * nothing drained against him yet — and if the game ended, or he was subbed back
+     * out, his counter stayed 0. <b>If he had SCORED in that window his row was never
+     * written and his points vanished from the box score</b> (measured: box 237
+     * against an event log and final score that both read 240).
+     *
+     * <p>⚠ <b>The two facts are deliberately kept SEPARATE.</b> {@code
+     * onFloorPossessions} is the minutes DENOMINATOR and must stay a pure possession
+     * count — inflating it to answer "did he play?" would fix the box score and
+     * corrupt minutes instead. Hence {@link PlayerGameState#tookFloor()}.
+     */
+    @Test
+    void aSubstitutedInPlayerHasTakenTheFloorBeforeAnyPossessionIsDrained() {
+        List<PlayerGameState> squad = squad(4);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+
+        // The five starters have taken the floor at tipoff, before any drain.
+        for (PlayerGameState p : r.onFloor()) {
+            assertTrue(p.tookFloor(), "a starter has taken the floor at tipoff");
+            assertEquals(0, p.getOnFloorPossessions(),
+                    "…and has had NO possession drained against him yet — which is "
+                            + "exactly why the two facts cannot be the same field");
+        }
+
+        // ⚠ CHECK AFTER EVERY SINGLE POSSESSION, NOT AT THE END. The bug's window is
+        // exactly ONE possession wide: a player subbed in at the end of possession N
+        // is marked by his own drain on possession N+1, so a check at the end of a
+        // long loop sees him already correct and proves NOTHING. The box score is
+        // written when the GAME ENDS, which can be immediately after that swap.
+        boolean sawFreshSub = false;
+        for (int i = 0; i < 60; i++) {
+            r.advancePossession(rng());
+            for (PlayerGameState p : r.onFloor()) {
+                if (p.getOnFloorPossessions() == 0) {
+                    sawFreshSub = true;   // on the floor, nothing drained yet
+                }
+                assertTrue(p.tookFloor(),
+                        "a player ON THE FLOOR must be marked as having taken it "
+                                + "THE MOMENT he is substituted in — if the game ended "
+                                + "here his box-score row would be dropped along with "
+                                + "any points he just scored. Player " + p.getPlayerId()
+                                + " (onFloorPossessions=" + p.getOnFloorPossessions()
+                                + ", possession " + i + ")");
+            }
+        }
+
+        // The test is only meaningful if a substitution actually happened and left
+        // someone on the floor with a zero count — the exact bug condition.
+        assertTrue(sawFreshSub,
+                "no just-substituted player was ever observed on the floor with a "
+                        + "zero possession count — this test did not exercise the bug");
+
+        // And the invariant that protects the box score: nobody can have drained a
+        // possession without being marked.
+        for (PlayerGameState p : squad) {
+            if (p.getOnFloorPossessions() > 0) {
+                assertTrue(p.tookFloor(),
+                        "drained a possession but not marked: " + p.getPlayerId());
+            }
+        }
+    }
+
+    /**
+     * §3.20: a player who never leaves the bench is NOT marked — the flag must not
+     * simply be true for everyone, or the box score gains phantom rows.
+     */
+    @Test
+    void aPlayerWhoNeverChecksInHasNotTakenTheFloor() {
+        List<PlayerGameState> squad = squad(6);
+        RotationState r = rotation(squad, CoachModifiers.neutral());
+        PlayerGameState deepBench = squad.get(squad.size() - 1);
+
+        r.advancePossession(rng());
+
+        assertFalse(deepBench.tookFloor(),
+                "a deep-bench player who never checked in has not taken the floor");
+        assertEquals(0, deepBench.getOnFloorPossessions());
+    }
+
     // --- Energy drain / recovery ---
 
     @Test

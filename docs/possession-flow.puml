@@ -148,7 +148,8 @@ note right
   sourced 89.1 — the mechanism was right, the magnitude was
   under-modelled (~89.9 predicted). **#039 C's dead-possession
   concession is therefore NOT revisitable here** — it passes to §3.20.
-  ⚠ **FG% fell 46.68 -> 43.52 and that is §3.20's, not drift** (F): the
+  ⚠ **FG% fell 46.68 -> 43.52 and that was §3.20's, not drift** (F) — ✅ **CLOSED:
+  §3.20 landed FG% 46.86 and 2P% 54.67 (#042).** The reasoning below stands: the
   engine's **2P% is ~48.7 against a real 55.0**, an error the old
   two-heavy mix HID because FG% ~= 2P% at a 21% three share. §3.17 makes
   the shape final; §3.20 re-solves `base-drive`/`base-post`/
@@ -939,27 +940,47 @@ legend bottom left
   should be structurally complete going into it; if §3.20 finds
   itself adding a branch, that is a signal the pass has grown
   beyond recalibration.
-  **The open gaps it owns** (see calibration.md for the live values
-  and todo.md for the design questions):
-  * **2P% ~48.7 vs a sourced 55.0** — the largest gap. Lever is
-    base-drive/base-post/base-perimeter. ⚠ **base-three must NOT
-    move**: 3P% is correct and held across a 1.9x volume change.
-  * **FTA 19.76 vs 23.5** — non-shooting-foul-share is mispriced,
-    and it is priced by the PENALTY RATE, not the foul rate alone.
-  * **FGA 92.28 vs 89.1** (over) and **points 110.0 vs 115.6**.
-  * **Steals 7.72 vs 8.4** — DERIVED (turnovers x STOLEN share);
-    re-measure after turnovers land, do not tune the share alone.
-  * ⚠ **2P%, FTA and POINTS are OVER-DETERMINED** — the 2P% fix is
-    worth ~+7 points and the FTA fix ~+2.8, against a points gap of
-    only 5.6. They cannot all be hit independently; deciding which
-    yields is the pass's real work.
-  * ⚠ **FGA (92.28 vs 89.1) is the ONE row too HIGH**, so recovery
-    must come from MAKING more shots, not TAKING more. A pace bump
-    is the obvious-looking lever and the wrong one.
-  * **PROB_FLOOR / base-block-three is a FOOTNOTE, not work** —
-    sized at ~half a blocked three per team-game on an on-target
-    row. Only matters if this pass tunes base-block-*.
-  See roadmap.md's §3.20 bullet.
+  ✅ **§3.20 SHIPPED (decisions.md #042).** It added no branch and no
+  event — the flow above is unchanged by it. **8 of 12 rows landed**,
+  including the 2P% gap (48.8 -> 55.0), FGA (89.22), FTA (23.40) and a
+  NEW sourced FT% row (77.81). Live values: calibration.md.
+  ⚠ **Its OVER-DETERMINATION framing above was DISPROVED** (#042 A):
+  it held FGA and FT% fixed and neither should have been. Kept as the
+  question §3.20 was asked, not as an answer.
+  ⚠ **Three findings that touch THIS diagram's reasoning:**
+  * **A foul charges NO FGA on EITHER branch.** Both the
+    NON_SHOOTING_FOUL and SHOOTING_FOUL paths return before
+    ``recordFieldGoalAttempt()``, so re-partitioning between them
+    moves FTA and **not FGA** — disproving #042 B, which had modelled
+    -0.62 FGA per 0.05 of share. FGA was landed instead by
+    ``base-no-basket-foul`` (0.15 -> 0.1687), which raises the foul
+    COUNT and therefore removes live attempts. ⚠ Each extra foul
+    costs **1.49 FGA**, because a foul ends the possession and
+    forfeits the offensive rebound the miss would sometimes produce.
+  * **PROB_FLOOR reaches the TURNOVER gate too**, not just blocks:
+    ~40-45% of possessions are pinned at 0.02, making
+    ``base-turnover`` a 0.17-elasticity lever. The footnote below is
+    therefore LARGER than "half a blocked three" — see #042 D4.
+  * 🆕 **A RECOVERED BLOCKED SHOT CREDITS NO REBOUNDER — and by the NBA
+    rule it should.** The ``BlockRecovery`` draw below resolves WHICH
+    SIDE gets the ball and forks the possession correctly, but emits
+    **no REBOUND event and calls no recordRebound()**. Measured:
+    **3.41/team-game recovered IN BOUNDS, credited to nobody** (2.04
+    def + 1.36 off); the 1.14 that go OOB are correctly rebound-less
+    **but emit no event either**, where the same situation off a
+    missed shot does. ⚠ **The possession outcome is already right —
+    only the ATTRIBUTION is missing.** ⚠ **But crediting means
+    SELECTING a rebounder, and #025 D made this draw flat and
+    skill-independent DELIBERATELY** so the loose ball would not
+    inherit the board contest. **That is the design question.**
+    **§3.21's** — see todo.md.
+  * 🆕 **MISSED FREE THROWS ARE NEVER REBOUNDED.** ``awardFreeThrows``
+    loops, emits, and returns — **there is no rebound path**, so a
+    missed final FT silently ends the possession. Real basketball
+    yields ~3.2 rebounds/team-game there; this engine yields zero.
+    ⚠ **THAT IS A MISSING BRANCH ON THIS DIAGRAM** and it is
+    **§3.21's** (the rebound pool: DefReb 27.90 vs a sourced 32.4).
+    See roadmap.md's §3.21 bullet and todo.md's design questions.
 endlegend
 
 @enduml

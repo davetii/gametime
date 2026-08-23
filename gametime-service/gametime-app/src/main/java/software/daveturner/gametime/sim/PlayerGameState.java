@@ -86,6 +86,23 @@ public class PlayerGameState {
     private double currentEnergy;
     private int onFloorPossessions;
 
+    // §3.20: DID THIS PLAYER EVER TAKE THE FLOOR? Deliberately SEPARATE from
+    // onFloorPossessions, which is the minutes DENOMINATOR and must not be inflated
+    // to answer a different question.
+    //
+    // ⚠ THE TWO ARE NOT THE SAME FACT, and assuming they were dropped a scoring
+    // player from the box score entirely. RotationState.advancePossession drains
+    // (incrementing onFloorPossessions) for the five on the floor at the TOP of the
+    // call and substitutes AFTERWARDS, so a substituted-in player can take the
+    // floor, score, and still hold a count of 0 — at which point GameSimulator's
+    // "never checked in" filter skipped his row and his points vanished from the
+    // box score. Found by §3.19's points identity (events = box = final), the only
+    // instrument that catches it; no test failed.
+    //
+    // Starters are seeded true at construction of the rotation; a substitution sets
+    // it on the player coming in. It never resets — "took the floor" is monotonic.
+    private boolean tookFloor;
+
     // This class reads BOTH kinds of SimConfig constant: the tunable ones through
     // this field, and SCALE_AVG / MAX_ENERGY / the ejection limits as statics below.
     private final SimConfig config;
@@ -150,6 +167,17 @@ public class PlayerGameState {
     public double getEnergy() { return energy; }
     public double getCurrentEnergy() { return currentEnergy; }
     public int getOnFloorPossessions() { return onFloorPossessions; }
+
+    /**
+     * §3.20: true once this player has been on the floor at all — whether or not a
+     * possession was ever drained against him. <b>The box-score predicate</b>: a
+     * player who took the floor gets a row even if {@link #getOnFloorPossessions()}
+     * is 0, because he may have scored on the possession he was substituted into.
+     */
+    public boolean tookFloor() { return tookFloor; }
+
+    /** Mark this player as having taken the floor (starter, or substituted in). */
+    public void markTookFloor() { this.tookFloor = true; }
 
     /**
      * A player is fouled out (Decision F) once their foul count reaches
@@ -307,6 +335,7 @@ public class PlayerGameState {
         currentEnergy = Math.max(0.0,
                 currentEnergy - config.energyDrainPerPossession() * scale);
         onFloorPossessions++;
+        tookFloor = true;
     }
 
     /** Recover energy for one possession spent benched (energy attribute speeds it). */

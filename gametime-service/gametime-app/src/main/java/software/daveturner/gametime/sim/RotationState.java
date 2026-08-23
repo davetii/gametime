@@ -52,6 +52,9 @@ public class RotationState {
         this.modifiers = modifiers;
         this.squad = new ArrayList<>(squad);
         this.onFloor = new ArrayList<>(squad.subList(0, 5));
+        // §3.20: the starting five have taken the floor by definition, before any
+        // possession is drained against them.
+        this.onFloor.forEach(PlayerGameState::markTookFloor);
         this.rotationDepth = config.rotationDepth(modifiers.rotationDepthFactor());
     }
 
@@ -280,6 +283,10 @@ public class RotationState {
                 <= candidate.getCurrentEnergy() + config.foulTroubleFreshnessMargin()) {
             return;
         }
+        // §3.20: mark BEFORE the swap completes — a substituted-in player may score
+        // on this very possession, and the box-score row depends on this flag, not
+        // on a drained possession (see PlayerGameState.tookFloor).
+        replacement.markTookFloor();
         onFloor.set(onFloor.indexOf(candidate), replacement);
     }
 
@@ -331,6 +338,7 @@ public class RotationState {
             }
             PlayerGameState replacement = freshestEligibleBench(bench());
             if (replacement != null) {
+                replacement.markTookFloor();   // §3.20, see PlayerGameState.tookFloor
                 onFloor.set(i, replacement);
             }
             // else: no eligible player anywhere — keep them on (floor stays at 5).
@@ -353,6 +361,7 @@ public class RotationState {
         PlayerGameState replacement = freshestEligibleBench(benchWithinDepth());
         if (replacement != null && replacement.getCurrentEnergy() > tired.getCurrentEnergy()) {
             int idx = onFloor.indexOf(tired);
+            replacement.markTookFloor();   // §3.20, see PlayerGameState.tookFloor
             onFloor.set(idx, replacement);
         }
     }

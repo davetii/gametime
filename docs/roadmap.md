@@ -816,8 +816,48 @@ re-running the loop and re-agreeing the numbers, not a red build.
       ⚠ **If any of the three moves an engine number, stop and find out why** — test-side
       changes have no business altering engine output.
 
-- [ ] **§3.20 — Recalibration against verified targets** *(needs its own design pass.
-      ⚠ **FOURTH NUMBER FOR THIS PASS**: it was §3.16, then §3.18, then §3.19, and is now
+- [x] **§3.20 — Recalibration against verified targets**
+      _Shipped (decisions.md #042, 2026-08). A values-only tuning pass — **62 tunables /
+      27 statics unchanged**, no branch, event, schema or OpenAPI change — plus **one
+      deliberate engine fix** (see below). **Nine constants moved.**
+      **LANDED, 8 of 12 rows (5-seed means): Points 114.86 · FG% 46.86 · 2P% 54.67 ·
+      FGA 89.22 · 3PA 36.64 · FTA 23.40 · FT% 77.81 · TO 14.58.** That includes the
+      **2P% gap (48.8 → 55.0)**, `calibration.md`'s largest, and a **new sourced FT% row**
+      that had been running 4.6 points hot while absent from the file. Foul-outs
+      **demoted from TARGET to ballpark** (#042 J).
+      **Residuals: DefReb −4.50, OffReb −1.40, Fouls −1.06, 3P% −0.34.**
+      ⚠ **The findings outlast the numbers**: `non-shooting-foul-share` does **not** move
+      FGA (both foul branches return before an attempt is charged, disproving #042 B);
+      the 2P wedge is **multiplicative** (pass-through 0.890); the rebound **pool** is
+      short (38.3 vs the 43.7 its targets need) so the split knob cannot fix it;
+      **`PROB_FLOOR` pins ~40–45% of possessions** for `base-turnover` (elasticity 0.17) —
+      the `base-block-three` trap at a size that matters; and **FGA/Fouls are an
+      over-determined PAIR** through `base-no-basket-foul`, each extra foul costing 1.49 FGA.
+      ⚠ **One PRE-EXISTING ENGINE BUG found and FIXED**: a scoring player could be dropped
+      from the box score entirely (`onFloorPossessions` read as an attendance record when
+      it is the minutes denominator). Caught only by §3.19's points identity; no test
+      failed. Fixed with a `tookFloor` flag, no RNG movement, and a regression test that
+      was **verified to fail on the bug**. `risks.md` carries the deeper concern: stats are
+      written twice and agree only by convention.
+      `mvn clean install` green (579 tests + 52 Cucumber). See #042's implementation note._
+      >
+      > ⚠ **The pre-design argument below is SUPERSEDED and kept only as the record of
+      > what was handed in.** Read #042 and its implementation note instead.
+      >
+      > ⚠ **"2P%, FTA and points are OVER-DETERMINED and cannot all be hit" is WRONG, and
+      > the design pass's measurement is what disproved it.** That arithmetic held **FGA
+      > and FT% fixed**, and neither should be: `non-shooting-foul-share` moves **FTA and
+      > FGA as one lever** *(⚠ **HALF-WRONG, corrected at execution: it moves FTA only.**
+      > FGA ended a residual — #042's implementation note, D1/D6)*,
+      > and **FT% was running at 82.56% against a real ~78%** while
+      > absent from `calibration.md` entirely. With both counted **every sourced row lands
+      > at once** — there is no target to sacrifice. **Do NOT start this phase looking for
+      > one** (#042 A).
+      >
+      > Still correct below, and still worth reading: the phase's *shape* (it adds no
+      > mechanic, it must stay last), the measurement-first instruction, `base-three` must
+      > not move, the recovery comes from MAKING not TAKING, and the frozen list.
+      *(⚠ **FOURTH NUMBER FOR THIS PASS**: it was §3.16, then §3.18, then §3.19, and is now
       **§3.20** — see the mapping callout above. **Read the phase NAME, never the number.**
       **THE LAST Phase-3 sub-phase, and it must stay last**: every pass before it settles
       the SHAPE of the game — foul mix (§3.16), shot mix (§3.17), event vocabulary (§3.18),
@@ -832,19 +872,36 @@ re-running the loop and re-agreeing the numbers, not a red build.
       technicals and flagrants need 5 seeds as a hard floor), with the profile from the
       **environment** (`SPRING_PROFILES_ACTIVE=local,baseline` — confirm the `Profiles:`
       line), then argue the questions against those fresh numbers.
-      ⚠ **THE CORE PROBLEM — one problem in three rows, not three problems.** **2P% is 6.3
+      ⚠ **THE CORE PROBLEM — one problem in three rows, not three problems.** ⛔ **THIS
+      PARAGRAPH IS SUPERSEDED BY #042 A — the conclusion is WRONG. Read it as the question
+      §3.20 was ASKED, never as the answer.** *(The gaps it states are real and reproduced;
+      the over-determination it infers from them does not exist.)* **2P% is 6.3
       points LOW** (~48.7 vs a sourced 55.0) and **FTA is 3.7 attempts LOW** (19.76 vs
       23.5). Both must go **UP**. But the 2P% fix is worth **~+7 points** and the FTA fix
       **~+2.8**, against a points gap of only **5.6** — **combined ~+9.8, which overshoots
       points to ~120 vs a target of 115.6.** ⚠ **So 2P%, FTA and points are
       OVER-DETERMINED and cannot all be hit independently. Deciding which target yields is
       this pass's real work.**
+      ⛔ **Why that is wrong (#042 A):** it holds **FGA and FT% fixed**. FGA is *already*
+      over (92.28 vs 89.1) and must come down anyway — and the **same** knob that raises
+      FTA is what lowers it (`non-shooting-foul-share`; a stopped shot charges no FGA).
+      ⚠ **THAT LAST CLAUSE IS ITSELF WRONG, found at execution (#042 impl note D1): the
+      knob moves FTA ONLY.** *Both* foul branches return before an attempt is charged, so
+      a stopped shot and a common foul are alike in charging none — re-partitioning
+      between them cannot move FGA. **FGA shipped as a residual** (⚠ `base-no-basket-foul`
+      does reach it, but only by trading against Fouls — D6). The
+      over-determination verdict still stands (every sourced row that HAD a lever landed);
+      only the mechanism named here does not. FT%
+      is running **82.56% against a real ~78%** and was **not in `calibration.md` at all**,
+      donating ~1.1 points/team/game. Count both and the ~+4.4 overshoot is absorbed:
+      **every sourced row lands together.**
       ⚠ **The recovery must come from MAKING more shots, not TAKING more** — **FGA is the
       one row already too high** (92.28 vs 89.1), so a pace bump is the obvious-looking
       lever and the wrong one.
       ⚠ **`base-three` must NOT move** — 3P% is correct at 35.8 vs 36.0 and held across a
       1.9× volume change. The 2P% lever is `base-drive` / `base-post` / `base-perimeter`.
-      **The other open questions**, smaller: **FTA's mechanism** (does
+      **The other open questions**, smaller — ✅ **all resolved in #042 B–J; listed here as
+      the questions asked, not as open work**: **FTA's mechanism** (does
       `sim.non-shooting-foul-share` move, the foul rate, or both? ⚠ the share is priced by
       the **penalty rate**, not the foul rate alone, and moving the foul rate stales the
       flagrant divisor); **def rebounds** 30.48 vs 32.4, a residual rate question;
@@ -920,11 +977,95 @@ re-running the loop and re-agreeing the numbers, not a red build.
       so they do not re-grow at the 44k trend — but they will still need compressing
       here.
 
+### §3.21 — the rebound pool (NEXT; needs its own design pass)
+
+- [ ] **§3.21 — the rebound pool.** Def rebounds **27.90 vs a sourced 32.4**, off rebounds
+      **9.90 vs 11.3** — ⚠ **~14% low on a stat a reader sees directly on a box score**,
+      and the one §3.20 residual a person would notice unaided.
+      ⚠ **THE SPLIT IS NOT THE PROBLEM.** The realized offensive share is 0.264 against a
+      real 0.259; the **POOL** is short — 37.80 against the 43.70 the two targets jointly
+      need. §3.20 measured this and deliberately left `base-offensive-rebound` at 0.27
+      (#042 D3). **Do not reach for that knob.**
+      ⚠ **EVERY ACTUAL REBOUND HAS AN OWNER** (user call): if a player secures the ball he
+      is credited. A "team rebound" is **not a rebound** — it is the scorekeeping entry for
+      a possession change where *no rebound happened* (ball out untouched, buzzer), which
+      the engine already models correctly as `OUT_OF_BOUNDS_*`. **The two gaps below are
+      MISSING CREDITS, not team rebounds.**
+      🆕 **Cause one, verified: MISSED FREE THROWS ARE NEVER REBOUNDED.**
+      `awardFreeThrows` has no rebound path at all, so a missed final FT silently ends the
+      possession. Real basketball yields ~3.2 rebounds/team-game off missed FTs; the engine
+      yields zero (~2.6 reboundable at current FTA/FT%). ⚠ **The other half is NOT
+      identified** — the FG path leaves −1.97 unexplained.
+      🆕 **Cause two, and the LARGER one: A RECOVERED BLOCKED SHOT CREDITS NOBODY.**
+      `BlockRecovery` resolves *which side* gets the ball (and forks the possession
+      correctly) but emits no `REBOUND` event and calls no `recordRebound()`. **3.41 of the
+      4.54 blocks/team-game are recovered IN BOUNDS by a player who gets no credit** — by
+      the NBA rule that is a rebound. ⚠ The possession outcome is already right; only the
+      **attribution** is missing. ⚠ **But crediting means SELECTING a rebounder, and #025 D
+      made that draw flat and skill-independent deliberately** so the loose ball would not
+      inherit the board contest — that is the design question, not the credit itself.
+      ⚠ **THE TWO CANDIDATES BRACKET THE TARGET, which makes blocks LOAD-BEARING.**
+      Measured: FT rebounds alone take the pool 37.80 → 40.40 (DefReb 29.94, still 2.5
+      short); **FT *plus* crediting recovered blocks reaches 43.80 — DefReb 32.46, OffReb
+      11.35, both within 0.06 of target.** ⚠ **A hypothesis to test, not a plan** — it is
+      arithmetic over measured rates, the exact form #042 B/F/H were each wrong in.
+      ⚠ **It adds a BRANCH, so the RNG stream moves and seeded sim tests re-baseline**, and
+      `possession-flow.puml` must gain the fork in the same change.
+      ⚠ **AND IT UN-LANDS FGA**: offensive rebounds are second-chance possessions, so
+      FT+blocks adds ~1.3 FGA against a row landed at 89.22 (±0.45), with points and fouls
+      following. **The re-tune is part of this phase.**
+      ⚠ **§3.21 OWNS ITS OWN RE-LANDING — there is no "§3.22 recalibration".** More
+      rebounds means more second-chance possessions, which moves FGA (landed at 89.22),
+      points and the foul rate. Recalibration was renumbered **four times** for the habit
+      of deferring it behind one more fidelity phase; a phase re-lands what it moves or
+      records the residual. **Only a design-pass FINDING that the re-tune outweighs the
+      mechanic justifies a split** — the way §3.14 became §3.14a/§3.14b.
+      **§3.21 in four goals** (detail + the seven design questions in [todo.md](todo.md)):
+      **(1)** rebound missed free throws — last FT of a trip, `SHOOTING`/`BONUS`/`AND_ONE`
+      only, ~2.60/team-game; **(2)** credit a rebounder on a blocked shot recovered in
+      bounds, 3.41/team-game; **(3)** account for the **1.97 still unexplained** before
+      trusting that 1+2 close the gap; **(4)** **re-land calibration**, which this phase
+      owns. ⚠ **Goals 1+2 model to within 0.06 of both rebound targets — be suspicious of
+      that neatness, since it partly depends on goal 3 staying open.**
+
+**Also recorded from §3.20, deliberately NOT scheduled** *(sized; none justifies a phase)*:
+
+- **Fouls (−1.06) cannot close without un-landing FGA** — one lever
+  (`sim.base-no-basket-foul`), two rows, each extra foul costing **1.49 FGA**. §3.20 already
+  spent that lever to land FGA. ⚠ Closing fouls further also pushes **foul-outs**, already
+  0.368 against a real ~0.1–0.25. **Probably should stay as it is.**
+- **`PROB_FLOOR` makes `base-turnover` a weak lever** (elasticity **0.17**; ~40–45% of
+  possessions pinned at 0.02 and insensitive to the constant). ⚠ **The turnover ROW is
+  landed** — this is a tuning-ergonomics problem plus an invisible modelling wrongness (a
+  good ball-handler vs average defense is floored *up*). **Fold into whatever pass is next
+  in that code**, and do the reroute through `clampRareProbability` **once for every
+  floored contest** — which is also when `base-block-*` (closed as too small, #040) gets
+  re-checked.
+- **3P%'s ±0.25 band is tighter than the row's own run-to-run spread** (35.66 at the
+  landing; it ranged 35.48–36.08 across §3.20 at a **fixed** `base-three`). ⚠ **The BAND is
+  wrong, not the engine** — §3.19's own 35.76 would have failed it. A band a row can fail by
+  chance will bait a future tuner into moving a frozen constant (#040 F).
+
 ---
 
 ## Phase 4 — Statistics & Box Scores
 
 **Goal**: Track, aggregate, and expose stats.
+
+### 4.0 Pre-work
+
+- [ ] **The `decisions.md` condense pass** — see [backlog.md](backlog.md). A second kind
+      of reader arrives with this phase ("can I add a column?") and should not scroll
+      past the engine reasoning to find #014/#017/#020.
+- [ ] **The `game.md` / `possession-flow.puml` documentation pass** — the two describe
+      the same flow twice.
+
+> ⚠ **Worth reading before designing 4.1: stats are written TWICE and the two paths agree
+> only by convention** — `PlayerGameState.record*()` counters and the `GameEvent` for the
+> same play. §3.20 shipped (and fixed) a bug that is one realisation of it. **Not a gate
+> on this phase**, and not scheduled — but if the box score is ever to be **derived from
+> the event log**, this phase's design is the natural place to ask. Full write-up in
+> [risks.md](risks.md); parked as an idea in [ideas.md](ideas.md).
 
 ### 4.1 Game Stats Model
 - [ ] Per-game player stats: points, rebounds (off/def), assists, steals, blocks, turnovers, fouls, minutes, FGA/FGM, 3PA/3PM, FTA/FTM

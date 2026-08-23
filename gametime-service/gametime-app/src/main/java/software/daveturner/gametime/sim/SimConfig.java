@@ -799,8 +799,16 @@ public class SimConfig {
     // measured flagrant rate ran 0.119 against its ~0.16 ballpark — 74%, i.e. precisely
     // the 17.82/20.15 ratio. Leaving the divisor stale would have understated flagrants
     // by ~13% permanently, and #032 B2's warning is that NOTHING WOULD HAVE FAILED.
-    // ⚠ This is a SHOT-MIX-derived quantity now, so §3.19 must re-measure it once more.
-    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 17.82;
+    // §3.20 (#042, Step 7) RE-MEASURED at the recalibration landing: 18.52.
+    // Personal fouls = all foul events (18.864) MINUS technicals (0.346); flagrants
+    // REPLACE a foul event and are therefore already inside the tally.
+    // ⚠ §3.20 moved this TWICE. Its main pass changed only the foul MIX and left the
+    // rate alone (17.82 -> 17.77, -0.31%, a non-event). Its follow-up raised
+    // base-no-basket-foul 0.15 -> 0.1687 to land FGA, which DOES move the rate:
+    // 17.77 -> 18.52, +4.2%. The lesson #034 G keeps making: this divisor tracks a
+    // MEASURED quantity, so re-measure it whenever ANY change touches the foul rate —
+    // the cost of a stale divisor is silence (#032 B2), not a failure.
+    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 18.52;
 
     // Base probability that a made field goal is assisted, at an average passing
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
