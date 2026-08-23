@@ -74,18 +74,38 @@ cd gametime-service && for s in 1000 2000 3000 4000 5000; do SPRING_PROFILES_ACT
   values are §3.19's run (2026-08) and should reproduce. ⚠ **If a row disagrees, that is a
   finding, not a nuisance** — ask Trap 2's question before tuning it.
 
+### Step 0 → the questions: how the measurement picks your starting point
+
+**The expected cadence is: run the harness, then work the biggest deviations.** The list
+below is already ordered that way against §3.19's numbers, so **if your run reproduces
+calibration.md, take Q1 first and work down.** What the run adds is a check on that
+ordering:
+
+- **The run reproduces (expected).** Q1 is the pass's real work — **2P% and FTA are the
+  two rows under review**, and Q2 constrains how they can be fixed. Q3–Q7 are smaller and
+  several of them *depend* on Q1's answer, so resolving them first wastes the work.
+- **A row disagrees with calibration.md.** ⚠ **That is a finding, and it comes BEFORE
+  Q1** — not because it is bigger, but because an unexplained number means you do not yet
+  know which of Q1–Q7 you are actually looking at. Ask Trap 2's question (*engine,
+  measurement, or clamp?*), then resume the order.
+- ⚠ **Do not re-rank the list on one seed.** Per-seed noise is ±1.5 points; a row that
+  looks worse than Q1 on a single run may be inside the noise band. **Re-rank on the
+  5-seed mean or not at all.**
+
 ### The questions to resolve (each becomes a Decision in #042)
 
 ⚠ **Q1 is the pass's real work; the rest are smaller.** Full argument, levers and sizing
 are in **[roadmap.md](roadmap.md)'s §3.20 bullet** — do not re-derive them here, but do
 not skip them either.
 
-1. **⚠ THE CORE PROBLEM — 2P%, FTA and points are OVER-DETERMINED. Which target
-   yields?** One problem in three rows, not three problems. **2P% is ~6.3 low** (~48.7 vs
-   a sourced 55.0) and **FTA ~3.7 low** (19.76 vs 23.5); both must go **UP**. But the 2P%
-   fix is worth **~+7 points** and the FTA fix **~+2.8**, against a points gap of only
-   **5.6** — **combined ~+9.8, overshooting points to ~120 vs 115.6.** They cannot all be
-   hit independently. **Deciding which one yields, and by how much, is this pass.**
+1. **⚠ THE CORE PROBLEM — 2P%, FTA (free-throw attempts) and points are
+   OVER-DETERMINED. Which target yields?** ⚠ **These are THE two rows under review —
+   two-point shooting and free throws** — and they are **one problem in three rows, not
+   three problems.** **2P% is ~6.3 low** (~48.7 vs a sourced 55.0) and **FTA ~3.7 low**
+   (19.76 vs 23.5); both must go **UP**. But the 2P% fix is worth **~+7 points** and the
+   FTA fix **~+2.8**, against a points gap of only **5.6** — **combined ~+9.8,
+   overshooting points to ~120 vs 115.6.** They cannot all be hit independently.
+   **Deciding which one yields, and by how much, is this pass.**
 2. **Where does the recovery come from?** ⚠ **From MAKING more shots, not TAKING more** —
    **FGA is the one row already too high** (92.28 vs 89.1), so a pace bump is the
    obvious-looking lever and the wrong one. ⚠ **`base-three` must NOT move** (3P% is
