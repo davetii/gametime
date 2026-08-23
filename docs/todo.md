@@ -13,12 +13,14 @@ recalibration**.
 §3.19, and is now **§3.20**. **Read the phase NAME, never the number alone.**
 §3.7–§3.19 have all shipped.
 
-> **§3.20 NEEDS ITS OWN DESIGN SESSION, AND IT OPENS WITH A MEASUREMENT RATHER THAN WITH
-> QUESTIONS.** That measurement is done: **§3.19's 5-seed run (seeds 1000–5000) is
-> recorded in [calibration.md](calibration.md)'s Current column** and is this pass's
-> first input. **This file has NOT been rewritten for §3.20** — that is the design
-> session's first job, and its content lives in **roadmap.md's §3.20 bullet** in the
-> meantime (see the pointer section below).
+> **⚠ §3.20 NEEDS A DESIGN PASS, AND IT OPENS WITH A MEASUREMENT RATHER THAN WITH
+> QUESTIONS — SO START BY RUNNING THE HARNESS.** The open questions are in the **§3.20
+> section below**, but ⚠ **do not start arguing them until Step 0's 5-seed run is in
+> hand**: this pass adds no mechanic, so the measurement is an INPUT, not a check
+> afterwards. §3.19 left a 5-seed mean in [calibration.md](calibration.md)'s Current
+> column — **that is a reference to reproduce and diff against, not a substitute for
+> measuring.** Write no production code this session; the output is `#042` plus an
+> execute-ready plan replacing that section.
 >
 > ✅ **§3.19 (instrumentation) SHIPPED 2026-08 — no `#NNN`, because it resolved no design
 > question.** All three tasks landed as planned, and **the phase moved no engine number**
@@ -42,18 +44,90 @@ recalibration**.
 
 ---
 
-## §3.20 (recalibration) — the NEXT phase. Pointers only, until its design pass rewrites this file.
+## §3.20 (recalibration) — THE OPEN QUESTIONS, and the order to take them in
 
-✅ **The precondition is met: §3.19 has shipped and its 5-seed run is recorded** in
-[calibration.md](calibration.md)'s Current column. That run is §3.20's first input.
-⚠ **This section is deliberately thin, and that is not an omission.** The content lives
-in **roadmap.md's §3.20 bullet** so it survives this file's rewrite — todo.md is
-current-phase-only, and **rewriting it for §3.20 is that design pass's first job**.
+⚠ **This is a DESIGN PASS. Write no production code in this session.** Its output is a
+new `decisions.md #042` (Decisions A, B, C…) **plus** an execute-ready plan replacing this
+section. Resolving these questions IS the session; tuning happens in the execution session
+that follows.
 
-**When you get there, read in this order:**
-1. **[roadmap.md](roadmap.md)'s §3.20 bullet** — the core problem (**2P%, FTA and points
-   are over-determined**: ~+9.8 points of lift available against a 5.6-point gap, so they
-   cannot all be hit independently), the levers, the frozen decisions, the exit condition.
+### ⚠ STEP 0 — RUN THE HARNESS BEFORE ARGUING ANYTHING
+
+**§3.20's design pass opens with a MEASUREMENT, not with questions — this inverts every
+prior phase.** §3.4–§3.19 each added a mechanic, so design reasoned about behavior that
+did not exist yet and the harness ran afterwards. **§3.20 adds no mechanic, so the
+measurement is an INPUT.** Argue every question below against numbers you took yourself,
+in this session.
+
+```bash
+cd gametime-service && for s in 1000 2000 3000 4000 5000; do SPRING_PROFILES_ACTIVE=local,baseline JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -q -pl gametime-app test -Dtest=CalibrationHarness -Dcalibration=true -DcalibrationSeed=$s -DfailIfNoTests=false; done
+```
+
+- ⚠ **Take the 5-SEED MEAN, seeds 1000–5000.** Per-seed noise is ±1.5 points, enough to
+  bait an over-correction; technicals and flagrants need 5 seeds as a **hard floor**.
+- ⚠ **Confirm the `Profiles:` line reads `local,baseline`** on every run before trusting a
+  number (Trap 3 below — this has cost two sessions).
+- ⚠ **Confirm all THREE reconciliation lines read `OK`** — `ast+blk`, `ft-src`, `points`.
+  §3.19 built the latter two for this pass. **A `MISMATCH(es)` invalidates the rows it
+  feeds: fix the instrument before reading a number.**
+- **Then diff your mean against [calibration.md](calibration.md)'s Current column.** Those
+  values are §3.19's run (2026-08) and should reproduce. ⚠ **If a row disagrees, that is a
+  finding, not a nuisance** — ask Trap 2's question before tuning it.
+
+### The questions to resolve (each becomes a Decision in #042)
+
+⚠ **Q1 is the pass's real work; the rest are smaller.** Full argument, levers and sizing
+are in **[roadmap.md](roadmap.md)'s §3.20 bullet** — do not re-derive them here, but do
+not skip them either.
+
+1. **⚠ THE CORE PROBLEM — 2P%, FTA and points are OVER-DETERMINED. Which target
+   yields?** One problem in three rows, not three problems. **2P% is ~6.3 low** (~48.7 vs
+   a sourced 55.0) and **FTA ~3.7 low** (19.76 vs 23.5); both must go **UP**. But the 2P%
+   fix is worth **~+7 points** and the FTA fix **~+2.8**, against a points gap of only
+   **5.6** — **combined ~+9.8, overshooting points to ~120 vs 115.6.** They cannot all be
+   hit independently. **Deciding which one yields, and by how much, is this pass.**
+2. **Where does the recovery come from?** ⚠ **From MAKING more shots, not TAKING more** —
+   **FGA is the one row already too high** (92.28 vs 89.1), so a pace bump is the
+   obvious-looking lever and the wrong one. ⚠ **`base-three` must NOT move** (3P% is
+   correct at 35.8 vs 36.0 and held across a 1.9× volume change, #040 F); the 2P% lever is
+   `base-drive` / `base-post` / `base-perimeter`.
+3. **FTA's mechanism** — does `sim.non-shooting-foul-share` move, the foul rate, or both?
+   ⚠ **The share is priced by the PENALTY RATE, not the foul rate alone** (46.1%, down
+   from 55.7%), and **moving the foul rate stales the flagrant divisor**.
+4. **Def rebounds** — 30.48 vs 32.4. A residual **rate** question (`sim.base-offensive-
+   rebound` and the paths that divert misses from the rebound draw), **not a new
+   sub-phase** (#040 H).
+5. **Steals** — 7.72 vs 8.4, but ⚠ **DERIVED**: steals = turnovers × STOLEN share.
+   **Fixing turnovers to 14.5 alone yields ~8.05.** Re-measure after turnovers land; **do
+   not tune the share independently** (#041 F).
+6. **Sourcing** — which still-unsourced rows get a real source, and which are declared
+   `ballpark`/`observed` on purpose: foul-outs (⚠ its ~0.39 is **circular**, promoted from
+   a prior landing), technicals, flagrants, the minutes distribution, the real
+   shooting-foul share.
+7. **A stop condition per row** — given ±1.5-point noise, what reading counts as "landed"
+   and stops the tuning? **Decide this BEFORE tuning**, or the pass has no exit.
+
+### ⚠ Frozen — do NOT reopen (each already argued and closed)
+
+- **§3.13's foul-trouble sit curve** — measured **saturated** (#031).
+- **The turnover count, gate and cause weights** — frozen (#027 A).
+- **#039 C's dead-possession concession** — asked and answered **no** (#040 E).
+- **`PROB_FLOOR` / `base-block-three`** — **closed, not deferred**: sized at ~half a
+  blocked three per team-game on a row already on target. **A footnote**: only if this
+  pass tunes `base-block-*`, reroute through `clampRareProbability` first or that lever
+  reads dead.
+- ⚠ **If the pass finds itself adding a BRANCH, it has grown beyond recalibration.**
+  §3.20 is the last Phase-3 sub-phase and **adds no mechanic** (#038).
+
+### Exit condition
+
+**Not "every row green".** It is that **every `calibration.md` row is either a `TARGET`
+with a named source and season, or deliberately `observed` / `ballpark`.**
+
+### Read these first, in this order
+
+1. **[roadmap.md](roadmap.md)'s §3.20 bullet** — the full argument behind Q1–Q7, the
+   levers, the sizing, the frozen decisions. **The questions above are an index over it.**
 2. **[calibration.md](calibration.md)** — live numbers and the operative rules.
 3. **[decisions.md](decisions.md)** — the **"⚠ WHAT §3.20 INHERITS"** handoff block at the
    end: every gap, the `#NNN` that owns it, and the constraint on each that is easy to

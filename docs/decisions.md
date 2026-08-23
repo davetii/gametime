@@ -1286,10 +1286,10 @@ number.
 spread across five entries — a cold session would have to read #036, #039, #040 and #041
 to assemble it. **This block is an INDEX, not a new decision**: each row cites the entry
 that owns it, and that entry stays authoritative. Live values are in `calibration.md`;
-**the design questions are in `roadmap.md`'s §3.20 bullet** — they were parked there
-deliberately so they survive todo.md's per-phase rewrite, which happened at §3.19's
-close-out (2026-08). ⚠ **todo.md holds no §3.20 questions until that pass opens and
-rewrites it.***
+**the design questions are indexed as Q1–Q7 in `todo.md`'s §3.20 section**, with the full
+argument, levers and sizing behind them in **`roadmap.md`'s §3.20 bullet** (they were
+parked there so they survive todo.md's per-phase rewrite). ⚠ **todo.md's Step 0 comes
+first: this pass opens with a fresh 5-seed harness run, not with the questions.***
 
 **§3.20 is the LAST Phase-3 sub-phase and adds NO mechanic.** Every pass before it
 settled the *shape* — foul mix (§3.16), shot mix (§3.17), event vocabulary (§3.18) — and
