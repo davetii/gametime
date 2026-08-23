@@ -208,3 +208,5 @@ three have happened here — an instrument that miscounted a row, a corrected in
 that made a falling number look like it doubled, and `PROB_FLOOR` holding a rate that a
 constant appeared to set. **Compare raw-to-raw across an instrument change; never compare
 a corrected number to an uncorrected one.**
+
+- **`docs/game-events.md`** — the event vocabulary these numbers are counted from.

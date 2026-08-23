@@ -920,6 +920,14 @@ legend bottom left
   (the counterparty column on three existing events).
   **Read the phase NAME, never the number alone.**
 
+  == SEE ALSO ==
+  **docs/game-events.md** — the event VOCABULARY: every
+  (play_type, outcome) pair this flow emits, with who is on each
+  row (primary / opponent / assist / committing_team). ⚠ **This
+  diagram owns the branch ORDER; that file owns the EVENTS.** A new
+  outcome, or a change to who rides an event, belongs there — and
+  in the same change as the fork drawn here.
+
   == WHAT §3.20 (RECALIBRATION) INHERITS ==
   ⚠ **Renumbered AGAIN in 2026-08: recalibration was §3.16, then
   §3.18, then §3.19, and is now §3.20** — the §3.19 slot became the
