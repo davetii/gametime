@@ -319,7 +319,12 @@ planned features), see [ideas.md](ideas.md).
       Re-counted after §3.17 (2026-08) at **846 lines / 11,212px** rendered: **notes 369 ·
       legend 208 · actual flow 269.** **68% of the file is prose** — and note that ratio
       held exactly across a phase that added a fork and a rename, so it is structural, not
-      a one-off. (Prior count: 822 lines / 349 · 208 · 265, same 68%.) The flow — the part a split
+      a one-off. (Prior count: 822 lines / 349 · 208 · 265, same 68%.) ⚠ **§3.21 (#043) added a
+      fork and two credit sites and it now measures 1,104 lines / 62,000 chars /
+      13,342px rendered** — still complete under the required
+      ``-DPLANTUML_LIMIT_SIZE=16384``, but **within 19% of that ceiling**, and the flag is
+      the only thing preventing a silent truncation at 4096px. **The render height is now
+      a reason to do this, not just the prose ratio.** The flow — the part a split
       would divide — **is not the problem**, so splitting first produces four files that are
       each still 68% notes. Do it in this order:
       1. **Thin the notes.** Most re-argue the decision rather than describe the branch —

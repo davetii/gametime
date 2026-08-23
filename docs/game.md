@@ -272,7 +272,14 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      outcome, tagged `*_SHOOTING` (§3.11 D). **The count comes from
      `ShotType.freeThrowsIfFouled()`: 3 for a fouled `THREE`, otherwise 2** (§3.12,
      #030 C — a rule of basketball, so it lives on the enum, not in `SimConfig`).
-     Possession ends after free throws.
+     ⚠ **§3.21 (#043 C): the possession does NOT simply end after free throws any more.**
+     The **LAST** attempt of a trip is **live** — a missed one is rebounded through
+     `MissedShotResolver` (at a defence-leaning base, `FREE_THROW_REBOUND_LEAN`) and an
+     **offensive** board returns the ball for a second chance under the same cap. Applies
+     at `SHOOTING`, `BONUS` and `AND_ONE` **only**: `FLAGRANT` and `TECHNICAL` are
+     excluded by rule (#034 B, #032 G). ⚠ **Only the LAST attempt is live** — a missed
+     first FT is a dead ball. In code this is a second layer, `awardLiveFreeThrows`,
+     wrapping an **unchanged** `awardFreeThrows` (#043 H).
    - **This branch is only the "contact STOPPED the shot" case** — hence the
      constant's name (`BASE_NO_BASKET_FOUL`, renamed from `BASE_FOUL` in §3.12,
      #030 F — §3.12 left the value at 0.15; **§3.20 raised it to 0.1687 to land FGA**,
@@ -285,11 +292,15 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      defender-vs-finisher contest (`rimProtection` at the rim / `shotContest` on
      jumpers, vs the shooter's `finishing`), shot-type-scaled (rim ≫ three). If
      blocked: a `SHOT` / `BLOCKED_*` event (primary_player = shooter, the victim),
-     the blocker credited a BLK via `recordBlock()` (not on the event), a missed
-     FGA on the shooter, no assist. A flat four-way `BlockResolver` then resolves
-     the loose ball — a **defense recovery** (in-bounds or OOB) ends the
-     possession; an **offense recovery** re-enters the second-chance loop at the
-     shot selector (skipping the rebound step), capped like an offensive rebound.
+     the blocker credited a BLK via `recordBlock()` **and riding the event as the
+     counterparty** (§3.18), a missed FGA on the shooter, no assist. A flat four-way
+     `BlockResolver` then resolves the loose ball — a **defense recovery** (in-bounds or
+     OOB) ends the possession; an **offense recovery** re-enters the second-chance loop at
+     the shot selector, capped like an offensive rebound.
+     ⚠ **§3.21 (#043 E): a recovery now EMITS a `REBOUND` event and credits a rebounder**
+     on the two in-bounds outcomes — it no longer "skips the rebound step". The flat roll
+     still picks the **side**; a skill-weighted draw then picks **which of that side's
+     five**. The two OOB outcomes emit a `REBOUND / OUT_OF_BOUNDS_*` with no rebounder.
    - Otherwise `SHOT` event → made or missed. On a make, points are scored and the
      possession ends. On a made FG, an **assist** may be attributed (§3.4): a roll
      (scaled by the other on-floor offensive players' `passing` / team

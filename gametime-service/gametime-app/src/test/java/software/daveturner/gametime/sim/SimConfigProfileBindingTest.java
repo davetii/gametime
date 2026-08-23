@@ -31,10 +31,15 @@ class SimConfigProfileBindingTest {
 
     /** The constants that must stay static: rules, model machinery, one measured value. */
     private static final List<String> EXPECTED_STATIC = List.of(
-            // rules (9)
+            // rules (10)
             "PERIODS", "MINUTES_PER_PERIOD", "OT_MINUTES", "FREE_THROWS_PER_FOUL",
             "AND_ONE_FREE_THROWS", "TECHNICAL_FREE_THROWS", "FLAGRANT_FREE_THROWS",
             "TECHNICAL_EJECTION_LIMIT", "FLAGRANT_EJECTION_LIMIT",
+            // §3.21 (#043 D): the defense's inside position on a free throw is a RULE
+            // of the game, so the free-throw board's lean on baseOffensiveRebound() is
+            // a static. It has NO properties line by design - a value in Java AND a
+            // bound key would be exactly the double-value this test exists to prevent.
+            "FREE_THROW_REBOUND_LEAN",
             // model machinery (17)
             "SCALE_AVG", "MAX_ENERGY", "PROB_FLOOR", "PROB_CEILING", "SENSITIVITY",
             "FT_SENSITIVITY", "BLOCK_SENSITIVITY", "REBOUND_FOUL_SENSITIVITY",
@@ -107,7 +112,7 @@ class SimConfigProfileBindingTest {
      * class that reads it - a test could assert one value while the engine ran another.
      */
     @Test
-    void onlyTheTwentySevenRulesAndMachineryConstantsAreStatic() {
+    void onlyTheTwentyEightRulesAndMachineryConstantsAreStatic() {
         TreeSet<String> actual = new TreeSet<>();
         for (Field f : SimConfig.class.getDeclaredFields()) {
             if (!Modifier.isStatic(f.getModifiers()) || f.isSynthetic()) {

@@ -109,7 +109,7 @@ unpopulated.
 |---|---|---|---|---|---|---|
 | `SHOT` | `MADE_2PT_DRIVE` · `MADE_2PT_PERIMETER` · `MADE_2PT_POST` · `MADE_3PT` | shooter | — | assister, if the roll hit | — | Made FG. The assister is a **teammate** — not a counterparty. An and-1 `FOUL` may follow for the same shot |
 | `SHOT` | `MISSED_2PT_DRIVE` · `MISSED_2PT_PERIMETER` · `MISSED_2PT_POST` · `MISSED_3PT` | shooter | — | — | — | Missed FG. A `REBOUND` event follows |
-| `SHOT` | `BLOCKED_2PT_DRIVE` · `BLOCKED_2PT_PERIMETER` · `BLOCKED_2PT_POST` · `BLOCKED_3PT` | shooter (the **victim**) | **the blocker** | — | — | Charges a missed FGA (no FGM; `+3PA` on a blocked three) and carries **no** assist. `BLOCKED_3PT` is rare (a closeout swat). See *Steal / block symmetry*. ⚠ **NO `REBOUND` EVENT FOLLOWS — unlike the `MISSED_*` row above.** Recovery is a flat four-way `BlockRecovery` draw (#025 D) that forks the possession but **emits nothing and credits no rebounder** |
+| `SHOT` | `BLOCKED_2PT_DRIVE` · `BLOCKED_2PT_PERIMETER` · `BLOCKED_2PT_POST` · `BLOCKED_3PT` | shooter (the **victim**) | **the blocker** | — | — | Charges a missed FGA (no FGM; `+3PA` on a blocked three) and carries **no** assist. `BLOCKED_3PT` is rare (a closeout swat). See *Steal / block symmetry*. **A `REBOUND` event follows** — since §3.21 (#043 E), exactly as off a `MISSED_*` shot. The flat four-way `BlockRecovery` draw (#025 D) picks the **side**; the `REBOUND` row then names **which of that side's five** secured it |
 | `TURNOVER` | `STOLEN` | ball-handler (the **victim**) | **the stealer** | — | — | ~56% of turnovers, kept dominant. See *The steal* |
 | `TURNOVER` | `OFFENSIVE_FOUL` | ball-handler | — *(the drawer is **not modelled**)* | — | — | The charge. ⚠ **Also emits a `FOUL` row below — two events, one occurrence.** ⚠ **`opponent` is null DELIBERATELY**: a charge has a real counterparty (the defender who drew it), but the engine never picks one and doing so requires a new RNG draw. See *The charge* |
 | `TURNOVER` | `SHOT_CLOCK_VIOLATION` · `BAD_PASS` · `TRAVELLING` · `LOST_BALL_OUT_OF_BOUNDS` · `3_SECONDS_VIOLATION` · `8_SECONDS_BACKCOURT_VIOLATION` · `OVER_AND_BACK` | ball-handler | — *(no counterparty exists)* | — | — | The seven unforced causes: one actor, one fact, nothing owed (rule 1). ⚠ `LOST_BALL_OUT_OF_BOUNDS` is **distinct** from `OUT_OF_BOUNDS_*` on `REBOUND` |
@@ -121,34 +121,31 @@ unpopulated.
 | `FOUL` | `AND_ONE` | the defender | **the fouled shooter** | — | defense | ⚠ **The FGA and FGM are already charged** on the preceding `SHOT` event — an and-1 is a made basket, so unlike a stopped shot it *is* an attempt. Foul on **any** made shot — the basket counts and **one** FT follows, a made three included. Never forks the possession, never consults the bonus |
 | `FOUL` | `TECHNICAL_FOUL` | the committer | — *(the FT shooter is **not** a counterparty)* | — | committer's team | Rolled **between possessions** in `RotationState`, off the possession path. **One** FT to the other team, **possession unchanged**. Charged to a separate `technicalFouls` counter: **excluded** from the 6-foul limit and from the bonus tally — the only such exclusion |
 | `FOUL` | `FLAGRANT_FOUL_1` · `FLAGRANT_FOUL_2` | the committer | **the fouled player**, at the two shot sites — **null** at the rebounding site | — | committer's team | A severity roll **on top of** a foul that already happened, at all three foul sites. ⚠ **The counterparty follows the underlying foul**: at the shot sites the fouled shooter is identified, so it is carried; at the rebounding site no individual victim exists (see below), so it is null. **Always exactly 2 FTs, which REPLACE the underlying award** (a flagrant stopped three is 2, not 3 and not 5). Unlike a technical it **is** a personal foul and **counts** toward the bonus. A defensive one **returns the ball**; `_2` (flat 15%) ejects immediately |
-| `FREE_THROW` | `MADE_SHOOTING` · `MISSED_SHOOTING` | the shooter | — *(belongs to the `FOUL`)* | — | — | From a foul that **stopped** the shot — 2 per trip, **3 if the stopped shot was a `THREE`** |
-| `FREE_THROW` | `MADE_BONUS` · `MISSED_BONUS` | the shooter | — *(belongs to the `FOUL`)* | — | — | A **penalty** trip: after a rebounding foul, or a `NON_SHOOTING_FOUL` committed in the penalty. 2 per trip |
-| `FREE_THROW` | `MADE_AND_ONE` · `MISSED_AND_ONE` | the shooter | — *(belongs to the `FOUL`)* | — | — | The single FT riding a made basket |
-| `FREE_THROW` | `MADE_TECHNICAL` · `MISSED_TECHNICAL` | the shooter | — *(belongs to the `FOUL`)* | — | — | **The only FT source where nobody was fouled**, so the shooter is a deterministic highest-`freeThrows` pick from the on-floor five — *not* the `foulDrawing`-weighted draw. Expect one player to shoot essentially all of them |
-| `FREE_THROW` | `MADE_FLAGRANT` · `MISSED_FLAGRANT` | the shooter | — *(belongs to the `FOUL`)* | — | — | The **two** FTs from a flagrant, shot by **the player who was fouled** — the best-shooter rule's premise (nobody was fouled) does not hold here |
-| `REBOUND` | `OFFENSIVE` | the rebounder | — *(a contest against four, no named loser)* | — | — | Ball stays with the shooting team for a second chance |
-| `REBOUND` | `DEFENSIVE` | the rebounder | — *(a contest against four, no named loser)* | — | — | Possession ends |
-| `REBOUND` | `OUT_OF_BOUNDS_OFFENSE` · `OUT_OF_BOUNDS_DEFENSE` | — *(**no rebounder**)* | — | — | — | The missed shot left the court. ⚠ Reuses the `REBOUND` play type but is **excluded from the rebound reconciliation**, which exact-matches `OFFENSIVE`/`DEFENSIVE`, so it never counts as a box-score rebound |
+| `FREE_THROW` | `MADE_SHOOTING` · `MISSED_SHOOTING` | the shooter | — *(belongs to the `FOUL`)* | — | — | From a foul that **stopped** the shot — 2 per trip, **3 if the stopped shot was a `THREE`**. ⚠ **A missed LAST attempt is followed by a `REBOUND` event** (#043 C) — see *The three rebound sources* |
+| `FREE_THROW` | `MADE_BONUS` · `MISSED_BONUS` | the shooter | — *(belongs to the `FOUL`)* | — | — | A **penalty** trip: after a rebounding foul, or a `NON_SHOOTING_FOUL` committed in the penalty. 2 per trip. ⚠ **A missed LAST attempt is followed by a `REBOUND`** (#043 C), and at the rebounding site the shooter's team may be the DEFENSE — the board is resolved for the **possession's** offense either way |
+| `FREE_THROW` | `MADE_AND_ONE` · `MISSED_AND_ONE` | the shooter | — *(belongs to the `FOUL`)* | — | — | The single FT riding a made basket. ⚠ Being the trip's only attempt it is **always the last, so always live** — a missed one is rebounded, and an offensive board yields a live second-chance possession **after a made basket** (#043 C, reversing #029 B a second time) |
+| `FREE_THROW` | `MADE_TECHNICAL` · `MISSED_TECHNICAL` | the shooter | — *(belongs to the `FOUL`)* | — | — | ⚠ **NO `REBOUND` follows a miss** — play resumes with the ball as it was (#032 G). **The only FT source where nobody was fouled**, so the shooter is a deterministic highest-`freeThrows` pick from the on-floor five — *not* the `foulDrawing`-weighted draw. Expect one player to shoot essentially all of them |
+| `FREE_THROW` | `MADE_FLAGRANT` · `MISSED_FLAGRANT` | the shooter | — *(belongs to the `FOUL`)* | — | — | ⚠ **NO `REBOUND` follows a miss** — the offense retains **by rule** either way (#034 B), so rebounding it would double-count that path. The **two** FTs from a flagrant, shot by **the player who was fouled** — the best-shooter rule's premise (nobody was fouled) does not hold here |
+| `REBOUND` | `OFFENSIVE` | the rebounder | — *(a contest against four, no named loser)* | — | — | Ball stays with the shooting team for a second chance. ⚠ **Emitted from THREE sites** — a missed `SHOT`, a **blocked** shot recovered in bounds (#043 E), and a missed **last** `FREE_THROW` (#043 C) — and the three are split by three DIFFERENT offensive shares. See *The three rebound sources* |
+| `REBOUND` | `DEFENSIVE` | the rebounder | — *(a contest against four, no named loser)* | — | — | Possession ends. Same three sites as `OFFENSIVE` above |
+| `REBOUND` | `OUT_OF_BOUNDS_OFFENSE` · `OUT_OF_BOUNDS_DEFENSE` | — *(**no rebounder**)* | — | — | — | The attempt left the court — off a missed `SHOT`, a **blocked** shot knocked out (#043 E2), or a missed last `FREE_THROW`. ⚠ Reuses the `REBOUND` play type but is **excluded from the rebound reconciliation**, which matches on a **non-null `primary_player_id`**, so it never counts as a box-score rebound |
 
-> ⚠ **A BLOCKED SHOT PRODUCES NO `REBOUND` ROW AT ALL, AND BY THE NBA RULE IT SHOULD.**
-> A recovered block is a rebound for whoever comes up with the ball. The engine resolves
-> *which side* recovers — `BlockRecovery` is `RECOVERED_DEFENSE` 45% / `RECOVERED_OFFENSE`
-> 30% / `OOB_DEFENSE` 13% / `OOB_OFFENSE` 12%, and the possession forks correctly on it —
-> but **emits no event and credits no player**. Measured: **3.41 recovered in bounds per
-> team-game, credited to nobody** (2.04 defensive, 1.36 offensive); the 1.14 that go out of
-> bounds are correctly rebound-less.
-> ⚠ **The BLOCK-OOB slices emit nothing either.** `OOB_DEFENSE` (0.59) and `OOB_OFFENSE`
-> (0.54) are resolved inside `BlockRecovery` with **no event at all** — where the identical
-> situation off a *missed shot* does emit `REBOUND / OUT_OF_BOUNDS_*`. So the event log
-> under-counts ownerless possession changes by **~1.14/team-game**, which is what would
-> make a derived "team rebound" figure wrong today.
-> ⚠ **This is a KNOWN GAP, owned by §3.21** (the rebound pool — def rebounds run 27.90
-> against a sourced 32.4). **Do not "fix" it by adding a row here first**: crediting a
-> rebounder means *selecting* one, and #025 D made the recovery draw flat and
-> skill-independent **deliberately**, so the blocked ball would not inherit the board
-> contest. The vocabulary changes only once that design question is resolved — and when it
-> does, **the OOB slices should start emitting too**, so the log becomes complete.
-> *(Found 2026-08 while closing §3.20.)*
+> ✅ **§3.21 (#043 E) CLOSED THE BLOCK-REBOUND GAP — a recovered block now emits a
+> `REBOUND` row, and so do the two out-of-bounds slices.** A recovered block is a
+> rebound for whoever comes up with the ball, and it is fixed **because it is a rule**.
+> `BlockRecovery` still resolves *which side* by the same flat draw — `RECOVERED_DEFENSE`
+> 45% / `RECOVERED_OFFENSE` 30% / `OOB_DEFENSE` 13% / `OOB_OFFENSE` 12% — and the
+> possession still forks on it unchanged.
+> ⚠ **The reason this does NOT violate #025 D's flatness: the flat roll picks a SIDE,
+> never a PLAYER.** Crediting a rebounder is a *different question* — which of that
+> side's five secured it — and a skill-weighted pick answers it. ⚠ **`isOffensiveRebound`
+> is NEVER called on this path**: the side is already decided, and running the board
+> contest there would be exactly the inheritance #025 D refused.
+> ⚠ **The two OOB slices gain their event but no rebounder** (`primary_player_id` null),
+> the same shape a missed shot's OOB already used — so the derived ownerless-possession-
+> change query is finally **complete**, and the `team_rebounds` COLUMN still is not built,
+> because nothing consumes it and it stays derivable (#014/#017/#020).
+> *(Gap found 2026-08 while closing §3.20; closed by §3.21.)*
 
 ### What `opponent_player_id` holds
 
@@ -317,8 +314,35 @@ shooting team (a second-chance possession runs through the full flow again); a
 retains for a second chance, `OUT_OF_BOUNDS_DEFENSE` ends the possession.
 
 ⚠ **OOB events reuse the `REBOUND` play type but are excluded from the rebound
-reconciliation**, which exact-matches `OFFENSIVE`/`DEFENSIVE`, so they never count as a
-box-score rebound.
+reconciliation**, which matches on a **non-null `primary_player_id`**, so they never
+count as a box-score rebound.
+
+### The three rebound sources
+
+**A `REBOUND` event is emitted from THREE places, and the reason to know that is the
+SPLIT: each carries a different offensive share, and only one of them has a knob.**
+
+| source | offensive share | decided by |
+|---|---|---|
+| a missed `SHOT`, the ordinary board | **0.262** | `ReboundResolver`'s skill contest on `sim.base-offensive-rebound` — **the only tunable of the three** |
+| a **blocked** shot recovered in bounds | **0.400** | the flat `sim.block-*` weights (#025 D) — **not a contest at all**; the side is already drawn |
+| a missed **last** `FREE_THROW` | **~0.17** | the same contest at a reduced base, `baseOffensiveRebound() × FREE_THROW_REBOUND_LEAN` — a `public static final` **rule**, the defense's inside position |
+
+⚠ **`sim.base-offensive-rebound` does not reach the last two**, so it cannot be used to
+move the aggregate offensive/defensive rebound split. That is why both rebound rows end
+§3.21 as **reported residuals** rather than tuned (#043 B).
+
+⚠ **EVERY ACTUAL REBOUND HAS AN OWNER**, and since §3.21 the harness proves it: a fourth
+reconciliation line asserts `count(REBOUND with non-null primary_player_id)` equals the
+box-score rebound total. A "team rebound" is **not** a rebound — it is the scorekeeping
+entry for a possession change where **no rebound happened**, which is what the
+`OUT_OF_BOUNDS_*` outcomes are. It is **never** a bucket for rebounds whose owner the
+engine failed to identify.
+
+⚠ **On a free throw, only the LAST attempt of a trip is live.** A missed first free throw
+is a dead ball and emits nothing. The rule applies at `SHOOTING`, `BONUS` and `AND_ONE`
+only: `FLAGRANT` and `TECHNICAL` are excluded because their possession consequence is
+fixed by rule and independent of the free throw's outcome (#034 B, #032 G).
 
 ### Rebounding fouls, and why `committing_team_id` exists
 

@@ -21,7 +21,7 @@ class PossessionEngineTest {
     private final MissedShotResolver missedShotResolver = new MissedShotResolver(reboundResolver, config);
     private final PossessionEngine engine = new PossessionEngine(
             shotSelector, shotResolver, turnoverResolver, foulResolver,
-            blockResolver, missedShotResolver, config);
+            blockResolver, missedShotResolver, reboundResolver, config);
 
     private RandomGenerator rng(long seed) {
         return RandomGeneratorFactory.of("L64X128MixRandom").create(seed);
@@ -982,9 +982,13 @@ class PossessionEngineTest {
     }
 
     @Test
-    void outOfBoundsEventsFollowAMissedShot() {
-        // An OOB event is a missed-shot resolution: it must immediately follow a
-        // MISSED SHOT (same slot the rebound occupies today).
+    void outOfBoundsEventsFollowAnUnconvertedAttempt() {
+        // ⚠ §3.21 RE-BASELINED THIS TEST'S PREMISE, and deliberately: it used to read
+        // "an OOB event is a MISSED-SHOT resolution", which was true when §3.8 owned the
+        // only site that emitted one. §3.21 adds two more (#043 C/E2) — a blocked shot
+        // knocked out of bounds, and a missed LAST free throw that goes out — so the
+        // rule that survives all three is the weaker one: an OOB event resolves an
+        // attempt that did NOT go in, and it follows that attempt immediately.
         GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10),
                 "H", "A", 25, rng(42));
         List<GameData.EventRecord> events = data.getEvents();
@@ -994,8 +998,12 @@ class PossessionEngineTest {
                 oob++;
                 assertTrue(i > 0, "OOB cannot be the first event");
                 GameData.EventRecord prev = events.get(i - 1);
-                assertEquals(PlayType.SHOT, prev.playType(), "OOB must follow a SHOT");
-                assertTrue(prev.outcome().startsWith("MISSED"), "OOB must follow a MISSED shot");
+                assertTrue(prev.playType() == PlayType.SHOT
+                                || prev.playType() == PlayType.FREE_THROW,
+                        "OOB must follow a SHOT or a FREE_THROW, not " + prev.playType());
+                assertTrue(prev.outcome().startsWith("MISSED")
+                                || prev.outcome().startsWith("BLOCKED"),
+                        "OOB must follow an attempt that did not go in: " + prev.outcome());
             }
         }
         assertTrue(oob > 0, "expected some OOB events");
@@ -1106,6 +1114,250 @@ class PossessionEngineTest {
     // exercised deterministically rather than fished out of a whole game.
 
     /** Pre-load {@code n} fouls for {@code teamId} in {@code period}. */
+    // --- §3.21 the rebound pool (decisions.md #043) -------------------------
+
+    /**
+     * #043 C, the whole correctness of the free-throw branch: <b>only the LAST attempt
+     * of a trip is live</b>. A missed FIRST free throw is a dead ball. Measured,
+     * non-last misses run 2.30/team-game — LARGER than the live ones — so a terminal
+     * test that is off by one would roughly double this mechanic's effect.
+     *
+     * <p>Scripted to MISS both attempts of a two-shot trip: exactly ONE board follows.
+     */
+    @Test
+    void onlyTheLastFreeThrowOfATripIsRebounded() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        // 0.99 misses every FT (the make roll is `rng < prob`), and the tail keeps
+        // missing, so both attempts of the trip are misses.
+        engine.awardLiveFreeThrows(data, offense.get(0), "OFF", "OFF", "DEF",
+                offense, defense, 1, 50, SimConfig.FREE_THROWS_PER_FOUL,
+                FreeThrowSource.SHOOTING, false, new ScriptedRng(0.99));
+
+        long freeThrows = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FREE_THROW).count();
+        long rebounds = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.REBOUND).count();
+        assertEquals(2, freeThrows, "the trip is unchanged — still two attempts");
+        assertEquals(1, rebounds,
+                "TWO missed free throws, ONE board: only the last attempt is live "
+                        + "(#043 C). A missed first FT is a dead ball");
+    }
+
+    /** #043 C: a MADE last free throw is a dead ball — no board, no retention. */
+    @Test
+    void aMadeLastFreeThrowIsADeadBallAndEmitsNoRebound() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        // 0.0 makes every FT.
+        PossessionEngine.FreeThrowResult result = engine.awardLiveFreeThrows(
+                data, offense.get(0), "OFF", "OFF", "DEF", offense, defense,
+                1, 50, SimConfig.FREE_THROWS_PER_FOUL, FreeThrowSource.SHOOTING,
+                false, new ScriptedRng(0.0));
+
+        assertEquals(0, data.getEvents().stream()
+                        .filter(e -> e.playType() == PlayType.REBOUND).count(),
+                "a made free throw is a dead ball — nothing to rebound");
+        assertFalse(result.offenseRetains(), "and the possession is over");
+    }
+
+    /**
+     * #043 H, the reason for two layers rather than one method with a flag:
+     * <b>FLAGRANT and TECHNICAL are not flagged off — they never call the wrapper</b>,
+     * so their behaviour is bit-identical to before §3.21. Their possession consequence
+     * is fixed by rule and independent of the free throw's outcome (#034 B, #032 G).
+     */
+    @Test
+    void flagrantAndTechnicalFreeThrowsAreNeverRebounded() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        // A flagrant: not a flagrant-2, then two MISSED free throws.
+        engine.awardFlagrant(data, defense.get(0), offense.get(0),
+                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99, 0.99));
+        assertEquals(0, data.getEvents().stream()
+                        .filter(e -> e.playType() == PlayType.REBOUND).count(),
+                "a missed flagrant FT is NOT rebounded — the offense retains by rule "
+                        + "(#034 B), and rebounding it would double-count that path");
+
+        GameData technicalData = freshData();
+        engine.awardTechnicalFoul(technicalData, defense.get(0),
+                ctx("DEF", defense, CoachModifiers.neutral()),
+                ctx("OFF", offense, CoachModifiers.neutral()),
+                "OFF", "DEF", 1, 50, new ScriptedRng(0.99));
+        assertEquals(0, technicalData.getEvents().stream()
+                        .filter(e -> e.playType() == PlayType.REBOUND).count(),
+                "a missed technical FT is NOT rebounded — play resumes with the ball "
+                        + "as it was (#032 G)");
+    }
+
+    /**
+     * #043 D: the free-throw board runs the ORDINARY contest at a REDUCED base, because
+     * the defense has inside position by rule. The realized offensive share must come
+     * out well below the ordinary board's ~0.262 — this pins the LEAN's direction and
+     * that it is actually applied, without pinning a number the contest's logistic form
+     * makes it wrong to back-solve.
+     */
+    @Test
+    void theFreeThrowBoardLeansDefensiveRelativeToTheOrdinaryBoard() {
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        int ftOffensive = 0;
+        int boardOffensive = 0;
+        int trials = 4000;
+        for (int i = 0; i < trials; i++) {
+            GameData data = freshData();
+            // 0.99 on the first draw misses the FT; the rest of the stream is a real
+            // seeded generator, so the OOB carve and the contest behave normally.
+            engine.awardLiveFreeThrows(data, offense.get(0), "OFF", "OFF", "DEF",
+                    offense, defense, 1, 50, SimConfig.AND_ONE_FREE_THROWS,
+                    FreeThrowSource.AND_ONE, false,
+                    new ScriptedRngThenSeeded(i, 0.99));
+            if (data.getEvents().stream().anyMatch(e -> e.playType() == PlayType.REBOUND
+                    && "OFFENSIVE".equals(e.outcome()))) {
+                ftOffensive++;
+            }
+
+            MissedShotResolver.Result board = missedShotResolver.resolve(
+                    offense, defense, false, rng(i));
+            if (board.outcome() == MissedShotOutcome.OFFENSIVE_REBOUND) {
+                boardOffensive++;
+            }
+        }
+
+        double ftShare = ftOffensive / (double) trials;
+        double boardShare = boardOffensive / (double) trials;
+        System.out.printf("[§3.21] realized FT-board offensive share %.4f "
+                + "(ordinary board %.4f)%n", ftShare, boardShare);
+        assertTrue(ftShare < boardShare - 0.03,
+                "the free-throw board must lean DEFENSIVE against the ordinary board "
+                        + "(#043 D): FT " + ftShare + " vs board " + boardShare);
+        assertTrue(ftShare > 0.05,
+                "but the offense still rebounds some of them: " + ftShare);
+    }
+
+    /**
+     * #043 E: an in-bounds block recovery credits a rebounder on the side the FLAT roll
+     * already picked. ⚠ The flat roll picks a SIDE, never a player — the board contest
+     * ({@code isOffensiveRebound}) is never consulted here, which is what keeps #025 D's
+     * flatness intact.
+     */
+    @Test
+    void anInBoundsBlockRecoveryCreditsARebounderOnTheRecoveringSide() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        // 0.0 lands in the FIRST weight slice: RECOVERED_DEFENSE.
+        int next = engine.emitBlockRecoveryEvent(data, BlockRecovery.RECOVERED_DEFENSE,
+                offense, defense, "OFF", "DEF", 1, 50, rng(7));
+
+        assertEquals(51, next, "one event emitted");
+        GameData.EventRecord rebound = data.getEvents().get(0);
+        assertEquals(PlayType.REBOUND, rebound.playType());
+        assertEquals("DEFENSIVE", rebound.outcome());
+        assertNotNull(rebound.primaryPlayerId(), "a player secured it — credit them");
+        assertEquals(1, defense.stream().mapToInt(PlayerGameState::getDefensiveRebounds).sum(),
+                "the box-score credit lands on the DEFENSE, the side the flat roll picked");
+        assertEquals(0, offense.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum());
+
+        GameData offData = freshData();
+        engine.emitBlockRecoveryEvent(offData, BlockRecovery.RECOVERED_OFFENSE,
+                offense, defense, "OFF", "DEF", 1, 50, rng(7));
+        assertEquals("OFFENSIVE", offData.getEvents().get(0).outcome());
+        assertEquals(1, offense.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum());
+    }
+
+    /**
+     * #043 E2: the two OOB slices gain their EVENT but no rebounder — the same shape
+     * {@code emitMissedShotEvent} already uses off a missed shot. ⚠ A team rebound is
+     * NOT a bucket for rebounds whose owner the engine failed to identify: nobody
+     * secured this ball, which is the whole distinction.
+     */
+    @Test
+    void anOutOfBoundsBlockRecoveryEmitsAnEventWithNoRebounder() {
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        for (BlockRecovery recovery : List.of(BlockRecovery.OOB_OFFENSE,
+                BlockRecovery.OOB_DEFENSE)) {
+            GameData data = freshData();
+            engine.emitBlockRecoveryEvent(data, recovery, offense, defense,
+                    "OFF", "DEF", 1, 50, rng(3));
+            GameData.EventRecord e = data.getEvents().get(0);
+            assertEquals(PlayType.REBOUND, e.playType());
+            assertTrue(e.outcome().startsWith("OUT_OF_BOUNDS_"), e.outcome());
+            assertNull(e.primaryPlayerId(),
+                    "nobody secured it — an OOB recovery credits NO rebounder (#043 E2)");
+        }
+        assertEquals(0, offense.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum());
+        assertEquals(0, defense.stream().mapToInt(PlayerGameState::getDefensiveRebounds).sum());
+    }
+
+    /**
+     * #043 E: <b>a capped RECOVERED_OFFENSE still credits its rebounder.</b> The
+     * second-chance cap bounds the LOOP, not the basketball — the player came down with
+     * the ball either way. Deliberately unlike {@link MissedShotResolver}, which is
+     * passed {@code capReached} and forces a would-be offensive outcome to a defensive
+     * one: there the outcome is still being decided, here the flat roll already decided
+     * it.
+     */
+    @Test
+    void aCappedOffensiveBlockRecoveryStillCreditsItsRebounder() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        engine.emitBlockRecoveryEvent(data, BlockRecovery.RECOVERED_OFFENSE,
+                offense, defense, "OFF", "DEF", 1, 50, rng(11));
+
+        assertEquals("OFFENSIVE", data.getEvents().get(0).outcome());
+        assertEquals(1, offense.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum(),
+                "the cap bounds the loop, not the box score — the rebound happened");
+    }
+
+    /**
+     * #043's reconciliation invariant, at the level this class can see it: <b>every
+     * REBOUND event naming a player is a box-score rebound, and every box-score rebound
+     * has one.</b> The harness pins this per game; this pins it across the two new
+     * emission sites specifically.
+     */
+    @Test
+    void everyOwnedReboundEventHasABoxScoreCreditAcrossBothNewSites() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        int sequence = 50;
+        for (BlockRecovery recovery : BlockRecovery.values()) {
+            sequence = engine.emitBlockRecoveryEvent(data, recovery, offense, defense,
+                    "OFF", "DEF", 1, sequence, rng(recovery.ordinal() + 1));
+        }
+        for (int i = 0; i < 20; i++) {
+            engine.awardLiveFreeThrows(data, offense.get(0), "OFF", "OFF", "DEF",
+                    offense, defense, 1, sequence, SimConfig.AND_ONE_FREE_THROWS,
+                    FreeThrowSource.AND_ONE, false, new ScriptedRngThenSeeded(i, 0.99));
+            sequence += 3;
+        }
+
+        long owned = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.REBOUND && e.primaryPlayerId() != null)
+                .count();
+        int box = offense.stream().mapToInt(p -> p.getOffensiveRebounds() + p.getDefensiveRebounds()).sum()
+                + defense.stream().mapToInt(p -> p.getOffensiveRebounds() + p.getDefensiveRebounds()).sum();
+        assertEquals(box, owned,
+                "EVERY ACTUAL REBOUND HAS AN OWNER — owned REBOUND events must equal "
+                        + "box-score rebounds (#043 F)");
+        assertTrue(owned > 0, "precondition: the run produced some rebounds");
+    }
+
     private void seedFouls(GameData data, String teamId, int period, int n) {
         for (int i = 0; i < n; i++) {
             data.addEvent("OFF", "DEF", period, i, PlayType.FOUL, "SHOOTING_FOUL",
@@ -1333,12 +1585,23 @@ class PossessionEngineTest {
         PlayerGameState shooter = offense.get(0);
         PlayerGameState defender = defense.get(0);
 
-        int next = engine.awardAndOne(data, shooter, defender, "OFF", "DEF", 1, 50, rng(1));
+        // §3.21 (#043 C): the and-1's single FT is the LAST of its trip and therefore
+        // LIVE, so a MISSED one is followed by a REBOUND event. Seeded to a MADE free
+        // throw here, which keeps this test on the shape it was written to pin — one
+        // FOUL, one FREE_THROW, nothing else. The missed case has its own test below.
+        PossessionEngine.FreeThrowResult result = engine.awardAndOne(data, shooter,
+                defender, "OFF", "DEF", offense, defense, 1, 50, false,
+                new ScriptedRngThenSeeded(1, /* the FT drops */ 0.0));
+        int next = result.sequence();
 
         List<GameData.EventRecord> events = data.getEvents();
+        assertTrue(events.get(1).outcome().startsWith("MADE"),
+                "precondition: this seed makes the free throw, so no board follows");
         assertEquals(1 + SimConfig.AND_ONE_FREE_THROWS, events.size(),
                 "An and-1 is exactly one FOUL plus one FREE_THROW");
         assertEquals(52, next, "sequence advances past the FOUL and the single FT");
+        assertFalse(result.offenseRetains(),
+                "a MADE and-1 free throw is a dead ball — the possession still ends");
 
         GameData.EventRecord foul = events.get(0);
         assertEquals(PlayType.FOUL, foul.playType());
@@ -1369,7 +1632,8 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         int before = data.getEvents().size();
-        engine.awardAndOne(data, offense.get(0), defense.get(0), "OFF", "DEF", 1, 50, rng(2));
+        engine.awardAndOne(data, offense.get(0), defense.get(0), "OFF", "DEF",
+                offense, defense, 1, 50, false, rng(2));
 
         long freeThrows = data.getEvents().subList(before, data.getEvents().size()).stream()
                 .filter(e -> e.playType() == PlayType.FREE_THROW).count();
@@ -1387,7 +1651,7 @@ class PossessionEngineTest {
         // Drive many attempts so at least one FT falls.
         for (int i = 0; i < 40; i++) {
             engine.awardAndOne(data, offense.get(0), defense.get(0), "OFF", "DEF",
-                    1, 50 + i * 2, rng(100 + i));
+                    offense, defense, 1, 50 + i * 3, false, rng(100 + i));
         }
         assertTrue(data.getHomeScore() > 0, "Made and-1 FTs must score for the offense");
         assertEquals(0, data.getAwayScore(), "and-1 FTs must never score for the defense");
@@ -1977,6 +2241,30 @@ class PossessionEngineTest {
      * <p>Every other method delegates to a real seeded generator, so the machinery the
      * engine runs between the scripted draws (skill-weighted picks, etc.) still behaves.
      */
+    /**
+     * §3.21: a {@link ScriptedRng} whose TAIL is a real seeded generator rather than a
+     * constant — so the scripted draws force the branch under test (a missed free
+     * throw) while everything downstream of it (the OOB carve, the board contest, the
+     * weighted rebounder pick) still behaves like the engine's.
+     */
+    private static final class ScriptedRngThenSeeded implements RandomGenerator {
+        private final double[] script;
+        private final RandomGenerator delegate;
+        private int i;
+
+        ScriptedRngThenSeeded(long seed, double... script) {
+            this.script = script;
+            this.delegate = RandomGeneratorFactory.of("L64X128MixRandom").create(seed);
+        }
+
+        @Override public double nextDouble() {
+            return i < script.length ? script[i++] : delegate.nextDouble();
+        }
+        @Override public long nextLong() { return delegate.nextLong(); }
+        @Override public int nextInt() { return delegate.nextInt(); }
+        @Override public int nextInt(int bound) { return delegate.nextInt(bound); }
+    }
+
     private static final class ScriptedRng implements RandomGenerator {
         private final double[] script;
         private final double tail;

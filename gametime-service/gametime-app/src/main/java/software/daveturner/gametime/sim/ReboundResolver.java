@@ -29,10 +29,36 @@ public class ReboundResolver {
     public boolean isOffensiveRebound(PlayerGameState offRebounder,
                                       PlayerGameState defRebounder,
                                       RandomGenerator rng) {
+        return isOffensiveRebound(offRebounder, defRebounder,
+                config.baseOffensiveRebound(), rng);
+    }
+
+    /**
+     * §3.21 (decisions.md #043 D): the same contest at a CALLER-SUPPLIED base, for the
+     * one site where the base is not the ordinary board's — the free-throw board, where
+     * the defense has inside position by rule and the base is
+     * {@code baseOffensiveRebound() × }{@link SimConfig#FREE_THROW_REBOUND_LEAN}.
+     *
+     * <p><b>Only the BASE moves; the contest itself is identical</b> — same logistic
+     * form, same skills, same fatigue scaling. This is deliberately not a second
+     * contest: a free-throw board is still {@code offenseRebound} vs.
+     * {@code defenseRebound} between the same ten players, and the only thing the rule
+     * changes is where they start from.
+     *
+     * <p>⚠ <b>The relationship between the base and the realized share is logistic, so
+     * the base is NOT the share.</b> #043 D set the base once from the real ~0.19
+     * offensive share and MEASURED what came out; do not back-solve it, and do not
+     * iterate on it (the whole plausible spread is smaller than the residual it would
+     * chase).
+     */
+    public boolean isOffensiveRebound(PlayerGameState offRebounder,
+                                      PlayerGameState defRebounder,
+                                      double base,
+                                      RandomGenerator rng) {
         // §3.5: fatigue scales each rebounder's skill — a tired crasher and a tired
         // box-out man both work the glass worse. Full energy ⇒ ×1.0.
         double prob = config.contestProbability(
-                config.baseOffensiveRebound(),
+                base,
                 offRebounder.getOffenseRebound() * offRebounder.fatigueFactor(),
                 defRebounder.getDefenseRebound() * defRebounder.fatigueFactor());
         return rng.nextDouble() < prob;

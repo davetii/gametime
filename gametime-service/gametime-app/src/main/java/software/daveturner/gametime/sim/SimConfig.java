@@ -132,7 +132,7 @@ public class SimConfig {
     // Two kinds of constant live here, and the declaration form tells them apart:
     //
     //   public static final       a RULE of basketball or the SHAPE of the model.
-    //                             Not a knob. 27 of them.
+    //                             Not a knob. 28 of them.
     //   private final + accessor  a tunable knob, bound by Spring from
     //                             application-baseline.properties. 62 of them.
     //
@@ -286,6 +286,38 @@ public class SimConfig {
     // common path, so it would add offensive rebounds, shot attempts and points across
     // every game and needs its own recalibration pass. Do not change the value here.
     private final int maxOffensiveRetentionsPerPossession;
+
+    /**
+     * §3.21 (decisions.md #043 D): the defense's inside position on a free throw,
+     * expressed as a multiplier on {@link #baseOffensiveRebound()} for the free-throw
+     * board ONLY. A missed last free throw is live and someone rebounds it, but the
+     * defense lines up inside on both blocks — the realized offensive share is ~0.19
+     * against the ordinary board's 0.262.
+     *
+     * <p><b>A RULE, NOT A TUNABLE</b>, and that is the reason for the {@code public
+     * static final} form (see the declaration convention at the top of this class).
+     * The lane positions on a free throw are set by the rulebook, not by an era or a
+     * coach. §3.20 held at <b>62</b> tunables and this does not move that count; the
+     * statics move 27 → 28.
+     *
+     * <p>⚠ <b>It therefore gets NO line in {@code application-baseline.properties} and
+     * NO row in {@code calibration.md}.</b> A value in Java <i>and</i> a properties line
+     * is the double-value trap this class's header names explicitly (javac inlines
+     * constant variables into each caller), and a calibration row would be an unsourced
+     * target — there is no real-basketball figure for the multiplier itself and no
+     * harness line measuring it. It appears in {@code calibration.md} only inside the
+     * three-share rule, as the reason one slice of the rebound pool splits as it does.
+     *
+     * <p>⚠ <b>The contest is logistic, so this is not the realized share</b> — the
+     * value was set once from the real ~0.19 figure and the realized share MEASURED,
+     * never back-solved (#043 D). The whole plausible spread (0.14 → 0.262) is 0.32
+     * rebounds either way, smaller than the residual it would chase: <b>do not
+     * iterate on it.</b>
+     *
+     * <p>The cost, stated: an era profile cannot vary the free-throw board. If one ever
+     * needs to, it is promoted to a tunable then and the count moves 62 → 63.
+     */
+    public static final double FREE_THROW_REBOUND_LEAN = 0.68;
 
     // --- Missed-shot out of bounds (§3.8, decisions.md #026) ---
     // A missed shot resolves to one of FOUR outcomes in a single draw (Decision A):
@@ -808,7 +840,15 @@ public class SimConfig {
     // 17.77 -> 18.52, +4.2%. The lesson #034 G keeps making: this divisor tracks a
     // MEASURED quantity, so re-measure it whenever ANY change touches the foul rate —
     // the cost of a stale divisor is silence (#032 B2), not a failure.
-    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 18.52;
+    // §3.21 (#043) RE-MEASURED AGAIN: 18.52 -> 19.08, +3.0%. Same cause as §3.20's
+    // follow-up — base-no-basket-foul moved again (0.1687 -> 0.1753) to buy back the
+    // FGA the new rebounds added, and the foul rate followed. Personal fouls = all foul
+    // events (19.416) MINUS technicals (0.336). ⚠ IT WAS FOUND BY THE RULE, NOT BY A
+    // FAILURE: calibration.md says any pass that moves the foul rate must re-measure
+    // this, the flagrants row was reading 0.156 against a ~0.16 ballpark it would have
+    // sat 3% hot in, and nothing anywhere would have complained. THREE consecutive
+    // phases have now moved it.
+    public static final double PERSONAL_FOULS_PER_TEAM_GAME = 19.08;
 
     // Base probability that a made field goal is assisted, at an average passing
     // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how

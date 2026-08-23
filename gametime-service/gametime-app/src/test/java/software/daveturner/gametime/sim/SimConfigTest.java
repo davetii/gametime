@@ -430,9 +430,9 @@ class SimConfigTest {
         // A MAGNITUDE sanity check, deliberately loose: it exists to catch a units
         // slip (a per-game rate used as a per-foul one would read ~0.16, not ~0.009),
         // NOT to pin the divisor. ⚠ Its literal must follow the divisor — §3.20 moved
-        // it 17.82 -> 18.52 and this went 0.0090 -> 0.0086.
-        assertEquals(0.0086, config.flagrantFoulProbability(), 1e-4,
-                "The per-foul probability lands around 0.0086 — an order-of-magnitude "
+        // it 17.82 -> 18.52 (0.0090 -> 0.0086) and §3.21 moved it again to 19.08.
+        assertEquals(0.0084, config.flagrantFoulProbability(), 1e-4,
+                "The per-foul probability lands around 0.0084 — an order-of-magnitude "
                         + "check on the units, not a pin on the divisor");
     }
 
@@ -458,15 +458,18 @@ class SimConfigTest {
      */
     @Test
     void theFlagrantDivisorIsTheMeasuredPersonalFoulRateNotAConfiguredCount() {
-        assertEquals(18.52, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
-                "§3.20 re-measured this at the recalibration landing (#034 G forbids "
-                        + "letting it drift): 18.864 fouls/team/game over ALL foul "
-                        + "events, minus 0.346 technicals, i.e. 18.52 personal fouls. "
-                        + "⚠ §3.20 moved it TWICE — its main pass changed only the foul "
-                        + "MIX (17.82 -> 17.77, a non-event), then its follow-up raised "
-                        + "base-no-basket-foul to land FGA, which moved the RATE "
-                        + "(17.77 -> 18.52, +4.2%). Re-measure on ANY change that "
-                        + "touches the foul rate: staleness is silent (#032 B2)");
+        assertEquals(19.08, SimConfig.PERSONAL_FOULS_PER_TEAM_GAME, 1e-12,
+                "§3.21 re-measured this at its landing (#034 G forbids letting it "
+                        + "drift): 19.416 fouls/team/game over ALL foul events, minus "
+                        + "0.336 technicals, i.e. 19.08 personal fouls. ⚠ THREE "
+                        + "CONSECUTIVE PHASES HAVE NOW MOVED IT, and all three had the "
+                        + "same proximate cause — a base-no-basket-foul move made to "
+                        + "land FGA: §3.17 -11.5% (via the shot mix), §3.20 +4.2%, "
+                        + "§3.21 18.52 -> 19.08 (+3.0%) buying back the FGA its new "
+                        + "rebounds added. ⚠ EACH TIME IT WAS FOUND BY THE RULE, NEVER "
+                        + "BY A FAILING INSTRUMENT — the flagrants row simply reads a "
+                        + "few percent hot. Re-measure on ANY change that touches the "
+                        + "foul rate: staleness is silent (#032 B2)");
         // The contrast that makes the coupling worth stating: the technical divisor is
         // derived from constants, so it moves only when a constant moves. This one does
         // not appear in any other formula — moving the foul rate moves flagrants

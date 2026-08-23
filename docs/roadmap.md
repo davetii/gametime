@@ -977,9 +977,31 @@ re-running the loop and re-agreeing the numbers, not a red build.
       so they do not re-grow at the 44k trend — but they will still need compressing
       here.
 
-### §3.21 — the rebound pool (NEXT; needs its own design pass)
+### §3.21 — the rebound pool (✅ SHIPPED — #043)
 
-- [ ] **§3.21 — the rebound pool.** Def rebounds **27.90 vs a sourced 32.4**, off rebounds
+> ✅ **DESIGNED AND BUILT (2026-08), resolved as [decisions.md](decisions.md) #043 A–H,
+> with the landing in that entry's implementation note.** **#043 is authoritative; the
+> bullet below is the seam as it was HANDED to the design pass**, kept and annotated
+> rather than rewritten because it is history.
+>
+> ⛔ **TWO OF ITS CLAIMS WERE DISPROVED BY MEASUREMENT — do not build against them:**
+> - **"the FG path leaves −1.97 unexplained"** — ⛔ **there is no such leak.** It is the
+>   **REBOUNDING FOUL** (measured **2.34**/team-game), which carves off the top of the
+>   rebound phase so the board contest never runs — correct as basketball, on the diagram
+>   since §3.10, and simply omitted from the arithmetic that "found" it (#043 A).
+> - **"FT + blocks lands both rows within 0.06"** — ⛔ **an artifact.** It splits both new
+>   slices at the aggregate 0.262 offensive share, and **neither is split that way**: the
+>   block slice is fixed at **0.400** by the flat `block-*` weights. Composed per-slice the
+>   **pool lands (43.87)** but the split ends off in **both** directions — DefReb ~−0.31,
+>   OffReb ~+0.48, as **reported residuals** (#043 B).
+>
+> ✅ **Resolved, so no longer open questions:** who is selected on a block recovery
+> (#043 E — the flat roll picks the *side*, a new skill-weighted draw picks *which of that
+> side's five*, so #025 D's flatness is preserved); the free-throw board's defensive lean
+> (#043 D — a new `public static final`, **no new tunable, 62 held**); and whether the
+> phase splits (#043 G — **no**, the re-tune is one lever with a measured elasticity).
+
+- [x] **§3.21 — the rebound pool.** Def rebounds **27.90 vs a sourced 32.4**, off rebounds
       **9.90 vs 11.3** — ⚠ **~14% low on a stat a reader sees directly on a box score**,
       and the one §3.20 residual a person would notice unaided.
       ⚠ **THE SPLIT IS NOT THE PROBLEM.** The realized offensive share is 0.264 against a
@@ -1014,7 +1036,11 @@ re-running the loop and re-agreeing the numbers, not a red build.
       ⚠ **AND IT UN-LANDS FGA**: offensive rebounds are second-chance possessions, so
       FT+blocks adds ~1.3 FGA against a row landed at 89.22 (±0.45), with points and fouls
       following. **The re-tune is part of this phase.**
-      ⚠ **§3.21 OWNS ITS OWN RE-LANDING — there is no "§3.22 recalibration".** More
+      ⚠ **§3.21 OWNS ITS OWN RE-LANDING — there is no "§3.22 recalibration".**
+      *(⚠ Read as written: this forbade a recalibration-only §3.22, and §3.21 did re-land
+      its own numbers. A §3.22 now exists — **the putback** — and it is a MECHANIC that
+      owns its own re-landing in turn, not the deferred recalibration this line refused.)*
+      More
       rebounds means more second-chance possessions, which moves FGA (landed at 89.22),
       points and the foul rate. Recalibration was renumbered **four times** for the habit
       of deferring it behind one more fidelity phase; a phase re-lands what it moves or
@@ -1028,12 +1054,143 @@ re-running the loop and re-agreeing the numbers, not a red build.
       owns. ⚠ **Goals 1+2 model to within 0.06 of both rebound targets — be suspicious of
       that neatness, since it partly depends on goal 3 staying open.**
 
+      _Shipped (decisions.md #043 A–H). **Goal 3 was RETIRED, not closed** — the "1.97
+      unexplained" is the rebounding foul (measured 2.34/team-game), a known branch on the
+      diagram since §3.10 that the bracket's arithmetic had simply omitted; nothing was
+      broken and nothing was fixed for it. Goals 1, 2 and 4 all landed. Two `REBOUND`
+      emission sites added — a missed **last** free throw at `SHOOTING`/`BONUS`/`AND_ONE`
+      (a second layer, `awardLiveFreeThrows`, wrapping an UNCHANGED `awardFreeThrows`, so
+      `FLAGRANT`/`TECHNICAL` are bit-identical rather than flagged off — #043 H), and a
+      blocked shot's recovery (the flat roll still picks the **side**, a new skill-weighted
+      draw picks **which of that side's five** — #025 D's flatness preserved), with the two
+      block-OOB slices gaining their event too. **Rebound pool 37.80 → 43.72** against a
+      real 43.70. Off rebounds **11.78** (+0.48) and def rebounds **31.94** (−0.46) are
+      **REPORTED RESIDUALS**: three slices with three different offensive shares (board
+      0.262 · block 0.400 · free throw ~0.17) feed one pool and only the first has a knob.
+      Re-landed in the same phase on the two levers #043 G named — `base-no-basket-foul`
+      0.1687 → **0.1753**, `non-shooting-foul-share` 0.3766 → **0.4123** — leaving **FGA
+      89.16 ✅ · Points 115.04 ✅ · FTA 23.76 ✅ · Fouls 19.40** (−1.06 → −0.48, closed as a
+      **side effect**, not chased). Blocks unmoved at 4.46. **No new tunable — 62 held**;
+      one new static (`FREE_THROW_REBOUND_LEAN` = 0.68, realized FT-board offensive share
+      **0.1695**), 27 → 28. ⚠ **`PERSONAL_FOULS_PER_TEAM_GAME` re-measured 18.52 → 19.08**
+      — the emergent flagrant divisor, moved by the FGA re-landing, caught by
+      calibration.md's standing rule rather than by any test; **three consecutive phases
+      have now moved it, all via `base-no-basket-foul`.** The harness gained a **fourth
+      reconciliation invariant** — every
+      `REBOUND` naming a player is a box-score rebound — which is the durable instrument
+      this pass leaves. ⚠ **`Out of bounds` rose 3.1 → 4.12 with NO rate change**: the
+      block-OOB and FT-board OOB events are now emitted where they were previously resolved
+      silently. **The instrument became complete; the engine did not move.** ⚠ **G's FGA
+      damage was over-predicted ~2.5×** (predicted +1.7, measured +0.54): an extra offensive
+      rebound does not buy a full extra attempt. Coverage gate green._
+
+### §3.22 — the putback (NEXT; ⚠ NEEDS A DESIGN PASS — open questions in [todo.md](todo.md))
+
+> ⚠ **THIS BULLET IS A SEAM, NOT A PLAN.** It needs its own design pass resolving the
+> open questions in todo.md into a numbered `decisions.md #NNN` **plus** an execute-ready
+> plan, before any production code. Every phase so far has found real design questions the
+> one-liner hid.
+
+- [ ] **§3.22 — the putback: weight the offensive rebounder to take the next shot.**
+      *(Raised 2026-08 by the user, from an audit after §3.21 asking "what other design
+      gaps are out there?")*
+      ⚠ **THE GAP, VERIFIED IN CODE.** An offensive rebound `continue`s the possession
+      loop, which re-enters at `shotSelector.pickShooter(offense, rng)` — a weighted draw
+      over all five by `offensiveWeight` that **takes no argument identifying who just got
+      the board**. So the center who fought for the rebound hands it back out and is
+      **exactly as likely to shoot as the guard standing at the arc**. A putback — one of
+      the most recognisable events in basketball — **cannot happen**.
+      ⚠ **It is a FIDELITY gap, not a correctness one**, and that is why nothing caught
+      it: the rebound is credited, the possession is right, every invariant passes. It is
+      the same "the ball goes to the right team, so nothing looks broken" shape as
+      §3.21's two gaps.
+      ⚠ **§3.21 made it MORE visible**, which is what surfaced it: offensive rebounds went
+      **9.90 → 11.78**/team-game, so ~19% more second-chance possessions now resolve this
+      way.
+
+      **THE APPROACH IS DECIDED (user call, 2026-08) — the design pass must not re-open
+      it.** ⚠ **A WEIGHT, NOT A BRANCH: the rebounder's `offensiveWeight` is multiplied
+      for the next shot only. It is NOT a boolean "does a putback happen", and the shot
+      TYPE is NOT forced to the rim.**
+      ⚠ **THE REASONING, because it is subtle and a builder will be tempted to "improve"
+      it.** An earlier sketch proposed forcing the rebounder to shoot at the rim, on the
+      worry that weighting alone would produce centers shooting threes off their own
+      boards. **That worry is unfounded, and the engine already handles it**:
+      `pickShotType(shooter)` bends the mix by *the shooter's own skills* (#040 C), so a
+      big who grabbed the board **leans interior on his own**. Forcing the type would bolt
+      a second mechanism onto a job the first already does — the "two operations merged"
+      smell #043 H rejected. **And a second chance is genuinely not always a putback**:
+      sometimes it is kicked out for three. A weight reproduces that WHOLE DISTRIBUTION;
+      a branch hard-codes one leg of it.
+      ⚠ **ONE RULE, ALL OFFENSIVE-REBOUND PATHS (user call, 2026-08).** Do not split the
+      constant per site without a measured reason.
+
+      **The three paths that qualify** — every path where a rebounder is actually
+      identified and the offense retains:
+      | path | where | rebounder |
+      |---|---|---|
+      | missed shot → offensive rebound | `emitMissedShotEvent`, via `miss.rebounder()` | already exposed on the `Result` record |
+      | blocked shot recovered by the offense | `emitBlockRecoveryEvent` (§3.21) | ⚠ **LOCAL — the method returns only an `int`**, so it needs a carrier |
+      | missed last free throw → offensive rebound | `awardLiveFreeThrows` (§3.21) | ⚠ its `Result` is local; `FreeThrowResult` would need to carry it |
+
+      ⚠ **THE PATHS THAT DO NOT QUALIFY, and why — do not "complete" this list.** Four of
+      the seven retention paths have **no rebounder at all**: `OOB_OFFENSE` (nobody
+      touched it), both **flagrant** retentions (the ball is awarded **by rule**, no board
+      ran) and the **rebounding foul** with the defense committing (the whistle pre-empted
+      the board, #028 A2). **Weighting anybody at those sites would fabricate a
+      participant the engine never chose** — the #014/#017/#020 trap.
+
+      ⚠ **EXPECTED TO BE A SMALL CALIBRATION EVENT, and the reason is worth carrying.**
+      An earlier estimate of **+0.65 to +1.48 points** and **3PA 36.92 → ~34.0** assumed
+      the *forced-rim* design and **does not apply here.** Under a weight, the shot mix
+      moves **only by the difference between the rebounder's own mix and the team
+      average** — and in the `CalibrationHarness`, where all five players are identical
+      skill-10, that difference is **exactly zero**. ⚠ It will still **consume a new RNG
+      draw** (or shift the existing one) and **re-baseline the seeded sim tests**. It may
+      land nearly free, the §3.8/§3.9 shape — **but that is a HYPOTHESIS the design pass
+      must MEASURE, not assume** (three passes running have had a modelled quantity turn
+      out to be something else).
+
+      **The lever, set by the user (2026-08): DOUBLE THE WEIGHT — `M = 2.0` on the
+      rebounder's `offensiveWeight`.** ⚠ **The constant is the multiplier; the share is
+      what it REALIZES.** At five equal weights that is **33.3% for the rebounder, 16.7%
+      each for the other four** (up from a flat 20%), which is **below** real basketball's
+      ~45–55% of immediate second-chance attempts — **a deliberate conservative first step
+      on a mechanic that did not exist at all.** ⚠ Real rosters skew the realized split,
+      which is the weighted draw working, not an error. **Measure and report the realized
+      share; do not back-solve M** (#043 D). **It is a TUNABLE (user call): 62 → 63.**
+      ⚠ **The mechanic is SMALL — ~1.6 incremental attempts/team-game** (11.78 rebounds ×
+      the 20% → 33.3% shift), which is why little movement is the prior.
+      ⚠ **The assist rule is the one question with a MEASURED consequence, and it is the
+      only real design call left.** A putback is rarely assisted in real basketball, but
+      forcing every one unassisted would remove **1.2–1.4 assists**/team-game — taking a
+      row that sits at **27.10 (+0.40, in band)** to **25.7–25.9 (−0.8 to −1.0, out of
+      band the other way)**. ⚠ **The answer did not change when re-sized from a 40% share
+      to 33.3%: the row is sensitive to the RULE, not to the multiplier.**
+      ⚠ **The row IS already high (+0.40), so there is headroom — but the asymmetry
+      decides it**: +0.40 is **1.8 sem, noise-scale**, while −0.8/−1.0 is **3.7–4.6 sem,
+      a real miss.** **Trading an unmeasurable overshoot for a measurable undershoot is a
+      bad trade** (#043 B's shape: a residual you can explain beats one you created).
+      ✅ **RESOLVED (user call, 2026-08): REDUCE the assist chance on a putback, do NOT
+      zero it.** That headroom is exactly what a PARTIAL reduction fits — roughly half the
+      normal chance removes ~0.6, landing assists near **26.5, closer to target than today**
+      *and* more faithful. **Zeroing is true as basketball but too blunt as a rule**, and
+      re-landing with `sim.base-assist` was rejected: it spends a knob left alone through
+      two recalibrations to fix an overshoot the new rule itself caused.
+      ⚠ **The rule keys off `shooter == putbackCandidate`, NOT "any second-chance shot"** —
+      a kick-out three off an offensive rebound is an ordinary assisted basket. ⚠ **The
+      reduction's VALUE is to be MEASURED, not assumed** — "about half" is the sizing
+      hypothesis that won the argument, not the answer. todo.md carries what is still owed.
+
 **Also recorded from §3.20, deliberately NOT scheduled** *(sized; none justifies a phase)*:
 
-- **Fouls (−1.06) cannot close without un-landing FGA** — one lever
-  (`sim.base-no-basket-foul`), two rows, each extra foul costing **1.49 FGA**. §3.20 already
-  spent that lever to land FGA. ⚠ Closing fouls further also pushes **foul-outs**, already
-  0.368 against a real ~0.1–0.25. **Probably should stay as it is.**
+- **Fouls cannot close without un-landing FGA** — one lever (`sim.base-no-basket-foul`),
+  two rows, each extra foul costing **1.49 FGA**. ✅ **§3.21 closed it from −1.06 to −0.48
+  as a SIDE EFFECT** — its new rebounds raised FGA, and buying FGA back on this lever moved
+  fouls toward target for free. **The remaining −0.48 is unchanged in kind**: the pair is
+  still over-determined through one lever and FGA is the half that is landed. ⚠ Closing it
+  further also pushes **foul-outs**, now **0.427** against a real ~0.1–0.25 (§3.21 paid that
+  price a second time, sized and accepted). **Should stay as it is.**
 - **`PROB_FLOOR` makes `base-turnover` a weak lever** (elasticity **0.17**; ~40–45% of
   possessions pinned at 0.02 and insensitive to the constant). ⚠ **The turnover ROW is
   landed** — this is a tuning-ergonomics problem plus an invisible modelling wrongness (a
@@ -1041,7 +1198,7 @@ re-running the loop and re-agreeing the numbers, not a red build.
   in that code**, and do the reroute through `clampRareProbability` **once for every
   floored contest** — which is also when `base-block-*` (closed as too small, #040) gets
   re-checked.
-- **3P%'s ±0.25 band is tighter than the row's own run-to-run spread** (35.66 at the
+- **3P%'s ±0.25 band is tighter than the row's own run-to-run spread** (35.68 at the §3.21
   landing; it ranged 35.48–36.08 across §3.20 at a **fixed** `base-three`). ⚠ **The BAND is
   wrong, not the engine** — §3.19's own 35.76 would have failed it. A band a row can fail by
   chance will bait a future tuner into moving a frozen constant (#040 F).
@@ -1089,6 +1246,16 @@ re-running the loop and re-agreeing the numbers, not a red build.
 ## Phase 5 — Season Structure
 
 **Goal**: Full season lifecycle — schedule, standings, playoffs, awards.
+
+> ⚠ **READ [risks.md](risks.md)'s "Skill sensitivity is ~10× too steep" BEFORE designing
+> this phase.** Season play is the **first consumer of the engine's response to skill
+> SPREAD** — every simulation to date has been average-vs-average, because that is what
+> `CalibrationHarness` builds. Measured, an elite defense holds an average offense to
+> **16.2% FG** and a terrible one concedes **79.8%**, against a real spread of ~5 points.
+> **Left unaddressed, good teams will beat bad teams by impossible margins and the
+> standings will be degenerate — and the symptom will look like a scheduling or standings
+> bug, not an engine one.** It is a tuning problem with a cheap fix, but it needs a
+> skill-LADDER harness mode first, because the current report cannot show a slope.
 
 ### 5.1 Schedule Generation
 - [ ] Regular season: N games per team, balanced home/away

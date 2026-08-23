@@ -134,3 +134,48 @@ Whether this is worth the refactor is genuinely open. Parked in `ideas.md`;
 `roadmap.md`'s Phase 4 carries a pointer so its design pass sees it, since that phase
 would already be touching every stat path. **If it is ever taken on it wants a design
 pass and a `#NNN`** — it is an architecture call, not a chore.
+
+---
+
+## ⚠ Skill sensitivity is ~10× too steep, and every calibration pass so far was blind to it
+
+*(Measured 2026-08, by a throwaway probe run after §3.21 while auditing for
+§3.21-shaped gaps. The probe was deleted; the numbers and the reasoning are in
+[ideas.md](ideas.md).)*
+
+**The risk.** The engine's contests respond to player skill roughly an **order of
+magnitude more steeply than real basketball**. Holding an average offense fixed and
+varying only the defense's skill from 4 to 16, opponent FG% swings **79.8% → 16.2%** — a
+63-point spread against a real NBA team-defense spread of about **5 points**. Forced
+turnovers swing 2.3 → 36.9 over the same range.
+
+⚠ **THE REASON IT HAS NEVER BEEN CAUGHT IS STRUCTURAL, AND IT IS THE ACTUAL RISK:
+`CalibrationHarness` runs `teamOf5(id, 10)` — AVERAGE against AVERAGE.** Every target in
+`calibration.md` is measured at a single point that sits exactly at the **midpoint** of
+the response curve, where the numbers are correct and reassuring (47.7% FG, 6 turnovers).
+**Eighteen sub-phases have tuned the INTERCEPT and not one has tested the SLOPE.** A
+green harness says nothing whatsoever about it.
+
+**Why it is latent rather than active.** Nothing today consumes the slope. Games are
+simulated between rosters the harness makes identical, so the steepness never expresses
+itself. **Phase 5 is the consumer that will expose it**: season play puts real rosters
+with real skill spread against each other, and good teams will beat bad teams by
+impossible margins, producing degenerate standings — a symptom that will look like a
+*standings* or *scheduling* bug and will not obviously point back here.
+
+**Why this is worth a risk entry and not just an idea.** It is the same shape as §3.17's
+finding (a green aggregate hiding a wrong composition) one level up — **a green midpoint
+hiding a wrong gradient** — and that shape has now cost two passes. The cost of finding
+it in Phase 5 is debugging it through the wrong subsystem.
+
+**Mitigation, and it is cheap.** It is a **tuning** problem, not a rebuild: the suspects
+are the global `SimConfig.SENSITIVITY` (0.5) and the per-contest sensitivities, all
+`public static final` model machinery. ⚠ **But it needs an INSTRUMENT first** — a harness
+mode that runs a skill LADDER and reports the response curve, because the current report
+cannot display a slope at all. ⚠ **Do not attempt to re-tune it against the existing
+average-vs-average rows**: they are landed, and flattening the slope would not move them.
+
+**Status: NOT scheduled, NOT a gate on closing Phase 3** — every calibrated row is landed
+and the engine is correct at the point it is measured. ⚠ **It SHOULD be a gate on Phase
+5**, and `roadmap.md`'s Phase 5 carries a pointer so its design pass sees it before
+standings exist to be confused by.
