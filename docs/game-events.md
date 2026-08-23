@@ -82,6 +82,17 @@ string that changes does **not** update rows already written, so a query spannin
 simulated before and after such a change must match both spellings — or treat the older
 rows as disposable. Decide which; do not leave it implicit.
 
+⚠ **THIS HAS HAPPENED ONCE, AND THE VOCABULARY HAS A CUTOVER DATE.** §3.17 renamed
+`COMMON_FOUL` → **`NON_SHOOTING_FOUL`** (#040 M/N) with **no migration**, so
+`game_event.outcome` holds **`COMMON_FOUL` on games simulated before §3.17** and
+`NON_SHOOTING_FOUL` after. **The engine emits only the new spelling** — there is no
+`COMMON_FOUL` left in engine logic — so **only a query reading persisted HISTORY is
+affected.** The call was made (#040 N, user): the pre-§3.17 rows are **test data and
+disposable**, nothing has launched, so a dual match is **not** required. ⚠ **If that ever
+stops being true** — real games retained across the boundary — **a reader spanning it must
+match both spellings.** #040's trade-off flagged exactly this: it must be *stated*, not
+discovered by whoever first queries across the boundary.
+
 ---
 
 ## The master table
