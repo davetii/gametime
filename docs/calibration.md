@@ -213,6 +213,20 @@ prior landing — circular), **technicals**, **flagrants**, the **minutes distri
 and the real **shooting-foul share**. Everything marked `TARGET (SOURCED)` is a
 Basketball-Reference league average, per game, 2025-26.
 
+⚠ **MISSING ROW — `FT%` IS MEASURED BUT HAS NO ROW IN THE TABLE ABOVE.** *(Found by
+§3.20's design pass, 2026-08.)* It reconciles cleanly off the harness's FT-source lines
+(Σ points ÷ Σ FTA) and **runs well above the real league average**, so it has been
+donating points that no target was watching — which is part of why the points gap looked
+harder to close than it is. **`decisions.md` #042 C adds it as a `TARGET (SOURCED)` and
+tunes `sim.ft-base` to it; the row lands at §3.20's close-out**, with its Current value,
+its named source and its `CalibrationHarness` `(target ~N)` string together in one change.
+⚠ **The number is deliberately NOT written here yet** — it moves during §3.20, and a
+target row carrying a pre-tuning Current reads as a gap the tuner caused rather than one
+it inherited. ⚠ **The general lesson is worth more than the row: an ABSENT row cannot be
+audited by this file's exit condition**, which asks that every row present be sourced or
+deliberately `observed`/`ballpark` — and says nothing about a number the harness measures
+that nobody wrote down.
+
 ⚠ **A number that moves is not automatically an engine change.** Before tuning anything,
 ask: **did the engine change, did the MEASUREMENT change, or is a clamp holding it?** All
 three have happened here — an instrument that miscounted a row, a corrected instrument
