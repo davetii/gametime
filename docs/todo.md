@@ -6,182 +6,262 @@ shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
 [backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
 **Possession-fidelity completion** section.
 
-Current focus: **§3.20 — recalibration**, which **needs a DESIGN PASS first**.
+Current focus: **§3.20 — recalibration**, which is **EXECUTE-READY — design resolved as
+[decisions.md](decisions.md) #042**.
 Phase 3's tail is **§3.18 steals (SHIPPED) → §3.19 instrumentation (SHIPPED) → §3.20
-recalibration**.
+recalibration (execute-ready)**.
 ⚠ **RECALIBRATION HAS BEEN RENUMBERED A FOURTH TIME** — it was §3.16, then §3.18, then
 §3.19, and is now **§3.20**. **Read the phase NAME, never the number alone.**
 §3.7–§3.19 have all shipped.
 
-> **⚠ §3.20 NEEDS A DESIGN PASS, AND IT OPENS WITH A MEASUREMENT RATHER THAN WITH
-> QUESTIONS — SO START BY RUNNING THE HARNESS.** The open questions are in the **§3.20
-> section below**, but ⚠ **do not start arguing them until Step 0's 5-seed run is in
-> hand**: this pass adds no mechanic, so the measurement is an INPUT, not a check
-> afterwards. §3.19 left a 5-seed mean in [calibration.md](calibration.md)'s Current
-> column — **that is a reference to reproduce and diff against, not a substitute for
-> measuring.** Write no production code this session; the output is `#042` plus an
-> execute-ready plan replacing that section.
+> **✅ §3.20's DESIGN PASS IS DONE — the plan below is execute-ready
+> ([decisions.md](decisions.md) #042, Decisions A–J).** ⚠ **It is an ITERATIVE TUNING
+> pass, not a patch**: every constant in it is a *starting point*, because #042 F measured
+> a **−3.71-point wedge** between the weighted 2P base and realized 2P%. **Set → measure →
+> adjust → re-measure**, and stop on #042 G's bands, which are in the plan.
 >
-> ✅ **§3.19 (instrumentation) SHIPPED 2026-08 — no `#NNN`, because it resolved no design
-> question.** All three tasks landed as planned, and **the phase moved no engine number**
-> (same-seed harness run before/after, identical line for line). The full landing note is
-> on **roadmap.md's §3.19 bullet**; what §3.20 needs to know from it is short:
-> - **The harness now self-verifies THREE identities**, all reading `OK` on all five
->   seeds: `ast+blk` (pre-existing), **`ft-src`** (per-source FT counts sum to total FTs
->   **and** the `UNKNOWN` bucket is empty) and **`points`** (events = box score = final
->   score). ⚠ **A `MISMATCH(es)` on any of them invalidates the rows it feeds — fix the
->   instrument before reading a number.** That is the whole point of the phase: a wrong
->   reading looks like a calibration gap, so you tune a constant to chase a measurement
->   error.
-> - **The seeded tests are trustworthy now.** The technicals test asserts its identity
->   over ten seeds at the realistic 25 possessions/period with the coin-flip precondition
->   deleted, so **no §3.20 change can break it by shifting the RNG stream**. And
->   `V1ApiDelegateimplTest` is `@Transactional`, so **a green `mvn clean install` finally
->   does mean the sim tests pass in isolation** — run them alone anyway, it is cheap.
-> - **Some calibration.md rows moved against the previous reading. They were STALE, not
->   new** (4/5/6 fouls 0.94/0.46/0.30, and-1s 1.55, fouls/period 4.58, OOB 3.1, ejections
->   0.033). ⚠ Do not read them as drift and do not tune toward the old values.
+> **What the design pass found, and what it changes about the inherited framing:**
+> - ⚠ **THE OVER-DETERMINATION WAS AN ARTIFACT.** The "2P% +7 and FTA +2.8 against a
+>   5.6-point gap" conflict held **FGA and FT% fixed**, and neither should be. With all
+>   four levers counted, **every sourced row lands at once** (modelled: points 115.8, FG%
+>   47.05, FTA 23.5, FGA 89.5, 3PA 37.0, 2P% 55.0). **The user took the full landing.**
+> - **FTA and FGA are ONE lever** (#042 B) — `non-shooting-foul-share` raises FTA and
+>   lowers FGA in the same motion, so **pace is not touched** (and could not help: the
+>   knob is an integer).
+> - 🆕 **FT% was running at 82.56% against a real ~78%, and is ABSENT from
+>   `calibration.md`** — an unmeasured row donating ~1.1 points/team/game. **It becomes a
+>   sourced TARGET** (#042 C, user call).
+> - ⚠ **Def rebounds get WORSE before better** (#042 H): fixing 2P% removes ~4.9
+>   misses/team/game, widening −1.9 to −4.8. **Predicted, not a regression.**
+> - **Steals are DERIVED and are not tuned** (#042 I) — the identity reproduces to 0.01.
+>
+> **Step 0's measurement reproduced `calibration.md` exactly, row for row**, with
+> `Profiles: local,baseline` and all three reconciliation lines `OK` on all five seeds.
+> There was no Step-0 finding. That baseline is the plan's first table.
 
 ---
 
-## §3.20 (recalibration) — THE OPEN QUESTIONS, and the order to take them in
+## §3.20 execution plan (decisions.md #042 — resolved)
 
-⚠ **This is a DESIGN PASS. Write no production code in this session.** Resolving these
-questions IS the session; tuning happens in the **execution** session that follows.
+**Build preamble.** Java 21 or Lombok breaks:
+`JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem`. Invoke `project-docs` before
+touching any doc. ⚠ **This phase changes only VALUES in
+`application-baseline.properties`** — no new tunable, no Java change, no schema change,
+no new branch or event. The `test-coverage` skill is therefore **not** in play (no new
+production code), but `mvn clean install` must still be green.
 
-**How to run it — the shape of a good design session here:**
-1. ⚠ **Invoke the `project-docs` skill first.** It carries the `#NNN` entry format
-   (Decisions A/B/C…, then Rationale / Trade-off / Alternatives **keyed by letter**), the
-   ~15–20k budget, and the routing rules. **Do not invent a structure.**
-2. **Run Step 0's harness measurement** (below) before arguing anything.
-3. **Work Q1–Q7 in order**, against the numbers you took. ⚠ **Q1 is a call for the USER,
-   not for you — see the box under it.**
-4. **Write `decisions.md #042`** — append at the bottom, never renumber. One Decision per
-   resolved question; cite the `#NNN` each constraint comes from rather than re-arguing it.
-5. **Replace this §3.20 section with the execute-ready plan** — a build preamble, then
-   `**Step N — title (#042 ref)**` headers with `- [ ]` sub-items, a **Definition of
-   done**, and a **⚠ Do NOT** block. For the shape, read the last one:
-   `git show f98459b^:docs/todo.md` (§3.19's plan, which used `Task N`).
-6. **Leave the roadmap bullet `[ ]`** — it flips at execution, not here.
+⚠ **THIS IS AN ITERATIVE TUNING PASS, NOT A PATCH.** #042 F: **the base is not the
+landing.** Every constant below is a *starting point for iteration one*, not an answer —
+a −3.71-point wedge sits between the weighted 2P base and realized 2P%, and the
+offensive-rebound contest runs ~10 points hot against its base. **Set → measure →
+adjust → re-measure.** #042 G says when to stop.
 
-⚠ **What makes THIS pass different from the fifteen before it**: every one of those
-reasoned about a mechanic that did not exist yet, so the argument came first and the
-harness confirmed it afterwards. **§3.20 adds no mechanic.** The numbers already exist,
-so the measurement leads and the argument is about **which target yields** — a
-prioritization pass, not a modelling one.
-
-### ⚠ STEP 0 — RUN THE HARNESS BEFORE ARGUING ANYTHING
-
-**§3.20's design pass opens with a MEASUREMENT, not with questions — this inverts every
-prior phase.** §3.4–§3.19 each added a mechanic, so design reasoned about behavior that
-did not exist yet and the harness ran afterwards. **§3.20 adds no mechanic, so the
-measurement is an INPUT.** Argue every question below against numbers you took yourself,
-in this session.
-
+**The measurement loop, every iteration** (this is the whole job):
 ```bash
 cd gametime-service && for s in 1000 2000 3000 4000 5000; do SPRING_PROFILES_ACTIVE=local,baseline JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -q -pl gametime-app test -Dtest=CalibrationHarness -Dcalibration=true -DcalibrationSeed=$s -DfailIfNoTests=false; done
 ```
+⚠ **Confirm `Profiles: local,baseline` and all THREE reconciliation lines (`ast+blk`,
+`ft-src`, `points`) read `OK` on every run before reading a number.** A `MISMATCH`
+invalidates the rows it feeds.
 
-- ⚠ **Take the 5-SEED MEAN, seeds 1000–5000.** Per-seed noise is ±1.5 points, enough to
-  bait an over-correction; technicals and flagrants need 5 seeds as a **hard floor**.
-- ⚠ **Confirm the `Profiles:` line reads `local,baseline`** on every run before trusting a
-  number (Trap 3 below — this has cost two sessions).
-- ⚠ **Confirm all THREE reconciliation lines read `OK`** — `ast+blk`, `ft-src`, `points`.
-  §3.19 built the latter two for this pass. **A `MISMATCH(es)` invalidates the rows it
-  feeds: fix the instrument before reading a number.**
-- **Then diff your mean against [calibration.md](calibration.md)'s Current column.** Those
-  values are §3.19's run (2026-08) and should reproduce. ⚠ **If a row disagrees, that is a
-  finding, not a nuisance** — ask Trap 2's question before tuning it.
+### ⚠ ONE STEP AT A TIME — CHANGE ONE CONSTANT GROUP, THEN RE-MEASURE
 
-### Step 0 → the questions: how the measurement picks your starting point
+**Do NOT batch the steps below.** Change one step's constants, run the 5-seed loop, read
+the result, *then* move on. This is a hard rule, not a preference, for three reasons:
 
-**The expected cadence is: run the harness, then work the biggest deviations.** The list
-below is already ordered that way against §3.19's numbers, so **if your run reproduces
-calibration.md, take Q1 first and work down.** What the run adds is a check on that
-ordering:
+- **The steps move each other's DENOMINATOR.** Step 1 takes FGA 92.28 → ~89.5, and FGA is
+  what 2P%, 3PA and the rebound pool are all measured *per attempt* against. Tune Step 2
+  against the old FGA and its arithmetic is stale before you finish it. **This is why
+  Step 1 runs FIRST** — it settles the denominator everything downstream reads.
+- **A batched change cannot be ATTRIBUTED.** If four constants move and three rows land
+  wrong, nothing tells you which lever did it. Every historic trap in these docs — the
+  broken instrument, the corrected instrument that looked like a doubling, `PROB_FLOOR`
+  holding a rate — was found by isolating one change.
+- **The starting values are MODELLED, not measured** (#042 F). They are extrapolations
+  from measured per-event rates. Where a response curve bends, one isolated step tells you
+  immediately; four at once do not.
 
-- **The run reproduces (expected).** Q1 is the pass's real work — **2P% and FTA are the
-  two rows under review**, and Q2 constrains how they can be fixed. Q3–Q7 are smaller and
-  several of them *depend* on Q1's answer, so resolving them first wastes the work.
-- **A row disagrees with calibration.md.** ⚠ **That is a finding, and it comes BEFORE
-  Q1** — not because it is bigger, but because an unexplained number means you do not yet
-  know which of Q1–Q7 you are actually looking at. Ask Trap 2's question (*engine,
-  measurement, or clamp?*), then resume the order.
-- ⚠ **Do not re-rank the list on one seed.** Per-seed noise is ±1.5 points; a row that
-  looks worse than Q1 on a single run may be inside the noise band. **Re-rank on the
-  5-seed mean or not at all.**
+⚠ **Expect a step to land its OWN rows and leave others visibly wrong.** That is the plan
+working. The clearest case: **after Step 1 alone, points barely move and may DIP.** The
+FTA gain is worth ~+2.6 points, but converting live shots into stopped shots removes real
+attempts. **Points stay near 110 until Step 2's 2P% lift lands — do not "fix" it in
+Step 1.**
 
-### The questions to resolve (each becomes a Decision in #042)
+**§3.20's baseline (Step 0 of the design pass, 5-seed mean, seeds 1000–5000).** All three
+identities OK on all five seeds; it reproduced `calibration.md` exactly.
 
-⚠ **Q1 is the pass's real work; the rest are smaller.** Full argument, levers and sizing
-are in **[roadmap.md](roadmap.md)'s §3.20 bullet** — do not re-derive them here, but do
-not skip them either.
+| Points | FG% | 2P% | 3P% | FGA | 3PA | FTA | **FT%** | DefReb | OffReb | TO | Steals | Fouls |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 110.00 | 43.52 | 48.77 | 35.76 | 92.28 | 37.22 | 19.76 | **82.56** | 30.48 | 11.18 | 13.90 | 7.72 | 18.18 |
 
-1. **⚠ THE CORE PROBLEM — 2P%, FTA (free-throw attempts) and points are
-   OVER-DETERMINED. Which target yields?** ⚠ **These are THE two rows under review —
-   two-point shooting and free throws** — and they are **one problem in three rows, not
-   three problems.** **2P% is ~6.3 low** (~48.7 vs a sourced 55.0) and **FTA ~3.7 low**
-   (19.76 vs 23.5); both must go **UP**. But the 2P% fix is worth **~+7 points** and the
-   FTA fix **~+2.8**, against a points gap of only **5.6** — **combined ~+9.8,
-   overshooting points to ~120 vs 115.6.** They cannot all be hit independently.
-   **Deciding which one yields, and by how much, is this pass.**
+**The stop condition — fixed BEFORE tuning (#042 G).** ±2 sem of the 5-seed mean. **A row
+inside its band is LANDED; stop tuning it** even if the point estimate is not the target.
 
-   > ⚠ **STOP — Q1's ANSWER IS THE USER'S CALL, NOT THE SESSION'S.** Which target yields
-   > is a **product** question — what the simulated game should feel like — and the
-   > numbers cannot settle it: all three rows are sourced, so arithmetic says only that
-   > they conflict, never which one matters least. **Present the trade-off and ASK; do
-   > not resolve it alone.** Precedent: #027's turnover taxonomy and STOLEN share were
-   > both user calls for the same reason, and `project-docs` states the rule — *if a
-   > design pass surfaces a choice that is genuinely the user's, surface it, don't guess.*
-   > **What to bring them**: the three candidate landings (points on target with 2P%
-   > short · 2P% on target with points over · a split), each with its cost stated in the
-   > row that gives ground. **Q2–Q7 you can resolve yourself** within the answer they pick.
-2. **Where does the recovery come from?** ⚠ **From MAKING more shots, not TAKING more** —
-   **FGA is the one row already too high** (92.28 vs 89.1), so a pace bump is the
-   obvious-looking lever and the wrong one. ⚠ **`base-three` must NOT move** (3P% is
-   correct at 35.8 vs 36.0 and held across a 1.9× volume change, #040 F); the 2P% lever is
-   `base-drive` / `base-post` / `base-perimeter`.
-3. **FTA's mechanism** — does `sim.non-shooting-foul-share` move, the foul rate, or both?
-   ⚠ **The share is priced by the PENALTY RATE, not the foul rate alone** (46.1%, down
-   from 55.7%), and **moving the foul rate stales the flagrant divisor**.
-4. **Def rebounds** — 30.48 vs 32.4. A residual **rate** question (`sim.base-offensive-
-   rebound` and the paths that divert misses from the rebound draw), **not a new
-   sub-phase** (#040 H).
-5. **Steals** — 7.72 vs 8.4, but ⚠ **DERIVED**: steals = turnovers × STOLEN share.
-   **Fixing turnovers to 14.5 alone yields ~8.05.** Re-measure after turnovers land; **do
-   not tune the share independently** (#041 F).
-6. **Sourcing** — which still-unsourced rows get a real source, and which are declared
-   `ballpark`/`observed` on purpose: foul-outs (⚠ its ~0.39 is **circular**, promoted from
-   a prior landing), technicals, flagrants, the minutes distribution, the real
-   shooting-foul share.
-7. **A stop condition per row** — given ±1.5-point noise, what reading counts as "landed"
-   and stops the tuning? **Decide this BEFORE tuning**, or the pass has no exit.
+| Points | FG% / 2P% | 3P% | FGA | 3PA | FTA | DefReb | OffReb | TO | Fouls |
+|---|---|---|---|---|---|---|---|---|---|
+| **±0.9** | **±0.5** | **±0.25** | **±0.45** | **±0.45** | **±0.5** | **±0.4** | **±0.3** | **±0.3** | **±0.2** |
 
-### ⚠ Frozen — do NOT reopen (each already argued and closed)
+⚠ **Technicals, flagrants and foul-outs are NOT tuning objectives** — watch them for
+breakage only.
 
-- **§3.13's foul-trouble sit curve** — measured **saturated** (#031).
-- **The turnover count, gate and cause weights** — frozen (#027 A).
-- **#039 C's dead-possession concession** — asked and answered **no** (#040 E).
-- **`PROB_FLOOR` / `base-block-three`** — **closed, not deferred**: sized at ~half a
-  blocked three per team-game on a row already on target. **A footnote**: only if this
-  pass tunes `base-block-*`, reroute through `clampRareProbability` first or that lever
-  reads dead.
-- ⚠ **If the pass finds itself adding a BRANCH, it has grown beyond recalibration.**
-  §3.20 is the last Phase-3 sub-phase and **adds no mechanic** (#038).
+---
 
-### Exit condition
+**Step 1 — FTA and FGA together, via `sim.non-shooting-foul-share` (#042 B)**
+**⚠ RUN THIS STEP FIRST AND ALONE.** It moves FGA, the denominator every later step is
+measured against.
+- [ ] `sim.non-shooting-foul-share` **0.50 → 0.28** (starting point). **One line in
+      `application-baseline.properties`; nothing else changes in this step.**
+- [ ] ⚠ **It does NOT change the foul COUNT.** It is a second roll on a foul already
+      rolled and charged (#039 A) — which is why foul-outs, `foulTroubleLevel()` and the
+      bonus tally survive it untouched. **What it changes is what each foul BECOMES.**
+- [ ] ⚠ **ONE lever, FOUR rows moving at once** — read all four, not just the headline:
+      **FTA** (headline) **up** 19.76 → **23.5** · **FGA down** 92.28 → **~89.5** (a
+      stopped shot charges no FGA) · FTA **SHOOTING** source up 12.97 → ~18.2 · FTA
+      **BONUS** source **down** 4.61 → ~2.6.
+- [ ] ⚠ **The two FT SOURCES move in OPPOSITE directions**, so net FTA rises by *less*
+      than the SHOOTING source alone. **A weak-looking headline is not a weak lever** —
+      check the split before adjusting the constant.
+- [ ] Target: **FTA 23.5 ±0.5**. Watch **FGA** fall toward 89.1 as a by-product.
+- [ ] ⚠ **Expect points to stay near 110, possibly DIPPING.** The +2.6 points of FTA are
+      offset by live attempts becoming stopped shots. **Points are Step 2's job — do not
+      chase them here.**
+- [ ] ⚠ **0.28 is MODELLED, and the bonus term is the shakier half of the model** — the
+      penalty rate (46.1%) sits right at the 5-foul threshold, which calibration.md flags
+      as volatile. **If the run says 0.32 or 0.24 lands FTA, take the measurement.** The
+      knob is **DERIVED, not sourced** — there is no principled value to defend.
+- [ ] ⚠ **Confirm `ft-src` still reconciles `OK`.** That identity is exactly what catches
+      a mis-tagged FT source after a re-partition like this one.
+- [ ] ⚠ **Do NOT touch `sim.default-possessions-per-period`.** It is an **integer** (25);
+      the smallest step is −4%, which overshoots the −3.5% FGA gap and lands 88.6.
+- [ ] ⚠ Tune against the **FTA line, never against points** (calibration.md's standing rule).
 
-**Not "every row green".** It is that **every `calibration.md` row is either a `TARGET`
-with a named source and season, or deliberately `observed` / `ballpark`.**
+**Step 2 — 2P% via `base-drive` / `base-post` / `base-perimeter` (#042 D)**
+- [ ] Starting split, deliberately **UNEQUAL** — weight the lift to the rim:
+      `sim.base-drive` **0.5975 → 0.6875** (+0.09) ·
+      `sim.base-post` **0.4975 → 0.5675** (+0.07) ·
+      `sim.base-perimeter` **0.4375 → 0.4575** (+0.02).
+- [ ] ⚠ **`sim.base-three` must NOT move** (#040 F) — 3P% is 35.76 vs a sourced 36.0 and
+      held across a 1.9× volume change.
+- [ ] ⚠ **Aim the bases ABOVE the target row** (#042 F): the weighted 2P base is 52.48%
+      but realized 2P% is 48.77%. Blocked twos alone are ~4.41% of 2PA.
+- [ ] Target: **2P% 55.0 ±0.5**, **FG% 47.1 ±0.5**. 2P% is derived, not a harness row —
+      compute it as `(FGA×FG% − 3PA×3P%) / (FGA − 3PA)`.
+- [ ] ⚠ **Rejected, do not revisit**: a *uniform* bump across the three bases (right in
+      aggregate, wrong in composition — the exact error §3.17 spent a pass un-hiding).
+- [ ] ⚠ **STOP HERE AND RE-MEASURE** before Step 3. This step changes the miss pool that
+      Step 5 reads, and FG%/2P% are the rows most likely to need a second iteration.
 
-### Read these first, in this order
+**Step 3 — hold 3PA at 37.0 via `sim.shot-share-three` (#042 E)**
+- [ ] Step 1 lowers FGA, which drags 3PA to ~36.1 with the share table fixed. Bump
+      `sim.shot-share-three` **1.23 → ~1.28** (three share 40.3% → ~41.3%).
+- [ ] Target: **3PA 37.0 ±0.45**. Verified free — points and FG% barely move, because a
+      three at 36% and a two at 55% are worth ~1.08 vs ~1.10 points.
+- [ ] ⚠ Only `shot-share-three` moves; the other three `sim.shot-share-*` stay (#040 C).
+- [ ] ⚠ **STOP HERE AND RE-MEASURE** before Step 4.
 
-1. **[roadmap.md](roadmap.md)'s §3.20 bullet** — the full argument behind Q1–Q7, the
-   levers, the sizing, the frozen decisions. **The questions above are an index over it.**
-2. **[calibration.md](calibration.md)** — live numbers and the operative rules.
-3. **[decisions.md](decisions.md)** — the **"⚠ WHAT §3.20 INHERITS"** handoff block at the
-   end: every gap, the `#NNN` that owns it, and the constraint on each that is easy to
-   miss. An index over #036 / #039 / #040 / #041, so you need not read five entries.
+**Step 4 — FT% becomes a sourced target, via `sim.ft-base` (#042 C)**
+- [ ] Realized FT% is **82.56%** against a real ~78% — **a row absent from
+      `calibration.md` entirely**, donating ~1.1 points/team/game.
+- [ ] Lower `sim.ft-base` **0.75 → ~0.705** (starting point) and measure.
+- [ ] ⚠ **The base is not the landing**: realized FT% is
+      `ftBase + 0.20 × (freeThrows − 10)/10`, and the roster's mean `freeThrows` ≈ 13.8.
+- [ ] Target: **FT% 78.0**. Derive it from the FT-source lines
+      (Σ pts ÷ Σ FTA), which is how the design pass measured it.
+- [ ] ⚠ **STOP HERE AND RE-MEASURE** before Step 5. ⚠ **This is the step that moves
+      POINTS most predictably** — it is pure scoring efficiency with no attempt-side
+      side-effect. Check points against its ±0.9 band here.
+
+**Step 5 — def rebounds via `sim.base-offensive-rebound` (#042 H)**
+- [ ] ⚠ **RUN THIS AFTER STEPS 1–2 HAVE LANDED, AND EXPECT THE GAP TO HAVE WIDENED.**
+      Fixing 2P% removes ~4.9 misses/team/game, so def rebounds fall to ~27.6 first —
+      **the −1.9 gap becomes −4.8. That is predicted, not a regression.**
+- [ ] `sim.base-offensive-rebound` **0.27 → ~0.19** (starting point). ⚠ The **realized**
+      share is 0.378 against a base of 0.27 — the contest runs hot, so the base must come
+      down **more** than the naive delta.
+- [ ] Target: **DefReb 32.4 ±0.4**.
+- [ ] ⚠ **Off rebounds are the constraint and will NOT also be exact** — one knob, two
+      rows. At the realized share that lands DefReb, OffReb models to ~12.0 vs a target of
+      11.3. **Tune until DefReb enters its band, then accept OffReb and RECORD the
+      residual** in the implementation note.
+- [ ] ⚠ **STOP HERE AND RE-MEASURE** before Step 6.
+
+**Step 6 — turnovers via `sim.base-turnover`; steals are DERIVED (#042 I)**
+- [ ] `sim.base-turnover` **0.038 → ~0.0396**. Target: **TO 14.5 ±0.3**.
+- [ ] ⚠ **Do NOT tune steals.** steals = TO × STOLEN share; the identity reproduces to
+      0.01 (13.90 × 0.555 = 7.71 vs a measured 7.72). At TO 14.5 steals ≈ **8.05**.
+- [ ] ⚠ **The nine `sim.to-weight-*` cause weights are FROZEN** (#027 A) and the STOLEN
+      share is **not** touched (#041 F). **Re-measure steals and REPORT it; do not chase
+      8.4.**
+- [ ] ⚠ **STOP HERE AND RE-MEASURE.** ⚠ Raising turnovers removes possessions that would
+      have ended in a shot, so **FGA falls again here** — re-check FGA against its band
+      before declaring Step 1 done.
+
+**Step 7 — re-measure the flagrant divisor (#034 G, #042 follow-up)**
+- [ ] ⚠ **The flagrant rate's divisor is an EMERGENT measured foul rate.** Steps 1–2 move
+      the foul mix, so **re-measure it or the flagrants row silently reads low — and
+      NOTHING FAILS.** It has run at 74% of target before, for exactly this reason.
+- [ ] Confirm `PERSONAL_FOULS_PER_TEAM_GAME` still matches the measured foul rate; update
+      it if not.
+
+**Step 8 — the docs, in the same change**
+- [ ] **`calibration.md`**: update every `Current` value to the final 5-seed mean; **add
+      the new FT% row as `TARGET (SOURCED)`** with its named source and season; **demote
+      foul-outs from `TARGET` to `ballpark`** (#042 J — its ~0.39 is circular). Keep
+      `non-shooting-foul-share`'s "DERIVED, not sourced" note **and its new value**.
+- [ ] ⚠ **Update the `CalibrationHarness` `(target ~N)` strings in the SAME change** —
+      calibration.md's standing rule. Add the FT% line to the harness report.
+- [ ] **`decisions.md #042`**: add the implementation note — final constants, the landing,
+      the OffReb residual (Step 5), and any divergence from the modelled landing.
+- [ ] **`roadmap.md`**: flip the §3.20 bullet to `[x]` with a landing note.
+- [ ] Park the **roster FT-skill distribution** question in `ideas.md` (#042 follow-up) —
+      it is player-generation, not sim-config.
+
+---
+
+**Definition of done**
+- `mvn clean install` green, **and** the sim classes green run **alone** (cheap; CLAUDE.md).
+- A clean **5-seed** run, profile from the **environment**, `Profiles:` line confirmed and
+  all **three** reconciliation lines `OK`.
+- **Every row in #042 G's table inside its band, or the residual explicitly recorded** in
+  the implementation note with the reason it was accepted.
+- **The exit condition (#042 J)**: every `calibration.md` row is either a `TARGET` with a
+  named source and season, or deliberately `observed` / `ballpark`. **Not "every row
+  green".**
+- **Each step was measured on its own 5-seed run** before the next began, and the
+  intermediate readings are recorded in #042's implementation note — they are what makes
+  a later "which lever did that?" answerable.
+- ⚠ **Do NOT commit** — leave the work in the tree and wait (CLAUDE.md).
+
+**⚠ Do NOT**
+- **Do NOT batch the steps.** One step's constants, then the 5-seed loop, then read it.
+  The steps move each other's denominator (Step 1 → FGA) and a batched change **cannot be
+  attributed** when a row lands wrong.
+- **Do NOT add a mechanic.** If a row seems to need a new branch, event or tunable, the
+  pass has **grown beyond recalibration** (#038) — stop and raise it. §3.20 adds none, and
+  the tunable count stays **62 / 27**.
+- **Do NOT move `sim.base-three`** (#040 F) or the **`sim.to-weight-*`** weights (#027 A).
+- **Do NOT re-tune §3.13's foul-trouble sit curve** — measured **saturated** (#031).
+- **Do NOT reopen #039 C's dead-possession concession** — asked and answered no (#040 E).
+- **Do NOT touch `MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION`'s baseline value** (#034 B).
+- **Do NOT tune `sim.base-block-*`.** `PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005),
+  so that lever reads **dead** — **closed, not deferred** (sized at ~half a blocked three
+  on a row already on target). If a later pass ever does, reroute through
+  `clampRareProbability` **first**.
+- **Do NOT read a moved number as an engine change without asking which** — *did the
+  engine change, did the MEASUREMENT change, or is a clamp holding it?* **Compare
+  raw-to-raw across an instrument change.**
+- **Do NOT judge on one seed.** Per-seed noise is ±1.5 points; the bands above are for the
+  **5-seed mean** and mean nothing on a single run.
+
+**Open at execution**
+- The **exact final value of all eight constants**. #042 B–E give starting points, #042 F
+  says they will not be right first time, #042 G says when to stop.
+- ✅ **Iteration order is now FIXED, not open**: Steps 1→6 in order, one at a time, with a
+  5-seed run between each (see the cadence rule in the preamble). **Step 1 runs first
+  because it settles FGA**, the denominator everything downstream is measured against.
+  What remains open is **how many iterations each step needs** — #042 F says the modelled
+  starting values will not be right first time.
+- **Whether OffReb's residual (Step 5) is acceptable** or wants a follow-up filed.
 
 ---
 
@@ -241,8 +321,10 @@ not add "done" entries (those are the `#NNN` entry's job).
 
 **Other files own these outright:**
 
-- **The phase sequence, this phase's bullet, and §3.20 (recalibration) — including its
-  core over-determination problem** → [roadmap.md](roadmap.md)
+- **The phase sequence and this phase's bullet** → [roadmap.md](roadmap.md). ⚠ **Its
+  §3.20 bullet's "over-determination" framing is SUPERSEDED by #042 A** — the conflict was
+  an artifact of holding FGA and FT% fixed. The bullet is left as written (it is the
+  pre-design argument, and Q1–Q7 were an index over it); **#042 is authoritative.**
 - **Calibration targets** → [calibration.md](calibration.md), **the source of truth**.
   Update it *and* the `CalibrationHarness` `(target ~N)` strings together.
 - **Infra/tooling/data-hygiene chores**, and **the `decisions.md` condense pass** (a
