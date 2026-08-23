@@ -8,7 +8,7 @@
 ' `plantuml -checkonly` is unaffected (it parses, it does not lay out), so a
 ' green checkonly does NOT tell you the PNG is complete. Verify the rendered
 ' height if you add a partition.
-title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals,\n§3.14b flagrants, §3.16 shooting-foul composition + charges,\n§3.17 shot mix / 3PA)
+title Possession Resolution (§3.2–§3.5, §3.7 blocks, §3.8 missed-shot OOB,\n§3.9 turnover causes, §3.10 rebounding fouls + bonus, §3.11 and-1,\n§3.12 all-shot-type contact fouls, §3.13 foul trouble, §3.14a technicals,\n§3.14b flagrants, §3.16 shooting-foul composition + charges,\n§3.17 shot mix / 3PA, §3.21 the rebound pool)
 
 skinparam ActivityDiamondFontSize 11
 skinparam ActivityFontSize 12
@@ -424,6 +424,74 @@ partition "FoulResolver" {
       FTs than the ordinary foul it upgraded. Correct by rule,
       counter-intuitive, and NOT to be "fixed" into 3 + 2.**
     end note
+
+    partition "Missed LAST free throw → live rebound (§3.21 — #043 C/D)" {
+      note right
+        ⚠ **DRAWN ONCE HERE, BUT IT APPLIES AT THREE SOURCES** —
+        ``SHOOTING`` (this loop), ``BONUS`` and ``AND_ONE``. It lives in
+        ``awardFreeThrows``, which all three share, so one fork serves all
+        three. **Do not draw it three times.**
+        ⚠ **IN CODE THIS IS A SECOND LAYER, NOT A BRANCH INSIDE THE SHARED
+        TRIP (#043 H).** ``awardFreeThrows`` keeps owning the shared trip
+        (attempt, make roll, score, emit) and its ``int`` return, unchanged;
+        a new ``awardLiveFreeThrows`` wraps it and adds the board, returning
+        ``FreeThrowResult(sequence, offenseRetains)``. ⚠ **FLAGRANT and
+        TECHNICAL are NOT flagged off — they simply never call the wrapper**,
+        because their possession consequence is fixed BY RULE and independent
+        of the FT outcome. **That is why they are absent from this fork
+        rather than drawn as a "no" leg.**
+        ⚠ **AND_ONE turns its caller's ``return`` into a ``continue`` — a
+        live second-chance possession AFTER a made basket, reversing
+        #029 B**, exactly as #034 B's flagrant and-1 already does.
+        **Read #043 H before building.**
+
+        **Until §3.21 there was NO rebound path here at all** —
+        ``awardFreeThrows`` looped, emitted and returned, so a missed final
+        FT silently ended the possession. **~2.64/team-game.** By rule the
+        last FT of a trip is live and someone rebounds it.
+
+        ⚠ **ONLY THE LAST ATTEMPT IS LIVE.** A missed FIRST FT is a dead
+        ball. Measured, non-last misses are **2.30/team-game — LARGER than
+        the live ones**, so the terminal test (``ft == count - 1``) is the
+        whole correctness of this branch.
+
+        ⚠ **TWO SOURCES ARE EXCLUDED BY RULE, and building it uniformly
+        would be WRONG:** ``FLAGRANT`` — the offense RETAINS the ball
+        (#034 B, already modelled; rebounding it would double-count that
+        path) — and ``TECHNICAL`` — play resumes with the ball as it was
+        (#032 G). Together only 0.10/team-game, so exclusion costs nothing.
+
+        ⚠ **The contest is the ORDINARY board contest at a REDUCED base**
+        (``baseOffensiveRebound() × FREE_THROW_REBOUND_LEAN``): the defense
+        has inside position **by rule**, so the realized offensive share is
+        ~**0.19**, not the board's 0.262. ``FREE_THROW_REBOUND_LEAN`` is a
+        ``public static final`` **RULE constant, NOT a tunable** — §3.20
+        held at **62 tunables**; statics move 27 → **28**.
+      end note
+      if (last FT of the trip, AND missed?
+//source is SHOOTING / BONUS / AND_ONE only//) then (yes)
+        :resolve through **MissedShotResolver** //(reused WHOLE — #026 B)//
+        base = baseOffensiveRebound() × FREE_THROW_REBOUND_LEAN
+        → REBOUND — OFFENSIVE / DEFENSIVE / OUT_OF_BOUNDS_*;
+        note right
+          **Reused whole, not reimplemented** — the OOB carve, the cap
+          forcing and the credit path all come for free. ~7% of FT
+          rebounds resolve ``OUT_OF_BOUNDS_*``; that is a real outcome
+          on a missed free throw, not a defect.
+
+          ⚠ **An OFFENSIVE rebound here RETURNS THE BALL** → the same
+          ``continue`` shape the offensive rebound and #034 B's flagrant
+          already use, under the SAME cap. ⚠ **The fork stays at the CALL
+          SITES**, but the FACT comes from ``awardLiveFreeThrows``, which
+          returns ``FreeThrowResult(sequence, offenseRetains)`` (#043 H —
+          this supersedes an earlier reading that ``awardFreeThrows`` itself
+          returns only a sequence; **it still does**, and that is exactly
+          why the second layer exists).
+        end note
+        stop
+      else (no — dead ball, or an excluded source)
+      endif
+    }
     stop
   endif
 }
@@ -455,32 +523,79 @@ partition "ShotResolver" {
       form: count(BLOCKED% with opponent = X) == blocks(X), forall X.
     end note
 
-    partition "BlockResolver (§3.7 — #025 D)" {
+    partition "BlockResolver (§3.7 — #025 D; §3.21 credits — #043 E)" {
       note right
         A blocked ball is a **chaotic loose ball**, NOT the
         offenseRebound-vs-defenseRebound box-out contest — so
         recovery is a FLAT four-way roll (fixed weights, same
         for every block, defense-leaning). Weights are
         placeholders → calibrate empirically (~5 blocks/team).
+
+        ⚠ **§3.21 (#043 E) — THE FLAT ROLL PICKS A SIDE, NEVER A
+        PLAYER, and that is why the credit below does NOT violate
+        #025 D.** Until §3.21 the two IN-BOUNDS cases emitted
+        **nothing** — 3.40/team-game where a player demonstrably
+        secured the ball and was credited to nobody. By the NBA rule
+        that is a rebound. **Two different questions:** *which side*
+        stays this flat roll (unchanged), *which of that side's five*
+        is a new skill-weighted pick. ⚠ **isOffensiveRebound() is
+        NEVER called here** — the side is already decided, and running
+        the board contest would be exactly the inheritance #025 D
+        refused. ⚠ **The possession fork is UNCHANGED** (offenseRetains()
+        already drove it correctly): this adds a credit + an event
+        BEFORE the fork. ⚠ **Consumes a new RNG draw** — seeded sim
+        tests re-baseline (#043 E3).
+
+        ⚠ **READ THIS BRANCH COLD AND COUNT THE EVENTS: a block now
+        emits TWO, and that is correct.** Before §3.21 it emitted exactly
+        one (the ``SHOT — BLOCKED_*`` above) and this partition emitted
+        none. It is now ``SHOT`` **then** ``REBOUND``, one of each, on
+        every one of the four cases — the switch below is four MUTUALLY
+        EXCLUSIVE cases, not four events. That is the §3.14b/§3.16 failure
+        mode inverted: there the boxes claimed three events where the
+        engine emitted one; here the count genuinely moved from one to
+        two, so the picture had to GAIN a node rather than lose one.
+        ⚠ **The block reconciliation is unaffected** — it counts
+        ``SHOT`` events with a ``BLOCKED%`` outcome, and this pass emits
+        no new ``SHOT`` event anywhere.
       end note
-      switch (recovery? //flat four-way roll (D)//)
+      switch (recovery? //flat four-way roll (D) — picks the SIDE only//)
       case (RECOVERED_OFFENSE)
-        :in-bounds, offense retains
-        → second-chance;
+        :**REBOUND — OFFENSIVE** //(§3.21 — #043 E)//
+        pickOffensiveRebounder(offense) — skill-weighted
+        recordOffensiveRebound()
+        in-bounds, offense retains
+        → second-chance (respects the cap);
         stop
       case (RECOVERED_DEFENSE)
-        :in-bounds, defense's ball
+        :**REBOUND — DEFENSIVE** //(§3.21 — #043 E)//
+        pickDefensiveRebounder(defense) — skill-weighted
+        recordDefensiveRebound()
+        in-bounds, defense's ball
         → possession over;
         stop
       case (OOB_OFFENSE)
-        :OOB off the blocker
+        :**REBOUND — OUT_OF_BOUNDS_OFFENSE** //(§3.21 — #043 E2)//
+        no rebounder (primaryPlayerId null)
+        OOB off the blocker
         → offense retains → second-chance;
         stop
       case (OOB_DEFENSE)
-        :OOB off the shooter
+        :**REBOUND — OUT_OF_BOUNDS_DEFENSE** //(§3.21 — #043 E2)//
+        no rebounder (primaryPlayerId null)
+        OOB off the shooter
         → defense's ball → possession over;
         stop
       endswitch
+      note right
+        **§3.21 E2 — the two OOB slices gain their EVENT, not a
+        rebounder** (1.13/team-game). Same shape ``emitMissedShotEvent``
+        already uses off a missed shot, so the derived team-rebound
+        query — ``count(REBOUND where outcome LIKE 'OUT_OF_BOUNDS%')`` —
+        is finally **complete**. ⚠ This is why the ``teamRebounds``
+        COLUMN still is not built: nothing consumes it and it stays
+        derivable (#014/#017/#020).
+      end note
     }
   else (no)
     if (shot made?\n//offense skill vs defense skill//\n//× acumen + teamOffense/teamDefense §3.4//\n//× fatigueFactor per player §3.5//) then (yes)
@@ -961,26 +1076,29 @@ legend bottom left
     ~40-45% of possessions are pinned at 0.02, making
     ``base-turnover`` a 0.17-elasticity lever. The footnote below is
     therefore LARGER than "half a blocked three" — see #042 D4.
-  * 🆕 **A RECOVERED BLOCKED SHOT CREDITS NO REBOUNDER — and by the NBA
-    rule it should.** The ``BlockRecovery`` draw below resolves WHICH
-    SIDE gets the ball and forks the possession correctly, but emits
-    **no REBOUND event and calls no recordRebound()**. Measured:
-    **3.41/team-game recovered IN BOUNDS, credited to nobody** (2.04
-    def + 1.36 off); the 1.14 that go OOB are correctly rebound-less
-    **but emit no event either**, where the same situation off a
-    missed shot does. ⚠ **The possession outcome is already right —
-    only the ATTRIBUTION is missing.** ⚠ **But crediting means
-    SELECTING a rebounder, and #025 D made this draw flat and
-    skill-independent DELIBERATELY** so the loose ball would not
-    inherit the board contest. **That is the design question.**
-    **§3.21's** — see todo.md.
-  * 🆕 **MISSED FREE THROWS ARE NEVER REBOUNDED.** ``awardFreeThrows``
-    loops, emits, and returns — **there is no rebound path**, so a
-    missed final FT silently ends the possession. Real basketball
-    yields ~3.2 rebounds/team-game there; this engine yields zero.
-    ⚠ **THAT IS A MISSING BRANCH ON THIS DIAGRAM** and it is
-    **§3.21's** (the rebound pool: DefReb 27.90 vs a sourced 32.4).
-    See roadmap.md's §3.21 bullet and todo.md's design questions.
+  * ✅ **§3.21 (#043) CLOSED BOTH REBOUND GAPS THIS LEGEND USED TO FLAG.**
+    A recovered blocked shot now credits a rebounder, the block-OOB
+    slices now emit their event, and a missed LAST free throw is now
+    a live rebound. Both are drawn above. ⚠ **The design pass also
+    RETIRED a third row that was never real:** the "**1.97 unexplained
+    on the FG path**" is the **REBOUNDING FOUL** (measured **2.34**
+    /team-game), which carves off the TOP of the rebound phase so the
+    board contest never runs — **correct as basketball**, on this
+    diagram since §3.10, and simply omitted from the arithmetic that
+    "found" the leak. **Three independent counts agree to ~0.04.**
+    ⚠ **The generalizable lesson, and it is the THIRD consecutive pass
+    to hit it** (#042 D1, D3): *a modelled quantity turned out to be a
+    known branch nobody had subtracted.* **Measure the decomposition
+    before theorising about a residual.**
+  * ⚠ **THE REBOUND SPLIT NOW HAS THREE DIFFERENT OFFENSIVE SHARES
+    FEEDING ONE POOL, and only one of them has a knob** (#043 B):
+    the ordinary board contest **0.262** (``base-offensive-rebound``,
+    already correct vs a real 0.259), the block recovery **0.400**
+    (FIXED by the flat ``block-*`` weights — not a contest at all),
+    and the free-throw board **~0.19** (a rule). **DefReb and OffReb
+    therefore end as REPORTED RESIDUALS in opposite directions** —
+    that is structural, not a mis-tune. ⚠ **Do NOT reach for
+    ``base-offensive-rebound``: neither new slice passes through it.**
 endlegend
 
 @enduml

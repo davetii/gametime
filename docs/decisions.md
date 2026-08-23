@@ -1743,6 +1743,413 @@ the real shooting-foul share.
 
 ---
 
+---
+
+### 043 — The rebound pool (§3.21): the "unexplained 1.97" is the REBOUNDING FOUL and is correct as basketball, so the pool has exactly TWO real gaps — a missed last free throw and an in-bounds block recovery — both fixed as RULES, each keeping its own already-decided possession fork, and the resulting rebound rows land as REPORTED RESIDUALS rather than being tuned
+
+**Date**: 2026-08
+**Scope**: A Phase-3 fidelity sub-phase that closes two places where the engine
+resolves a possession correctly but **credits no rebounder**. Adds two `REBOUND`
+emission sites and one new fork on the free-throw path. **No new tunable — 62/27 is
+held** (Decision E). No schema change, no OpenAPI change, no new `PlayType`, no new
+`FreeThrowSource`; the two new outcome strings reuse the existing free-text `outcome`
+column (#020) and the established `REBOUND` vocabulary. **Re-lands its own calibration
+(Decision G) — there is no "§3.22".** NOT YET BUILT — this entry is the resolved
+design; the execute-ready plan is todo.md's §3.21 plan.
+
+**Step 0 (the measurement that leads this pass, and it MOVED the premise).** A
+throwaway `ReboundPoolProbe` (`@SpringBootTest`, the `CalibrationHarness` shape,
+deleted at close-out — Decision F) walked the event log and classified **every
+non-scoring field-goal attempt by the event that follows it**. 5-seed mean, seeds
+1000–5000, `Profiles: local,baseline` confirmed on all five. It reproduces §3.20's
+landing (pool **37.83** vs #042's 37.80, DefReb **27.91** vs 27.90, OffReb **9.92**
+vs 9.90), so it is measuring the same engine.
+
+| fate of a non-scoring FG attempt | per team-game | owner? |
+|---|---|---|
+| `REBOUND / DEFENSIVE` | 27.909 | ✅ owned |
+| `REBOUND / OFFENSIVE` | 9.916 | ✅ owned |
+| `REBOUND / OUT_OF_BOUNDS_*` off a miss | 2.708 | ✅ correctly un-owned |
+| **rebounding foul pre-empted the board** | **2.337** | ✅ **correctly un-owned** |
+| **block recovered IN BOUNDS** | **3.402** | ❌ **a player secured it, no credit** |
+| block knocked OUT OF BOUNDS | 1.134 | ⚠ un-owned correctly, but **emits no event** |
+| **total** | **47.406** | vs 47.405 measured — **closes to 0.001** |
+
+**⚠ Decision A — GOAL 3 IS CLOSED, AND THE "1.97 UNEXPLAINED ON THE FG PATH" DOES NOT
+EXIST. It is the REBOUNDING FOUL (measured 2.337), already on the diagram, and CORRECT AS
+BASKETBALL.** `PossessionEngine` step 4a carves `resolveReboundFoul` off the **top** of
+the rebound phase (#028 A2/C) — the whistle stopped play, so the board contest never runs
+and **nobody rebounds**. **Three independent counts agree to ~0.04**: the probe's
+`missed FG → FOUL (no REBOUND)` at **2.337**, the measured `REBOUNDING_FOUL_*` at
+**2.294**, and the residual after removing OOB and blocks at **2.324**. The old bracket
+subtracted OOB and blocks from missed FGs but **not the foul that pre-empts the board** —
+arithmetic that omitted a term, not a leak. **Nothing is fixed here; the row is retired.**
+⚠ **Third consecutive pass where a modelled quantity turned out to be a known branch
+nobody had subtracted** (#042 D1, D3). **Measure the decomposition before theorising.**
+
+**⚠ Decision B — THE CONSEQUENCE OF A: todo.md's bracket lands "within 0.06" only
+because it splits BOTH new slices at the aggregate 0.262 offensive share, and NEITHER
+of them is split that way.** The block slice's split is **fixed at 0.400 offensive** by
+`BlockRecovery`'s weights (0.45 def / 0.30 off of the in-bounds pair, #025 D) — it is
+not a contest and the side is **already decided** before any rebound is credited. The
+free-throw slice leans the other way (Decision D). Composing each slice with its **own**
+real split:
+
+| | pool | DefReb *(32.4)* | OffReb *(11.3)* |
+|---|---|---|---|
+| now | 37.83 | 27.91 (−4.49) | 9.92 (−1.38) |
+| todo.md's bracket *(flat 0.262 on both)* | 43.87 | 32.37 (−0.03) | 11.50 (+0.20) |
+| **this design, composed per-slice** | **43.87** | **~32.09 (−0.31)** | **~11.78 (+0.48)** |
+
+**The pool lands (43.87 vs 43.70). The SPLIT ends slightly off in BOTH directions** —
+DefReb short, OffReb long — and that is the honest outcome, not a failure. ⚠ **It is
+also not tunable without breaking something already correct**: `base-offensive-rebound`
+governs only the ordinary board contest, whose realized 0.262 is already right against a
+real 0.259 (#042 D3), and the two new slices **do not pass through it at all**. Moving
+it would distort the correct contest to compensate for two slices it does not touch.
+**Both rows are REPORTED RESIDUALS with this as the stated reason** (Decision G).
+
+**Decision C — a missed LAST free throw becomes a live rebound, at the three sources
+where the rule says so, and it reuses `MissedShotResolver` WHOLE.** In `awardFreeThrows`,
+after the final attempt of a run, if that attempt **missed** and the source is
+`SHOOTING` / `BONUS` / `AND_ONE`, resolve the board through the existing
+`missedShotResolver.resolve(offense, defense, capReached, rng)` and emit the same
+`REBOUND` event `emitMissedShotEvent` already emits.
+- **`FLAGRANT` and `TECHNICAL` are excluded by rule** — the offense retains by rule on a
+  flagrant (already modelled, #034 B) and play resumes as it was on a technical (#032 G).
+  Measured, they are **0.031 + 0.071 = 0.102/team-game** of missed last FTs, so excluding
+  them costs nothing numerically and building it uniformly would **double-count the
+  flagrant's existing retention path**.
+- **Only the LAST attempt is live.** Measured, "not last" misses run **2.30/team-game** —
+  larger than the live ones — so getting the loop's terminal test right is the whole
+  correctness of this branch, not a detail. The loop already knows: `ft == count - 1`.
+- **The OOB slices come along, and that is right.** Reusing `MissedShotResolver` means
+  ~7% of FT rebounds resolve to `OUT_OF_BOUNDS_*` instead of a rebounder. That is a real
+  outcome on a missed free throw and it keeps this branch from needing its own carve.
+- ⚠ **An offensive rebound here RETURNS THE BALL** under
+  `MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION` — the **same `continue` shape** the offensive
+  rebound and #034 B's flagrant already use. ⚠ **Decision H places that fork** (and
+  supersedes an earlier "the fork stays at the call sites" reading of this bullet).
+
+**Decision D — the free-throw board runs the ORDINARY contest, with the defense's
+by-rule inside position expressed as an EXISTING static, not a new tunable.** The
+defense lines up inside on a free throw and the real split is ~0.19 offensive
+(todo.md's own sourced figure, ~2.6 def + ~0.6 off). Options priced at 5 seeds:
+
+| FT off-share | DefReb | OffReb |
+|---|---|---|
+| 0.262 *(contest unmodified)* | 31.90 (−0.50) | 11.97 (+0.67) |
+| **0.19** *(the real figure)* | **32.09 (−0.31)** | **11.78 (+0.48)** |
+| 0.14 | 32.22 (−0.18) | 11.65 (+0.35) |
+
+**Take 0.19, and reach it by passing the existing contest a REDUCED base** — a new
+`public static final FREE_THROW_REBOUND_LEAN` on `SimConfig` (a **rule-of-basketball
+constant**, the `public static final` form per CLAUDE.md's declaration convention), used
+as `baseOffensiveRebound() × LEAN`. ⚠ **This is a STATIC, not a tunable** — the
+defense's inside position on a free throw is a rule, not a knob, and §3.20 held at 62
+tunables. The count moves **27 statics → 28**; `EXPECTED_TUNABLE` stays **62**.
+⚠ **It therefore gets NO line in `application-baseline.properties` and NO row in
+`calibration.md`.** A `public static final` with a value in Java *and* a properties line
+is the **double-value trap** CLAUDE.md names explicitly (javac inlines constants into
+each caller, so the two silently diverge) — it is one or the other. And a
+`calibration.md` row would be an **unsourced target**, precisely what #042 J's sweep
+existed to eliminate: there is no Basketball-Reference figure for it and no harness line
+measuring it. It appears in `calibration.md` **only** inside the three-share rule
+(Decision B), as the reason one slice is split the way it is. **The cost, stated: it is
+not profilable** — an era profile cannot vary the free-throw board. If one ever needs to,
+it is promoted to a tunable then and the count moves 62 → 63.
+⚠ **The whole spread across the three options is 0.32 DefReb / 0.32 OffReb** — smaller
+than the residual either way. **Do not iterate on it**; set it once from the real figure
+and report.
+
+**Decision E — the in-bounds block recovery credits a rebounder by REUSING the
+already-drawn recovery side, and picks WHO by the existing skill-weighted draw on that
+side ALONE. #025 D's flatness is PRESERVED, because the flat draw still decides the
+side.** The design question todo.md poses — "keep the flatness, or route through
+`ReboundResolver`?" — is a false choice, because the two resolvers do **two different
+things**:
+1. **Which side gets the ball** — `BlockResolver`'s flat four-way roll. **Unchanged, and
+   it must be**: a swatted ball is chaotic (#025 D), and this is what keeps the recovery
+   from inheriting the board contest.
+2. **Which of that side's five secured it** — nobody decides this today, and it is a
+   *different question* that skill legitimately answers. A loose ball still gets grabbed
+   by the player who goes after loose balls.
+
+So: on `RECOVERED_DEFENSE` call `reboundResolver.pickDefensiveRebounder(defense, rng)`
+and `recordDefensiveRebound()`; on `RECOVERED_OFFENSE` call `pickOffensiveRebounder`
+and `recordOffensiveRebound()`. **`isOffensiveRebound` is NEVER called** — the side is
+already decided, and calling it would be exactly the inheritance #025 D forbids.
+- **E1 — the possession fork does not move.** `recovery.offenseRetains()` already drives
+  the `continue`/`return` and is **already correct**. This adds a credit and an event
+  *before* that fork; it changes nothing about who gets the ball.
+- **E2 — the two OOB slices gain their event too** (1.134/team-game), as
+  `REBOUND / OUT_OF_BOUNDS_OFFENSE|DEFENSE` with a **null** `primaryPlayerId` — the exact
+  shape `emitMissedShotEvent` already uses off a missed shot. This closes todo.md
+  question 6's incomplete derivation **without building the `teamRebounds` column**,
+  which stays unbuilt for want of a consumer (#014/#017/#020).
+- ⚠ **E3 — this consumes a NEW RNG draw** (one weighted pick per in-bounds recovery,
+  ~3.4/team-game). Seeded sim tests **will** re-baseline. Unavoidable: crediting a
+  rebounder means selecting one, and there is no existing draw to reuse — the four-way
+  roll picks a *side*, not a player.
+- ⚠ **E4 — the block COUNT must not move** (4.54 vs a sourced 4.8, landed). This changes
+  what a block *emits*, never how often one happens. `ShotResolver.isBlocked` and the
+  four `block-*` weights are untouched.
+
+**Decision F — a THROWAWAY probe, not a new harness line.** The decomposition answers a
+one-time question, now recorded in Step 0 above; a permanent row would need re-validating
+every phase that changes what an event emits (trap 2). **`ReboundPoolProbe` is deleted at
+close-out** (§3.20's precedent). ⚠ **The harness gains an INVARIANT instead**:
+`pool == count(REBOUND with non-null primaryPlayerId)`, a fourth line beside `ast+blk` /
+`ft-src` / `points` — cheap, and it does not rot.
+
+**⚠ Decision G — §3.21 OWNS its re-landing, and the expected damage is FGA. The re-tune
+is SMALLER than the mechanic, so §3.21 does NOT split.** More offensive rebounds are more
+second-chance possessions. Expected: **OffReb +1.86** → **~+1.7 FGA** against a row
+landed at **89.22** with a **±0.45** band, so FGA leaves band and points follow it up.
+- **The lever is `base-no-basket-foul`**, already measured at **1.49 FGA per foul** (#042
+  D6) and already the lever that landed FGA once. Re-landing FGA costs ~+0.11 on it, and
+  **Fouls (−1.06) moves TOWARD its target as a side effect**. `non-shooting-foul-share`
+  pulls FTA back count-neutrally if it drifts, exactly as in §3.20's two-lever step.
+- ⚠ **Do NOT touch `base-offensive-rebound`** (Decision B) and **do NOT touch the four
+  `block-*` weights** (E4) to chase a rebound row.
+- **The split-vs-§3.21a/b test, answered with a measurement:** §3.20's re-tune was
+  **nine constants over two sessions**. This one is **one constant with a measured
+  elasticity, plus one count-neutral corrector** — the same two-lever step §3.20 already
+  executed in a single sitting. **That is not a bigger job than the mechanic, so there is
+  no finding to split on.**
+
+**Rationale**: *(overall)* Both gaps are **rules of basketball and are fixed because they
+are rules** (user call, 2026-08) — a player who comes down with the ball is credited. The
+calibration consequence is reported, never a gate on the mechanic. *(A)* Three counts
+agreeing to 0.04 beat an arithmetic model. *(B)* A slice whose side is decided by a flat
+roll cannot be split at a contest's realized share. *(C)* Reusing `MissedShotResolver`
+whole inherits the OOB carve, the cap and the emit path — #026 B's discipline one level
+up. *(D)* The lean is a rule, and the plausible spread is smaller than the residual it
+would chase. *(E)* Separating *which side* from *which player* dissolves the apparent
+conflict with #025 D — flatness was always about the side. *(F)* An instrument answering a
+closed question is a liability; an invariant is not. *(G)* Recalibration was renumbered
+four times for deferring exactly this, and the re-tune measures as one lever.
+
+**Trade-off**: *(A)* Retiring the 1.97 makes the bracket look **worse**, not better.
+*(B)* Both rebound rows stay red (−0.31 / +0.48) at the end of a phase named for them;
+accepted, because the pool — the thing actually broken — closes 37.83 → 43.87.
+*(C)* ~7% of FT rebounds resolve OOB, inflating an `OUT_OF_BOUNDS_*` share nothing yet
+consumes. *(D)* A 28th static is not profilable. *(E)* A new RNG draw re-baselines every
+seeded sim test — the cost §3.18 avoided, paid here because there is no alternative.
+*(G)* Landing FGA again raises foul-outs on a row already above its ballpark (#042 D6's
+price, second time and smaller).
+
+**Alternatives considered**:
+- *(A)* **Hunt for the 1.97 in the FG path** — rejected: it is not there.
+- *(B)* **Tune `base-offensive-rebound` to split the difference** — rejected, fenced by
+  #042 D3: neither new slice passes through it.
+- *(B/E)* **Re-weight `BlockRecovery` toward defense so the split lands** — rejected:
+  those weights model *where a swatted ball goes* (#025 D), calibrated against the block
+  rate. Wrong mechanism, ~0.3 of cosmetic gain.
+- *(C)* **Give the FT rebound its own resolver** — rejected: duplicates the OOB carve,
+  the cap handling and the emit path (#026 B).
+- *(C)* **Rebound every missed FT uniformly** — rejected: wrong at two of five sources,
+  and double-counts #034 B's flagrant retention.
+- *(D)* **A new `ft-rebound-lean` tunable** — rejected: a rule, not a knob, and the whole
+  plausible spread is smaller than the residual it would chase.
+- *(E)* **Route block recovery through `isOffensiveRebound`** — rejected: the exact
+  board-contest inheritance #025 D refused, and the side is already decided by then.
+- *(E)* **Credit the blocker's team without naming a player** — rejected: fabricates a
+  team-level fact to dodge a selection.
+- *(F)* **A permanent per-source rebound line in the harness** — rejected: answers a
+  closed question, and would need re-validating every phase (trap 2).
+- *(G)* **Split into §3.21a/§3.21b** — rejected on the measurement.
+- *(H)* **Fork at each call site** (C's original wording) — superseded: spreads one rule
+  across three depths.
+- *(H)* **ONE method for all five, gated by a `FreeThrowSource.reboundableOnMiss()` flag**
+  — rejected (user call): a flag that switches off the main thing a method does means two
+  operations were merged, and it hands the between-possessions technical a null rebound
+  context it has no use for.
+- *(H)* **Put the `continue` inside `awardAndOne`/`awardFreeThrows`** — rejected: that IS
+  what #034 B refused. H returns a fact; the caller forks.
+
+**Status of §3.21 decisions**: A–H all resolved by this entry, closing todo.md's
+questions 1–7 (Q1 → C+D, Q2 → E, Q3 → **A, retired**, Q4 → **not touched**, see
+follow-up, Q5 → A's Step-0 table, Q6 → E2 without the column, Q7 → G). **Net schema
+change: none. Net OpenAPI change: none. New tunables: none — 62 held. New statics: one
+(`FREE_THROW_REBOUND_LEAN`), 27 → 28.** New engine pieces: a rebound fork on the
+free-throw path and two `REBOUND` emission sites in the block branch; no new class.
+⚠ **Determinism: the RNG stream MOVES** (E3, plus the FT board's draws) — seeded sim
+tests re-baseline, and this is expected, not a regression. The execute-ready task
+sequence is todo.md's §3.21 execution plan.
+**⚠ Decision H — TWO LAYERS, NOT ONE METHOD WITH A FLAG: `awardFreeThrows` keeps owning
+the shared TRIP and its `int` return; a new `awardLiveFreeThrows` owns the trip PLUS the
+last-FT board and returns a result record; `FLAGRANT` and `TECHNICAL` keep calling the
+inner one DIRECTLY and are unchanged (user call, 2026-08).** ⚠ **This supersedes Decision
+C's "the fork stays at the call sites"**, which spread one rule across three depths.
+
+**Why two layers and not one method gated by a `reboundableOnMiss()` flag** *(an earlier
+draft of this decision; rejected)*: a flag parameter that switches off the main thing a
+method does is the tell that two operations were merged. **The split is real, not
+cosmetic — `FLAGRANT` and `TECHNICAL` are the two sources whose possession consequence is
+FIXED BY RULE and independent of the free throw's outcome** (flagrant: offense retains
+either way, #034 B; technical: play resumes as it was, #032 G). For them a free throw is a
+**scoring event with no bearing on possession**. For the other three the last attempt's
+outcome **decides** possession. Those are different operations that happened to share a
+loop.
+
+```
+awardFreeThrows(...)            -> int              // the SHARED trip: attempt, make
+                                                    // roll, score, emit. No possession
+                                                    // semantics. ALL FIVE use it.
+awardLiveFreeThrows(...)        -> FreeThrowResult  // the STANDARD handler: the trip,
+                                                    // then the last-FT board.
+                                                    // SHOOTING / BONUS / AND_ONE.
+```
+`record FreeThrowResult(int sequence, boolean offenseRetains) {}`
+
+⚠ **`awardFreeThrows` is NOT widened and NOT re-signatured** — six call sites keep
+compiling, #028 B's "one FT block, so reconciliation is automatic" holds by construction,
+and the two edge cases are **bit-identical to today** because they still call it directly.
+`awardLiveFreeThrows` takes the extra `offense`/`defense`/`capReached` that only it needs.
+⚠ **THE STRUCTURAL EVIDENCE THIS IS RIGHT — and it was mistaken for a wart first:**
+`awardTechnicalFoul` is called from `simulate` **BETWEEN possessions**; there is no
+possession, no on-floor five and no loop to continue into. Under a one-method design it
+would pass **null** for the rebound context. **It is not a possession-scoped call at all**,
+and the two-layer split says so structurally instead of by a null.
+
+⚠ **The split that lets the standard handler exist: it owns the BASKETBALL, the loop owns
+the CONTROL FLOW** — exactly `MissedShotResolver.resolve` (#026), which resolves the OOB
+carve, the contest, the rebounder and the cap, returns a `Result`, and **never forks a
+possession**; the caller reads `offenseRetains()`. ⚠ **Returning a fact is NOT what
+#034 B refused** — that was a `continue` *inside* a method documented not to fork.
+
+**Per call site:**
+- **`SHOOTING` (~382), `BONUS` (~359)** — in the possession loop; `offensiveRetentions++;
+  continue;` on true.
+- **⚠ `AND_ONE` (~783)** — an existing `return sequence` becomes a `continue`: **a live
+  second-chance possession AFTER a made basket**, reversing #029 B. ⚠ **Correct by rule
+  and NOT new** — #034 B built this exact shape for the flagrant and-1; **extend that
+  comment** rather than leave it contradicting the code. ⚠ **Why this site qualifies:
+  `AND_ONE_FREE_THROWS = 1`, so the and-1's single attempt is ALWAYS its trip's last**
+  (0.386/team-game live).
+- **`BONUS` at the rebounding-foul site (~653)** — feed the flag into the existing
+  `ReboundFoulResult`. ⚠ **The FOULED team may be the DEFENSE** (over-the-back), so
+  `offenseRetains` is relative to the **possession's** orientation, not to whoever shot.
+  **Backwards here gives the ball to the wrong team.** Its "possession over either way"
+  comment stops being true.
+- **`FLAGRANT` (~739), `TECHNICAL` (~830)** — **untouched. No flag, no null, no new
+  parameter.** They call `awardFreeThrows` exactly as today.
+
+**Rationale** *(H)*: one shared trip already existed (#028 B) and only stopped short of
+the last FT's outcome. Closing that gap in a **second layer** keeps the reconciliation
+guarantee intact, leaves the two rule-fixed sources genuinely unchanged rather than
+flagged-off, and puts the possession-deciding logic only where a possession exists.
+**Trade-off** *(H)*: one more method, and a reader must know which layer to call — but the
+enum-flag alternative hides that same choice in a parameter, and would hand the
+between-possessions technical a null it has no use for.
+
+**Open-at-execution**: the exact `FREE_THROW_REBOUND_LEAN` value that realizes ~0.19
+(modelled as `base × ~0.68`, but the contest is logistic — **measure it, do not
+back-solve**); the exact carrier for H's signal (a small record vs. a retained-flag
+return); whether the FT rebound reads the offense/defense five from the call site or from
+a widened `awardFreeThrows` signature; the final `base-no-basket-foul` value that
+re-lands FGA.
+
+**§3.21 follow-up (carry forward)**:
+- **⚠ Both rebound rows end as REPORTED RESIDUALS (DefReb ~−0.31, OffReb ~+0.48) and the
+  reason is structural, not a mis-tune** (B): three slices with three different offensive
+  shares (0.262 board / 0.400 block / ~0.19 free throw) feed one pool, and only the first
+  has a knob. Closing them further needs a per-slice lever nothing yet justifies.
+  **Do not re-open with `base-offensive-rebound`.**
+- **`oob-total-weight` (0.07) was NOT examined** (todo.md Q4). Measured 2.708/team-game
+  leave the court off a miss; the pool lands without touching it, so it stayed a §3.8
+  constant with its own reasoning (#026). Still plausibly high against real basketball.
+- **The 4th reconciliation invariant** (F) is the durable instrument this pass leaves:
+  a rebound whose owner the engine fails to identify now fails the harness.
+- **Foul-outs rise again** with G's re-landing, on a `ballpark` row (#042 J) the engine
+  already exceeds. Sized and accepted, second time.
+
+**Implementation note (from execution, 2026-08).** Shipped as A–H specify, with **two
+divergences, both in HOW rather than what**:
+
+1. **H's "last attempt" test is STRUCTURAL, not a condition.** `awardLiveFreeThrows`
+   awards `count - 1` dead attempts through `awardFreeThrows`, then the live one alone —
+   so `ft == count - 1` never appears anywhere, and there is no index to get wrong. Whether
+   the live one dropped is read off `shooter.getFreeThrowsMade()` before/after, which is
+   the trip's own existing bookkeeping; nothing new is threaded out of the shared block.
+2. **D's reduced base needed a plumbing seam that C did not name.** `MissedShotResolver
+   .resolve` and `ReboundResolver.isOffensiveRebound` each gained a base-taking **overload**
+   (the no-base form delegates with `baseOffensiveRebound()`), rather than the base being
+   passed at the one call site. ⚠ **Only the CONTEST reads it** — the OOB carve above it is
+   flat and skill-independent (#026 A) and is unchanged: a free throw does not sail out of
+   bounds more often because of where the players stand. `PossessionEngine` also gained an
+   injected `ReboundResolver` (alongside the `MissedShotResolver` that wraps it) for E's
+   selection-only calls; its `isOffensiveRebound` is never called from that class.
+
+**Resolved the open-at-execution items:** `FREE_THROW_REBOUND_LEAN` = **0.68**, realized
+offensive share **0.1695** measured over 4000 trials against the ~0.19 target — set once
+from the real figure and **not** back-solved (D). H's carrier is the record
+`FreeThrowResult(int sequence, boolean offenseRetains)`. The FT board reads the five from
+the call site; `awardFreeThrows` was **not** widened. `base-no-basket-foul` = **0.1753**.
+
+**Final constants:** `sim.base-no-basket-foul` 0.1687 → **0.1753**;
+`sim.non-shooting-foul-share` 0.3766 → **0.4123**;
+`SimConfig.PERSONAL_FOULS_PER_TEAM_GAME` 18.52 → **19.08** *(the emergent flagrant
+divisor, re-measured because this pass moved the foul rate — see the third finding
+below)*; new `SimConfig.FREE_THROW_REBOUND_LEAN` = **0.68**. **Tunables held at 62; statics 27 → 28**
+(`EXPECTED_STATIC` in `SimConfigProfileBindingTest` gained the constant in its *rules*
+group, and that test's method renamed to `...TwentyEight...`). No schema, OpenAPI,
+`PlayType` or `FreeThrowSource` change, as designed.
+
+**Landing (harness, 5-seed mean, seeds 1000–5000, `Profiles: local,baseline` confirmed on
+all five, all FOUR reconciliation lines OK):**
+
+| | §3.20 | §3.21 | target |
+|---|---|---|---|
+| **rebound pool** | 37.80 | **43.72** | 43.70 |
+| Off rebounds | 9.90 | **11.80** | 11.3 *(+0.50, reported)* |
+| Def rebounds | 27.90 | **31.92** | 32.4 *(−0.48, reported)* |
+| FGA | 89.22 | **89.16** | 89.1 ✅ |
+| Points | 114.86 | **115.04** | 115.6 ✅ *(better than §3.20's)* |
+| FTA | 23.40 | **23.78** | 23.5 ✅ |
+| Fouls | 18.84 | **19.42** | 19.9 *(−1.06 → −0.48)* |
+| Blocks | 4.54 | **4.46** | 4.8 *(E4 held — the count did not move)* |
+| Flagrants | 0.145 | **0.154** | *(ballpark ~0.13–0.20, after the divisor re-measure)* |
+
+**Three things worth not rediscovering:**
+
+- **G's predicted FGA damage was ~2.5× too large.** Predicted ~+1.7; measured **+0.54**
+  before the re-tune. The pool rose as predicted (+5.92 vs +6.04), and OffReb rose +2.06 —
+  but an extra offensive rebound does **not** buy a full extra attempt, because the
+  second-chance loop's cap and the foul/turnover branches consume some of them. **The
+  elasticity that matters is rebounds→FGA, and it is well under 1.**
+- **B's residuals came out SMALLER than modelled, in both directions** (predicted −0.31 /
+  +0.48; measured −0.48 / +0.50, and the pool 43.72 vs a modelled 43.87). The three-share
+  composition was right in shape; the arithmetic was fine. **B stands.**
+- ⚠ **`Out of bounds` jumped 3.1 → 4.12 and the RATE did not change.** The two block-OOB
+  slices and the FT board's OOB carve now **emit** their events where they were previously
+  resolved silently. **The instrument became complete, the engine did not move** — CLAUDE.md
+  trap 2's "fixing an instrument also moves numbers" a third time, and the reason
+  `oob-total-weight` must not be tuned against this row.
+
+- ⚠ **A FOURTH thing, and it is the one a future pass should copy: `PERSONAL_FOULS_PER_TEAM_GAME`
+  had to be re-measured, and NOTHING would have failed if it had not been.** The flagrant
+  rate divides by a **measured** foul rate (#034 G), G's re-landing moved that rate
+  18.52 → **19.08** (+3.0%), and the flagrants row was consequently reading ~3% hot
+  (0.156 where the corrected divisor gives 0.154). ⚠ **It was found by calibration.md's
+  standing rule — "any pass that moves the foul rate must re-measure that divisor" — not
+  by an instrument.** **Three consecutive phases have now moved it** (§3.16 −11.5%, §3.20
+  +4.2%, §3.21 +3.0%), and all three had the same proximate cause: a `base-no-basket-foul`
+  move made to land FGA. **The calibrated rows are unmoved by the correction** (FGA
+  89.16, Points 115.04 identical to 3 decimals); only the flagrant/ejection lines shift.
+
+**Two premise changes shipped in tests, deliberately re-baselined:**
+`outOfBoundsEventsFollowAMissedShot` → `...FollowAnUnconvertedAttempt` (an OOB `REBOUND`
+now also follows a `BLOCKED_*` shot and a missed `FREE_THROW`), and
+`andOneEmitsAFoulOnTheDefenderAndExactlyOneFreeThrow` now scripts a MADE free throw so it
+still pins the one-FOUL-one-FT shape it was written for. **No other seeded test needed
+re-baselining** — E3 predicted the RNG stream would move and it did, but nothing else
+asserted on a draw downstream of it. `ReboundPoolProbe` deleted (F). Coverage: `mvn clean
+install` green, **All coverage checks have been met.**
+
+---
+
 *Template for new entries:*
 ```
 ### NNN — Short title

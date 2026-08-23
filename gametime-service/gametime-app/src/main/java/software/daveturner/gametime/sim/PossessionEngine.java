@@ -74,11 +74,20 @@ public class PossessionEngine {
     private final FoulResolver foulResolver;
     private final BlockResolver blockResolver;
     private final MissedShotResolver missedShotResolver;
+    /**
+     * §3.21 (#043 E): injected ALONGSIDE {@link MissedShotResolver}, which wraps it, and
+     * used for exactly one thing — the skill-weighted rebounder SELECTION on a block
+     * recovery, where the side is already decided and there is no missed shot to
+     * resolve. ⚠ Its {@code isOffensiveRebound} contest is deliberately never called
+     * from this class: every board contest still runs inside {@code MissedShotResolver}.
+     */
+    private final ReboundResolver reboundResolver;
     private final SimConfig config;
 
     public PossessionEngine(ShotSelector shotSelector, ShotResolver shotResolver,
                             TurnoverResolver turnoverResolver, FoulResolver foulResolver,
                             BlockResolver blockResolver, MissedShotResolver missedShotResolver,
+                            ReboundResolver reboundResolver,
                             SimConfig config) {
         this.shotSelector = shotSelector;
         this.shotResolver = shotResolver;
@@ -86,6 +95,7 @@ public class PossessionEngine {
         this.foulResolver = foulResolver;
         this.blockResolver = blockResolver;
         this.missedShotResolver = missedShotResolver;
+        this.reboundResolver = reboundResolver;
         this.config = config;
     }
 
@@ -356,10 +366,17 @@ public class PossessionEngine {
                     // removed per conversion 1.664 rather than 2.034 (#039 D) — and
                     // it is why the share is 0.43 and not the withdrawn ~0.35.
                     if (data.isInBonus(defTeamId, period, config)) {
-                        sequence = awardFreeThrows(data, shooter, offTeamId,
-                                offTeamId, defTeamId, period, sequence,
+                        // §3.21 (#043 C/H): the LIVE handler — the last of the two is
+                        // rebounded, and an offensive board returns the ball.
+                        FreeThrowResult ft = awardLiveFreeThrows(data, shooter, offTeamId,
+                                offTeamId, defTeamId, offense, defense, period, sequence,
                                 SimConfig.FREE_THROWS_PER_FOUL,
-                                FreeThrowSource.BONUS, rng);
+                                FreeThrowSource.BONUS, capReached, rng);
+                        sequence = ft.sequence();
+                        if (ft.offenseRetains()) {
+                            offensiveRetentions++;
+                            continue; // second-chance possession off the missed FT
+                        }
                     }
                     // Not in the penalty: NO free throws at all — the point of the
                     // phase. The §3.10 not-in-bonus rebounding-foul shape.
@@ -379,9 +396,18 @@ public class PossessionEngine {
                         null, defTeamId, shooter.getPlayerId());
                 sequence++;
 
-                sequence = awardFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
-                        period, sequence, shotType.freeThrowsIfFouled(),
-                        FreeThrowSource.SHOOTING, rng);
+                // §3.21 (#043 C/H): the LIVE handler — the last attempt of the trip is
+                // rebounded (the earlier ones are dead balls), and an offensive board
+                // returns the ball for a second chance under the same cap.
+                FreeThrowResult ft = awardLiveFreeThrows(data, shooter, offTeamId,
+                        offTeamId, defTeamId, offense, defense, period, sequence,
+                        shotType.freeThrowsIfFouled(), FreeThrowSource.SHOOTING,
+                        capReached, rng);
+                sequence = ft.sequence();
+                if (ft.offenseRetains()) {
+                    offensiveRetentions++;
+                    continue; // second-chance possession off the missed last FT
+                }
                 return sequence;
             }
 
@@ -415,6 +441,27 @@ public class PossessionEngine {
                 // and respecting the same cap — it SKIPS ReboundResolver (recovery is
                 // already decided). Defense-recovered ends the possession.
                 BlockRecovery recovery = blockResolver.resolveRecovery(rng);
+                // §3.21 (decisions.md #043 E): credit whoever came down with it. Until
+                // §3.21 this branch emitted NOTHING for any of the four outcomes —
+                // 3.40/team-game where a player demonstrably secured the ball and was
+                // credited to nobody, plus 1.13 that left the court without an event.
+                // By rule a recovered block IS a rebound.
+                //
+                // ⚠ THE FLAT ROLL PICKS A SIDE, NEVER A PLAYER, which is why this does
+                // NOT violate #025 D. Two different questions: *which side* stays the
+                // flat four-way roll above (a swatted ball is chaotic — unchanged), and
+                // *which of that side's five* secured it, which nobody decided before
+                // and which skill legitimately answers. ⚠ isOffensiveRebound() is NEVER
+                // called here — the side is already decided, and running the board
+                // contest would be exactly the inheritance #025 D refused.
+                //
+                // ⚠ The possession fork below is UNCHANGED and was already correct;
+                // this adds a credit and an event BEFORE it. ⚠ This consumes a NEW RNG
+                // draw per in-bounds recovery, so seeded sim tests re-baseline (#043 E3)
+                // — expected, not a regression. ⚠ The block COUNT is untouched: this
+                // changes what a block EMITS, never how often one happens (#043 E4).
+                sequence = emitBlockRecoveryEvent(data, recovery, offense, defense,
+                        offTeamId, defTeamId, period, sequence, rng);
                 if (recovery.offenseRetains() && !capReached) {
                     offensiveRetentions++;
                     continue;
@@ -492,13 +539,27 @@ public class PossessionEngine {
                         }
                         return sequence; // cap full: FTs awarded, possession ends
                     }
-                    sequence = awardAndOne(data, shooter, defender, offTeamId, defTeamId,
-                            period, sequence, rng);
+                    // §3.21 (#043 C/H): the and-1's free throw is the LAST of its trip
+                    // and therefore LIVE. A missed one is rebounded, and an OFFENSIVE
+                    // board hands the ball back — a live second-chance possession AFTER
+                    // a made basket.
+                    FreeThrowResult andOne = awardAndOne(data, shooter, defender,
+                            offTeamId, defTeamId, offense, defense, period, sequence,
+                            capReached, rng);
+                    sequence = andOne.sequence();
+                    if (andOne.offenseRetains()) {
+                        offensiveRetentions++;
+                        continue; // second-chance possession off the missed and-1 FT
+                    }
                 }
-                // The ordinary and-1 never forks the possession — the make already
-                // ended it (#029 B); the FT is simply tacked on before the ball changes
-                // hands. (§3.14b's flagrant and-1 above is the one exception, and it
-                // returns/continues before reaching here.)
+                // ⚠ #029 B's "the and-1 never forks the possession" now has TWO
+                // exceptions, and both are the same shape. §3.14b's flagrant and-1
+                // (above) returns the ball BY RULE; §3.21's ordinary and-1 returns it
+                // when the offense REBOUNDS the missed free throw (#043 C) — a live
+                // second-chance possession after a made basket, under the same cap. The
+                // make no longer ends the possession unconditionally; a made or
+                // defensively-rebounded free throw does. Correct by rule, three scoring
+                // channels on one possession, and NOT to be "fixed".
                 return sequence;
             }
 
@@ -567,7 +628,9 @@ public class PossessionEngine {
      * <p><b>The fork</b> (#028 B), driven by the side the resolver drew:
      * <ul>
      *   <li><b>Defense committed</b> (box-out push) → the OFFENSE is fouled.
-     *       In the bonus: the offense shoots bonus FTs and the possession ends.
+     *       In the bonus: the offense shoots bonus FTs, and since §3.21 the LAST of
+     *       them is live — a missed one is rebounded, and an offensive board returns
+     *       the ball rather than ending the possession (#043 C).
      *       Not in the bonus: the offense RETAINS for a second chance (an
      *       offense-retention path like the offensive rebound / §3.7 recovery /
      *       §3.8 OOB-offense) — unless the second-chance cap is already reached,
@@ -575,11 +638,17 @@ public class PossessionEngine {
      *   <li><b>Offense committed</b> (over-the-back) → the DEFENSE is fouled and
      *       the possession ALWAYS ends for the offense (an offensive foul is a
      *       turnover-like loss of the ball). In the bonus the defense shoots its
-     *       bonus FTs first.</li>
+     *       bonus FTs first — and ⚠ <b>the free-throw board that follows is scored
+     *       for the POSSESSION's offense, not for the shooter's team</b>: this is the
+     *       only site where the two differ, so an offensive rebound of the DEFENSE's
+     *       missed bonus FT returns the ball to the offense, which is correct as
+     *       basketball.</li>
      * </ul>
      *
-     * <p>Bonus free throws reuse {@link #awardFreeThrows} verbatim — the same block
-     * the shooting foul uses — so FT/points reconciliation is automatic (#028 B).
+     * <p>Bonus free throws reuse the same shared block the shooting foul uses — since
+     * §3.21 through {@link #awardLiveFreeThrows}, which WRAPS {@link #awardFreeThrows}
+     * rather than replacing it — so FT/points reconciliation is still automatic
+     * (#028 B, held by construction in #043 H).
      *
      * <p><b>§3.14b (#034 A/C): the flagrant fork is taken FIRST and short-circuits all
      * of the above.</b> On a flagrant the bonus is never consulted (two free throws by
@@ -650,10 +719,21 @@ public class PossessionEngine {
             List<PlayerGameState> fouledFive = offenseCommitted ? defense : offense;
             String fouledTeamId = offenseCommitted ? defTeamId : offTeamId;
             PlayerGameState freeThrowShooter = pickFreeThrowShooter(fouledFive, rng);
-            sequence = awardFreeThrows(data, freeThrowShooter, fouledTeamId,
-                    offTeamId, defTeamId, period, sequence,
-                    SimConfig.FREE_THROWS_PER_FOUL, FreeThrowSource.BONUS, rng);
-            return new ReboundFoulResult(sequence, false); // possession over either way
+            // §3.21 (#043 C/H): the last of the two bonus FTs is LIVE, so this site no
+            // longer ends the possession either way — an OFFENSIVE rebound of the miss
+            // hands the ball back for a second chance.
+            //
+            // ⚠ `offenseRetains` is relative to the POSSESSION's orientation, NOT to
+            // whoever shot. This is the ONE site where the fouled team may be the
+            // DEFENSE (an over-the-back sends the defending team to the line while the
+            // offense's possession ends), so `offense`/`defense` below are the
+            // possession's five — passed in that order regardless of who is shooting.
+            // Reversing them here would give the ball to the wrong team.
+            FreeThrowResult ft = awardLiveFreeThrows(data, freeThrowShooter, fouledTeamId,
+                    offTeamId, defTeamId, offense, defense, period, sequence,
+                    SimConfig.FREE_THROWS_PER_FOUL, FreeThrowSource.BONUS,
+                    capReached, rng);
+            return new ReboundFoulResult(ft.sequence(), ft.offenseRetains());
         }
 
         // Under the bonus: no FTs. Only a DEFENSIVE foul leaves the offense the
@@ -747,9 +827,16 @@ public class PossessionEngine {
      *
      * <p>The made field goal is <b>not</b> re-rolled or re-scored: the {@code if
      * (made)} block above has already recorded the points, the FGM, and (possibly)
-     * the assist, and the and-1 only ADDS one attempt from the line (#029 B). That
-     * is also why nothing here forks the possession — a made basket already ended
-     * it.
+     * the assist, and the and-1 only ADDS one attempt from the line (#029 B).
+     *
+     * <p><b>⚠ §3.21 (#043 C/H): this method no longer returns a bare sequence.</b> The
+     * and-1's single free throw is ALWAYS the last of its trip, so it is always LIVE —
+     * a missed one is rebounded, and an offensive board returns the ball. #029 B's "a
+     * made basket already ended the possession" is therefore superseded a SECOND time
+     * (§3.14b's flagrant and-1 was the first, #034 B): the make ends the possession
+     * only when the free throw that follows is made or defensively rebounded. This
+     * method still does not FORK the possession — it returns the fact and the caller
+     * owns the {@code continue}, which is the distinction #034 B actually drew.
      *
      * <p>The foul is one-sided (a shooting foul is always on the DEFENDER), so
      * {@code committingTeamId} is simply {@code defTeamId} — #028 D's column reused
@@ -768,8 +855,11 @@ public class PossessionEngine {
      *
      * @return the next free sequence number
      */
-    int awardAndOne(GameData data, PlayerGameState shooter, PlayerGameState defender,
-                    String offTeamId, String defTeamId, int period, int sequence,
+    FreeThrowResult awardAndOne(GameData data, PlayerGameState shooter,
+                    PlayerGameState defender,
+                    String offTeamId, String defTeamId,
+                    List<PlayerGameState> offense, List<PlayerGameState> defense,
+                    int period, int sequence, boolean capReached,
                     RandomGenerator rng) {
         defender.recordFoul();
         // The counterparty is the SHOOTER who was fouled — an individual the contest
@@ -780,9 +870,14 @@ public class PossessionEngine {
                 shooter.getPlayerId());
         sequence++;
 
-        return awardFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
-                period, sequence, SimConfig.AND_ONE_FREE_THROWS,
-                FreeThrowSource.AND_ONE, rng);
+        // §3.21 (#043 C/H): the and-1's single attempt is ALWAYS the last of its trip
+        // (AND_ONE_FREE_THROWS = 1), so it is ALWAYS live — and a missed one is
+        // rebounded like any other. This method still does not fork the possession: it
+        // returns the fact and the caller owns the continue (#029 B's shape, widened
+        // from an int to a record for exactly the reason #034 B gave).
+        return awardLiveFreeThrows(data, shooter, offTeamId, offTeamId, defTeamId,
+                offense, defense, period, sequence, SimConfig.AND_ONE_FREE_THROWS,
+                FreeThrowSource.AND_ONE, capReached, rng);
     }
 
     /**
@@ -892,8 +987,8 @@ public class PossessionEngine {
     }
 
     /**
-     * The free-throw award block, shared by all THREE free-throw situations — the
-     * §3.2 shooting foul, §3.10's bonus trip, and §3.11's and-1 (decisions.md #028 B
+     * The free-throw award block — <b>the shared TRIP</b>: attempt, make roll, score,
+     * emit. Used by every free-throw situation in the engine (decisions.md #028 B
      * — "reuse the existing FT block verbatim", so no new FT machinery exists and
      * FT/points reconciliation is automatic). {@code shootingTeamId} is the team the
      * made FTs score for — the offense on a shooting foul or an and-1, but the
@@ -924,6 +1019,18 @@ public class PossessionEngine {
      * shooter to the line, not to the attempt itself. Repeating them here would
      * duplicate a fact the preceding event already carries.
      *
+     * <p><b>⚠ §3.21 (#043 H): DO NOT WIDEN OR RE-SIGNATURE THIS METHOD.</b> It owns the
+     * trip and nothing else — <b>no possession semantics at all</b>. The board that
+     * follows a missed LAST free throw lives one layer up, in {@link
+     * #awardLiveFreeThrows}, which wraps this. That split is what keeps #028 B's
+     * reconciliation guarantee true by construction (there is still exactly ONE place a
+     * free throw is attempted and emitted), and it is what leaves {@code FLAGRANT} and
+     * {@code TECHNICAL} genuinely UNCHANGED rather than flagged off: those two call this
+     * method directly, because their possession consequence is fixed by rule and
+     * independent of the free throw's outcome (#034 B, #032 G). A {@code
+     * reboundableOnMiss} flag parameter here was considered and rejected — a flag that
+     * switches off the main thing a method does means two operations were merged.
+     *
      * @return the next free sequence number
      */
     int awardFreeThrows(GameData data, PlayerGameState shooter, String shootingTeamId,
@@ -941,6 +1048,160 @@ public class PossessionEngine {
             sequence++;
         }
         return sequence;
+    }
+
+    /**
+     * §3.21 (decisions.md #043 E): emit the {@code REBOUND} event for a blocked shot's
+     * loose ball, crediting a rebounder on the two IN-BOUNDS recoveries and nobody on
+     * the two out-of-bounds ones.
+     *
+     * <p><b>⚠ The SIDE is already decided by {@link BlockResolver}'s flat four-way roll
+     * and is NOT re-contested here.</b> {@link ReboundResolver#isOffensiveRebound} is
+     * never called — that would make the recovery inherit the board contest, which is
+     * exactly what #025 D refused. Only the skill-weighted <i>selection</i> runs, over
+     * the five players on the side the flat roll already picked: a loose ball still gets
+     * grabbed by the player who goes after loose balls.
+     *
+     * <p><b>⚠ The two OOB outcomes credit NO rebounder</b> (#043 E2) — the same shape
+     * {@link #emitMissedShotEvent} already uses off a missed shot: {@link
+     * PlayType#REBOUND} with an {@code OUT_OF_BOUNDS_*} outcome and a {@code null}
+     * primary player, so they stay outside the rebound reconciliation invariant. This
+     * completes the derived team-rebound query without building a {@code teamRebounds}
+     * column, which stays unbuilt for want of a consumer (#014/#017/#020).
+     *
+     * <p><b>⚠ A capped RECOVERED_OFFENSE still credits its rebounder.</b> The
+     * second-chance cap bounds the LOOP, not the basketball — a player came down with
+     * the ball either way, and the box score says so. That is deliberately unlike
+     * {@link MissedShotResolver}, which is passed {@code capReached} and forces a
+     * would-be offensive outcome to a defensive one: there the outcome is still being
+     * decided, here it already was.
+     *
+     * <p>⚠ {@code opponentPlayerId} is NULL BY CONTRACT, as on every {@code REBOUND}
+     * event — a recovery names a winner, never a loser. The BLOCKER rides the preceding
+     * {@code SHOT} event (#041 A), where the contest that identified them happened.
+     *
+     * @return the next free sequence number
+     */
+    int emitBlockRecoveryEvent(GameData data, BlockRecovery recovery,
+                               List<PlayerGameState> offense,
+                               List<PlayerGameState> defense,
+                               String offTeamId, String defTeamId,
+                               int period, int sequence, RandomGenerator rng) {
+        PlayerGameState rebounder = switch (recovery) {
+            case RECOVERED_OFFENSE -> reboundResolver.pickOffensiveRebounder(offense, rng);
+            case RECOVERED_DEFENSE -> reboundResolver.pickDefensiveRebounder(defense, rng);
+            case OOB_OFFENSE, OOB_DEFENSE -> null; // nobody secured it
+        };
+        String rebounderId = null;
+        if (rebounder != null) {
+            if (recovery == BlockRecovery.RECOVERED_OFFENSE) {
+                rebounder.recordOffensiveRebound();
+            } else {
+                rebounder.recordDefensiveRebound();
+            }
+            rebounderId = rebounder.getPlayerId();
+        }
+        String outcome = switch (recovery) {
+            case RECOVERED_OFFENSE -> "OFFENSIVE";
+            case RECOVERED_DEFENSE -> "DEFENSIVE";
+            case OOB_OFFENSE -> "OUT_OF_BOUNDS_OFFENSE";
+            case OOB_DEFENSE -> "OUT_OF_BOUNDS_DEFENSE";
+        };
+        data.addEvent(offTeamId, defTeamId, period, sequence,
+                PlayType.REBOUND, outcome, rebounderId);
+        return sequence + 1;
+    }
+
+    /**
+     * §3.21 (decisions.md #043 C/H): what a LIVE free-throw trip did — the new {@code
+     * sequence} and whether the OFFENSE keeps the ball because it rebounded the missed
+     * last attempt.
+     *
+     * <p>Same shape as {@link ReboundFoulResult} and {@link MissedShotResolver.Result}:
+     * a FACT returned to the caller, which owns the {@code continue}/{@code return}.
+     */
+    record FreeThrowResult(int sequence, boolean offenseRetains) {}
+
+    /**
+     * §3.21 (decisions.md #043 C/D/H): the STANDARD free-throw handler — the shared trip
+     * ({@link #awardFreeThrows}, unchanged) plus the board that follows a missed LAST
+     * attempt. Used by the three sources where the last free throw is live:
+     * {@code SHOOTING}, {@code BONUS} and {@code AND_ONE}.
+     *
+     * <p><b>⚠ TWO LAYERS, NOT ONE METHOD WITH A FLAG (#043 H).</b> {@code
+     * awardFreeThrows} keeps owning the shared trip and its {@code int} return, and is
+     * NOT widened: every call site of it keeps compiling, and #028 B's "one FT block, so
+     * FT/points reconciliation is automatic" holds by construction. This layer adds only
+     * the possession-deciding part, and takes the {@code offense}/{@code defense}/{@code
+     * capReached} that only it needs.
+     *
+     * <p><b>⚠ {@code FLAGRANT} and {@code TECHNICAL} are NOT flagged off — they simply
+     * never call this method.</b> That is the whole reason for the split rather than a
+     * {@code reboundableOnMiss} flag. Their possession consequence is fixed BY RULE and
+     * independent of the free throw's outcome: the offense retains on a flagrant either
+     * way (#034 B), and play resumes exactly as it was on a technical (#032 G). For them
+     * a free throw is a scoring event with no bearing on possession; for the three
+     * sources here the last attempt's outcome DECIDES possession. Those are different
+     * operations that happened to share a loop. {@link #awardTechnicalFoul} is the
+     * structural proof: it is called from {@link #simulate} BETWEEN possessions, where
+     * there is no possession, no on-floor five and no loop — under a one-method design
+     * it would have to pass {@code null} for a rebound context it has no use for.
+     *
+     * <p><b>⚠ ONLY THE LAST ATTEMPT IS LIVE.</b> A missed first free throw is a dead
+     * ball. Measured, non-last misses run 2.30/team-game — LARGER than the live ones —
+     * so the terminal test is the whole correctness of this branch, not a detail. It is
+     * expressed by awarding {@code count - 1} dead attempts and then the last one alone,
+     * which makes "which attempt is live" a structural fact rather than a condition
+     * inside the loop.
+     *
+     * <p><b>⚠ The board is the ORDINARY contest at a REDUCED base</b> ({@code
+     * baseOffensiveRebound() × }{@link SimConfig#FREE_THROW_REBOUND_LEAN}, #043 D): the
+     * defense has inside position by rule, so the realized offensive share is ~0.19
+     * rather than the board's 0.262. {@link MissedShotResolver} is reused WHOLE (#043 C,
+     * #026 B) — the OOB carve, the cap forcing and the credit path all come free, and
+     * ~7% of free-throw rebounds resolving {@code OUT_OF_BOUNDS_*} is a real outcome.
+     *
+     * <p><b>⚠ THIS METHOD DOES NOT FORK THE POSSESSION</b> — it owns the BASKETBALL and
+     * returns a fact; the loop owns the CONTROL FLOW. That is exactly {@link
+     * MissedShotResolver#resolve}'s contract, and it is NOT what #034 B refused: that
+     * was a {@code continue} placed INSIDE a method documented not to fork.
+     *
+     * @param offense the possession's offensive five — the rebounder pool, and the side
+     *                {@code offenseRetains} is relative to. ⚠ At the rebounding-foul
+     *                site the FOULED team may be the DEFENSE (an over-the-back sends the
+     *                defending team to the line), so this is the POSSESSION's
+     *                orientation, never "whoever shot".
+     * @return the new sequence, and whether the offense rebounded the last miss
+     */
+    FreeThrowResult awardLiveFreeThrows(GameData data, PlayerGameState shooter,
+                                        String shootingTeamId,
+                                        String offTeamId, String defTeamId,
+                                        List<PlayerGameState> offense,
+                                        List<PlayerGameState> defense,
+                                        int period, int sequence, int count,
+                                        FreeThrowSource source, boolean capReached,
+                                        RandomGenerator rng) {
+        // The dead attempts, then the live one — same shared trip either way.
+        if (count > 1) {
+            sequence = awardFreeThrows(data, shooter, shootingTeamId, offTeamId,
+                    defTeamId, period, sequence, count - 1, source, rng);
+        }
+        // The live attempt, alone. Whether it dropped is read off the shooter's own
+        // made counter — the trip's existing bookkeeping (#028 B), so nothing new has
+        // to be threaded back out of the shared block to learn it.
+        int madeBefore = shooter.getFreeThrowsMade();
+        sequence = awardFreeThrows(data, shooter, shootingTeamId, offTeamId,
+                defTeamId, period, sequence, 1, source, rng);
+        if (shooter.getFreeThrowsMade() > madeBefore) {
+            return new FreeThrowResult(sequence, false); // made: dead ball, no board
+        }
+
+        MissedShotResolver.Result miss = missedShotResolver.resolve(offense, defense,
+                capReached, config.baseOffensiveRebound() * SimConfig.FREE_THROW_REBOUND_LEAN,
+                rng);
+        emitMissedShotEvent(data, miss, offTeamId, defTeamId, period, sequence);
+        sequence++;
+        return new FreeThrowResult(sequence, miss.outcome().offenseRetains());
     }
 
     /**

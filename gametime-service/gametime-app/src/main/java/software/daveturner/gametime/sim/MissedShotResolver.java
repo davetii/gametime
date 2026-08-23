@@ -71,6 +71,29 @@ public class MissedShotResolver {
      */
     public Result resolve(List<PlayerGameState> offense, List<PlayerGameState> defense,
                           boolean capReached, RandomGenerator rng) {
+        return resolve(offense, defense, capReached, config.baseOffensiveRebound(), rng);
+    }
+
+    /**
+     * §3.21 (decisions.md #043 C/D): the same resolution at a CALLER-SUPPLIED contest
+     * base, for the free-throw board — where the defense has inside position by rule and
+     * the base is {@code baseOffensiveRebound() × }{@link
+     * SimConfig#FREE_THROW_REBOUND_LEAN}.
+     *
+     * <p><b>This resolver is reused WHOLE and deliberately so</b> (#043 C, #026 B's
+     * discipline one level up): the OOB carve, the cap forcing and the rebounder
+     * selection all come for free, and the free-throw board needs no machinery of its
+     * own. ⚠ <b>The OOB slices come along, and that is right</b> — ~7% of free-throw
+     * rebounds resolve {@code OUT_OF_BOUNDS_*} rather than to a rebounder. A missed free
+     * throw that goes out of bounds is a real outcome, not a defect of the reuse.
+     *
+     * <p>⚠ <b>Only the rebound CONTEST reads the supplied base.</b> The OOB carve above
+     * it is flat and skill-independent (Decision A) and is unchanged here — a free throw
+     * does not sail out of bounds more or less often because of where the players stand.
+     */
+    public Result resolve(List<PlayerGameState> offense, List<PlayerGameState> defense,
+                          boolean capReached, double offensiveReboundBase,
+                          RandomGenerator rng) {
         // 1. Carve OOB off the top FIRST — a flat, skill-independent share of misses
         //    leave the court. Skill plays NO part in whether the ball goes OOB.
         if (rng.nextDouble() < config.oobTotalWeight()) {
@@ -89,7 +112,8 @@ public class MissedShotResolver {
         PlayerGameState offRebounder = reboundResolver.pickOffensiveRebounder(offense, rng);
         PlayerGameState defRebounder = reboundResolver.pickDefensiveRebounder(defense, rng);
         boolean offensiveRebound = !capReached
-                && reboundResolver.isOffensiveRebound(offRebounder, defRebounder, rng);
+                && reboundResolver.isOffensiveRebound(offRebounder, defRebounder,
+                        offensiveReboundBase, rng);
         if (offensiveRebound) {
             return new Result(MissedShotOutcome.OFFENSIVE_REBOUND, offRebounder);
         }

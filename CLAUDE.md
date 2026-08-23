@@ -12,7 +12,8 @@ gametime/
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list (current phase only — CURRENTLY:
-│   │                          §3.21 REBOUND POOL, needs a DESIGN PASS)
+│   │                          §3.22 THE PUTBACK, needs a DESIGN PASS.
+│   │                          §3.21 REBOUND POOL shipped as #043)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
 │   ├── ideas.md               Parking lot — untriaged future-improvement ideas
 │   ├── calibration.md         Calibration targets — THE source of truth for them
@@ -297,7 +298,7 @@ push a branch just because it's ahead of origin.
   comment, `baseline()`'s javadoc, its error message, and
   `SimConfigProfileBindingTest.EXPECTED_TUNABLE` (which asserts **both** constructor
   arity and instance-field count, so a missed accessor fails loudly). Currently **62
-  tunables / 27 statics**.
+  tunables / 28 statics** (§3.21 added `FREE_THROW_REBOUND_LEAN`, a rule).
 - **`game_event` has TWO participant columns and they are different KINDS of fact.**
   `assist_player_id` is the **teammate** who helped; `opponent_player_id` is the
   **counterparty** — the player on the other side of the play, and therefore **ALWAYS on

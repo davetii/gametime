@@ -261,6 +261,29 @@ class CalibrationHarness {
             agg.pointsMismatches++;
         }
 
+        // §3.21 (decisions.md #043 F): REBOUND-POOL reconciliation — every REBOUND event
+        // that names a player is a box-score rebound, and every box-score rebound has an
+        // event that names them. Same shape as the three checks above: events are the
+        // source of truth.
+        //
+        // ⚠ The OUT_OF_BOUNDS_* outcomes are EXCLUDED BY DESIGN, and that is the whole
+        // subtlety. They are REBOUND events with a null primary player because nobody
+        // secured the ball — a possession change with no rebound, which is what a "team
+        // rebound" actually means. ⚠ A team rebound is NEVER a bucket for rebounds whose
+        // owner the engine failed to identify: EVERY ACTUAL REBOUND HAS AN OWNER, and
+        // this line is what now proves it. Filtering on the null primary rather than on
+        // the outcome string keeps the check honest if a future outcome is added.
+        long ownedRebounds = events.stream()
+                .filter(e -> e.getPlayType() == PlayType.REBOUND
+                        && e.getPrimaryPlayerId() != null)
+                .count();
+        int boxRebounds = boxScores.stream()
+                .mapToInt(b -> nz(b.getOffensiveRebounds()) + nz(b.getDefensiveRebounds()))
+                .sum();
+        if (ownedRebounds != boxRebounds) {
+            agg.reboundPoolMismatches++;
+        }
+
         // §3.8 (decisions.md #026 D): count OUT_OF_BOUNDS_* REBOUND events so the OOB
         // rate is VISIBLE (no hard target) — sail-out is a genuinely new outcome that
         // removes a rebound chance, so its rate must be watchable to confirm the
@@ -600,6 +623,11 @@ class CalibrationHarness {
         // whether the FT tags or the points arithmetic drifted.
         int freeThrowSourceMismatches;
         int pointsMismatches;
+        // §3.21 (#043 F): the rebound-pool invariant. THE DURABLE INSTRUMENT THIS PASS
+        // LEAVES — a rebound whose owner the engine fails to identify now fails the
+        // harness, which is exactly the class of gap §3.21 existed to close and which
+        // nothing was watching for. Its own counter, for the reason above.
+        int reboundPoolMismatches;
 
         // §3.5 per-slot minutes (slot 0 = biggest-minutes player per team-game).
         final long[] minutesBySlot = new long[MAX_TRACKED_SLOTS];
@@ -725,7 +753,8 @@ class CalibrationHarness {
                     "target 36.0% — sourced 2025-26", BASELINE_3P_PCT, baselineRun));
             lines.add(String.format("FGA / team / game:      %.1f   (target 89.1 — SOURCED"
                     + " 2025-26. \u2705 \u00a73.20 LANDED IT at 89.22 via sim.base-no-basket-"
-                    + "foul 0.15 -> 0.1687. \u26a0 NOT via non-shooting-foul-share \u2014 that"
+                    + "foul 0.15 -> 0.1687, then \u00a73.21 re-landed it after the rebound-pool "
+                    + "fix at 0.1753. \u26a0 NOT via non-shooting-foul-share \u2014 that"
                     + " knob does not move FGA AT ALL (both foul branches return before an"
                     + " attempt is charged), disproving #042 B. \u26a0 IT IS BOUGHT AGAINST THE"
                     + " FOULS ROW: each extra foul costs 1.49 FGA, so the two are"
@@ -742,8 +771,20 @@ class CalibrationHarness {
                     "target 26.7 — sourced 2025-26", BASELINE_ASSISTS, baselineRun));
             lines.add(numbered("Turnovers / team / game:", turnovers / tg, "%.1f",
                     "target 14.5 — sourced 2025-26", BASELINE_TURNOVERS, baselineRun));
-            lines.add(String.format("Off reb / team / game:  %.1f", offReb / tg));
-            lines.add(String.format("Def reb / team / game:  %.1f", defReb / tg));
+            // §3.21 (#043 B): both rows carry a target now, and both are REPORTED
+            // RESIDUALS. The note is on the OFF row so it is read once, not twice.
+            lines.add(String.format("Off reb / team / game:  %.2f   (target ~11.3 — SOURCED"
+                    + " 2025-26. ⚠ REPORTED RESIDUAL, NOT A MIS-TUNE, and"
+                    + " sim.base-offensive-rebound CANNOT close it: THREE slices with THREE"
+                    + " different offensive shares feed these two rows — the ordinary board"
+                    + " 0.262 (the only knob), a blocked shot recovered in bounds 0.400 (the"
+                    + " FLAT block-* weights, not a contest), and the free-throw board ~0.17"
+                    + " (FREE_THROW_REBOUND_LEAN, a rule). The knob reaches only the first."
+                    + " §3.21 closed the POOL 37.80 -> 43.72 against a real 43.70; what"
+                    + " remains is the split. Do NOT re-weight block-* to chase it either."
+                    + " See calibration.md, The rebound pool)", offReb / tg));
+            lines.add(String.format("Def reb / team / game:  %.2f   (target ~32.4 — SOURCED"
+                    + " 2025-26. Residual — see the Off reb note above)", defReb / tg));
             lines.add(String.format("Blocks / team / game:   %.1f   (target 4.8 — sourced"
                     + " 2025-26. \u26a0 \u00a73.17 PREDICTED THIS WOULD FALL TO ~2.6 AND IT"
                     + " DID NOT — it barely moved. PROB_FLOOR (0.02) is 4x base-block-three"
@@ -773,6 +814,13 @@ class CalibrationHarness {
             lines.add(String.format("Reconciliation (points): %s",
                     pointsMismatches == 0 ? "OK (events = box score = final)"
                             : pointsMismatches + " MISMATCH(es)"));
+            // §3.21 (#043 F): the fourth line. OUT_OF_BOUNDS_* REBOUND events carry no
+            // player and are excluded — they are possession changes where no rebound
+            // happened, not rebounds with a missing owner.
+            lines.add(String.format("Reconciliation (reb pool):%s",
+                    reboundPoolMismatches == 0
+                            ? " OK (owned REBOUND events = box score)"
+                            : " " + reboundPoolMismatches + " MISMATCH(es)"));
 
             System.out.println();
             System.out.println("======== §3.4 + §3.5 + §3.7 CALIBRATION REPORT =========");
@@ -829,7 +877,8 @@ class CalibrationHarness {
             }
             System.out.printf("  FTA / team / game:       %.1f   (target ~23.5 — SOURCED"
                             + " 2025-26. \u2705 \u00a73.20 LANDED IT at 23.08 via sim.non-"
-                            + "shooting-foul-share 0.50 -> 0.317. \u26a0 TUNE THAT SHARE"
+                            + "shooting-foul-share 0.50 -> 0.3766, then \u00a73.21 -> 0.4123 to pull back "
+                            + "the FTA its foul-rate rise added. \u26a0 TUNE THAT SHARE"
                             + " AGAINST THIS LINE, never against points. The response is DEAD"
                             + " LINEAR at -20.46 FTA per unit share, but the two FT SOURCES"
                             + " move in OPPOSITE directions (SHOOTING up, BONUS down), so net"

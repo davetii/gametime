@@ -360,3 +360,133 @@ into a graveyard.
   **What would make it real:** a game-summary/recap consumer, or Phase 4's design pass
   choosing to take it on. ⚠ **Deliberately NOT scheduled and NOT a gate** — the acute bug
   is fixed, and whether this is worth a refactor is an open question, not a decided one.
+
+- **⚠⚠ SKILL SENSITIVITY IS ~10× TOO STEEP, AND CALIBRATION CANNOT SEE IT — the harness
+  only ever runs AVERAGE-vs-AVERAGE rosters** *(measured 2026-08 by a throwaway probe,
+  after the user challenged a weaker claim; **the probe was deleted**, the numbers are
+  below)*. Holding an average offense fixed at skill 10 and varying only the defense's
+  skill, over 100 possessions × 300 runs:
+
+  | defense skill | steals | blocks | forced TO | opp points | **opp FG%** |
+  |---|---|---|---|---|---|
+  | 4 (terrible) | 1.3 | 2.0 | 2.3 | 202 | **79.8%** |
+  | 10 (average) | 3.4 | 3.4 | 6.1 | 125 | **47.7%** |
+  | 16 (elite) | 20.8 | 6.3 | 36.9 | 31 | **16.2%** |
+
+  ⚠ **A 63-point FG% swing across the skill range, against a real NBA team-defense spread
+  of about 5 points (~44–49%).** Forced turnovers span 2.3 → 36.9, which is not
+  basketball at either end. The response to skill is roughly an **order of magnitude too
+  steep**.
+  ⚠ **THIS IS WHY NO CALIBRATION PASS HAS EVER CAUGHT IT: every harness run uses
+  `teamOf5(id, 10)` — average against average — which sits exactly at the MIDPOINT of the
+  curve, where every number looks right** (47.7% FG, 6 turnovers). §3.4–§3.21 have all
+  tuned the **intercept** and **never once tested the slope**. It is the same class of
+  blind spot as §3.17's shot mix (a green aggregate hiding a wrong composition), one
+  level up: a green *midpoint* hiding a wrong *gradient*.
+  ⚠ **The consumer that will expose it is PHASE 5.** Season play puts real rosters with
+  real skill spread against each other; good teams will beat bad teams by impossible
+  margins and standings will be degenerate. Today nothing consumes the slope, which is
+  precisely why it has stayed invisible.
+  **What would make it real:** Phase 5, or any pass that wants team strength to mean
+  something. ⚠ **It is a TUNING problem, not a rebuild** — the suspects are the global
+  `SENSITIVITY` (0.5) and the per-contest sensitivities, all of which are `public static
+  final` model machinery. ⚠ **It needs a new instrument first**: a harness mode that runs
+  a skill LADDER and reports the response curve, because the existing report cannot show
+  a slope at all. **Do not attempt to re-tune it against the average-vs-average rows —
+  those are already landed and would not move.**
+
+- **Defense gets EFFICIENCY but not VOLUME — possessions strictly ALTERNATE**
+  *(same 2026-08 audit)*. `GameSimulator`'s loop is `homeOnOffense = (poss % 2 == 0)`, so
+  each team's possession COUNT is fixed by config before tip-off and nothing in a
+  possession changes it. Only the **offensive-retention loop** (cap 3) varies anyone's
+  attempt count, so offense can extend itself and defense cannot generate a possession
+  for itself: a steal, a defensive rebound and a made basket all yield the possession the
+  defense was getting anyway.
+  ⚠ **Deliberately recorded as the NARROW claim, because the broad one is FALSE.**
+  Defensive skill absolutely does pay off — see the table above; it simply pays off
+  through **how well each possession goes**, never through **how many** you get. In real
+  basketball a live-ball steal in transition is worth more than a stop after a made
+  basket, partly through what it leads to; here that second channel does not exist.
+  ⚠ It is also why `Pace` is a config INPUT rather than an emergent result, and why FGA
+  has only one real lever (`base-no-basket-foul`, via possessions ended *without* an
+  attempt) — which is the mechanism behind the FGA/Fouls over-determination.
+  **What would make it real:** a transition play type, or a pace-as-outcome model.
+  ⚠ **Not a bug and not a gate** — alternation is a deliberate simplification (#023 B)
+  and every calibrated row is landed under it. Recorded so nobody mistakes it for an
+  oversight or tries to make defense pay off by tuning a rate.
+
+- **⚠ A POSSESSION HAS NO CLOCK — "time" exists only as a possession COUNT, and this is
+  the single largest modelling absence in the engine** *(found in the 2026-08 audit; the
+  user's framing: "it seems very complicated to implement")*. `PossessionEngine` contains
+  **no notion of seconds**. `SHOT_CLOCK_VIOLATION` is a weighted draw from
+  `TurnoverCause`, not a clock expiring. Minutes are a **possession-share projection**
+  (#023 A). Overtime is `otPossessionsPerPeriod` — *some more turns*, not five minutes.
+
+  **What is missing, concretely** — all of it downstream of the same absence:
+  - **No endgame.** No intentional fouling when trailing, no two-for-one, no holding for
+    the last shot, no running out the clock with a lead. **The last possession of a close
+    game is simulated identically to the first.**
+  - **`clutch` is DEAD.** ⚠ **Verified: the skill is calculated (`ClutchSkillCalculator`),
+    mapped and stored, and has ZERO references in the entire `sim` package.** It is a
+    player attribute the engine cannot read, because there is no "late and close" for it
+    to key off. ⚠ **This is the ROOT CAUSE of one of the four dead skills
+    [player.md](player.md) already lists** (line ~340, "still read by nothing") — that
+    file records the symptom, this entry records why, and the two should stay consistent.
+  - **No score-awareness at all.** A team down 20 and a team up 20 play the same way.
+  - **Pace cannot be a strategy** — it is a config input (see the alternation entry
+    above), so a team cannot *choose* to slow the game down.
+
+  ⚠ **THE USER IS RIGHT THAT IT IS COMPLICATED, AND THE REASON IS WORTH STATING: it is
+  not one feature, it is a new AXIS.** Every phase so far has added a **branch** to a
+  possession — a fork, an event, a credit — and the possession model absorbed it. A clock
+  changes what a possession IS: it acquires a duration, possessions stop being
+  interchangeable, and the possession COUNT stops being an input and becomes an
+  emergent result. ⚠ **That reaches `calibration.md` directly** — `Pace (poss/48)` is
+  currently a target the engine hits **by construction**, and under a clock it becomes a
+  number the engine would have to *earn*. **Every rate expressed per-possession would
+  need re-reading.** This is why it is not "add a timer".
+
+  ⚠ **THE HONEST MIDDLE PATH, and the reason this entry exists rather than a flat "no":
+  most of the VALUE is in score-and-time AWARENESS, not in a real clock.** A cheap
+  version — a possession knowing *roughly* where it sits (period, possessions remaining,
+  score margin) — would light up `clutch`, intentional fouling and late-game shot
+  selection **without** making possessions variable-length or turning pace into an
+  emergent quantity. **The expensive half is the continuous clock; the valuable half is
+  the situational awareness.** ⚠ Whoever takes this on should price the two SEPARATELY
+  and be explicit about which is being bought — conflating them is what makes it look
+  like an all-or-nothing rebuild.
+
+  **What would make it real:** a **user-facing consumer** is the honest trigger — a
+  play-by-play view with timestamps, or a late-game/comeback narrative someone wants to
+  read. Phase 7's "live game simulation with play-by-play feed" is the closest thing on
+  the roadmap. ⚠ **Deliberately NOT scheduled and NOT a gate on anything.** #023 chose
+  the possession as the unit deliberately, every calibrated row is landed under it, and
+  nothing today consumes time. **It is recorded so that the next reader knows `clutch` is
+  inert BY OMISSION rather than by bug**, and so nobody starts it believing it is a
+  contained change.
+
+- **⚠ THE OFFENSIVE REBOUNDER IS NO LIKELIER TO TAKE THE SECOND-CHANCE SHOT — there is
+  no PUTBACK** *(same 2026-08 audit; **verified in code**, and the closest thing found to
+  a genuine §3.21-shaped gap)*. An offensive rebound `continue`s the possession loop,
+  which re-enters at `shotSelector.pickShooter(offense, rng)` — a weighted draw over all
+  five by `offensiveWeight`, taking **no argument identifying who just got the board**.
+  So the center who grabbed it hands the ball back out and is as likely to shoot as the
+  point guard who was standing at the arc.
+  ⚠ **Why this matters more now than it did before §3.21:** that pass raised offensive
+  rebounds 9.90 → **11.78/team-game**, so the number of second-chance possessions
+  resolved this way went up ~19%. **A putback is one of the most recognisable events in
+  basketball** and the engine cannot produce one.
+  ⚠ **It is a fidelity gap, not a correctness one** — the rebound is credited, the
+  possession is right, and nothing reconciles wrong. It is exactly the "the ball goes to
+  the right team, so nothing looks broken" shape §3.21's two gaps had.
+  **What would make it real:** a fidelity pass that wants it. ⚠ It needs `pickShooter` to
+  learn about the rebounder (a signature change on the engine's hottest path), it would
+  **consume/shift RNG** and re-baseline every seeded sim test, and it would move **2P%
+  and FG%** (putbacks are high-percentage rim attempts) — so it is a real design pass,
+  not a tweak.
+
+- **An assist is credited in exactly ONE place, and only on a made field goal**
+  *(same audit — verified: `resolveAssist` has one call site, inside `if (made)`)*.
+  Noted alongside the above because it is the same question asked of a different stat, and
+  it appears **correct**: the and-1 rides the same made-shot block, and free throws
+  correctly carry no assist. Recorded so the next auditor does not re-derive it.
