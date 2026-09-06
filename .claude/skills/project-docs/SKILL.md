@@ -61,12 +61,10 @@ STOLEN-share calls were made).
 Append at the bottom (before the `*Template for new entries:*` block), never
 renumber. Two entry shapes exist:
 
-> **⚠ KEEP ENTRIES PROPORTIONATE — this guidance was missing until 2026-08, and the
-> file grew accordingly.** Measured after §3.14b: `decisions.md` is **369k chars**, and
-> **92% of it is fourteen §3.x engine entries averaging 24.5k each** against
-> `#001`–`#020`'s ~1.3k. Every successive design pass produced a bigger entry than the
-> last (#030 53k, #031 47k, #032 44k, #034 44k). A condense pass is now a **gate on
-> starting Phase 4** (roadmap.md) — do not make its job harder.
+> **⚠ KEEP ENTRIES PROPORTIONATE.** An engine design-pass entry runs an order of
+> magnitude longer than a foundational one, and that is the failure mode to write
+> against. **Hold the budget below rather than tightening it** — an entry that fits it
+> needs no trimming, and one that does not is restating.
 >
 > **Budget a full design-pass entry at ~15–20k chars.** Past that, you are almost
 > certainly restating. The three sections that bloat, in order:
@@ -176,9 +174,7 @@ later, and a note on the trigger/consumer that would promote it. Don't over-form
 match the existing entries. A parked idea should say what would make it real (its
 missing consumer), the same "ahead of a consumer" discipline the decisions use.
 
-⚠ **In backlog.md, a COMPLETED chore is REMOVED, not checked off** *(user call,
-2026-08, after the file was measured at **30% completed work** — 19.3k of 65k across
-seven `[x]` items, several carrying superseded pre-design-pass reasoning)*. A finished
+⚠ **In backlog.md, a COMPLETED chore is REMOVED, not checked off.** A finished
 chore **has a phase home by definition**: its landing and reasoning belong to the
 `decisions.md` entry or roadmap phase that consumed it, so an `[x]` here is a duplicate
 record that buries the open work. **Before deleting, confirm the content is genuinely
@@ -187,10 +183,7 @@ if it is not, move what is worth keeping there *first*. Then check nothing point
 removed text (`grep` for it in `docs/` and `CLAUDE.md`); an inbound reference to a
 deleted anchor is the one real cost of this convention.
 
-⚠ **calibration.md is a REFERENCE, not a history.** *(User call, 2026-08 — the file was
-35k, carried **242** `#NNN`/§X.Y citations, and had section headers like "✅ RESOLVED",
-"✅ HISTORY" and "THE FIX IS NOT THE ONE THE PLAN SPECIFIED". Rewritten to 13k.)* A
-reader opens it to learn **what the engine is tuned toward and where it sits**, not which
+⚠ **calibration.md is a REFERENCE, not a history.** A reader opens it to learn **what the engine is tuned toward and where it sits**, not which
 pass argued what. **Keep the operative rules** — *judge at 5 seeds*, *don't back-solve the
 constant*, *this share is priced by the penalty rate*, *this row is green because a clamp
 is holding it* — those are load-bearing and easy to lose in a trim. **Cut the narrative**:
@@ -198,8 +191,7 @@ which phase landed it, what was predicted vs. measured, what a decision cost. Th
 in the `#NNN`. ⚠ When a target changes, update the table **and** the
 `CalibrationHarness` `(target ~N)` strings together.
 
-⚠ **The same instinct applies everywhere: these docs bloat, and verbosity has a
-measured cost.** `decisions.md` is already under a condense gate. When adding to any
+⚠ **The same instinct applies everywhere: these docs bloat.** When adding to any
 planning doc, prefer a pointer to a restatement — the crux, the final constants and the
 traps are what later phases reach for; the argument that produced them lives in its
 `#NNN` and should be cited, not re-told.
