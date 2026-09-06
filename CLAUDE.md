@@ -12,8 +12,8 @@ gametime/
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list (current phase only — CURRENTLY:
-│   │                          §3.22 THE PUTBACK, needs a DESIGN PASS.
-│   │                          §3.21 REBOUND POOL shipped as #043)
+│   │                          §3.22 THE PUTBACK, execute-ready, design
+│   │                          resolved as #044. §3.21 shipped as #043)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
 │   ├── ideas.md               Parking lot — untriaged future-improvement ideas
 │   ├── calibration.md         Calibration targets — THE source of truth for them

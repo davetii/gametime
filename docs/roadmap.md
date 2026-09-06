@@ -1084,12 +1084,23 @@ re-running the loop and re-agreeing the numbers, not a red build.
       damage was over-predicted ~2.5×** (predicted +1.7, measured +0.54): an extra offensive
       rebound does not buy a full extra attempt. Coverage gate green._
 
-### §3.22 — the putback (NEXT; ⚠ NEEDS A DESIGN PASS — open questions in [todo.md](todo.md))
+### §3.22 — the putback (NEXT; ✅ DESIGN-RESOLVED as [decisions.md](decisions.md) #044 — execute-ready plan in [todo.md](todo.md))
 
-> ⚠ **THIS BULLET IS A SEAM, NOT A PLAN.** It needs its own design pass resolving the
-> open questions in todo.md into a numbered `decisions.md #NNN` **plus** an execute-ready
-> plan, before any production code. Every phase so far has found real design questions the
-> one-liner hid.
+> ✅ **Design pass done (2026-09, #044 A–I).** The seven user calls below are recorded as
+> Decisions A–G with their reasoning; the mechanical calls resolved as: **multiplier** on
+> `offensiveWeight`; **`sim.offensive-rebounder-shot-weight = 2.0`** (tunable, 62 → 63);
+> **`OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5`** (a static rule, 28 → 29 — the
+> `FREE_THROW_REBOUND_LEAN` shape); the rebounder rides **`pickShooter` as a PARAMETER**
+> (a participant, not a mode — the opposite resolution from #043 H on the same test); and
+> the RNG question is **measured**: one draw at the pick as before, the stream still
+> moves, and **all 167 seeded sim tests pass unchanged**. ⚠ **Two premises below were
+> corrected by measurement and the text is left as written**: the harness is NOT "five
+> identical skill-10 players" (422 distinct attribute rows; skills computed at load), and
+> **FG% goes UP (+0.24), not down** — the rebounder already shoots interior (54.8% on the
+> next shot vs 45.6%). Design-run landing at 5 seeds: Points 115.70 ✅ · FG% 47.02 ✅ ·
+> Assists **27.00** (+0.30, closer than today) · FGA 89.60 (+0.50, band edge — execution
+> re-lands on `base-no-basket-foul` if its own reading needs it) · rebounder next-shot
+> share 22.4% → **35.4%** (reported, not a target).
 
 - [ ] **§3.22 — the putback: weight the offensive rebounder to take the next shot.**
       *(Raised 2026-08 by the user, from an audit after §3.21 asking "what other design

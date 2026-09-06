@@ -175,7 +175,7 @@ decides *who* the possession is played with.
 | # | Phase / resolver | What it decides | On a hit |
 |---|---|---|---|
 | 0 | **`RotationState.advancePossession()`** — **both teams**, before every possession | drain/recover energy, **roll a technical (§3.14a)**, force off fouled-out **or ejected**, **foul-trouble sub (§3.13)**, fatigue sub | a `FOUL`/`TECHNICAL_FOUL` + **1 FT** on a technical hit — emitted by `PossessionEngine`, which the step returns the committer to (**three RNG draws**†) |
-| 1 | **`ShotSelector`** | picks the shooter, then the shot type — **§3.17: the type is a per-type SHARE TABLE (`sim.shot-share-*`) × an avg-10 skill modifier, with the coach's lean applied to THREE and its RECIPROCAL to PERIMETER** (#040 C/D) | — |
+| 1 | **`ShotSelector`** | picks the shooter — **§3.22 (#044): the player who just took the offensive board carries × `sim.offensive-rebounder-shot-weight` for this draw only, `null` otherwise** — then the shot type — **§3.17: the type is a per-type SHARE TABLE (`sim.shot-share-*`) × an avg-10 skill modifier, with the coach's lean applied to THREE and its RECIPROCAL to PERIMETER** (#040 C/D) | — |
 | 2 | **`TurnoverResolver`** | turnover? then a 9-way cause draw; **§3.16: an `OFFENSIVE_FOUL` cause also charges a personal foul** | possession **ends** — and on a charge a **second** `FOUL` event is emitted for the same occurrence (§3.16) |
 | 3 | **`FoulResolver.isFoul`** | foul that **stops** the shot (no basket), then **§3.14b: was it flagrant?**, then **§3.16: was it a non-shooting foul?** | FTs, possession **ends** — *unless flagrant: 2 FTs and the offense **RETAINS***; *if non-shooting: **no FTs at all** outside the penalty, 2 bonus FTs inside it, possession ends either way* |
 | 4 | **`BlockResolver`** (via `ShotResolver`) | block carved off the top | loose-ball recovery |
@@ -296,7 +296,8 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      counterparty** (§3.18), a missed FGA on the shooter, no assist. A flat four-way
      `BlockResolver` then resolves the loose ball — a **defense recovery** (in-bounds or
      OOB) ends the possession; an **offense recovery** re-enters the second-chance loop at
-     the shot selector, capped like an offensive rebound.
+     the shot selector, capped like an offensive rebound — and **§3.22 (#044 A/C): the
+     player who recovered it is the `putbackCandidate` for that next draw**.
      ⚠ **§3.21 (#043 E): a recovery now EMITS a `REBOUND` event and credits a rebounder**
      on the two in-bounds outcomes — it no longer "skips the rebound step". The flat roll
      still picks the **side**; a skill-weighted draw then picks **which of that side's
@@ -334,7 +335,15 @@ Each possession produces **one or more** `GameEvent` rows in this order:
      ends, ball goes to the other team; **or**
    - `REBOUND` / `OFFENSIVE` (primary_player = offensive rebounder) → the shooting
      team retains the ball and runs a **second-chance possession** through the
-     full flow above (turnover → foul → shot → miss-outcome); **or**
+     full flow above (turnover → foul → shot → miss-outcome). ⚠ **Until §3.22 the
+     rebounder got NO preference at the shot selector** — the next shooter was the
+     ordinary five-way `offensiveWeight` draw, so a putback could not happen.
+     **§3.22 (#044 A–E): the rebounder's weight is multiplied by
+     `sim.offensive-rebounder-shot-weight` (2.0) for that ONE draw** — a weight, not a
+     forced rim shot and not a branch — on all three paths that identify a rebounder
+     (this one, the block recovery and the missed last free throw); and when he does
+     take the shot, a make is assisted at half the ordinary chance
+     (`OFFENSIVE_REBOUNDER_ASSIST_LEAN`). No decay across retentions; **or**
    - `REBOUND` / `OUT_OF_BOUNDS_DEFENSE` — the ball left the court, defense's ball
      → possession ends. **No rebounder credited** (#026 E); **or**
    - `REBOUND` / `OUT_OF_BOUNDS_OFFENSE` — the ball left the court, offense retains
