@@ -38,7 +38,7 @@ say so.
 ## Everything, in one table
 
 All figures are **per team per game** unless noted. Current = the **5-seed mean, seeds
-1000–5000**, re-measured 2026-08 at the **§3.21 landing** on the `baseline` profile. **Target column: sourced rows are Basketball-Reference league averages, per game,
+1000–5000**, re-measured 2026-09 at the **§3.22 landing** on the `baseline` profile. **Target column: sourced rows are Basketball-Reference league averages, per game,
 2025-26.**
 
 ⚠ **Four rows are KNOWN RESIDUALS, deliberately left out of band** — def rebounds, off
@@ -65,37 +65,37 @@ visibility.
 
 | Measure | Type | Target / range | Current | Status |
 |---|---|---|---|---|
-| **Points** | **TARGET (SOURCED)** | **115.6** | **115.04** | ✅ **LANDED** (−0.56, band ±0.9). ⚠ It is **not an independent row** — points track **FGA**, because threes and FTs sit on target and the swing is two-point *volume*. Tune FGA, not this |
-| **FG%** | **TARGET (SOURCED)** | **47.1%** | **46.78%** | ✅ **§3.20 LANDED IT** (43.5 → 47.0) via `base-drive` / `base-post` / `base-perimeter`. ⚠ **`base-three` must NOT move** (#040 F) |
-| **2P%** *(derived — not a harness row)* | **TARGET (SOURCED)** | **55.0%** | **54.62%** | ✅ **§3.20 LANDED IT** (48.8 → 55.0) — the file's largest open gap, closed. Compute it as `(FGA×FG% − 3PA×3P%) / (FGA − 3PA)`. ⚠ **The bases pass through at ~0.89, not 1.0** — see *The 2P% gap* |
-| 3P% | **TARGET (SOURCED)** | **36.0%** | 35.68% | 🟡 **RESIDUAL −0.52.** `base-three` is frozen (#040 F) and was **never touched** by §3.20; the row simply wanders. ⚠ **Its ±0.25 band is TIGHTER THAN THE ROW'S OWN RUN-TO-RUN SPREAD** (it ranged 35.48–36.08 across the pass at a fixed constant, sem ~0.15), so this row can fail its band by chance — §3.19's own 35.76 would have. **Judge the band before judging the number** |
-| Assists | **TARGET (SOURCED)** | **26.7** | 27.10 | 🟡 **+0.40, ACCEPTED (user call, §3.20)** — a by-product of the 2P% lift: more made twos, more assist opportunities. `sim.base-assist` was **not** touched (not one of #042's eight). **Revisit at ~+4 (≈30.7)**, not before |
-| Turnovers | **TARGET (SOURCED)** | **14.5** | 14.62 | ✅ **LANDED** via `sim.base-turnover` 0.038 → **0.0527**. ⚠ **That knob is PARTLY FLOORED and is far weaker than it looks** — see *The turnover floor*. ⚠ Steals derive from this row |
-| Blocks | **TARGET (SOURCED)** | **4.8** | 4.46 | 🟡 **RESIDUAL −0.34.** ⚠ **§3.21 did NOT move the block RATE** (#043 E4) — it changed what a block *emits*, and the row reads 4.46 against §3.20's 4.54, inside the run-to-run spread. ⚠️ **The row was never green for the right reason anyway — `PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005), so a three's block chance is FLOORED, not based, and the constant is INERT.** ⚠ **Effect sized at ~half a blocked three per team-game (0.74 vs 0.19) — NOT worth chasing**, and closed on that basis. Carry only as a footnote: **if a pass ever tunes `base-block-*`, reroute through `clampRareProbability` first**, or that one lever reads dead |
+| **Points** | **TARGET (SOURCED)** | **115.6** | **115.82** | ✅ **LANDED** (−0.56, band ±0.9). ⚠ It is **not an independent row** — points track **FGA**, because threes and FTs sit on target and the swing is two-point *volume*. Tune FGA, not this |
+| **FG%** | **TARGET (SOURCED)** | **47.1%** | **47.06%** | ✅ **§3.20 LANDED IT** (43.5 → 47.0) via `base-drive` / `base-post` / `base-perimeter`. ⚠ **`base-three` must NOT move** (#040 F) |
+| **2P%** *(derived — not a harness row)* | **TARGET (SOURCED)** | **55.0%** | **54.76%** | ✅ **§3.20 LANDED IT** (48.8 → 55.0) — the file's largest open gap, closed. Compute it as `(FGA×FG% − 3PA×3P%) / (FGA − 3PA)`. ⚠ **The bases pass through at ~0.89, not 1.0** — see *The 2P% gap* |
+| 3P% | **TARGET (SOURCED)** | **36.0%** | 36.14% | ✅ **IN BAND (+0.14) at the §3.22 landing** — but read the band note: this row wanders, and it has read −0.52 as recently as §3.21 with the constant untouched. `base-three` is frozen (#040 F) and was **never touched** by §3.20; the row simply wanders. ⚠ **Its ±0.25 band is TIGHTER THAN THE ROW'S OWN RUN-TO-RUN SPREAD** (it ranged 35.48–36.08 across the pass at a fixed constant, sem ~0.15), so this row can fail its band by chance — §3.19's own 35.76 would have. **Judge the band before judging the number** |
+| Assists | **TARGET (SOURCED)** | **26.7** | **26.84** | ✅ **+0.14 — §3.22 closed most of the old +0.40**, and did it by getting the *mechanic* right rather than by tuning. ⚠ **OPERATIVE RULE: a putback (`shooter == rebounder`) is assisted at `OFFENSIVE_REBOUNDER_ASSIST_LEAN` (0.5) × the ordinary chance** — nobody passes the rebounder his own board. It was **halved, not zeroed**, and the row's headroom is what priced it: zeroing removes ~1.1 and lands a real miss the other way. ⚠ **Do NOT re-land this row with `sim.base-assist`** — it has been left alone through two recalibrations and #044 E rejected spending it |
+| Turnovers | **TARGET (SOURCED)** | **14.5** | 14.68 | ✅ **LANDED** via `sim.base-turnover` 0.038 → **0.0527**. ⚠ **That knob is PARTLY FLOORED and is far weaker than it looks** — see *The turnover floor*. ⚠ Steals derive from this row |
+| Blocks | **TARGET (SOURCED)** | **4.8** | 4.54 | 🟡 **RESIDUAL −0.26.** ⚠ **Neither §3.21 nor §3.22 moved the block RATE** (#043 E4) — §3.21 changed what a block *emits*; the row has read 4.46–4.60 across the last three landings, inside the run-to-run spread. ⚠️ **The row was never green for the right reason anyway — `PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005), so a three's block chance is FLOORED, not based, and the constant is INERT.** ⚠ **Effect sized at ~half a blocked three per team-game (0.74 vs 0.19) — NOT worth chasing**, and closed on that basis. Carry only as a footnote: **if a pass ever tunes `base-block-*`, reroute through `clampRareProbability` first**, or that one lever reads dead |
 | Top-starter minutes | TARGET | ~34–36 | ~36.1 | ✅ |
 | Minutes ceiling | TARGET | nobody over ~42 | ok | ✅ |
-| Fouls | **TARGET (SOURCED)** | **19.9** | 19.40 | 🟡 **RESIDUAL −0.48** (was −1.06; `base-no-basket-foul` 0.1687 → **0.1753** closed another 55% of it). ⚠ **It closed as a SIDE EFFECT, not by chasing it**: §3.21's new rebounds raised FGA, and buying FGA back on this lever moves fouls toward target for free. ⚠ **Still cannot close the rest without un-landing FGA** — each extra foul costs 1.49 FGA and FGA is in band at 89.16. **The pair remains over-determined through one lever.** `PERSONAL_FOULS_PER_TEAM_GAME` re-measured to **19.08** (§3.21) |
-| **FTA** | **TARGET (SOURCED)** | **23.5** | **23.76** | ✅ **LANDED (+0.28)** via `sim.non-shooting-foul-share`, 0.50 → 0.3766 (§3.20) → **0.4123** (§3.21, pulling back the FTA the foul-rate rise added). ⚠ See *The non-shooting-foul share* — the response is linear, the two FT **sources move in opposite directions**, and it does **not** move FGA |
-| **FT%** | **TARGET (SOURCED)** | **78.0%** | **77.66%** | ✅ **NEW ROW, added by §3.20 (#042 C).** Basketball-Reference league average, per game, **2025-26**. It had been running **82.56%** — measured by the harness, **absent from this file**, and donating ~1.1 points/team/game no target was watching. Landed via `sim.ft-base` 0.75 → **0.705**. ⚠ **The base is not the landing**: realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10` and the roster's mean `freeThrows` is ~13.8 — a **global knob correcting a population effect** (parked in `ideas.md`) |
-| **3PA** | **TARGET (SOURCED)** | **37.0** | **36.92** | ✅ via `sim.shot-share-*` = 1.0 / 0.55 / 0.55 / **1.256** (§3.20 bumped only the three, #040 C, to offset the attempts its turnover rise removed). Charged three share **41.1%** vs a real 41.5% |
-| FGA | **TARGET (SOURCED)** | **89.1** | 89.16 | ✅ **LANDED (+0.06)** via `sim.base-no-basket-foul` 0.15 → 0.1687 (§3.20) → **0.1753** (§3.21, buying back the attempts its new offensive rebounds added) — ⚠ **NOT via `non-shooting-foul-share`**, which does not move FGA at all (both foul branches return before an attempt is charged). ⚠ **It is bought against Fouls**: each extra foul costs **1.49 FGA** (a foul ends the possession, forfeiting the offensive rebound the miss would sometimes have produced), so the two rows are **over-determined through one lever** — landing Fouls 19.9 would drop FGA to ~87.8. See the Fouls row |
-| Off rebounds | **TARGET (SOURCED)** | **11.3** | **11.78** | 🟡 **RESIDUAL +0.50, REPORTED not tuned.** §3.21 closed the pool (37.80 → **43.72** vs a real 43.70); the split now ends slightly long here and short on def rebounds. ⚠ **Structural, not a mis-tune** — see *The rebound pool*'s three-share rule |
-| Def rebounds | **TARGET (SOURCED)** | **32.4** | **31.94** | 🟡 **RESIDUAL −0.48, REPORTED not tuned** (was −4.22; §3.21's pool fix closed 89% of it). ⚠ **`sim.base-offensive-rebound` still CANNOT fix the remainder** — it reaches only one of the three slices feeding this row. See *The rebound pool* |
+| Fouls | **TARGET (SOURCED)** | **19.9** | **19.35** | 🟡 **RESIDUAL −0.55** (`base-no-basket-foul` 0.1753 → **0.178** at §3.22). ⚠ **It moves as a SIDE EFFECT, not by chasing it**: §3.22's putback raised FGA, and buying FGA back on this lever pulls fouls toward target for free — the third consecutive phase where that has been the shape. ⚠ **Still cannot close the rest without un-landing FGA** — each extra foul costs 1.49 FGA and FGA is in band at 89.40. **The pair remains over-determined through one lever.** `PERSONAL_FOULS_PER_TEAM_GAME` re-measured at §3.22 to **19.015** against the standing 19.08 — a **−0.34% drift, left unchanged** (the previous two updates were +4.2% and +3.0%; at this size the flagrants row, reading 0.159 against its ~0.13–0.20 ballpark, cannot tell the difference) |
+| **FTA** | **TARGET (SOURCED)** | **23.5** | **23.58** | ✅ **LANDED (+0.28)** via `sim.non-shooting-foul-share`, 0.50 → 0.3766 (§3.20) → **0.4123** (§3.21, pulling back the FTA the foul-rate rise added). ⚠ See *The non-shooting-foul share* — the response is linear, the two FT **sources move in opposite directions**, and it does **not** move FGA |
+| **FT%** | **TARGET (SOURCED)** | **78.0%** | **77.64%** | ✅ **NEW ROW, added by §3.20 (#042 C).** Basketball-Reference league average, per game, **2025-26**. It had been running **82.56%** — measured by the harness, **absent from this file**, and donating ~1.1 points/team/game no target was watching. Landed via `sim.ft-base` 0.75 → **0.705**. ⚠ **The base is not the landing**: realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10` and the roster's mean `freeThrows` is ~13.8 — a **global knob correcting a population effect** (parked in `ideas.md`) |
+| **3PA** | **TARGET (SOURCED)** | **37.0** | **36.96** | ✅ via `sim.shot-share-*` = 1.0 / 0.55 / 0.55 / **1.256** (§3.20 bumped only the three, #040 C, to offset the attempts its turnover rise removed). Charged three share **41.1%** vs a real 41.5% |
+| FGA | **TARGET (SOURCED)** | **89.1** | **89.40** | ✅ **LANDED (+0.30)** via `sim.base-no-basket-foul` 0.15 → 0.1687 (§3.20) → 0.1753 (§3.21) → **0.178** (§3.22, buying back the attempts the putback added — it read 89.60 untouched, 0.05 outside the band) — ⚠ **NOT via `non-shooting-foul-share`**, which does not move FGA at all (both foul branches return before an attempt is charged). ⚠ **It is bought against Fouls**: each extra foul costs **1.49 FGA** (a foul ends the possession, forfeiting the offensive rebound the miss would sometimes have produced), so the two rows are **over-determined through one lever** — landing Fouls 19.9 would drop FGA to ~87.8. See the Fouls row |
+| Off rebounds | **TARGET (SOURCED)** | **11.3** | **11.90** | 🟡 **RESIDUAL +0.60, REPORTED not tuned** (§3.22's putback added ~0.12 — more second-chance possessions survive to a board). §3.21 closed the pool (37.80 → **43.72** vs a real 43.70); the split now ends slightly long here and short on def rebounds. ⚠ **Structural, not a mis-tune** — see *The rebound pool*'s three-share rule |
+| Def rebounds | **TARGET (SOURCED)** | **32.4** | **31.55** | 🟡 **RESIDUAL −0.85, REPORTED not tuned** (was −4.22 pre-§3.21, whose pool fix closed 89%; §3.22 gave back ~0.39 — ⚠ **the pool itself slipped 43.72 → 43.45 against a real 43.70**, so this is no longer purely a split problem and is the sharpest open calibration question). ⚠ **`sim.base-offensive-rebound` still CANNOT fix the remainder** — it reaches only one of the three slices feeding this row. See *The rebound pool* |
 | Pace (poss/48) | **TARGET (SOURCED)** | **99.4** | ~100 nominal | ✅ |
-| Steals | observed | **8.4** | **8.18** | ⚠ **DERIVED, NOT TUNED** — steals = turnovers × STOLEN share. §3.20 landed TO on 14.5 and steals followed to 8.10, reproducing #042 I's prediction (8.05) **to 0.05** with the share untouched. **Do NOT chase 8.4**: the nine `to-weight-*` are frozen (#027 A) and the STOLEN share is not a lever (#041 F) |
-| **Foul-outs** | **ballpark** (**UNSOURCED**) | **~0.1–0.25** *(real)* | **0.427** | ⚠ **ROSE AGAIN with §3.21's FGA re-landing** (0.368 → 0.427) — the same price #042 D6 named, paid a second time. **Sized and accepted; do not chase it.** ⚠ **DEMOTED FROM `TARGET` BY §3.20 (#042 J)** — the old ~0.39 was a **landing promoted to a target**, i.e. circular, and real basketball sits *below* where the engine does. **Judge by the 4/5/6 distribution**, not this count — see *Foul-outs* |
-| Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 0.94 / 0.52 / 0.43 | **the real diagnostic for foul-outs** — judge by this, not the headline count |
-| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.337** | ⚠️ **judge at 5 SEEDS ONLY** — see *Technicals* |
-| **Flagrants** | ballpark (**UNSOURCED**) | **~0.13–0.20** (~0.25–0.40 league-wide) | **0.154** | ⚠️ **the COARSEST row here — 5 SEEDS ONLY.** ⚠ Its divisor is a **measured foul rate**: any pass that moves fouls must re-measure it, or this row silently reads low. §3.20 re-measured it to **17.77** (drift only −0.31%) |
-| Flagrant-2s | *(no target — a 15% share)* | — | **0.028** | the ejection driver |
-| **Ejections** | *(no target — an outcome)* | — | **0.039** | both causes (technicals alone: ~0.00) |
-| Fouled-three rate | ballpark | **~2% of 3PA** | **3.25%** *(corrected)* | ✅ scale-free: held across a 1.9× volume change. ⚠ Raw visible tally reads **1.46%** — the corrected figure is the one to judge |
-| 3-FT trips | ballpark | ~0.3–0.6 *here* | **1.20** *(corrected)* | the **count** tripled with 3PA while the **rate** above held. ⚠ The 0.3–0.6 range was set at half the current 3PA |
-| And-1s | ballpark | ~4–6% of made FG | 1.67 (4.0%) | ✅ inside the band since §3.20's 2P% lift (more made shots to ride) |
-| Fouls / team / period | observed | — | 4.90 | bonus at 5 — ⚠️ **AT the threshold**, which is why the penalty rate is volatile |
-| Team-periods in bonus | observed | — | 51.1% | ⚠️ **a result, not a knob — but it PRICES the FTA share above.** ⚠ §3.21 raised it (49.2% → 51.1%) as a side effect of the higher foul rate; that is part of why `non-shooting-foul-share` had to move with `base-no-basket-foul` |
-| Out of bounds | observed | — | **4.12** | ⚠ **§3.21 raised this by ~1.4 and the row is NOT drifting** — the two block-OOB slices and the free-throw board's OOB carve now EMIT their events (#043 C/E2), where before they were resolved silently. The rate did not change; the instrument became complete |
-| Turnover cause mix | observed | STOLEN dominant | 55.5% | no per-cause target |
+| Steals | observed | **8.4** | **8.24** | ⚠ **DERIVED, NOT TUNED** — steals = turnovers × STOLEN share. §3.20 landed TO on 14.5 and steals followed to 8.10, reproducing #042 I's prediction (8.05) **to 0.05** with the share untouched. **Do NOT chase 8.4**: the nine `to-weight-*` are frozen (#027 A) and the STOLEN share is not a lever (#041 F) |
+| **Foul-outs** | **ballpark** (**UNSOURCED**) | **~0.1–0.25** *(real)* | **0.386** | ⚠ **Moves with every FGA re-landing on the foul lever** — the #042 D6 price, now paid a third time (§3.22: 0.381 → 0.386 for the `base-no-basket-foul` nudge). **Sized and accepted; do not chase it.** ⚠ **DEMOTED FROM `TARGET` BY §3.20 (#042 J)** — the old ~0.39 was a **landing promoted to a target**, i.e. circular, and real basketball sits *below* where the engine does. **Judge by the 4/5/6 distribution**, not this count — see *Foul-outs* |
+| Players at 4 / 5 / 6 fouls | ballpark | *(no range yet)* | 1.01 / 0.56 / 0.39 | **the real diagnostic for foul-outs** — judge by this, not the headline count |
+| **Technicals** | ballpark | **~0.3–0.4** (~0.6–0.8 league-wide) | **0.335** | ⚠️ **judge at 5 SEEDS ONLY** — see *Technicals* |
+| **Flagrants** | ballpark (**UNSOURCED**) | **~0.13–0.20** (~0.25–0.40 league-wide) | **0.159** | ⚠️ **the COARSEST row here — 5 SEEDS ONLY.** ⚠ Its divisor is a **measured foul rate**: any pass that moves fouls must re-measure it, or this row silently reads low. §3.20 re-measured it to **17.77** (drift only −0.31%) |
+| Flagrant-2s | *(no target — a 15% share)* | — | **0.027** | the ejection driver |
+| **Ejections** | *(no target — an outcome)* | — | **0.037** | both causes (technicals alone: ~0.00) |
+| Fouled-three rate | ballpark | **~2% of 3PA** | **3.10%** *(corrected)* | ✅ scale-free: held across a 1.9× volume change. ⚠ Raw visible tally reads **1.46%** — the corrected figure is the one to judge |
+| 3-FT trips | ballpark | ~0.3–0.6 *here* | **1.15** *(corrected)* | the **count** tripled with 3PA while the **rate** above held. ⚠ The 0.3–0.6 range was set at half the current 3PA |
+| And-1s | ballpark | ~4–6% of made FG | 1.63 (3.9%) | ✅ inside the band since §3.20's 2P% lift (more made shots to ride) |
+| Fouls / team / period | observed | — | 4.88 | bonus at 5 — ⚠️ **AT the threshold**, which is why the penalty rate is volatile |
+| Team-periods in bonus | observed | — | 52.0% | ⚠️ **a result, not a knob — but it PRICES the FTA share above.** ⚠ §3.21 raised it (49.2% → 51.1%) as a side effect of the higher foul rate; that is part of why `non-shooting-foul-share` had to move with `base-no-basket-foul` |
+| Out of bounds | observed | — | **4.20** | ⚠ **§3.21 raised this by ~1.4 and the row is NOT drifting** — the two block-OOB slices and the free-throw board's OOB carve now EMIT their events (#043 C/E2), where before they were resolved silently. The rate did not change; the instrument became complete |
+| Turnover cause mix | observed | STOLEN dominant | 55.9% | no per-cause target |
 | Period-by-period FG% | observed | flat, not sagging | flat | correct fatigue behavior |
 
 ---
@@ -253,11 +253,11 @@ FGA with a NINTH constant (`base-no-basket-foul`) — see the FGA and Fouls rows
 | a **blocked** shot recovered in bounds | **0.400** | the flat `sim.block-*` weights — **not a contest at all**; the side is drawn before any rebounder exists |
 | a missed **last free throw** | **~0.17** | the same contest at a reduced base, `baseOffensiveRebound() × FREE_THROW_REBOUND_LEAN` — a `public static final` **rule** (the defense's inside position), with no properties line and no target row of its own |
 
-**Measured at the §3.21 landing:**
+**Measured at the §3.22 landing:**
 
 | | offensive | defensive | pool |
 |---|---|---|---|
-| engine | 11.80 | 31.92 | **43.72** |
+| engine | 11.90 | 31.55 | **43.45** |
 | real (11.3 / 32.4) | 11.30 | 32.40 | **43.70** |
 
 **The POOL lands — 43.72 against 43.70. The SPLIT ends slightly long on offense and
@@ -271,6 +271,17 @@ calibrated against the block rate.
 
 ⚠ **The pool MOVES with FG%** — a shooting fix removes misses and shrinks it. Any pass
 that changes FG% must re-read this before touching the rebound knob.
+
+⚠ **WHAT HAPPENS AFTER AN OFFENSIVE BOARD IS ALSO A REPORTED NUMBER, NOT A TARGET.**
+Since §3.22 the player who took the board carries `sim.offensive-rebounder-shot-weight`
+(**2.0**) on the next shooter draw. **The constant is the MULTIPLIER; the share is what
+it realizes**, and they are not the same number: the realized *rebounder is the next
+shooter-pick* share is **35.4%** (from a pre-§3.22 22.4%), against a real-basketball
+~45–55% of immediate second-chance attempts. **That gap is deliberate and stated** — a
+conservative first step on a mechanic that did not exist at all — and the share is
+**measured and reported, never back-solved into the constant** (#044 A, the #043 D
+discipline). Raising `M` is a one-line move once a sourced figure for the real share
+exists; until then this row is not chased.
 
 ⚠ **EVERY ACTUAL REBOUND HAS AN OWNER, and the harness now proves it.** A fourth
 reconciliation line asserts `count(REBOUND with a non-null primary player) ==

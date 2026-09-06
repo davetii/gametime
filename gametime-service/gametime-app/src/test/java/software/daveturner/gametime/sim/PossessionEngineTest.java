@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PossessionEngineTest {
 
     private final SimConfig config = SimConfig.baseline();
-    private final ShotSelector shotSelector = new ShotSelector();
+    private final ShotSelector shotSelector = new ShotSelector(config);
     private final ShotResolver shotResolver = new ShotResolver(config);
     private final TurnoverResolver turnoverResolver = new TurnoverResolver(config);
     private final FoulResolver foulResolver = new FoulResolver(config);
@@ -551,7 +551,7 @@ class PossessionEngineTest {
         solo.add(TestPlayerFactory.create("solo", "H", 10));
         PlayerGameState shooter = solo.get(0);
         for (long seed = 1; seed <= 50; seed++) {
-            assertNull(engine.resolveAssist(solo, shooter, rng(seed)),
+            assertNull(engine.resolveAssist(solo, shooter, false, rng(seed)),
                     "No supporting cast ⇒ no assist");
         }
     }
@@ -1257,7 +1257,7 @@ class PossessionEngineTest {
 
         // 0.0 lands in the FIRST weight slice: RECOVERED_DEFENSE.
         int next = engine.emitBlockRecoveryEvent(data, BlockRecovery.RECOVERED_DEFENSE,
-                offense, defense, "OFF", "DEF", 1, 50, rng(7));
+                offense, defense, "OFF", "DEF", 1, 50, rng(7)).sequence();
 
         assertEquals(51, next, "one event emitted");
         GameData.EventRecord rebound = data.getEvents().get(0);
@@ -1338,7 +1338,7 @@ class PossessionEngineTest {
         int sequence = 50;
         for (BlockRecovery recovery : BlockRecovery.values()) {
             sequence = engine.emitBlockRecoveryEvent(data, recovery, offense, defense,
-                    "OFF", "DEF", 1, sequence, rng(recovery.ordinal() + 1));
+                    "OFF", "DEF", 1, sequence, rng(recovery.ordinal() + 1)).sequence();
         }
         for (int i = 0; i < 20; i++) {
             engine.awardLiveFreeThrows(data, offense.get(0), "OFF", "OFF", "DEF",
@@ -1363,6 +1363,160 @@ class PossessionEngineTest {
             data.addEvent("OFF", "DEF", period, i, PlayType.FOUL, "SHOOTING_FOUL",
                     "x", null, teamId);
         }
+    }
+
+    // ===================== §3.22 the putback (decisions.md #044) =====================
+
+    /**
+     * §3.22 (#044 A/C): after an OFFENSIVE rebound the loop re-enters at {@link
+     * ShotSelector#pickShooter} <b>carrying the rebounder</b>, whose {@code
+     * offensiveWeight} is doubled for that one draw. Over five equal players the
+     * rebounder's share of the next shooter-pick therefore rises from ~1/5 to ~1/3.
+     *
+     * <p>Measured off the EVENT LOG rather than from a scripted draw, because what is
+     * being asserted is the whole wiring — the candidate being set at the missed-shot
+     * board, surviving to the top of the next iteration, and reaching the draw. A
+     * scripted pick would prove only the arithmetic {@code ShotSelectorTest} already
+     * covers.
+     *
+     * <p>⚠ The bound is deliberately loose: this is the realized share on a specific
+     * seeded batch, and it is <b>reported, not targeted</b> (#044 A). The assertion that
+     * matters is that it is clearly above the flat 1/5 the pre-§3.22 engine produced.
+     */
+    @Test
+    void afterAnOffensiveReboundTheRebounderTakesTheNextShotAboutAThirdOfTheTime() {
+        int rebounderShot = 0;
+        int boards = 0;
+
+        for (long seed = 1; seed <= 60; seed++) {
+            List<PlayerGameState> home = teamOf5("H", 10);
+            List<PlayerGameState> away = teamOf5("A", 10);
+            GameData data = simulate(home, away, "H", "A", 40, rng(seed));
+
+            List<GameData.EventRecord> events = data.getEvents();
+            for (int i = 0; i < events.size() - 1; i++) {
+                GameData.EventRecord e = events.get(i);
+                if (e.playType() != PlayType.REBOUND || !"OFFENSIVE".equals(e.outcome())) {
+                    continue;
+                }
+                GameData.EventRecord next = events.get(i + 1);
+                if (next.playType() != PlayType.SHOT) {
+                    continue; // a turnover or a foul intervened — no shooter to compare
+                }
+                boards++;
+                if (e.primaryPlayerId().equals(next.primaryPlayerId())) {
+                    rebounderShot++;
+                }
+            }
+        }
+
+        assertTrue(boards > 200, "need a real sample of offensive boards, got " + boards);
+        double share = rebounderShot / (double) boards;
+        assertTrue(share > 0.26,
+                "the rebounder must clearly out-draw the flat 1/5 of the pre-§3.22 engine, "
+                        + "got " + share);
+        assertTrue(share < 0.45,
+                "…and M=2.0 over five equals is a THIRD, not a forced putback, got " + share);
+    }
+
+    /**
+     * §3.22 (#044 E): a putback is assisted at {@link
+     * SimConfig#OFFENSIVE_REBOUNDER_ASSIST_LEAN} × the ordinary chance — <b>halved, not
+     * zeroed</b>. Measured as an assisted share over many makes, against the same draw
+     * on the same seeds with the flag off.
+     */
+    @Test
+    void aPutbackIsAssistedAtHalfTheOrdinaryChance() {
+        List<PlayerGameState> offense = teamOf5WithPassing("OFF", 10);
+        PlayerGameState shooter = offense.get(0);
+
+        int ordinary = 0;
+        int putback = 0;
+        int trials = 20_000;
+        for (int i = 0; i < trials; i++) {
+            if (engine.resolveAssist(offense, shooter, false, rng(i)) != null) ordinary++;
+            if (engine.resolveAssist(offense, shooter, true, rng(i)) != null) putback++;
+        }
+
+        double ordinaryShare = ordinary / (double) trials;
+        double putbackShare = putback / (double) trials;
+        assertTrue(ordinaryShare > 0.5,
+                "sanity: an ordinary make at average passing assists at ~base-assist, got "
+                        + ordinaryShare);
+        assertEquals(SimConfig.OFFENSIVE_REBOUNDER_ASSIST_LEAN, putbackShare / ordinaryShare,
+                0.02, "a putback must be assisted at HALF the ordinary chance");
+        assertTrue(putbackShare > 0.0,
+                "halved, NOT zeroed — zeroing was rejected as a real miss the other way");
+    }
+
+    /**
+     * §3.22 (#044 E): the rule keys off {@code shooter == rebounder}, <b>NOT</b> "any
+     * second-chance shot". A kick-out three off an offensive rebound is an ordinary
+     * assisted basket, and taxing it would be the blunt rule the decision rejected —
+     * so a second-chance make by a TEAMMATE of the rebounder assists at the full rate.
+     */
+    @Test
+    void aSecondChanceMakeBySomeoneOtherThanTheRebounderAssistsAtTheOrdinaryRate() {
+        List<PlayerGameState> offense = teamOf5WithPassing("OFF", 10);
+        PlayerGameState rebounder = offense.get(3);
+        PlayerGameState kickOutShooter = offense.get(0);
+
+        // The engine's own expression of the condition at the assist site.
+        boolean putback = kickOutShooter == rebounder;
+        assertFalse(putback, "the premise: this shooter is NOT the rebounder");
+
+        int assisted = 0;
+        int trials = 20_000;
+        for (int i = 0; i < trials; i++) {
+            if (engine.resolveAssist(offense, kickOutShooter, putback, rng(i)) != null) {
+                assisted++;
+            }
+        }
+        double share = assisted / (double) trials;
+        assertTrue(share > 0.5,
+                "a kick-out off an offensive board is an ORDINARY assisted basket, got "
+                        + share);
+    }
+
+    /**
+     * §3.22 (#044 C): the four retention paths that identify NO rebounder weight nobody
+     * — OOB-offense, both flagrant retentions, and the rebounding foul's by-rule retain.
+     * Weighting anyone there would fabricate a participant the engine never chose
+     * (#014/#017/#020).
+     *
+     * <p>Asserted at the two carriers a unit test can reach directly: the block
+     * recovery's OOB-offense outcome (which RETAINS the ball and names nobody) and the
+     * rebounding foul's under-the-bonus retain. Both must carry a {@code null}
+     * rebounder, which is what makes the following draw flat.
+     */
+    @Test
+    void theRetentionPathsWithNoRebounderCarryNoPutbackCandidate() {
+        GameData data = freshData();
+        List<PlayerGameState> offense = teamOf5("OFF", 10);
+        List<PlayerGameState> defense = teamOf5("DEF", 10);
+
+        PossessionEngine.BlockRecoveryResult oob = engine.emitBlockRecoveryEvent(data,
+                BlockRecovery.OOB_OFFENSE, offense, defense, "OFF", "DEF", 1, 50, rng(3));
+        assertTrue(BlockRecovery.OOB_OFFENSE.offenseRetains(),
+                "the premise: OOB-offense DOES return the ball");
+        assertNull(oob.rebounder(),
+                "nobody secured an out-of-bounds ball — no putback candidate");
+
+        PossessionEngine.BlockRecoveryResult recovered = engine.emitBlockRecoveryEvent(data,
+                BlockRecovery.RECOVERED_OFFENSE, offense, defense, "OFF", "DEF", 1, 60, rng(3));
+        assertNotNull(recovered.rebounder(),
+                "…but an in-bounds offensive recovery DOES name one");
+
+        // The rebounding foul's by-rule retain: the DEFENSE fouled, under the bonus,
+        // so no free throws and no board ever ran.
+        GameData underBonus = freshData();
+        PossessionEngine.ReboundFoulResult retain = engine.resolveReboundFoul(underBonus,
+                new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
+                offense, defense, "OFF", "DEF", 1, 10, false,
+                new ScriptedRng(0.99, 0.99));
+        assertTrue(retain.offenseRetains(), "the premise: the offense keeps the ball");
+        assertNull(retain.rebounder(),
+                "the whistle stopped play — no board, so no putback candidate");
     }
 
     private GameData freshData() {

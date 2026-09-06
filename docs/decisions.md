@@ -2368,8 +2368,9 @@ takes a different branch, so downstream draws differ in meaning and soon in coun
 M = 2.0 alone. **And yet all 167 tests in `GameSimulatorIntegrationTest`,
 `PossessionEngineTest`, `ShotSelectorTest`, `MissedShotResolverTest` and
 `SimConfigProfileBindingTest` passed UNCHANGED with the mechanic wired in** — §3.19
-replaced pinned-seed expectations with batch invariants precisely so that a stream shift
-would cost nothing, and this is the first phase to collect on it. ⚠ **Execution asserts
+(*instrumentation* — ⚠ the number was reused; in anything written before 2026-08 "§3.19"
+means recalibration) replaced pinned-seed expectations with batch invariants precisely so
+that a stream shift would cost nothing, and this is the first phase to collect on it. ⚠ **Execution asserts
 this, not assumes it**: run the sim classes alone before and after; if one needs a new
 value, something consumed a draw the design did not, and that is a finding.
 
@@ -2431,6 +2432,69 @@ implementation note before the probe is deleted.
   `base-no-basket-foul` — re-measure it (calibration.md's standing rule).
 - **Foul-outs** (0.427 against a ~0.1–0.25 ballpark) edge up again with any FGA
   re-landing on the foul lever — the #042 D6 price, a third time, sized and accepted.
+
+**Implementation note (from execution, 2026-09).** Shipped **exactly as A–I specify, with
+no divergence** — the plumbing landed where C predicted, including the fourth free-throw
+call site through `ReboundFoulResult`.
+
+**The design run reproduced to the DECIMAL, not merely within noise.** 5-seed means,
+seeds 1000–5000, `Profiles: local,baseline`, all four reconciliation lines OK: Points
+**115.700** (design 115.70) · FG% **47.020** (47.02) · 3P% **36.080** (36.08) · FGA
+**89.600** (89.60) · 3PA **36.920** (36.92) · Assists **27.000** (27.00) · Off/Def reb
+**11.908 / 31.622** (11.91 / 31.62) · Fouls **19.220** (19.22) · FTA **23.460** (23.46) ·
+Blocks **4.600** (4.60). ⚠ **That the numbers are identical rather than close is itself
+the verification**: the design pass ran this mechanic in a temporary tree, so an exact
+match proves execution wired the same thing, and any deviation would have located a
+divergence rather than invited tuning.
+
+**I HELD, and it is the entry's most reusable result: all 167 tests in the five sim
+classes passed UNCHANGED.** The stream moved as predicted (seed 1000's Points 113.8 →
+114.9), and not one seeded expectation needed a new value. §3.19's batch-invariant
+rewrite is what paid for that, exactly as I anticipated. The only test edits were
+**signature adaptations, never expected values**: `new ShotSelector(config)`,
+`resolveAssist(..., false, rng)`, and `.sequence()` on two `emitBlockRecoveryEvent` calls.
+
+**Resolved open-at-execution items:**
+- **`base-no-basket-foul` 0.1753 → 0.178** — the value G named. FGA read **89.600**
+  untouched, i.e. **0.05 outside** the ±0.45 band's 89.55 edge; G called that pair noise
+  but the band is the band, so the nudge was taken. It landed FGA **89.400** (+0.30, well
+  inside) and pulled Fouls 19.22 → **19.35** toward 19.9 as a free side effect — the third
+  consecutive phase with that shape. Every other sourced row held: Points 115.82, FG%
+  47.06, 3P% 36.14, 3PA 36.96, Assists 26.84, FTA 23.58, TO 14.68. `non-shooting-foul-share`
+  was **not** touched (FTA never left its band).
+- **`ReboundFoulResult` carries the rebounder** rather than folding into `FreeThrowResult`
+  at that site. One record shape — `(sequence, offenseRetains, rebounder)` — now on all
+  three records, which is the constraint C actually set.
+- **The realized shares, re-measured by `PutbackProbe` on the shipped code** (5 seeds,
+  `Profiles: local,baseline`): rebounder is the next shooter-pick **35.40%** (design 35.4,
+  from a 22.4 base); assisted share of his makes **33.42%** (design 33.4); his next-event
+  shots 3.14/tg at FG% 52.5; teammates' assisted share **65.34%** — *untaxed*, which is E's
+  "not any second-chance shot" rule visible in the instrument; assisted share of ALL makes
+  **64.08%**. **Reported, not back-solved.** `PutbackProbe.java` deleted (#043 F).
+
+**Final constants**: `sim.offensive-rebounder-shot-weight = 2.0` (tunable, 62 → **63**);
+`OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5` (static, 28 → **29**); `sim.base-no-basket-foul
+0.1753 → 0.178`. The count moved in all four places plus `SimConfigProfileBindingTest`
+(`EXPECTED_TUNABLE` 63, the rules group 10 → 11, the method renamed `...TwentyNine...`).
+
+⚠ **`PERSONAL_FOULS_PER_TEAM_GAME` was re-measured and DELIBERATELY LEFT AT 19.08.**
+The rule fired for a fourth consecutive phase, but the measurement came back **19.015 — a
+−0.34% drift**, against the +4.2% and +3.0% that justified the last two updates. The
+flagrants row (0.159 against a ~0.13–0.20 ballpark) cannot resolve a third of a percent,
+so moving the divisor would be false precision. **The point is that it was measured, not
+that it moved** — the constant's comment now says so, and the next foul-rate move
+re-measures again rather than assuming this one held.
+
+**Coverage**: `mvn clean install` green — **594 tests, `All coverage checks have been
+met.`** Seven new tests: three in `ShotSelectorTest` (the null path bit-identical over
+1,000 draws; ≈1/3 at five equals; a doubled low-weight rebounder still below a star) and
+four in `PossessionEngineTest` (the rebounder's realized next-shot share off the event log
+across 60 seeded games; the halved assist ratio measured against the unhalved one; a
+kick-out shooter assisted at the full rate; and the no-rebounder retentions carrying a
+null candidate). `possession-flow.puml` was already drawn by the design pass and matched
+what shipped — only four **stale decision letters** were corrected (the parameter is H not
+D, the RNG is I not G, no-decay is D not B) and its "seeded sim tests re-baseline" line
+replaced with the measured truth that none did. Renders at **13,800 px** against 16,384.
 
 ---
 

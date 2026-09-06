@@ -1,4 +1,4 @@
-# Game Domain *(model shipped §3.1; engine fills it through §3.16)*
+# Game Domain *(model shipped §3.1; engine filled it through §3.22 — the putback)*
 
 The Game domain is the **data a simulated game produces**: the matchup and its
 result (`Game`), the event log that records how it unfolded (`GameEvent`), and

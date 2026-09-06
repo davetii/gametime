@@ -132,9 +132,9 @@ public class SimConfig {
     // Two kinds of constant live here, and the declaration form tells them apart:
     //
     //   public static final       a RULE of basketball or the SHAPE of the model.
-    //                             Not a knob. 28 of them.
+    //                             Not a knob. 29 of them.
     //   private final + accessor  a tunable knob, bound by Spring from
-    //                             application-baseline.properties. 62 of them.
+    //                             application-baseline.properties. 63 of them.
     //
     // The instance fields take NO INITIALIZERS: the values exist only in the
     // properties file, and a missing key fails the context at startup. Adding a
@@ -315,9 +315,79 @@ public class SimConfig {
      * iterate on it.</b>
      *
      * <p>The cost, stated: an era profile cannot vary the free-throw board. If one ever
-     * needs to, it is promoted to a tunable then and the count moves 62 → 63.
+     * needs to, it is promoted to a tunable then and the count moves with it.
      */
     public static final double FREE_THROW_REBOUND_LEAN = 0.68;
+
+    /**
+     * §3.22 (decisions.md #044 A/B): the offensive rebounder's pull on the NEXT shot —
+     * a multiplier on his {@code offensiveWeight()} in {@link
+     * ShotSelector#pickShooter(java.util.List, PlayerGameState, java.util.random.RandomGenerator)},
+     * for that ONE draw only. Before §3.22 an offensive rebound re-entered the
+     * possession loop at a draw that did not know who had just got the board, so the
+     * rebounder was no likelier to shoot than the guard at the arc and a putback could
+     * not happen.
+     *
+     * <p><b>A WEIGHT, NOT A BRANCH, and the shot type is NOT forced.</b> {@link
+     * ShotSelector#pickShotType} already bends by the shooter's own skills (#040 C) and
+     * the rebounder — usually a big — already leans interior on his own. A weight
+     * reproduces the whole second-chance distribution (sometimes the ball is kicked out
+     * for three); a branch hard-codes one leg of it.
+     *
+     * <p><b>Multiplicative, not additive</b> (#044 A): {@code × M} keeps the rebounder's
+     * <i>relative</i> standing among his four teammates, so a weak-scoring big doubled
+     * is still below a star guard. An additive share would hand the same absolute bump
+     * to both, which is a quota rather than a tendency. {@code 1.0} means "off" with no
+     * special case.
+     *
+     * <p>⚠ <b>THE CONSTANT IS THE MULTIPLIER; THE SHARE IS WHAT IT REALIZES, and they
+     * are not the same number.</b> At five equal weights {@code 2.0} yields 33.3% for
+     * the rebounder; on the seeded league it realizes <b>35.4%</b> from a 22.4% base.
+     * That share was MEASURED and REPORTED — <b>do not back-solve this value from a
+     * target share</b> (#043 D's discipline). It sits below real basketball's ~45–55%
+     * of immediate second-chance attempts: a deliberate, conservative first step.
+     *
+     * <p>A TUNABLE and not a static, because the go-back-up was a bigger share of the
+     * 1990s game than of the modern one — a tendency is an era knob (#044 B).
+     */
+    private final double offensiveRebounderShotWeight;
+
+    /**
+     * §3.22 (decisions.md #044 E): a putback's assist chance, as a multiplier on
+     * {@link #assistProbability} applied at the ONE assist site when the shooter IS the
+     * player who took the offensive board. Nobody passed the rebounder his own board,
+     * so crediting a teammate — measured at 66.7% of his makes — is wrong.
+     *
+     * <p><b>HALVED, NOT ZEROED, and the reason is measured rather than aesthetic.</b>
+     * Assists sit at +0.40 over target (noise-scale); zeroing would remove every
+     * rebounder-make assist, ≈ −1.1/team-game, and land a <i>real</i> miss the other
+     * way. Trading an unmeasurable overshoot for a measurable undershoot is a bad trade
+     * (#043 B). At 0.5 the removal measures −0.52 and assists land 27.00.
+     *
+     * <p><b>A RULE, NOT A TUNABLE</b>, and that is the reason for the {@code public
+     * static final} form — the {@link #FREE_THROW_REBOUND_LEAN} shape exactly (#043 D).
+     * Nobody assists a tip-in in any era: the 0.5 is the model's estimate of how many
+     * "the rebounder shoots next" draws are true go-back-ups rather than a kick-out that
+     * came back. Model <i>shape</i>, while the tendency knob ({@link
+     * #offensiveRebounderShotWeight()}) is the era lever. So 63 tunables / 29 statics,
+     * not 64 / 28.
+     *
+     * <p>⚠ <b>It therefore gets NO line in {@code application-baseline.properties} and
+     * NO row in {@code calibration.md}</b> — a value in Java <i>and</i> a properties
+     * line is the double-value trap this class's header names, and a calibration row
+     * would be an unsourced target. It appears in {@code calibration.md} only as the
+     * operative rule under the Assists row.
+     *
+     * <p>Applied <b>AFTER</b> {@link #clampProbability}, at the site, so the floor is
+     * not in play: 0.62 × 0.5 = 0.31 ≫ {@link #PROB_FLOOR}. It keys off {@code shooter
+     * == rebounder}, <b>NOT</b> "any second-chance shot" — a kick-out three off an
+     * offensive rebound is an ordinary assisted basket and taxing it would be the blunt
+     * rule this decision rejected.
+     *
+     * <p>The cost, stated: an era profile cannot vary it. If one ever needs to, it is
+     * promoted to a tunable then and the count moves with it.
+     */
+    public static final double OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5;
 
     // --- Missed-shot out of bounds (§3.8, decisions.md #026) ---
     // A missed shot resolves to one of FOUR outcomes in a single draw (Decision A):
@@ -848,6 +918,14 @@ public class SimConfig {
     // this, the flagrants row was reading 0.156 against a ~0.16 ballpark it would have
     // sat 3% hot in, and nothing anywhere would have complained. THREE consecutive
     // phases have now moved it.
+    // §3.22 (#044) RE-MEASURED AND DELIBERATELY LEFT ALONE: 19.015 against this 19.08,
+    // a -0.34% drift. base-no-basket-foul moved again (0.1753 -> 0.178) to buy back the
+    // FGA the putback added, so the rule fired for a FOURTH consecutive phase — but the
+    // measurement came back inside noise this time, against the +4.2% and +3.0% that
+    // justified the last two updates. ⚠ THE POINT IS THAT IT WAS MEASURED, NOT THAT IT
+    // MOVED: the flagrants row read 0.159 against its ~0.13-0.20 ballpark, which cannot
+    // resolve a third of a percent, so churning the divisor would be false precision.
+    // Re-measure again on the next foul-rate move; do not assume this one held.
     public static final double PERSONAL_FOULS_PER_TEAM_GAME = 19.08;
 
     // Base probability that a made field goal is assisted, at an average passing
@@ -1221,6 +1299,7 @@ public class SimConfig {
             @DecimalMin("0.0") double foulMultThree,
             @DecimalMin("0.0") @DecimalMax("1.0") double ftBase,
             @DecimalMin("0.0") @DecimalMax("1.0") double baseOffensiveRebound,
+            @DecimalMin("0.0") double offensiveRebounderShotWeight,
             @Positive int maxOffensiveRetentionsPerPossession,
             @DecimalMin("0.0") @DecimalMax("1.0") double oobTotalWeight,
             @DecimalMin("0.0") double oobDefenseWeight,
@@ -1283,6 +1362,7 @@ public class SimConfig {
         this.foulMultThree = foulMultThree;
         this.ftBase = ftBase;
         this.baseOffensiveRebound = baseOffensiveRebound;
+        this.offensiveRebounderShotWeight = offensiveRebounderShotWeight;
         this.maxOffensiveRetentionsPerPossession = maxOffensiveRetentionsPerPossession;
         this.oobTotalWeight = oobTotalWeight;
         this.oobDefenseWeight = oobDefenseWeight;
@@ -1401,6 +1481,16 @@ public class SimConfig {
     /** sim.base-offensive-rebound */
     public double baseOffensiveRebound() {
         return baseOffensiveRebound;
+    }
+
+    /**
+     * sim.offensive-rebounder-shot-weight — §3.22 (#044 A/B): the multiplier on the
+     * offensive rebounder's {@code offensiveWeight()} for the NEXT {@code pickShooter}
+     * draw only. See the field's javadoc: the realized share is what this produces, not
+     * what it sets, and it must not be back-solved from one.
+     */
+    public double offensiveRebounderShotWeight() {
+        return offensiveRebounderShotWeight;
     }
 
     /** sim.max-offensive-retentions-per-possession */
@@ -1665,7 +1755,7 @@ public class SimConfig {
      * <p><b>It reads {@code application-baseline.properties} — the same file, through
      * the same Spring binder, that the application context binds from.</b> That is the
      * whole point: the values exist in exactly ONE place (#035 A), so a test using this
-     * factory and a running engine can never disagree. Hard-coding the 62 values here
+     * factory and a running engine can never disagree. Hard-coding the 63 values here
      * would reintroduce precisely the second source of truth this design eliminates,
      * and every test would still pass.
      *
@@ -1680,7 +1770,7 @@ public class SimConfig {
         } catch (IOException e) {
             throw new IllegalStateException(
                     "Could not read " + BASELINE_PROFILE_RESOURCE
-                            + " — it is the only copy of the 62 profilable constants", e);
+                            + " — it is the only copy of the 63 profilable constants", e);
         }
         StandardEnvironment env = new StandardEnvironment();
         env.getPropertySources().addFirst(new PropertiesPropertySource("baseline", props));
@@ -1690,6 +1780,6 @@ public class SimConfig {
                         "Could not bind sim.* from " + BASELINE_PROFILE_RESOURCE));
     }
 
-    /** The baseline profile file — the single copy of the 62 profilable values. */
+    /** The baseline profile file — the single copy of the 63 profilable values. */
     public static final String BASELINE_PROFILE_RESOURCE = "application-baseline.properties";
 }

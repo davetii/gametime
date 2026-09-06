@@ -120,16 +120,19 @@ repeat
   //DRIVE / PERIMETER / POST / THREE, sim.shot-share-* (#040 C)//
   //THREE × offensiveScheme lean · PERIMETER × its RECIPROCAL (#040 D)//);
 note right
-  **§3.22 (decisions.md #044 A–D) — THE PUTBACK IS A WEIGHT, NOT A BRANCH.**
+  **§3.22 (decisions.md #044 A/C/D/H/I) — THE PUTBACK IS A WEIGHT, NOT A BRANCH.**
   Until §3.22 this draw took no argument saying who just got the board, so
   the rebounder was exactly as likely to shoot as the guard at the arc and a
   putback could not happen. Now `pickShooter(offense, rebounder, rng)` takes
-  the rebounder as a PARTICIPANT (#044 D — a real player, not a mode flag, so
+  the rebounder as a PARTICIPANT (#044 H — a real player, not a mode flag, so
   a parameter and not a second method) and multiplies HIS weight by
-  `sim.offensive-rebounder-shot-weight` (**2.0**, a TUNABLE, 62 → 63 — A/B).
+  `sim.offensive-rebounder-shot-weight` (**2.0**, a TUNABLE — A/B).
   **Still ONE `nextDouble()`** — the draw count is unchanged; only the
-  boundaries move. ⚠ The RNG STREAM still moves (#044 G): a different
-  shooter takes a different branch, so seeded sim tests re-baseline.
+  boundaries move. ⚠ The RNG STREAM still moves (#044 I): a different
+  shooter takes a different branch, so downstream draws differ in meaning
+  and soon in count. ✅ **No seeded test re-baselined** — the
+  instrumentation pass replaced pinned-seed expectations with batch
+  invariants, and §3.22 is the first to collect on it (all 167 unchanged).
   **Shot TYPE is NOT forced to the rim** — `pickShotType` already bends by
   the shooter's own skills (#040 C), so a big leans interior on his own;
   measured, rebounders already shoot 54.8% on the next shot vs 45.6%.
@@ -140,7 +143,7 @@ note right
   pass `null`, which means "no rebounder" and draws exactly as before.
   Carried as a loop-scoped `putbackCandidate`, READ-AND-CLEARED at the top
   of the iteration in one step (C) — a stale candidate is structurally
-  impossible, and there is NO decay across retentions (B): the second
+  impossible, and there is NO decay across retentions (D): the second
   putback in a possession is as likely as the first.
   **§3.17 (decisions.md #040 A/C/D/E) — THE SHOT MIX, and the only
   place in this engine where the LEAGUE's shot distribution is set.**
@@ -638,9 +641,9 @@ partition "ShotResolver" {
           keys off `shooter == rebounder` from the ShotSelector step above, NOT
           "any second-chance shot": a kick-out three off an offensive rebound
           is an ordinary assisted basket. A STATIC (a rule, the
-          `FREE_THROW_REBOUND_LEAN` shape) — 28 → 29. ⚠ Same roll, same draw
+          `FREE_THROW_REBOUND_LEAN` shape) — the 29th. ⚠ Same roll, same draw
           count; but a make that flips to unassisted SKIPS the assister draw,
-          which is one of the two ways §3.22 moves the RNG stream (#044 G).
+          which is one of the two ways §3.22 moves the RNG stream (#044 I).
         end note
       }
       partition "And-1 (§3.11 — decisions.md #029)" {
