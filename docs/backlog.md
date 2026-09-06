@@ -53,7 +53,12 @@ planned features), see [ideas.md](ideas.md).
       **Foul-outs are now IN SCOPE, and are the one number where sourcing may not be
       enough** *(added at §3.13's close-out)*. §3.13 promoted it from ballpark to a **soft
       TARGET (~0.39)** per #031 H — because a phase deliberately tuned against it, so
-      someone owns it, **not** because it became sourced. Both competing figures remain
+      someone owns it, **not** because it became sourced. ⚠ **§3.20 (#042 J) DEMOTED IT
+      BACK TO A BALLPARK** *(noted here 2026-09)* — the ~0.39 was a **landing promoted to
+      a target**, i.e. circular, and real basketball sits ~0.1–0.25, *below* the engine.
+      So this chore no longer has a target to settle, only a ballpark to source; and
+      calibration.md's rule is to **judge by the 4/5/6-foul distribution, not the headline
+      count**. Both competing figures remain
       unsourced (0.11 from #030 G, 0.15–0.25 from a search), so this chore should settle
       it alongside the five. **Then apply §3.16's escalation rule** (roadmap.md): a sourced
       ~0.35–0.45 means no work at all, but a sourced ~0.15 means **escalate to a new
@@ -62,8 +67,10 @@ planned features), see [ideas.md](ideas.md).
       benched-player timer + #031 C's period-awareness), which is outside what §3.16 does.
       **Two more UNSOURCED rare-event rates joined the list at §3.14** *(added 2026-08)*:
       **technicals** (~0.6–0.8 league-wide / ~0.3–0.4 per team — user-supplied, #032 J,
-      shipped at 0.367) and **flagrants** (~0.25–0.40 league-wide / ~0.16 per team —
-      #034 G/H, shipped at 0.148). **Both are `ballpark`s, not targets** — nothing is tuned toward
+      shipped at 0.367; **reads 0.335 at the §3.22 landing**) and **flagrants**
+      (~0.25–0.40 league-wide / ~0.16 per team — #034 G/H, shipped at 0.148; **reads 0.159
+      at the §3.22 landing**). ⚠ Both drift with the emergent foul rate rather than being
+      re-tuned — their divisor is `PERSONAL_FOULS_PER_TEAM_GAME`, a measured quantity. **Both are `ballpark`s, not targets** — nothing is tuned toward
       them, each constant is set from the real-world figure directly — so sourcing them is
       cheaper than the five: a wrong figure means a wrong constant, not a mis-tuned engine.
       ⚠ **But they are the least verifiable rows to check even once sourced**: technicals
@@ -106,7 +113,11 @@ planned features), see [ideas.md](ideas.md).
       groups — both change what a generated table should contain, so measure what is
       actually still restated by hand before building it.
 
-- [ ] **Condense `decisions.md` — NOW A GATE ON STARTING PHASE 4 (user call, 2026-08).**
+- [ ] **Condense `decisions.md` — a GATE ON STARTING PHASE 4 (user call, 2026-08).**
+      ⚠ **The gate and its ORDERING now live in [roadmap.md](roadmap.md)'s
+      *Phase 3 → Phase 4 pre-work* section** (step 2, paired with the Java-comment
+      sweep) — that is the authority on sequence and constraints; this entry keeps the
+      detail. Move it out of this file when that gate is worked (step 6).
       **This entry is the plan; no design pass is needed.** It is scheduled as
       **Phase 4 pre-work** — after the Phase-3 tail, before Phase 4 — and roadmap.md
       carries the gate (deliberately *not* numbered as a §3.x: every §3.x is an engine
@@ -118,11 +129,14 @@ planned features), see [ideas.md](ideas.md).
       **#038 renumbered that to §3.19** and §3.16 became foul composition, which has now
       shipped. The gate is **after §3.19**, not after §3.16 — three sub-phases later than
       a literal reading suggests.
-      ⚠ **RE-MEASURED 2026-08 after §3.16 shipped:** the file is **1,066 lines / 445k
-      chars**, `#001`–`#020` still average ~1.3k, and the **nineteen** §3.x engine entries
-      average **22.0k** — still ~17× the early entries, and ~94% of the file. The five
-      largest remain **#030 (53.8k), #031 (47.6k), #032 (44.9k), #034 (44.4k), #035
-      (35.3k)**, all written *after* this entry was filed.
+      ⚠ **RE-MEASURED 2026-09 after §3.22 shipped:** the file is **2,520 lines / 600k
+      chars** across **44 entries** — up from 445k/1,066 lines at §3.16 and 369k at §3.14b.
+      `#001`–`#020` still average ~1.3k; the **twenty-three** §3.x engine entries average
+      **24.6k** and are **94%** of the file. The five largest are unchanged — **#030
+      (53.8k), #031 (47.6k), #032 (44.9k), #034 (44.7k), #040 (35.9k)**.
+      ⚠ **The mean entry has held at ~22–25k across three measurements — growth is MORE
+      entries, not fatter ones.** So the cap is working and is not the lever: **this pass
+      targets the five pre-cap 35–54k entries** (~113k, ~19% of the file), not new work.
       **✅ THE SIZE CAP IS HOLDING, now across three consecutive entries** — the
       `project-docs` proportionality rule (~15–20k per entry, implementation note ≲6k):
       **#035 at 22.3k**, then **#036/#037/#038 small**, then **#039 (§3.16) at 21.4k**
@@ -166,7 +180,8 @@ planned features), see [ideas.md](ideas.md).
       `#014`/`#017`, reuse-the-play-type-vocabulary `#025 F`/`#026 E`, verify-neutrality
       `#026 D`, rare-events-need-their-own-sensitivity `#025`/`#028`).
       ⚠ **TWO SIBLING CHORES ARE NOW PARKED ABOVE AND SHARE THIS ONE'S CAUSE** (added
-      2026-08): **thinning `possession-flow.puml`** (68% of it is prose, not flow) and
+      2026-08): **thinning `possession-flow.puml`** (**64k, 52% of it inside `note`
+      blocks** — measured 2026-09; growing ~20% per two phases) and
       **sweeping the `sim` package's Java comments**. All three are the same problem —
       reasoning restated at every site instead of cited once — and the Java sweep in
       particular should run in the **same pass** as this one, because Java comments cite
@@ -286,15 +301,18 @@ planned features), see [ideas.md](ideas.md).
 
 - [ ] **The `project-docs` skill's routing table omits the four DOMAIN-DESIGN docs, so
       they are kept current by noticing rather than by rule.** *(found 2026-08 by the user
-      while reviewing §3.17's execution plan.)*
+      while reviewing §3.17's execution plan, and confirmed during that phase's execution —
+      §3.17 had to update `coach.md`, `player.md`, `game.md` and `roster.md` as an
+      explicitly-enumerated checklist item because no rule would have caught them.)*
       The skill routes decisions.md / todo.md / roadmap.md / backlog.md / ideas.md /
       risks.md, plus `possession-flow.puml` as a living spec. **`game.md`, `player.md`,
       `coach.md` and `roster.md` are not in the table at all** — yet every engine sub-phase
-      touches at least one of them, and §3.17 alone makes **`coach.md:171` factually wrong**
-      (*"`offensiveScheme` multiplies only the `PERIMETER` + `THREE` shot weights"* — #040 D
-      makes THREE take the lean and PERIMETER its reciprocal) and leaves **`player.md:214`**
-      still describing shot selection with #021 D's five-skills-for-four-types wording,
-      **the very phrasing that caused the bug §3.17 fixes**.
+      touches at least one of them.
+      ⚠ **Both worked examples below were REPAIRED by later phases; the chore was not**
+      (checked 2026-09) — which is the point: `coach.md:171` said *"`offensiveScheme`
+      multiplies only the `PERIMETER` + `THREE` shot weights"*, true from §3.4 until §3.17
+      made it exactly false (#040 D), and `player.md:214` carried #021 D's *five skills for
+      four shot types* wording — **the origin of the bug §3.17 spent a phase fixing**.
       ⚠ **The failure mode is silent and asymmetric**: a stale planning doc gets caught
       because the next design pass reads it start to finish; a stale *domain* doc is read
       by whoever is learning the model, who has no way to know it is wrong. **`coach.md` is
@@ -310,6 +328,7 @@ planned features), see [ideas.md](ideas.md).
       rather than a prose reminder to remember.
       **Do NOT fix this inside a phase's execution** — a skill edit mid-execution is scope
       creep. §3.17's plan carries the doc updates it owns and files this separately.
+      ⚠ **Fixing the docs without fixing the RULE means the next phase rediscovers this.**
 
 - [ ] **`possession-flow.puml` has outgrown one page — thin the PROSE before splitting the
       FLOW.** *(raised 2026-08 by the user; **post-Phase-3**, alongside the `decisions.md`
@@ -475,30 +494,6 @@ planned features), see [ideas.md](ideas.md).
       mitigation done: roster-rule tests in `RosterLineupDelegateTest` now sign their
       own players instead of assuming seed roster sizes; remaining brittleness is the
       hardcoded team IDs themselves.
-
-- [ ] **The `project-docs` skill's routing table omits the FOUR domain-design docs, so
-      every phase has kept them current by NOTICING rather than by RULE.** Found 2026-08
-      by the user while reviewing §3.17's plan, and confirmed during that phase's
-      execution — §3.17 had to update `coach.md`, `player.md`, `game.md` and `roster.md`
-      as an explicitly-enumerated checklist item because no rule would have caught them.
-      The skill's table lists the six planning docs (`decisions.md`, `todo.md`,
-      `roadmap.md`, `backlog.md`, `ideas.md`, `risks.md`) plus `possession-flow.puml`,
-      and **names `game.md` / `player.md` / `coach.md` / `roster.md` nowhere**.
-      ⚠ **The failure mode is silent and it has a worked example.** `coach.md` line 171
-      said *"`offensiveScheme` multiplies only the `PERIMETER` + `THREE` shot weights"* —
-      **true from §3.4 until §3.17 made it exactly false** (#040 D split them in opposite
-      directions). Nothing would have flagged it. `player.md`'s line 214 was worse: it
-      carried #021 D's *five skills for four shot types* wording, **which is the origin
-      of the bug §3.17 spent a phase fixing** — the stale doc was not just wrong after
-      the fact, it had been describing the defect as the design for four phases.
-      **The fix**: add the four docs to the skill's routing table with the trigger that
-      routes to each — a shot-selection or coach-modifier change touches `coach.md` +
-      `player.md`, an event-vocabulary change touches `game.md` + `roster.md`, a
-      possession-branch change already routes to the `.puml`.
-      ⚠ **Deliberately NOT fixed inside §3.17** — a skill edit mid-execution is scope
-      creep, and the phase filed it rather than absorbing it. **Fixing the docs without
-      fixing the rule means the next phase rediscovers this**, which is the whole reason
-      it is written down here.
 
 - [ ] **`PROB_FLOOR` (0.02) silently dominates `sim.base-block-three` (0.005) — the
       constant is INERT, and the same clamp may be flooring other rare rates.** Found

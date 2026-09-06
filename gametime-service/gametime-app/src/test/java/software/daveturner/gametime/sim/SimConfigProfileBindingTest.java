@@ -31,7 +31,7 @@ class SimConfigProfileBindingTest {
 
     /** The constants that must stay static: rules, model machinery, one measured value. */
     private static final List<String> EXPECTED_STATIC = List.of(
-            // rules (10)
+            // rules (11)
             "PERIODS", "MINUTES_PER_PERIOD", "OT_MINUTES", "FREE_THROWS_PER_FOUL",
             "AND_ONE_FREE_THROWS", "TECHNICAL_FREE_THROWS", "FLAGRANT_FREE_THROWS",
             "TECHNICAL_EJECTION_LIMIT", "FLAGRANT_EJECTION_LIMIT",
@@ -40,6 +40,11 @@ class SimConfigProfileBindingTest {
             // a static. It has NO properties line by design - a value in Java AND a
             // bound key would be exactly the double-value this test exists to prevent.
             "FREE_THROW_REBOUND_LEAN",
+            // §3.22 (#044 E): a putback's halved assist chance. Nobody assists a tip-in
+            // in ANY era, so this is model shape and not a knob - the era lever for the
+            // same mechanic is the TUNABLE sim.offensive-rebounder-shot-weight beside it.
+            // No properties line, by the same double-value argument as the lean above.
+            "OFFENSIVE_REBOUNDER_ASSIST_LEAN",
             // model machinery (17)
             "SCALE_AVG", "MAX_ENERGY", "PROB_FLOOR", "PROB_CEILING", "SENSITIVITY",
             "FT_SENSITIVITY", "BLOCK_SENSITIVITY", "REBOUND_FOUL_SENSITIVITY",
@@ -52,7 +57,7 @@ class SimConfigProfileBindingTest {
             // measured (1)
             "PERSONAL_FOULS_PER_TEAM_GAME");
 
-    private static final int EXPECTED_TUNABLE = 62;
+    private static final int EXPECTED_TUNABLE = 63;
 
     /** Every tunable field is final and takes its value only from the properties file. */
     @Test
@@ -112,7 +117,7 @@ class SimConfigProfileBindingTest {
      * class that reads it - a test could assert one value while the engine ran another.
      */
     @Test
-    void onlyTheTwentyEightRulesAndMachineryConstantsAreStatic() {
+    void onlyTheTwentyNineRulesAndMachineryConstantsAreStatic() {
         TreeSet<String> actual = new TreeSet<>();
         for (Field f : SimConfig.class.getDeclaredFields()) {
             if (!Modifier.isStatic(f.getModifiers()) || f.isSynthetic()) {

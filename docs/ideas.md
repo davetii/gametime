@@ -467,7 +467,11 @@ into a graveyard.
 
 - **⚠ THE OFFENSIVE REBOUNDER IS NO LIKELIER TO TAKE THE SECOND-CHANCE SHOT — there is
   no PUTBACK** *(same 2026-08 audit; **verified in code**, and the closest thing found to
-  a genuine §3.21-shaped gap)*. An offensive rebound `continue`s the possession loop,
+  a genuine §3.21-shaped gap)*. ✅ **PROMOTED — it is §3.22, design-resolved as
+  decisions.md #044 (2026-09)**; the entry below is the audit note as written and is
+  superseded by #044 on every point it speculates about (⚠ "putbacks are high-percentage
+  rim attempts" turned out to be true of the rebounder's *own* mix already — he is not
+  forced to the rim, and 2P%/FG% move by ~0.1, not the phase-sized amount imagined here). An offensive rebound `continue`s the possession loop,
   which re-enters at `shotSelector.pickShooter(offense, rng)` — a weighted draw over all
   five by `offensiveWeight`, taking **no argument identifying who just got the board**.
   So the center who grabbed it hands the ball back out and is as likely to shoot as the

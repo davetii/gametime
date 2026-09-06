@@ -10,7 +10,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ShotSelectorTest {
 
-    private final ShotSelector selector = new ShotSelector();
+    private final SimConfig config = SimConfig.baseline();
+    private final ShotSelector selector = new ShotSelector(config);
 
     private RandomGenerator rng(long seed) {
         return RandomGeneratorFactory.of("L64X128MixRandom").create(seed);
@@ -264,6 +265,95 @@ class ShotSelectorTest {
                     average.shotTypeWeight(t) / totalWeight(average), 1e-9,
                     t + "'s weight at an average player must be its raw share, normalized");
         }
+    }
+
+    // ---- §3.22: the offensive rebounder's weight (decisions.md #044 A/B/H) ----
+
+    /**
+     * §3.22 (#044 C/H): {@code null} means "no rebounder was identified", NOT a mode
+     * flag — so the three-arg draw with a null rebounder must be <b>bit-identical</b> to
+     * the two-arg one, which is how every pre-§3.22 caller and test keeps its behavior.
+     * The four retention paths that name nobody (OOB-offense, both flagrant retentions,
+     * the rebounding foul's by-rule retain) all take this path.
+     */
+    @Test
+    void aNullRebounderDrawsExactlyAsTheTwoArgFormDoes() {
+        List<PlayerGameState> players = List.of(
+                TestPlayerFactory.create("p1", "A", 14.0),
+                TestPlayerFactory.create("p2", "A", 8.0),
+                TestPlayerFactory.create("p3", "A", 11.0),
+                TestPlayerFactory.create("p4", "A", 5.0),
+                TestPlayerFactory.create("p5", "A", 17.0));
+
+        RandomGenerator twoArg = rng(9_001);
+        RandomGenerator threeArg = rng(9_001);
+        for (int i = 0; i < 1_000; i++) {
+            assertSame(selector.pickShooter(players, twoArg),
+                    selector.pickShooter(players, null, threeArg),
+                    "a null rebounder must draw identically to the pre-§3.22 form, at draw " + i);
+        }
+    }
+
+    /**
+     * §3.22 (#044 A): at five equal weights, {@code M = 2.0} makes the rebounder's share
+     * {@code 2/6 = 33.3%} and each teammate's {@code 1/6 = 16.7%}. ⚠ <b>That is what the
+     * MULTIPLIER produces here, not a target</b> — on the seeded league the realized
+     * share is 35.4%, and neither number is back-solved from the other.
+     */
+    @Test
+    void anEqualWeightRebounderIsPickedAboutOneThirdOfTheTime() {
+        List<PlayerGameState> players = List.of(
+                TestPlayerFactory.create("p1", "A", 10.0),
+                TestPlayerFactory.create("p2", "A", 10.0),
+                TestPlayerFactory.create("p3", "A", 10.0),
+                TestPlayerFactory.create("p4", "A", 10.0),
+                TestPlayerFactory.create("p5", "A", 10.0));
+        PlayerGameState rebounder = players.get(2);
+
+        int picked = 0;
+        RandomGenerator r = rng(4_242);
+        int draws = 20_000;
+        for (int i = 0; i < draws; i++) {
+            if (selector.pickShooter(players, rebounder, r) == rebounder) picked++;
+        }
+        double share = picked / (double) draws;
+        assertTrue(share > 0.30 && share < 0.37,
+                "M=2.0 over five equals ⇒ ~1/3 for the rebounder, got " + share);
+
+        // and the flat baseline it moved from, on the same league
+        int flat = 0;
+        RandomGenerator r2 = rng(4_242);
+        for (int i = 0; i < draws; i++) {
+            if (selector.pickShooter(players, null, r2) == rebounder) flat++;
+        }
+        assertTrue(flat / (double) draws < 0.23,
+                "with no rebounder the same player draws ~1/5, got " + (flat / (double) draws));
+    }
+
+    /**
+     * §3.22 (#044 A): the multiplier COMPOSES with the draw rather than replacing it, so
+     * the rebounder's <i>relative</i> standing survives — a weak-scoring big who gets the
+     * board is still below a star guard. This is the property an additive share would
+     * destroy (it hands the same absolute bump to both, which is a quota rather than a
+     * tendency), and it is the reason the form is multiplicative.
+     */
+    @Test
+    void aDoubledLowWeightRebounderStaysBelowAHighWeightTeammate() {
+        PlayerGameState star = TestPlayerFactory.create("star", "A", 20.0);
+        PlayerGameState big = TestPlayerFactory.create("big", "A", 5.0);
+        List<PlayerGameState> players = List.of(star, big);
+
+        int bigPicked = 0;
+        RandomGenerator r = rng(77);
+        int draws = 20_000;
+        for (int i = 0; i < draws; i++) {
+            if (selector.pickShooter(players, big, r) == big) bigPicked++;
+        }
+        double bigShare = bigPicked / (double) draws;
+        assertTrue(bigShare > 0.20,
+                "the doubled rebounder must clearly gain, got " + bigShare);
+        assertTrue(bigShare < 0.50,
+                "…but must stay BELOW the star he cannot out-weigh, got " + bigShare);
     }
 
     private double totalWeight(PlayerGameState p) {

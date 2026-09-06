@@ -191,7 +191,22 @@ public class PossessionEngine {
         // The offense keeps the ball as long as it grabs offensive rebounds, up
         // to MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION. Each attempt runs the full
         // flow (turnover → foul → shot); a missed shot rolls a rebound (§3.3).
+        //
+        // §3.22 (#044 A/C): the re-entry is no longer blind. Whoever took the offensive
+        // board carries a weighted pull on the next shooter draw, so a putback can
+        // happen; a putback make is then assisted at half the ordinary chance (#044 E).
         int offensiveRetentions = 0;
+        // §3.22 (decisions.md #044 C): the putback candidate — the player who took the
+        // offensive board that returned the ball, set by the THREE retention paths that
+        // identify one and consumed by the next iteration's shooter draw.
+        //
+        // ⚠ IT IS READ AND CLEARED AT THE TOP OF THE ITERATION, IN ONE STEP, AND THAT IS
+        // THE WHOLE CORRECTNESS. Clearing at the USE site rather than at each of the
+        // eight `continue`s is one line that cannot be forgotten instead of eight that
+        // can, and it makes a stale candidate structurally impossible: a
+        // possession-scoped local cannot leak across possessions, and within one it is
+        // consumed the moment the next iteration starts.
+        PlayerGameState putbackCandidate = null;
         while (true) {
             // Is the second-chance loop full? Hoisted here at §3.14b (#034 B): it was
             // computed identically at the block-recovery branch and again at the
@@ -203,7 +218,18 @@ public class PossessionEngine {
             boolean capReached =
                     offensiveRetentions >= config.maxOffensiveRetentionsPerPossession();
 
-            PlayerGameState shooter = shotSelector.pickShooter(offense, rng);
+            // §3.22 (#044 C): read-and-clear in one step. ⚠ `rebounder` must stay live
+            // for the WHOLE iteration — the assist rule below reads `shooter ==
+            // rebounder` (#044 E). Do NOT clear it after the pick, and do NOT clear at
+            // the `continue`s.
+            PlayerGameState rebounder = putbackCandidate;
+            putbackCandidate = null;
+
+            // §3.22 (#044 A/H): the rebounder rides the draw as a PARTICIPANT — his
+            // offensiveWeight is multiplied by sim.offensive-rebounder-shot-weight for
+            // this one draw. A null rebounder (the ordinary first attempt, and the four
+            // retention paths that identify nobody) draws exactly as before §3.22.
+            PlayerGameState shooter = shotSelector.pickShooter(offense, rebounder, rng);
             ShotType shotType = shotSelector.pickShotType(shooter, shotMixLean, rng);
             PlayerGameState defender = shotSelector.pickDefender(defense, rng);
 
@@ -320,6 +346,9 @@ public class PossessionEngine {
                             offTeamId, defTeamId, period, sequence, rng);
                     if (!capReached) {
                         offensiveRetentions++;
+                        // §3.22 (#044 C): NO putback candidate — the ball comes back BY
+                        // RULE, no board ran and nobody secured it. Do not "complete"
+                        // this by weighting the fouled shooter (#014/#017/#020).
                         continue; // the offense keeps the ball (#034 B)
                     }
                     return sequence; // cap full: FTs awarded, possession ends (§3.10's shape)
@@ -375,6 +404,7 @@ public class PossessionEngine {
                         sequence = ft.sequence();
                         if (ft.offenseRetains()) {
                             offensiveRetentions++;
+                            putbackCandidate = ft.rebounder(); // §3.22 (#044 C)
                             continue; // second-chance possession off the missed FT
                         }
                     }
@@ -406,6 +436,7 @@ public class PossessionEngine {
                 sequence = ft.sequence();
                 if (ft.offenseRetains()) {
                     offensiveRetentions++;
+                    putbackCandidate = ft.rebounder(); // §3.22 (#044 C)
                     continue; // second-chance possession off the missed last FT
                 }
                 return sequence;
@@ -437,7 +468,9 @@ public class PossessionEngine {
 
                 // Flat four-way loose-ball recovery (Decision D). Offense-recovered
                 // (RECOVERED_OFFENSE/OOB_OFFENSE) re-enters the second-chance loop at
-                // ShotSelector (Decision E), reusing the offensive-rebound machinery
+                // ShotSelector (Decision E) — since §3.22 carrying the RECOVERED_OFFENSE
+                // recoverer as the weighted putback candidate (#044 C) — reusing the
+                // offensive-rebound machinery
                 // and respecting the same cap — it SKIPS ReboundResolver (recovery is
                 // already decided). Defense-recovered ends the possession.
                 BlockRecovery recovery = blockResolver.resolveRecovery(rng);
@@ -460,10 +493,16 @@ public class PossessionEngine {
                 // draw per in-bounds recovery, so seeded sim tests re-baseline (#043 E3)
                 // — expected, not a regression. ⚠ The block COUNT is untouched: this
                 // changes what a block EMITS, never how often one happens (#043 E4).
-                sequence = emitBlockRecoveryEvent(data, recovery, offense, defense,
-                        offTeamId, defTeamId, period, sequence, rng);
+                BlockRecoveryResult recovered = emitBlockRecoveryEvent(data, recovery,
+                        offense, defense, offTeamId, defTeamId, period, sequence, rng);
+                sequence = recovered.sequence();
                 if (recovery.offenseRetains() && !capReached) {
                     offensiveRetentions++;
+                    // §3.22 (#044 C): null on OOB_OFFENSE — that retention names no
+                    // rebounder. ⚠ Set only inside this block: a capped
+                    // RECOVERED_OFFENSE still credits its rebounder (#043 E) but the
+                    // possession ends below, so there is no next draw to weight.
+                    putbackCandidate = recovered.rebounder();
                     continue;
                 }
                 return sequence;
@@ -485,7 +524,20 @@ public class PossessionEngine {
                 // §3.4 (Decision B1): a made FG may be assisted. Roll using the
                 // supporting cast's passing, then pick the assister by a weighted
                 // passing draw over the other four (shooter excluded).
-                PlayerGameState assister = resolveAssist(offense, shooter, rng);
+                // §3.22 (decisions.md #044 E): a PUTBACK is assisted at HALF the
+                // ordinary chance. It keys off `shooter == rebounder` — the man who took
+                // the board went back up with it — and NOT off "any second-chance shot":
+                // a kick-out three off an offensive rebound is an ordinary assisted
+                // basket, and taxing it would be the blunt rule #044 E rejected.
+                //
+                // ⚠ HALVED, NOT ZEROED, and the reason is measured. Nobody passed the
+                // rebounder his own board, so crediting a teammate 66.7% of the time was
+                // wrong — but assists sit only +0.40 over target, and zeroing would
+                // remove ~1.1/team-game and land a REAL miss the other way. Trading an
+                // unmeasurable overshoot for a measurable undershoot is a bad trade
+                // (#043 B). The 0.5 measured a −0.52 removal, landing 27.00.
+                PlayerGameState assister =
+                        resolveAssist(offense, shooter, shooter == rebounder, rng);
                 String assistPlayerId = null;
                 if (assister != null) {
                     assister.recordAssist();
@@ -535,6 +587,8 @@ public class PossessionEngine {
                                 offTeamId, defTeamId, period, sequence, rng);
                         if (!capReached) {
                             offensiveRetentions++;
+                            // §3.22 (#044 C): NO putback candidate — a flagrant returns
+                            // the ball BY RULE and no board ran.
                             continue; // the offense keeps the ball (#034 B)
                         }
                         return sequence; // cap full: FTs awarded, possession ends
@@ -549,6 +603,7 @@ public class PossessionEngine {
                     sequence = andOne.sequence();
                     if (andOne.offenseRetains()) {
                         offensiveRetentions++;
+                        putbackCandidate = andOne.rebounder(); // §3.22 (#044 C)
                         continue; // second-chance possession off the missed and-1 FT
                     }
                 }
@@ -583,6 +638,11 @@ public class PossessionEngine {
                 sequence = result.sequence();
                 if (result.offenseRetains()) {
                     offensiveRetentions++;
+                    // §3.22 (#044 C): non-null ONLY when the retention came from an
+                    // offensive board off the bonus trip's live last FT. On the by-rule
+                    // retain (the defense fouled outside the bonus) no board ran and
+                    // nobody was identified, so this is null.
+                    putbackCandidate = result.rebounder();
                     continue; // second-chance possession (defense fouled, no bonus)
                 }
                 return sequence;
@@ -601,6 +661,12 @@ public class PossessionEngine {
 
             if (miss.outcome().offenseRetains()) {
                 offensiveRetentions++;
+                // §3.22 (#044 C): the commonest of the three paths that identify a
+                // rebounder. ⚠ This `continue` serves BOTH retaining outcomes — the
+                // OOB_OFFENSE one names no rebounder and must stay null.
+                if (miss.outcome() == MissedShotOutcome.OFFENSIVE_REBOUND) {
+                    putbackCandidate = miss.rebounder();
+                }
                 continue; // second-chance possession (offensive rebound OR OOB-offense)
             }
             return sequence; // possession over (defensive rebound OR OOB-defense)
@@ -611,8 +677,15 @@ public class PossessionEngine {
      * §3.10: what the rebounding foul did to the possession — the new {@code
      * sequence} and whether the OFFENSE keeps the ball (a second-chance
      * {@code continue}) or the possession is over (a {@code return}).
+     *
+     * <p>§3.22 (#044 C): {@code rebounder} carries the putback candidate up from the
+     * BONUS free-throw trip, which reaches {@link #awardLiveFreeThrows} through this
+     * method rather than from the loop directly — the fourth of the free-throw carrier's
+     * call sites. <b>Null on every other path</b>, including the by-rule retain where
+     * the defense fouled outside the bonus and no board ever ran.
      */
-    record ReboundFoulResult(int sequence, boolean offenseRetains) {}
+    record ReboundFoulResult(int sequence, boolean offenseRetains,
+                             PlayerGameState rebounder) {}
 
     /**
      * §3.10 (decisions.md #028 A1/A2/B/D): emit the rebounding foul, then fork the
@@ -696,7 +769,9 @@ public class PossessionEngine {
             // Defense committed → the offense retains (while the loop has room).
             // Offense committed → the possession flips, exactly as an ordinary
             // offensive foul ends it.
-            return new ReboundFoulResult(sequence, !offenseCommitted && !capReached);
+            // §3.22 (#044 C): NO putback candidate — a flagrant returns the ball BY
+            // RULE (or flips it), and no board ever ran.
+            return new ReboundFoulResult(sequence, !offenseCommitted && !capReached, null);
         }
 
         // ⚠ opponentPlayerId is NULL BY CONTRACT here, not unpopulated. A rebounding
@@ -733,13 +808,18 @@ public class PossessionEngine {
                     offTeamId, defTeamId, offense, defense, period, sequence,
                     SimConfig.FREE_THROWS_PER_FOUL, FreeThrowSource.BONUS,
                     capReached, rng);
-            return new ReboundFoulResult(ft.sequence(), ft.offenseRetains());
+            // §3.22 (#044 C): this is the FOURTH call site of the live free-throw
+            // carrier, and the only one that reaches it through a second record — the
+            // rebounder rides up unchanged so the loop can weight his next shot.
+            return new ReboundFoulResult(ft.sequence(), ft.offenseRetains(), ft.rebounder());
         }
 
         // Under the bonus: no FTs. Only a DEFENSIVE foul leaves the offense the
         // ball, and only while the second-chance loop has room.
         boolean offenseRetains = !offenseCommitted && !capReached;
-        return new ReboundFoulResult(sequence, offenseRetains);
+        // §3.22 (#044 C): NO putback candidate on the by-rule retain — the defense
+        // fouled outside the bonus, the whistle stopped play, and no board ran.
+        return new ReboundFoulResult(sequence, offenseRetains, null);
     }
 
     /**
@@ -1080,9 +1160,18 @@ public class PossessionEngine {
      * event — a recovery names a winner, never a loser. The BLOCKER rides the preceding
      * {@code SHOT} event (#041 A), where the contest that identified them happened.
      *
-     * @return the next free sequence number
+     * <p>§3.22 (#044 C): it returns a {@link BlockRecoveryResult} rather than a bare
+     * {@code int} because the loop re-enters at {@link ShotSelector#pickShooter}, which
+     * now weights the player who came down with the ball. The record is the {@link
+     * ReboundFoulResult} / {@link FreeThrowResult} shape: a FACT returned to the caller,
+     * which still owns the {@code continue}/{@code return} fork.
+     *
+     * @return the next free sequence number, and the OFFENSE-side recoverer (the putback
+     *         candidate) or {@code null} on the other three outcomes
      */
-    int emitBlockRecoveryEvent(GameData data, BlockRecovery recovery,
+    record BlockRecoveryResult(int sequence, PlayerGameState rebounder) {}
+
+    BlockRecoveryResult emitBlockRecoveryEvent(GameData data, BlockRecovery recovery,
                                List<PlayerGameState> offense,
                                List<PlayerGameState> defense,
                                String offTeamId, String defTeamId,
@@ -1109,7 +1198,12 @@ public class PossessionEngine {
         };
         data.addEvent(offTeamId, defTeamId, period, sequence,
                 PlayType.REBOUND, outcome, rebounderId);
-        return sequence + 1;
+        // §3.22 (#044 C): only an OFFENSE-recovered in-bounds ball identifies a putback
+        // candidate. RECOVERED_DEFENSE ends the possession, and the two OOB outcomes
+        // named nobody — OOB_OFFENSE retains the ball but with no rebounder to weight.
+        PlayerGameState candidate =
+                recovery == BlockRecovery.RECOVERED_OFFENSE ? rebounder : null;
+        return new BlockRecoveryResult(sequence + 1, candidate);
     }
 
     /**
@@ -1119,8 +1213,14 @@ public class PossessionEngine {
      *
      * <p>Same shape as {@link ReboundFoulResult} and {@link MissedShotResolver.Result}:
      * a FACT returned to the caller, which owns the {@code continue}/{@code return}.
+     *
+     * <p>§3.22 (#044 C): {@code rebounder} is the player who took the offensive board off
+     * the missed last attempt — the putback candidate the loop weights on its next
+     * {@code pickShooter} draw. <b>Null on a made free throw and on a defensive board</b>,
+     * where nobody on the offense secured it.
      */
-    record FreeThrowResult(int sequence, boolean offenseRetains) {}
+    record FreeThrowResult(int sequence, boolean offenseRetains,
+                          PlayerGameState rebounder) {}
 
     /**
      * §3.21 (decisions.md #043 C/D/H): the STANDARD free-throw handler — the shared trip
@@ -1171,7 +1271,10 @@ public class PossessionEngine {
      *                site the FOULED team may be the DEFENSE (an over-the-back sends the
      *                defending team to the line), so this is the POSSESSION's
      *                orientation, never "whoever shot".
-     * @return the new sequence, and whether the offense rebounded the last miss
+     * @return the new sequence, whether the offense rebounded the last miss, and — since
+     *         §3.22 (#044 C) — WHO rebounded it, so the loop can weight his next shot.
+     *         The loop re-enters at {@link ShotSelector#pickShooter}, which now takes
+     *         that rebounder as a participant.
      */
     FreeThrowResult awardLiveFreeThrows(GameData data, PlayerGameState shooter,
                                         String shootingTeamId,
@@ -1193,7 +1296,7 @@ public class PossessionEngine {
         sequence = awardFreeThrows(data, shooter, shootingTeamId, offTeamId,
                 defTeamId, period, sequence, 1, source, rng);
         if (shooter.getFreeThrowsMade() > madeBefore) {
-            return new FreeThrowResult(sequence, false); // made: dead ball, no board
+            return new FreeThrowResult(sequence, false, null); // made: dead ball, no board
         }
 
         MissedShotResolver.Result miss = missedShotResolver.resolve(offense, defense,
@@ -1201,7 +1304,13 @@ public class PossessionEngine {
                 rng);
         emitMissedShotEvent(data, miss, offTeamId, defTeamId, period, sequence);
         sequence++;
-        return new FreeThrowResult(sequence, miss.outcome().offenseRetains());
+        // §3.22 (#044 C): an OFFENSIVE board off the live miss identifies a putback
+        // candidate for the loop's next pickShooter draw. The OOB_OFFENSE retention
+        // reaches the same `offenseRetains()` but names no rebounder, so it carries null
+        // — nobody secured that ball and weighting anyone would fabricate a participant.
+        PlayerGameState rebounder =
+                miss.outcome() == MissedShotOutcome.OFFENSIVE_REBOUND ? miss.rebounder() : null;
+        return new FreeThrowResult(sequence, miss.outcome().offenseRetains(), rebounder);
     }
 
     /**
@@ -1281,9 +1390,23 @@ public class PossessionEngine {
      * offensive players') average passing; if assisted, picks the assister by a
      * weighted passing draw over those four (mirrors {@link ShotSelector#pickShooter}).
      * Returns {@code null} when unassisted. Not every make is assisted.
+     *
+     * <p><b>§3.22 (#044 E): a PUTBACK is assisted at {@link
+     * SimConfig#OFFENSIVE_REBOUNDER_ASSIST_LEAN} × the ordinary chance</b> — the shooter
+     * IS the player who took the offensive board, so nobody passed him the ball. The
+     * multiplier is applied <b>AFTER</b> {@link SimConfig#clampProbability}, so the floor
+     * is not in play (0.62 × 0.5 = 0.31 ≫ {@code PROB_FLOOR}); it is a static rule
+     * rather than a knob because nobody assists a tip-in in any era.
+     *
+     * <p>⚠ <b>The ROLL COUNT is unchanged</b> — the {@code nextDouble()} for "assisted?"
+     * is taken exactly as before and only the threshold moves. A putback that flips to
+     * unassisted then skips the assister draw, which is expected and is one of the two
+     * reasons §3.22's RNG stream moves (#044 I).
+     *
+     * @param putback whether the shooter is the offensive rebounder who returned the ball
      */
     PlayerGameState resolveAssist(List<PlayerGameState> offense, PlayerGameState shooter,
-                                  RandomGenerator rng) {
+                                  boolean putback, RandomGenerator rng) {
         List<PlayerGameState> supportingCast = new ArrayList<>();
         double passingSum = 0;
         for (PlayerGameState p : offense) {
@@ -1296,7 +1419,11 @@ public class PossessionEngine {
             return null;
         }
         double avgPassing = passingSum / supportingCast.size();
-        if (rng.nextDouble() >= config.assistProbability(avgPassing)) {
+        double assistChance = config.assistProbability(avgPassing);
+        if (putback) {
+            assistChance *= SimConfig.OFFENSIVE_REBOUNDER_ASSIST_LEAN;
+        }
+        if (rng.nextDouble() >= assistChance) {
             return null;
         }
         // Weighted passing draw over the supporting cast.

@@ -2,7 +2,7 @@
 
 Basketball simulation game — 40-team league with attribute-driven gameplay, season management, and a React frontend.
 
-_Last updated: 2026-07-10_
+_Last updated: 2026-09 (§3.22 shipped)._
 
 ## What Exists Today
 
@@ -1084,14 +1084,33 @@ re-running the loop and re-agreeing the numbers, not a red build.
       damage was over-predicted ~2.5×** (predicted +1.7, measured +0.54): an extra offensive
       rebound does not buy a full extra attempt. Coverage gate green._
 
-### §3.22 — the putback (NEXT; ⚠ NEEDS A DESIGN PASS — open questions in [todo.md](todo.md))
+### §3.22 — the putback (✅ SHIPPED — #044)
 
-> ⚠ **THIS BULLET IS A SEAM, NOT A PLAN.** It needs its own design pass resolving the
-> open questions in todo.md into a numbered `decisions.md #NNN` **plus** an execute-ready
-> plan, before any production code. Every phase so far has found real design questions the
-> one-liner hid.
+> ✅ **SHIPPED 2026-09 (#044 A–I + its implementation note).** ⚠ **The design run's
+> landing table below was reproduced to the DECIMAL** — Points 115.700, FG% 47.020, FGA
+> 89.600, Assists 27.000, Fouls 19.220 — which is the verification, not a coincidence: an
+> exact match proves execution wired the same mechanic the design measured. Execution then
+> nudged `base-no-basket-foul` 0.1753 → **0.178** (FGA read 0.05 outside its band) and
+> **landed FGA 89.40**. **All 167 seeded sim tests passed UNCHANGED**, the first phase to
+> collect on §3.19's batch-invariant rewrite.
+>
+> ✅ **Design pass done (2026-09, #044 A–I).** The seven user calls below are recorded as
+> Decisions A–G with their reasoning; the mechanical calls resolved as: **multiplier** on
+> `offensiveWeight`; **`sim.offensive-rebounder-shot-weight = 2.0`** (tunable, 62 → 63);
+> **`OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5`** (a static rule, 28 → 29 — the
+> `FREE_THROW_REBOUND_LEAN` shape); the rebounder rides **`pickShooter` as a PARAMETER**
+> (a participant, not a mode — the opposite resolution from #043 H on the same test); and
+> the RNG question is **measured**: one draw at the pick as before, the stream still
+> moves, and **all 167 seeded sim tests pass unchanged**. ⚠ **Two premises below were
+> corrected by measurement and the text is left as written**: the harness is NOT "five
+> identical skill-10 players" (422 distinct attribute rows; skills computed at load), and
+> **FG% goes UP (+0.24), not down** — the rebounder already shoots interior (54.8% on the
+> next shot vs 45.6%). Design-run landing at 5 seeds: Points 115.70 ✅ · FG% 47.02 ✅ ·
+> Assists **27.00** (+0.30, closer than today) · FGA 89.60 (+0.50, band edge — execution
+> re-lands on `base-no-basket-foul` if its own reading needs it) · rebounder next-shot
+> share 22.4% → **35.4%** (reported, not a target).
 
-- [ ] **§3.22 — the putback: weight the offensive rebounder to take the next shot.**
+- [x] **§3.22 — the putback: weight the offensive rebounder to take the next shot.**
       *(Raised 2026-08 by the user, from an audit after §3.21 asking "what other design
       gaps are out there?")*
       ⚠ **THE GAP, VERIFIED IN CODE.** An offensive rebound `continue`s the possession
@@ -1104,6 +1123,30 @@ re-running the loop and re-agreeing the numbers, not a red build.
       it: the rebound is credited, the possession is right, every invariant passes. It is
       the same "the ball goes to the right team, so nothing looks broken" shape as
       §3.21's two gaps.
+
+      _Shipped (decisions.md #044 A–I). **No divergence from the design** — the plumbing
+      landed exactly where C predicted, including the fourth free-throw call site reaching
+      `awardLiveFreeThrows` through `ReboundFoulResult`. `pickShooter` gained the rebounder
+      as a **parameter** (H — a participant, not a mode; the two-arg form delegates with
+      `null` and is bit-identical), fed by a **loop-scoped `putbackCandidate`** that is
+      read-and-cleared in ONE step at the top of the iteration (C) and set on the three
+      paths that identify a rebounder; the four retentions that identify nobody carry
+      `null`. A putback make is assisted at **half** the ordinary chance, keyed off
+      `shooter == rebounder` and applied AFTER the clamp (E). **Two constants: `sim.
+      offensive-rebounder-shot-weight = 2.0` (tunable, 62 → 63) and
+      `OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5` (static, 28 → 29).** Landing at 5 seeds after
+      the re-tune: **FGA 89.40 ✅** · Points 115.82 ✅ · FG% 47.06 ✅ · 3P% 36.14 ✅ · 3PA
+      36.96 ✅ · **Assists 26.84** (+0.14 — §3.22 closed most of §3.20's old +0.40 by fixing
+      the mechanic, not by tuning `base-assist`) · FTA 23.58 ✅ · Fouls **19.35** (−0.55,
+      the standing over-determined residual, moved toward target for free). The realized
+      **rebounder-is-next-shooter share is 35.4%** (from 22.4%) and his makes are assisted
+      **33.4%** of the time (teammates', untaxed, 65.3%) — **reported, not targets**, and
+      below real basketball's ~45–55% by deliberate choice (A). ⚠
+      **`PERSONAL_FOULS_PER_TEAM_GAME` was re-measured (19.015) and LEFT at 19.08** — a
+      −0.34% drift, inside what any consuming row can resolve; the rule is that it gets
+      measured, not that it must move. `PutbackProbe` deleted (#043 F). **594 tests,
+      coverage gate green.**_
+
       ⚠ **§3.21 made it MORE visible**, which is what surfaced it: offensive rebounds went
       **9.90 → 11.78**/team-game, so ~19% more second-chance possessions now resolve this
       way.
@@ -1205,17 +1248,85 @@ re-running the loop and re-agreeing the numbers, not a red build.
 
 ---
 
+## Phase 3 → Phase 4 pre-work (a GATE, not part of Phase 4)
+
+⚠ **This is its own section deliberately.** It is work that must be DONE BEFORE Phase 4
+is designed — not Phase 4's first task — and mixing it into the phase is how a gate turns
+into a backlog item that ships late or not at all. **Phase 4's design pass does not start
+until these are done.**
+
+**The order is dependency-driven, not size-driven.** Steps 2+3 are one pass; 5 depends on
+4; 8 is a snapshot check and must be last.
+
+- [ ] **1. Rewrite `todo.md`.** It still holds §3.22's finished execution plan (33
+      completed checkboxes). Required before any Phase-4 design pass regardless, and doing
+      it first stops those items looking migratable at step 7.
+- [ ] **2. Condense `decisions.md`** — the file is **600k / 44 entries**, and **94% of it
+      is 23 engine entries** a Phase-4 reader never opens. Target the **five pre-cap
+      giants** (#030 53.8k, #031 47.6k, #032 44.9k, #034 44.7k, #040 35.9k ≈ 227k) —
+      halving those recovers **~113k, ~19% of the file** and touches nothing written under
+      the current proportionality rule. Add a short **navigation header** (#001–#020 are
+      foundational, start here; #021+ are engine sub-phases, read only the one you touch).
+      ⚠ **NEVER renumber and NEVER retro-edit** — ~300 `#NNN` citations resolve by number,
+      from docs *and Java comments*. ⚠ **Never compress away the crux, the final constants,
+      or the traps** (the wrong-way lever, the clamp flooring a rare rate, the
+      over-determined pair) — those are what later phases reach for. What is compressible
+      is the *Alternatives* / *Trade-off* re-argument and the design-pass narrative.
+      ⚠ **A split was tried 2026-07 and REVERTED (one file, user call)** — condense, don't
+      split. If it is ever revisited, the only clean cut is **after #020**: engine entries
+      cite #001–#020 **172×**, and #001–#020 cite engine entries **0×**.
+- [ ] **3. Sweep the `sim` package's Java comments — IN THE SAME PASS as step 2.** Not
+      sequential: simultaneous. Java comments cite `decisions.md` **by number**, so
+      condensing one without the other is exactly how a doc gets repaired while the thing
+      referencing it goes stale.
+- [ ] **4. Split `possession-flow.puml`** into a high-level outline + sub-section diagrams.
+      It is **64k, 52% inside `note` blocks, and renders at 13,800px against a 16,384
+      ceiling** — roughly one phase of headroom left. ⚠ **Cut at PARTITION boundaries** —
+      branch order *within* a partition is load-bearing and this file is where it is
+      recorded (the §3.14b/§3.16 drift happened inside one flow). ⚠ **Keep the render check
+      per sub-diagram**: `plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng` and confirm the
+      height — a plain `-tpng` truncates silently at 4096px, and `-checkonly` does not lay
+      out, so a green check does not prove the PNG is whole.
+- [ ] **5. `game.md` dedup against the new diagrams** — the two describe the same flow
+      twice. **After step 4**: it is cheaper once each sub-diagram's ownership is settled.
+- [ ] **6. Triage `backlog.md`.** Move the three items that are already gates here out of
+      it (condense `decisions.md`, thin the `.puml`, the Java-comment sweep). Move the
+      **`PROB_FLOOR` / `base-block-three` finding** to `calibration.md`'s Blocks row or
+      #040's note — it is an **engine trap a future tuner must hit at the moment they
+      reach for that knob**, not a chore. Condense the four large remainders to a summary
+      plus a pointer.
+- [ ] **7. Adopt Beads, and cut over for Phase 4 work.** ⚠ `bd` is installed and the
+      `SessionStart` hook (`bd prime --hook-json`) is already in `.claude/settings.json`,
+      but **there is no `.beads/` database** — it currently primes nothing. Initialize it,
+      then migrate the ~9 clean chores left after step 6. **Migrate the POINTER, not the
+      prose** — several entries carry 6–7k of argument, and moving that into an issue body
+      relocates the bloat somewhere less readable.
+      ⚠ **`decisions.md`, `calibration.md`, `game-events.md` and `possession-flow.puml` do
+      NOT migrate** — append-only reference cited by number; they are not work items.
+- [ ] **8. Re-read every `calibration.md` verdict against its own Current number.** ⚠ **Not
+      a re-run — a re-READ**, and it must be **last** so it reflects final state. The
+      Current column is updated each landing; the status prose beside it is not, so a row
+      can carry a stale verdict indefinitely and **nothing fails**. Found 2026-09: four
+      rows disagreed with their own numbers — 3P% marked `🟡 −0.52` while reading **+0.14
+      (green)**, def rebounds marked `−0.48` while sitting at **−0.85**. Phase 4 reads this
+      table as its input the way §3.20 did, so a wrong verdict here is a wrong premise
+      there.
+
+**⚠ The roadmap ↔ Beads boundary, decided before step 7 so it is not re-litigated.**
+Beads holds **actionable work with state**; this file keeps what nothing else can hold —
+the **41 shipped `[x]` bullets and their landing notes**, the phase structure, the
+**§3.16/§3.19 number→name mapping** (~300 citations depend on it), and the sequencing
+rationale. **Phases 5–8's open bullets do NOT migrate**: roadmap bullets are *seams, not
+plans*, each needing its own design pass, and migrating a seam turns it into a ticket that
+lies about its readiness. ⚠ **Write the rule down when Beads lands** — either the bullet is
+deleted when it becomes a bead, or it stays and links to one. **Two records of the same
+work WILL drift**; leaving it implicit is how.
+
+---
+
 ## Phase 4 — Statistics & Box Scores
 
 **Goal**: Track, aggregate, and expose stats.
-
-### 4.0 Pre-work
-
-- [ ] **The `decisions.md` condense pass** — see [backlog.md](backlog.md). A second kind
-      of reader arrives with this phase ("can I add a column?") and should not scroll
-      past the engine reasoning to find #014/#017/#020.
-- [ ] **The `game.md` / `possession-flow.puml` documentation pass** — the two describe
-      the same flow twice.
 
 > ⚠ **Worth reading before designing 4.1: stats are written TWICE and the two paths agree
 > only by convention** — `PlayerGameState.record*()` counters and the `GameEvent` for the
@@ -1223,6 +1334,7 @@ re-running the loop and re-agreeing the numbers, not a red build.
 > on this phase**, and not scheduled — but if the box score is ever to be **derived from
 > the event log**, this phase's design is the natural place to ask. Full write-up in
 > [risks.md](risks.md); parked as an idea in [ideas.md](ideas.md).
+
 
 ### 4.1 Game Stats Model
 - [ ] Per-game player stats: points, rebounds (off/def), assists, steals, blocks, turnovers, fouls, minutes, FGA/FGM, 3PA/3PM, FTA/FTM

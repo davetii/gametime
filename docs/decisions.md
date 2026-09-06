@@ -2150,6 +2150,354 @@ install` green, **All coverage checks have been met.**
 
 ---
 
+### 044 — The putback (§3.22): the offensive rebounder's `offensiveWeight` is DOUBLED for the next draw only (a tunable, 62 → 63), the shot type is NOT forced, a putback's assist chance is HALVED rather than zeroed (a static rule, 28 → 29), the rebounder rides `pickShooter` as a PARAMETER because it is a participant and not a mode, and the measured premise is corrected in two places: the harness is NOT five identical players, and FG% goes UP
+
+**Date**: 2026-09
+**Scope**: A Phase-3 fidelity sub-phase closing the gap ideas.md's 2026-08 audit found: an
+offensive rebound `continue`s the possession loop, which re-enters at
+`pickShooter(offense, rng)` — a draw over all five that does not know who just got the
+board — so the rebounder is no likelier to shoot than anyone else and a putback cannot
+happen. **Engine only.** No schema change, no OpenAPI change, no new `PlayType`, no new
+outcome: a putback is an ordinary `SHOT` (#020's free-text `outcome` is not even
+reached). **One new tunable and one new static** (B, E): **63 tunables / 29 statics**.
+**Re-lands its own calibration (G).** ⚠ **All seven design questions were answered by
+user call before this pass (2026-08) and are RECORDED here, not re-derived** — the pass
+measured them, resolved the mechanical calls (H, I) and wrote the plan. NOT YET BUILT —
+this entry is the resolved design; the execute-ready plan is todo.md's §3.22 plan.
+
+**Step 0 (the measurement, and it corrected the premise twice).** A throwaway
+`PutbackProbe` (the `CalibrationHarness` shape; kept in the tree for execution to
+re-run once, then deleted — #043 F) walked the event log at 5 seeds (1000–5000,
+`Profiles: local,baseline`, all four reconciliation lines OK) and classified, for every
+`REBOUND / OFFENSIVE` naming a rebounder, the NEXT event of the possession. It
+reproduces the §3.21 landing exactly (OffReb 11.78, Assists 27.10, FGA 89.16).
+
+| 5-seed mean, per team-game | today | at the design (A + E) |
+|---|---|---|
+| offensive boards naming a rebounder | **11.78** *(miss 9.91 · block 1.31 · FT 0.56)* | 11.91 |
+| the rebounder is the next shooter-pick | **22.4%** (2.64) | **35.4%** (4.22) |
+| next-event `SHOT` by the rebounder | 1.96 · **FG% 54.8** · 3PA share 39.9% | 3.14 · FG% 52.5 · 41.7% |
+| next-event `SHOT` by a teammate | 7.03 · **FG% 45.6** · 3PA share 41.4% | 5.97 · FG% 46.6 · 39.9% |
+| assisted share of the rebounder's makes | **66.7%** (0.715 assists) | **33.4%** (0.551) |
+| assisted share of ALL makes | 65.0% | 64.1% |
+
+Then the mechanic was wired **temporarily** into the working tree (the exact shape C/H
+specify), the harness run at 5 seeds with M = 2.0 alone and with the ×0.5 assist rule,
+the five sim test classes run against it, and the two production files reverted with
+`git checkout`. **Nothing of it remains.**
+
+| harness, 5-seed mean | §3.21 | M = 2.0 alone | **M = 2.0 + assist ×0.5** | target |
+|---|---|---|---|---|
+| Points | 115.04 | 115.60 | **115.70** | 115.6 ✅ |
+| FG% | 46.78 | 47.02 | **47.02** | 47.1 ✅ *(UP, not down — F)* |
+| 3P% | 35.68 | 35.80 | **36.08** | 36.0 ✅ |
+| FGA | 89.16 | 89.56 | **89.60** | 89.1 *(+0.50, band ±0.45 — G)* |
+| 3PA | 36.92 | 36.86 | **36.92** | 37.0 ✅ |
+| **Assists** | 27.10 | 27.52 | **27.00** | 26.7 *(+0.30 — closer than today)* |
+| Off / Def reb | 11.78 / 31.94 | 11.88 / 31.71 | **11.91 / 31.62** | 11.3 / 32.4 *(reported residuals, #043 B)* |
+| Fouls | 19.40 | 19.20 | **19.22** | 19.9 *(−0.68 — G)* |
+| FTA | 23.76 | 23.44 | **23.46** | 23.5 ✅ |
+| Blocks | 4.46 | 4.48 | 4.60 | 4.8 |
+
+**⚠ The two premise corrections, stated before the decisions because they change how
+the numbers above must be read:**
+1. **The harness is NOT "five identical skill-10 players"** — todo.md's Q6 and the RNG
+   question both rested on that, and it is false. The seeded league (`players.csv`) has
+   **422 distinct attribute rows** and every skill is computed from them by the
+   `mapper` calculators at load. The five on the floor differ, the rebounder is drawn by
+   `offenseRebound` and so is usually a big, and **a big's own shot mix is interior**.
+2. **The rebounder is a BETTER next-shot shooter than his teammates, not a worse one**
+   — 54.8% against 45.6%, because `pickShotType` bends toward his interior skills (#040
+   C) and the interior bases are the high ones (`base-drive` 0.68, `base-post` 0.61
+   against 0.46 / 0.34). So **FG% RISES** with the mechanic, by +0.24 — the *opposite*
+   of Q6's "slight dip because rebounders are worse shooters". ⚠ **A measurement
+   contradicting one of the seven answers, flagged as such** — it re-opens NOTHING,
+   because nothing built depends on the direction (F).
+
+**⚠ Decision A — DOUBLE THE WEIGHT: `M = 2.0`, a MULTIPLIER on the rebounder's
+`offensiveWeight`, for the next draw only (user call, 2026-08; multiplier form confirmed
+2026-09).** `pickShooter` computes each player's weight as `offensiveWeight()`, and for
+the one player who is the rebounder as `offensiveWeight() × M`. **A weight, not a
+boolean, and the shot type is NOT forced to the rim** — `pickShotType` already bends by
+the shooter's own skills (#040 C), Step 0 shows a rebounder already leaning interior on
+his own, and forcing the type would bolt a second mechanism onto a job the first does
+(the "two operations merged" smell #043 H rejected). A weight reproduces the whole
+second-chance distribution (sometimes it is kicked out for three); a branch hard-codes one leg.
+- **Multiplier, not an additive share (the mechanical call).** A weighted draw composes
+  multiplicatively: `× M` keeps the rebounder's *relative* standing among his four
+  teammates (a weak-scoring big doubled is still below a star guard), and it is what
+  `M = 2.0` presumed. An additive share (+X of the total) would hand the same absolute
+  bump to a 5-weight center and a 15-weight forward, which is not a tendency but a quota.
+  `1.0` means "off" with no special case.
+- **⚠ The CONSTANT is the multiplier; the SHARE is what it realizes, and they are not
+  the same number.** At five equal weights M = 2.0 yields **33.3%** for the rebounder,
+  16.7% each for the other four — *not* the 40/15 an early sketch floated (that needs
+  M ≈ 2.67; **40/15 is not the intent, 2.0 is**). On the real seeded league the
+  realized share is **35.4%** (Step 0), from a 22.4% base — the weighted draw working,
+  not something to correct for. **Measured and reported; M was not back-solved** (#043
+  D's discipline).
+- **It lands BELOW real basketball's ~45–55% of immediate second-chance attempts — a
+  deliberate, conservative first step on a mechanic that did not exist at all, stated
+  here rather than quietly tuned upward.**
+
+**Decision B — a TUNABLE, `sim.offensive-rebounder-shot-weight = 2.0` (user call on
+form; name chosen 2026-09), 62 → 63.** Field `offensiveRebounderShotWeight`, accessor
+`offensiveRebounderShotWeight()`, `@DecimalMin("0.0")` (`1.0` = off; below 1 is a
+legal lean *away* from the rebounder, which an era or a test may want). The name says
+what the constant does — weights the rebounder's shot — rather than naming the outcome
+it tends to produce; `sim.putback-weight` was rejected because a putback is what the
+draw *sometimes* yields, not what the knob sets. **A tendency is an era knob** (the go-back-up was a bigger share of the 1990s game). The count lives in **FOUR** places plus `SimConfigProfileBindingTest` (CLAUDE.md), and a
+tunable has **no Java initializer and no `public static final` alias** — its only value
+is the properties line (the double-value trap).
+
+**Decision C — a `putbackCandidate` LOCAL declared beside `offensiveRetentions`, READ
+AND CLEARED at the top of the iteration in ONE step, set on exactly the THREE paths that
+identify a rebounder (recommended and accepted, 2026-08).** At the loop top:
+`PlayerGameState rebounder = putbackCandidate; putbackCandidate = null;` then
+`pickShooter(offense, rebounder, rng)`. **Clearing at the USE site, not at each
+`continue`, is the whole correctness** — one line that cannot be forgotten instead of
+eight that can, and a stale candidate is structurally impossible: a possession-scoped
+local cannot leak across possessions, and within one it is consumed the moment the
+next iteration starts. ⚠ **`rebounder` stays live for the WHOLE iteration** because the
+assist rule (E) reads `shooter == rebounder` ~280 lines further down; do not "simplify"
+by clearing after `pickShooter`.
+- **The three paths, and the carriers each needs**: the missed-shot board
+  (`MissedShotResolver.Result.rebounder()`, already there); the in-bounds block
+  recovery (`emitBlockRecoveryEvent` returns a bare `int` today → a
+  `BlockRecoveryResult(int sequence, PlayerGameState rebounder)`); the missed last free
+  throw (`FreeThrowResult` gains a `rebounder` component, null unless the offense
+  rebounded). ⚠ **The FT carrier has FOUR call sites, not three**, because the
+  rebounding-foul's bonus trip reaches `awardLiveFreeThrows` *through*
+  `resolveReboundFoul` — so **`ReboundFoulResult` gains the same `rebounder` component**
+  (null on its by-rule retain path, where the defense fouled outside the bonus and no
+  board ran). One record shape, three records: `(sequence, offenseRetains, rebounder)`.
+  Plumbing todo.md undercounted; not a third constant.
+- **`null` is MEANINGFUL, not a sentinel to defend against**: it means "no identified
+  rebounder", and `pickShooter(offense, null, rng)` **must be bit-identical to today**.
+  The four retention paths with no rebounder — `OOB_OFFENSE`, both flagrant
+  retentions, the rebounding foul's by-rule retain — pass nothing and draw exactly as
+  before. Weighting anybody there would fabricate a participant the engine never chose
+  (the #014/#017/#020 trap).
+- **A capped `RECOVERED_OFFENSE` still credits its rebounder (#043 E) but the loop
+  `return`s**, so the candidate is set only inside the `offenseRetains() && !capReached`
+  block — the local's scoping makes the other order impossible anyway.
+
+**Decision D — NO DECAY across retentions (user call, 2026-08).** The second putback in
+a possession is as likely as the first: `M` applies whenever the last iteration ended in
+an identified offensive board, however many times that has happened. A decay "introduces
+too much complexity" for a loop capped at 3, and Step 0 shows the rebounder shoots later
+in a possession only 0.016 times/team-game — nothing for a decay to shape.
+
+**⚠ Decision E — a putback's assist chance is HALVED, not zeroed: a STATIC
+`OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5`, applied at the assist site when
+`shooter == rebounder`, 28 → 29 statics (reduce-not-zero: user call 2026-08; the value
+committed by the user 2026-09 and confirmed by measurement; static: this pass).**
+Nobody passed the rebounder his own board, so crediting a teammate 66.7% of the time
+(Step 0) is wrong — but the correction is partial and the reason is measured, not
+aesthetic. Assists sit at **27.10 (+0.40, 1.8 sem — noise-scale)**; zeroing would remove
+every rebounder-make assist (1.65 makes × ~0.65 ≈ **−1.1/team-game** at the design's
+share) and land ~26.0–26.4, a **real** miss the other way. **Trading an unmeasurable
+overshoot for a measurable undershoot is a bad trade — a residual you can explain beats
+one you created (#043 B).**
+- **The VALUE, measured.** At M = 2.0 alone assists rise to 27.52 (more makes — FG% and
+  FGA both rose — and assists track makes at 65%). ×0.5 on the putback roll removes
+  **0.52**, landing **27.00 (+0.30)** — closer to target than today *and* more faithful.
+  The modelled removal was 0.57. "About half" was the sizing hypothesis that won the
+  argument; **0.5 is now the measured answer, set once and reported, not back-solved.**
+- **STATIC, not tunable — the `FREE_THROW_REBOUND_LEAN` shape exactly (#043 D):** a
+  `public static final` multiplier applied at one site to a tunable base
+  (`assistProbability(...) × LEAN`, applied AFTER `clampProbability`, so the floor is not
+  in play: 0.62 × 0.5 = 0.31 ≫ 0.02). Nobody assists a tip-in in any era; the 0.5 is the model's
+  estimate of how many "rebounder shoots next" draws are true go-back-ups rather than a
+  kick-out that came back — model *shape*, while the tendency knob (B) is the era lever.
+  So **63 / 29**, not 64 / 28. Not profilable; promote it if an era ever needs it.
+  ⚠ **It therefore gets NO properties line and NO `calibration.md` target row** (an
+  unsourced target is what #042 J's sweep removed); it appears in `calibration.md` only
+  as the operative rule under the Assists row.
+- **Which makes it keys off: `shooter == rebounder`, NOT "any second-chance shot".** A
+  kick-out three off an offensive rebound is an ordinary assisted basket, and taxing it
+  would be the blunt rule this decision rejected. Both `shooter` and C's `rebounder` are
+  in scope at the assist site with no extra plumbing.
+- **Name**: `OFFENSIVE_REBOUNDER_ASSIST_LEAN`, pairing with B's key — same subject, same
+  "lean" vocabulary as the existing static that scales a base at one site.
+
+**Decision F — expected movement: LITTLE, and the direction is now MEASURED rather than
+assumed (user's prior: little, a slight FG% dip; measured: little, FG% UP +0.24).** The
+mechanic moves ~1.2 next-event attempts/team-game from teammates to the rebounder
+(1.96 → 3.14), and the rebounder shoots ~9 points better on them, so FG% rises, points
+follow (+0.66, landing 115.70 on a 115.6 target) and 2P% edges up. **Every sourced row
+stays inside its band except FGA, which sits at the band's edge (G).** The
+"moves not at all in the harness" prediction was an artefact of premise-correction 1.
+
+**Decision G — §3.22 re-lands its own calibration (user call, 2026-08; the #043 G
+precedent) — and the re-tune is one lever or none.** Measured at the design: FGA
+**89.60 (+0.50 against a ±0.45 band)**, Fouls **19.22 (−0.68)**, FTA 23.46 ✅, Points ✅.
+The rebounder is fouled less than the guard he displaces (Fouls −0.18, FTA −0.30), so
+fewer stopped shots become charged attempts. **The lever is `base-no-basket-foul`**,
+already measured at **1.49 FGA per foul** (#042 D6) and already the lever that landed
+FGA twice; a nudge of the order 0.1753 → ~0.178 pulls FGA back and **moves Fouls TOWARD
+target as a side effect**, with `non-shooting-foul-share` holding FTA count-neutrally if
+it drifts. ⚠ Execution decides on ITS 5-seed reading: if FGA lands inside the band
+without touching anything, **say so explicitly and touch nothing** — the difference
+between 89.55 and 89.60 is noise. Either way **re-measure `PERSONAL_FOULS_PER_TEAM_GAME`**
+(calibration.md's standing rule — the foul rate moved, and four consecutive phases have
+now moved it). **Do NOT touch `base-offensive-rebound`, the `block-*` weights (#043
+B/E4) or `base-assist`** (E rejected spending it).
+
+**Decision H — `pickShooter` takes the rebounder as a PARAMETER; `ShotSelector` does
+NOT gain a second method — and this resolves the OTHER way from #043 H on the same test.**
+`pickShooter(List, PlayerGameState rebounder, RandomGenerator)`; the existing two-arg
+form delegates with `null`, so every caller and test compiles unchanged. #043 H rejected
+a flag parameter because it would have **switched off the main thing the method does**
+for two callers whose possession semantics are fixed by rule — two operations merged.
+Here the parameter does not switch anything off: **the rebounder is a PARTICIPANT in
+the same operation** (one weighted draw over five, one weight adjusted), and `null`
+means "no such participant", exactly what a null `rebounder` on the result records
+means. **The test that decides both: does the parameter switch off what the method does,
+or feed it?** A second `pickPutbackShooter` would duplicate the draw loop verbatim but
+for one multiplication, and every caller would still test `rebounder == null` to choose
+between them — the choice moves, it does not disappear.
+
+**⚠ Decision I — THE RNG QUESTION, answered by measurement: the DRAW COUNT at the pick
+is unchanged, the STREAM still moves, the harness moves, and NO seeded test re-baselines
+(neither of todo.md's two predictions).** `pickShooter` takes exactly one `nextDouble()`
+before and after — only the cumulative boundaries move. But (1) a different shooter
+takes a different branch, so downstream draws differ in meaning and soon in count; and
+(2) a putback make whose assist roll lands in `[p/2, p)` flips to unassisted and
+**skips the assister draw**. Same seed, different game: seed 1000's points read 113.8 → 114.4 with
+M = 2.0 alone. **And yet all 167 tests in `GameSimulatorIntegrationTest`,
+`PossessionEngineTest`, `ShotSelectorTest`, `MissedShotResolverTest` and
+`SimConfigProfileBindingTest` passed UNCHANGED with the mechanic wired in** — §3.19
+(*instrumentation* — ⚠ the number was reused; in anything written before 2026-08 "§3.19"
+means recalibration) replaced pinned-seed expectations with batch invariants precisely so
+that a stream shift would cost nothing, and this is the first phase to collect on it. ⚠ **Execution asserts
+this, not assumes it**: run the sim classes alone before and after; if one needs a new
+value, something consumed a draw the design did not, and that is a finding.
+
+**Rationale**: *(overall)* the seven calls were the user's; this pass measured them,
+found them sound, and the one direction it overturned (F) changes nothing built. *(A)* a
+multiplier is the only form that composes with a weighted draw. *(B)* a tendency is an
+era knob. *(C)* one read-and-clear beats seven clears. *(D)* nothing to decay. *(E)* the
+headroom is ~0.4 and cuts both ways; half fits it and measures 27.00; static because it
+is shape, not era. *(F, I)* a fourth pass in which a modelled quantity was something
+else — this one twice. *(G)* one lever, smaller than the mechanic. *(H)* a participant
+is not a mode.
+
+**Trade-off**: *(A)* 35.4% is below the real ~45–55%, knowingly. *(B)* a 63rd key in a
+file that is the only copy. *(C)* three result records grow a component that is null on
+most paths. *(E)* a 29th static is not profilable, and 0.5 is a model estimate, not a
+sourced figure. *(G)* FGA at the band edge, possibly one more `base-no-basket-foul`
+move — and foul-outs (0.427, already above ballpark) rise a hair with it. *(I)* the
+stream moves; any future pinned-seed test would have been broken, and none was.
+
+**Alternatives considered**: *(A)* **a boolean branch** — hard-codes one leg of the
+distribution. *(A)* **force the rim** — `pickShotType` already does it by skill. *(A)*
+**M ≈ 2.67 for 40/15** — never the intent. *(A)* **an additive share** — a quota, not a
+tendency. *(B)* **a static** — a tendency varies by era. *(B)* `sim.putback-weight` —
+names the outcome, not the mechanism. *(C)* **clear at each `continue`** — seven sites,
+one forgotten is a stale candidate. *(C)* **an engine field set at the two
+`recordOffensiveRebound()` sites** (the throwaway experiment's shortcut) — per-possession
+mutable state on a singleton the API may drive concurrently. *(C)* **weight the
+no-rebounder retentions** — no player was chosen there. *(E)* **zero the assist** — −1.1,
+a real miss. *(E)* **zero and re-land with `base-assist`** — spends a knob left alone
+through two recalibrations to fix an overshoot the rule made. *(E)* **leave it** — ~0.55
+bogus assists/team-game. *(E)* **a second tunable (64/28)** — a rule, not a knob. *(E)*
+**tax every second-chance shot** — the kick-out three is an ordinary assisted basket.
+*(G)* **split §3.22a/b** — rejected on the measurement. *(H)* **a second `ShotSelector`
+method** — duplicates the draw and moves the null test to the caller.
+
+**Status of §3.22 decisions**: A–I all resolved by this entry, closing todo.md's Q1–Q7
+(Q1 → A, Q2 → B, Q3 → C, Q4 → D, Q5 → E, Q6 → F, Q7 → G) and its five mechanical items
+(value → E; names → B, E; multiplier → A; parameter → H; RNG → I). **Net schema change:
+none. Net OpenAPI change: none. New tunables: one (`sim.offensive-rebounder-shot-weight`
+= 2.0), 62 → 63. New statics: one (`OFFENSIVE_REBOUNDER_ASSIST_LEAN` = 0.5), 28 → 29.**
+New engine pieces: a `rebounder` parameter on `pickShooter`, a loop-scoped candidate,
+`BlockRecoveryResult`, and a `rebounder` component on `FreeThrowResult` and
+`ReboundFoulResult`; no new class. ⚠ **Determinism: the RNG stream MOVES (I) and no test
+needs re-baselining** — execution verifies both. The execute-ready task sequence is
+todo.md's §3.22 execution plan. **Open-at-execution**: the exact `base-no-basket-foul`
+value that re-lands FGA, if its 5-seed reading needs one at all (G); whether
+`ReboundFoulResult` carries the rebounder or is folded into `FreeThrowResult` at that
+site (either is fine; one record shape is the constraint); the realized rebounder share
+and assisted share, re-measured by `PutbackProbe` on the shipped code and recorded in the
+implementation note before the probe is deleted.
+
+**§3.22 follow-up (carry forward)**:
+- **35.4% is a conservative first step against a real ~45–55%** (A). Raising `M` is a
+  one-line era or calibration move once a sourced figure for "immediate second-chance
+  attempt share" exists; until then it stays reported, not chased.
+- **The harness is a real league, not five clones** (premise 1) — the cheap check for
+  "did this move anything" is the 5-seed diff on the same seeds, never that argument.
+- **`PERSONAL_FOULS_PER_TEAM_GAME` will move a fourth time** if G touches
+  `base-no-basket-foul` — re-measure it (calibration.md's standing rule).
+- **Foul-outs** (0.427 against a ~0.1–0.25 ballpark) edge up again with any FGA
+  re-landing on the foul lever — the #042 D6 price, a third time, sized and accepted.
+
+**Implementation note (from execution, 2026-09).** Shipped **exactly as A–I specify, with
+no divergence** — the plumbing landed where C predicted, including the fourth free-throw
+call site through `ReboundFoulResult`.
+
+**The design run reproduced to the DECIMAL, not merely within noise.** 5-seed means,
+seeds 1000–5000, `Profiles: local,baseline`, all four reconciliation lines OK: Points
+**115.700** (design 115.70) · FG% **47.020** (47.02) · 3P% **36.080** (36.08) · FGA
+**89.600** (89.60) · 3PA **36.920** (36.92) · Assists **27.000** (27.00) · Off/Def reb
+**11.908 / 31.622** (11.91 / 31.62) · Fouls **19.220** (19.22) · FTA **23.460** (23.46) ·
+Blocks **4.600** (4.60). ⚠ **That the numbers are identical rather than close is itself
+the verification**: the design pass ran this mechanic in a temporary tree, so an exact
+match proves execution wired the same thing, and any deviation would have located a
+divergence rather than invited tuning.
+
+**I HELD, and it is the entry's most reusable result: all 167 tests in the five sim
+classes passed UNCHANGED.** The stream moved as predicted (seed 1000's Points 113.8 →
+114.9), and not one seeded expectation needed a new value. §3.19's batch-invariant
+rewrite is what paid for that, exactly as I anticipated. The only test edits were
+**signature adaptations, never expected values**: `new ShotSelector(config)`,
+`resolveAssist(..., false, rng)`, and `.sequence()` on two `emitBlockRecoveryEvent` calls.
+
+**Resolved open-at-execution items:**
+- **`base-no-basket-foul` 0.1753 → 0.178** — the value G named. FGA read **89.600**
+  untouched, i.e. **0.05 outside** the ±0.45 band's 89.55 edge; G called that pair noise
+  but the band is the band, so the nudge was taken. It landed FGA **89.400** (+0.30, well
+  inside) and pulled Fouls 19.22 → **19.35** toward 19.9 as a free side effect — the third
+  consecutive phase with that shape. Every other sourced row held: Points 115.82, FG%
+  47.06, 3P% 36.14, 3PA 36.96, Assists 26.84, FTA 23.58, TO 14.68. `non-shooting-foul-share`
+  was **not** touched (FTA never left its band).
+- **`ReboundFoulResult` carries the rebounder** rather than folding into `FreeThrowResult`
+  at that site. One record shape — `(sequence, offenseRetains, rebounder)` — now on all
+  three records, which is the constraint C actually set.
+- **The realized shares, re-measured by `PutbackProbe` on the shipped code** (5 seeds,
+  `Profiles: local,baseline`): rebounder is the next shooter-pick **35.40%** (design 35.4,
+  from a 22.4 base); assisted share of his makes **33.42%** (design 33.4); his next-event
+  shots 3.14/tg at FG% 52.5; teammates' assisted share **65.34%** — *untaxed*, which is E's
+  "not any second-chance shot" rule visible in the instrument; assisted share of ALL makes
+  **64.08%**. **Reported, not back-solved.** `PutbackProbe.java` deleted (#043 F).
+
+**Final constants**: `sim.offensive-rebounder-shot-weight = 2.0` (tunable, 62 → **63**);
+`OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5` (static, 28 → **29**); `sim.base-no-basket-foul
+0.1753 → 0.178`. The count moved in all four places plus `SimConfigProfileBindingTest`
+(`EXPECTED_TUNABLE` 63, the rules group 10 → 11, the method renamed `...TwentyNine...`).
+
+⚠ **`PERSONAL_FOULS_PER_TEAM_GAME` was re-measured and DELIBERATELY LEFT AT 19.08.**
+The rule fired for a fourth consecutive phase, but the measurement came back **19.015 — a
+−0.34% drift**, against the +4.2% and +3.0% that justified the last two updates. The
+flagrants row (0.159 against a ~0.13–0.20 ballpark) cannot resolve a third of a percent,
+so moving the divisor would be false precision. **The point is that it was measured, not
+that it moved** — the constant's comment now says so, and the next foul-rate move
+re-measures again rather than assuming this one held.
+
+**Coverage**: `mvn clean install` green — **594 tests, `All coverage checks have been
+met.`** Seven new tests: three in `ShotSelectorTest` (the null path bit-identical over
+1,000 draws; ≈1/3 at five equals; a doubled low-weight rebounder still below a star) and
+four in `PossessionEngineTest` (the rebounder's realized next-shot share off the event log
+across 60 seeded games; the halved assist ratio measured against the unhalved one; a
+kick-out shooter assisted at the full rate; and the no-rebounder retentions carrying a
+null candidate). `possession-flow.puml` was already drawn by the design pass and matched
+what shipped — only four **stale decision letters** were corrected (the parameter is H not
+D, the RNG is I not G, no-decay is D not B) and its "seeded sim tests re-baseline" line
+replaced with the measured truth that none did. Renders at **13,800 px** against 16,384.
+
+---
+
 *Template for new entries:*
 ```
 ### NNN — Short title

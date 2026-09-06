@@ -113,11 +113,38 @@ partition "RotationState — between-possession sub (§3.5, §3.13, §3.14a)" {
 
 repeat
 :ShotSelector
-  pick shooter (offensive-weight draw)
+  pick shooter (offensive-weight draw
+  **§3.22 — the player who just took the OFFENSIVE board has his**
+  **offensiveWeight × sim.offensive-rebounder-shot-weight, THIS draw only (#044 A/C)**)
   pick shot type (**§3.17 — per-type SHARE table × avg-10 skill modifier**
   //DRIVE / PERIMETER / POST / THREE, sim.shot-share-* (#040 C)//
   //THREE × offensiveScheme lean · PERIMETER × its RECIPROCAL (#040 D)//);
 note right
+  **§3.22 (decisions.md #044 A/C/D/H/I) — THE PUTBACK IS A WEIGHT, NOT A BRANCH.**
+  Until §3.22 this draw took no argument saying who just got the board, so
+  the rebounder was exactly as likely to shoot as the guard at the arc and a
+  putback could not happen. Now `pickShooter(offense, rebounder, rng)` takes
+  the rebounder as a PARTICIPANT (#044 H — a real player, not a mode flag, so
+  a parameter and not a second method) and multiplies HIS weight by
+  `sim.offensive-rebounder-shot-weight` (**2.0**, a TUNABLE — A/B).
+  **Still ONE `nextDouble()`** — the draw count is unchanged; only the
+  boundaries move. ⚠ The RNG STREAM still moves (#044 I): a different
+  shooter takes a different branch, so downstream draws differ in meaning
+  and soon in count. ✅ **No seeded test re-baselined** — the
+  instrumentation pass replaced pinned-seed expectations with batch
+  invariants, and §3.22 is the first to collect on it (all 167 unchanged).
+  **Shot TYPE is NOT forced to the rim** — `pickShotType` already bends by
+  the shooter's own skills (#040 C), so a big leans interior on his own;
+  measured, rebounders already shoot 54.8% on the next shot vs 45.6%.
+  **The rebounder comes from the THREE paths that identify one** (C): the
+  missed-shot board (§3.3), the in-bounds block recovery (§3.21 E) and the
+  missed last free throw (§3.21 C). The four retention paths with NO
+  rebounder — OOB-offense, both flagrant retentions, the rebounding foul —
+  pass `null`, which means "no rebounder" and draws exactly as before.
+  Carried as a loop-scoped `putbackCandidate`, READ-AND-CLEARED at the top
+  of the iteration in one step (C) — a stale candidate is structurally
+  impossible, and there is NO decay across retentions (D): the second
+  putback in a possession is as likely as the first.
   **§3.17 (decisions.md #040 A/C/D/E) — THE SHOT MIX, and the only
   place in this engine where the LEAGUE's shot distribution is set.**
   **No new branch and no new RNG draw** — `pickShotType` still takes
@@ -602,10 +629,22 @@ partition "ShotResolver" {
       :SHOT — MADE_*
       +2 or +3 points;
       partition "Assist (§3.4)" {
-        if (assisted?\n//supporting-cast passing draw//) then (yes)
+        if (assisted?\n//supporting-cast passing draw//\n//§3.22: × OFFENSIVE_REBOUNDER_ASSIST_LEAN (0.5) when//\n//shooter == the rebounder — a putback (#044 E)//) then (yes)
           :stamp assist_player_id
           credit assister;
         endif
+        note right
+          **§3.22 (#044 E) — a PUTBACK is assisted at HALF the ordinary chance,
+          not zero.** Nobody passed the rebounder his own board, so crediting a
+          teammate ~65% of the time is wrong — but zeroing it would take the
+          assists row from +0.40 (noise-scale) to ~−0.9 (a real miss). The rule
+          keys off `shooter == rebounder` from the ShotSelector step above, NOT
+          "any second-chance shot": a kick-out three off an offensive rebound
+          is an ordinary assisted basket. A STATIC (a rule, the
+          `FREE_THROW_REBOUND_LEAN` shape) — the 29th. ⚠ Same roll, same draw
+          count; but a make that flips to unassisted SKIPS the assister draw,
+          which is one of the two ways §3.22 moves the RNG stream (#044 I).
+        end note
       }
       partition "And-1 (§3.11 — decisions.md #029)" {
         note right
@@ -809,6 +848,10 @@ note right
   (§3.8) · rebounding foul (§3.10) · **flagrant retention (§3.14b)**.
   ALL of them count against the ONE cap. **A sixth is the signal
   to restructure this loop** (the #030 clamp-trigger spirit).
+  //(§3.21 added the sixth — the missed LAST free throw's board,//
+  //#043 C/H — without restructuring; §3.22 (#044) adds NO path,//
+  //it changes who is picked on re-entry. Eight `continue`s serve//
+  //those six paths; only three path kinds identify a rebounder.)//
   NB the cap bounds FOUR non-rebound paths, which is why it was
   **RENAMED** MAX_OFFENSIVE_REBOUNDS → **MAX_OFFENSIVE_RETENTIONS**
   _PER_POSSESSION (2026-08, post-§3.14b; the loop counter went

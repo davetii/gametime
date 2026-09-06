@@ -12,8 +12,9 @@ gametime/
 │   ├── decisions.md           Architecture decision log
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list (current phase only — CURRENTLY:
-│   │                          §3.22 THE PUTBACK, needs a DESIGN PASS.
-│   │                          §3.21 REBOUND POOL shipped as #043)
+│   │                          NO ACTIVE PHASE. §3.22 shipped as #044 and was the
+│   │                          LAST engine sub-phase; next is roadmap.md's
+│   │                          Phase 3 → Phase 4 PRE-WORK GATE, not a sub-phase)
 │   ├── backlog.md             Homeless infra/tooling chores (cross-phase)
 │   ├── ideas.md               Parking lot — untriaged future-improvement ideas
 │   ├── calibration.md         Calibration targets — THE source of truth for them
@@ -74,7 +75,7 @@ Before starting work, review these for context:
   **`plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng`** — ⚠ **the size flag is REQUIRED**: a
   plain `-tpng` **silently truncates** at 4096px. `-checkonly` does not lay out, so a
   green check does **not** prove the PNG is complete; confirm the height after rendering.
-  ⚠ **It is 53k and 45% inline notes** — a thinning chore is filed in `backlog.md`,
+  ⚠ **It is 64k and 52% inline notes** — a thinning chore is filed in `backlog.md`,
   paired with `game.md` (the two describe the same flow twice).
 
 - **`docs/calibration.md`** — **the calibration targets, and the single source of
@@ -297,8 +298,8 @@ push a branch just because it's ahead of origin.
 - `SimConfig`'s tunable count lives in **FOUR** places that all move together: the header
   comment, `baseline()`'s javadoc, its error message, and
   `SimConfigProfileBindingTest.EXPECTED_TUNABLE` (which asserts **both** constructor
-  arity and instance-field count, so a missed accessor fails loudly). Currently **62
-  tunables / 28 statics** (§3.21 added `FREE_THROW_REBOUND_LEAN`, a rule).
+  arity and instance-field count, so a missed accessor fails loudly). Currently **63
+  tunables / 29 statics** (§3.22 added one of each — #044 B/E).
 - **`game_event` has TWO participant columns and they are different KINDS of fact.**
   `assist_player_id` is the **teammate** who helped; `opponent_player_id` is the
   **counterparty** — the player on the other side of the play, and therefore **ALWAYS on

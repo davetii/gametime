@@ -8,17 +8,79 @@ import java.util.random.RandomGenerator;
 @Component
 public class ShotSelector {
 
+    private final SimConfig config;
+
+    public ShotSelector(SimConfig config) {
+        this.config = config;
+    }
+
+    /**
+     * The ordinary draw, with no identified offensive rebounder — every caller outside
+     * the second-chance loop's re-entry. Delegates with {@code null}, which means "no
+     * such participant" and is bit-identical to the pre-§3.22 draw.
+     */
     public PlayerGameState pickShooter(List<PlayerGameState> offensivePlayers, RandomGenerator rng) {
-        double totalWeight = offensivePlayers.stream()
-                .mapToDouble(PlayerGameState::offensiveWeight)
-                .sum();
+        return pickShooter(offensivePlayers, null, rng);
+    }
+
+    /**
+     * §3.22 (decisions.md #044 A/H): the weighted shooter draw, with the player who took
+     * the last offensive board weighted {@code × sim.offensive-rebounder-shot-weight}
+     * for THIS draw only. Before §3.22 an offensive rebound re-entered {@link
+     * PossessionEngine}'s loop here at a draw that did not know who had just got the
+     * ball, so a putback could not happen.
+     *
+     * <p><b>A WEIGHT, NOT A BRANCH.</b> Nothing is switched off and no outcome is
+     * forced: it is still one weighted draw over the five, still exactly ONE {@code
+     * nextDouble()}, and only one player's weight differs. In particular <b>the shot
+     * TYPE is not forced to the rim</b> — {@link #pickShotType} already bends by the
+     * shooter's own skills (#040 C), and a rebounder (usually a big) leans interior on
+     * his own, measured at 54.8% on the next shot against a teammate's 45.6%. Forcing
+     * the type would bolt a second mechanism onto a job the first already does.
+     *
+     * <p>The multiplier composes with the draw rather than replacing it, so the
+     * rebounder's <i>relative</i> standing survives: a low-weight rebounder doubled is
+     * still below a high-weight teammate. {@code 1.0} turns the mechanic off with no
+     * special case.
+     *
+     * <p><b>⚠ {@code rebounder} is a PARTICIPANT, not a MODE — and that is why it is a
+     * parameter here where #043 H rejected one.</b> That flag would have switched off
+     * the main thing its method does for two callers; this one <i>feeds</i> the same
+     * operation. A {@code null} rebounder means "no player was identified" — exactly
+     * what a {@code null} rebounder on the result records means — and it is the state
+     * on the four retention paths where nobody secured the ball (OOB-offense, both
+     * flagrant retentions, the rebounding foul's by-rule retain). A second
+     * {@code pickPutbackShooter} was rejected: it would duplicate this loop verbatim but
+     * for one multiplication, and every caller would still test {@code rebounder == null}
+     * to choose between the two.
+     *
+     * @param rebounder the player who took the offensive board that returned the ball,
+     *                  or {@code null} when no rebounder was identified
+     */
+    public PlayerGameState pickShooter(List<PlayerGameState> offensivePlayers,
+                                       PlayerGameState rebounder, RandomGenerator rng) {
+        double totalWeight = 0;
+        for (PlayerGameState p : offensivePlayers) {
+            totalWeight += shooterWeight(p, rebounder);
+        }
         double roll = rng.nextDouble() * totalWeight;
         double cumulative = 0;
         for (PlayerGameState p : offensivePlayers) {
-            cumulative += p.offensiveWeight();
+            cumulative += shooterWeight(p, rebounder);
             if (roll < cumulative) return p;
         }
         return offensivePlayers.get(offensivePlayers.size() - 1);
+    }
+
+    /**
+     * §3.22 (#044 A): one player's weight in the shooter draw — his {@code
+     * offensiveWeight()}, multiplied by {@code sim.offensive-rebounder-shot-weight} for
+     * the one player who just took the offensive board. A {@code null} rebounder leaves
+     * every weight untouched.
+     */
+    private double shooterWeight(PlayerGameState p, PlayerGameState rebounder) {
+        double w = p.offensiveWeight();
+        return (p == rebounder) ? w * config.offensiveRebounderShotWeight() : w;
     }
 
     public ShotType pickShotType(PlayerGameState shooter, RandomGenerator rng) {
