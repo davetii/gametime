@@ -1,8 +1,15 @@
-# Engine findings & traps
+# Engine traps & findings
+
+**Written for whoever is about to change the engine — in practice a Claude session.**
+Not an introduction to the engine; read [possession-flow.puml](possession-flow.puml) for
+that. **Every line exists to stop a specific expensive mistake.**
 
 **Read this before touching the simulation engine.** One line per fact that no source
 file holds: the traps, the measured elasticities and saturation results, the wrong-way
-levers, the "do not reach for this knob" refusals, and the final constants.
+levers, the "do not reach for this knob" refusals, and a knob → `#NNN` index. ⚠ **Current
+values and current landings are deliberately NOT copied here** — read
+`application-baseline.properties` / `SimConfig` for values and `calibration.md` for
+landings, where they cannot go stale.
 
 Each line points at its `#NNN` entry in [decisions.md](decisions.md) — that file is the
 **archive** the ~1,700 `#NNN` citations in the Java and docs resolve into. You should
@@ -251,45 +258,39 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   **and** the `CalibrationHarness` `(target ~N)` strings in the same change. The per-phase
   landing notes here are history — **do not retro-edit them**. → **#030**
 
-### Final constants (current baseline — `calibration.md` holds the targets)
+### Where a value came from — knob → `#NNN` index
 
-The live values are in `application-baseline.properties` (63 tunables) and `SimConfig`
-(29 statics) since **#035**; these are the landings each phase recorded, and the entry to
-read when you want to know *why* a value is what it is.
+⚠ **The VALUES are not repeated here, deliberately.** They live authoritatively in
+`application-baseline.properties` (63 tunables) and `SimConfig` (29 statics) since **#035**
+— read them there, where they cannot go stale. **This index answers the other question:
+*why* is a value what it is.** Follow the number to `decisions.md`.
 
-- **Blocks** `base-block-drive/post/perimeter/three = 0.056/0.048/0.023/0.005`,
-  `BLOCK_SENSITIVITY = 0.12` → **#025** ⚠ see the inert-`base-block-three` line above.
-- **OOB** `OOB_TOTAL_WEIGHT = 0.07`, split defense/offense `0.60/0.40`, skill-independent
-  by construction → **#026**
-- **Turnover causes** `56/10/9/8/6/4/3/2/2` (STOLEN dominant), `TO_CAUSE_SENSITIVITY = 0.20`,
-  leans floored ≥ 0.05 → **#027**; `base-turnover = 0.0527` → **#042**
-- **Rebound fouls** `REBOUND_FOUL_BASE = 0.055`, defense/offense `0.75/0.25`,
-  `BONUS_FOULS_PER_PERIOD = 5` → **#028**
-- **And-1** `AND_ONE_BASE = 0.055`, `AND_ONE_SENSITIVITY = 0.10`, `AND_ONE_FREE_THROWS = 1`
-  → **#029**
-- **Foul multipliers** `DRIVE/POST = 1.0`, `PERIMETER = 0.30`, `THREE = 0.133` → **#030**
-- **Foul trouble** sit curve `{0,0,0,0.120,0.500,0.900,0}`, `VALUE_SENSITIVITY = 0.55`,
-  `STARTER_BONUS = 0.15`, `BENCH_DISCOUNT_PER_SLOT = 0.05`, `MIN_ROSTER_FACTOR = 0.70`,
-  `FRESHNESS_MARGIN = 1.0` → **#031**
-- **Technicals** `TECHNICAL_FOULS_PER_TEAM_GAME = 0.35` → **#032**;
-  **Flagrants** `FLAGRANT_FOULS_PER_TEAM_GAME = 0.16`, `FLAGRANT_EJECTION_LIMIT = 1` → **#034**
-- **Shot bases** `base-drive/post/perimeter = 0.6801/0.6131/0.4603`, `base-three` untouched;
-  `ft-base = 0.705`; `non-shooting-foul-share = 0.4123`; `base-no-basket-foul = 0.178`;
-  `shot-share-drive/perimeter/post/three = 1.0/0.55/0.55/1.256`,
-  `SHOT_MIX_SENSITIVITY = 0.5` → **#040 · #042 · #043 · #044**
-- **Free-throw rebound** `FREE_THROW_REBOUND_LEAN = 0.68` (realized offensive share 0.1695)
-  → **#043**
-- **Putback** `offensive-rebounder-shot-weight = 2.0`,
-  `OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5` → **#044**
-- **Rebound split** `base-offensive-rebound = 0.27`, **unchanged and deliberately so** → **#042 D3**
+- **Blocks** — `base-block-drive/post/perimeter/three`, `BLOCK_SENSITIVITY` → **#025**
+  ⚠ see the inert-`base-block-three` line above.
+- **OOB** — `OOB_TOTAL_WEIGHT` and its defense/offense split, skill-independent by
+  construction → **#026**
+- **Turnover causes** — the nine cause weights (STOLEN dominant), `TO_CAUSE_SENSITIVITY`,
+  leans floored → **#027**; `base-turnover` → **#042**
+- **Rebound fouls** — `REBOUND_FOUL_BASE`, its defense/offense split,
+  `BONUS_FOULS_PER_PERIOD` → **#028**
+- **And-1** — `AND_ONE_BASE`, `AND_ONE_SENSITIVITY`, `AND_ONE_FREE_THROWS` → **#029**
+- **Foul multipliers** — `FOUL_MULT_DRIVE/POST/PERIMETER/THREE` → **#030**
+- **Foul trouble** — the sit curve, `VALUE_SENSITIVITY`, `STARTER_BONUS`,
+  `BENCH_DISCOUNT_PER_SLOT`, `MIN_ROSTER_FACTOR`, `FRESHNESS_MARGIN` → **#031**
+- **Technicals** — `TECHNICAL_FOULS_PER_TEAM_GAME` → **#032**; **Flagrants** —
+  `FLAGRANT_FOULS_PER_TEAM_GAME`, `FLAGRANT_EJECTION_LIMIT` → **#034**
+- **Shot bases and mix** — `base-drive/post/perimeter` (⚠ `base-three` deliberately
+  untouched), `ft-base`, `non-shooting-foul-share`, `base-no-basket-foul`, the four
+  `shot-share-*`, `SHOT_MIX_SENSITIVITY` → **#040 · #042 · #043 · #044**
+- **Free-throw rebound** — `FREE_THROW_REBOUND_LEAN` → **#043**
+- **Putback** — `offensive-rebounder-shot-weight`, `OFFENSIVE_REBOUNDER_ASSIST_LEAN` → **#044**
+- **Rebound split** — `base-offensive-rebound`, **unchanged and deliberately so** → **#042 D3**
 
-### Current landing (§3.22, #044 — 5-seed mean, seeds 1000–5000)
-
-Points **115.82** · FG% **47.06** · 3P% **36.14** · FGA **89.40** · 3PA **36.96** ·
-Assists **26.84** · FTA **23.58** · TO **14.68** · Off/Def reb **11.91 / 31.62** ·
-Fouls **19.35** · Blocks **4.60** · foul-outs ~0.37. **Open residuals**: DefReb, OffReb
-(the rebound-pool leak above), Fouls, 3P%. `calibration.md` holds the targets and the
-rules for reading them.
+⚠ **For where the engine currently LANDS** — points, FG%, FGA, rebounds, the open
+residuals — read `calibration.md`'s Current column, or run the harness. **A landing
+snapshot is deliberately NOT kept here**: it is a copy that goes stale the moment a
+constant moves, in a file that is rarely read by a human, and a stale number gets quoted
+as fact.
 
 ---
 

@@ -29,7 +29,7 @@ on 4; 8 is a snapshot check and must be last.
       sections. The real division is by **audience**: the operative findings (traps, wrong-way
       levers, saturations, elasticities, final constants) are ~18k and are what anyone actually
       reads; the rest was design-pass narrative for a phase that is now closed.
-      **What shipped**: findings extracted to **[engine-findings.md](engine-findings.md)**;
+      **What shipped**: findings extracted to **[engine-traps.md](engine-traps.md)**;
       every `#NNN` cut to its title, date and decision letters. **599k → 38k + 20k.**
       ⚠ This is **not** the 2026-07 split that was reverted — no entry moved file, no number
       changed. ⚠ **Never renumber**: ~1,900 citations resolve by number **and letter** (157

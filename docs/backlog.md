@@ -11,7 +11,7 @@ pre-work items are in [roadmap.md](roadmap.md) and [todo.md](todo.md), which are
 authority on their sequence and traps.
 
 Deferred *gameplay* scope → [roadmap.md](roadmap.md) phase bullets. Untriaged *ideas* →
-[ideas.md](ideas.md). Engine traps a tuner must hit → [engine-findings.md](engine-findings.md).
+[ideas.md](ideas.md). Engine traps a tuner must hit → [engine-traps.md](engine-traps.md).
 
 ---
 
@@ -35,7 +35,7 @@ Deferred *gameplay* scope → [roadmap.md](roadmap.md) phase bullets. Untriaged 
 
 - [ ] **Audit which tunables sit under `PROB_FLOOR` (0.02) and are therefore INERT.**
       The known case (`base-block-three` at 0.005) is recorded in
-      [engine-findings.md](engine-findings.md); **the open half is the general one** —
+      [engine-traps.md](engine-traps.md); **the open half is the general one** —
       `PROB_FLOOR` clamps every probability in the engine, so any constant below it is
       equally dead, and nothing says so at the declaration site. Annotate them, or
       reconsider whether one global floor suits rates that differ by an order of magnitude.

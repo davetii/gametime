@@ -26,7 +26,7 @@ _Last updated: 2026-09. **Next: the pre-work gate below.**_
   per-player `BoxScore` behind the §3.6 APIs. Calibrated against sourced modern-NBA targets;
   every row lands but four reported residuals (Blocks −0.26, Fouls −0.55, OffReb +0.60, DefReb −0.85).
   Flow: **game.md** / **possession-flow.puml**. Targets: **calibration.md**.
-  ⚠ Traps and measured findings: **engine-findings.md**. Per-sub-phase record: **decisions.md #020–#044**.
+  ⚠ Traps and measured findings: **engine-traps.md**. Per-sub-phase record: **decisions.md #020–#044**.
 - **Test suite**: unit + Cucumber integration, 80% line coverage enforced (JaCoCo gate)
 - **Build pipeline**: Multi-module Maven, OpenAPI codegen with delegate pattern, Docker Compose
 
@@ -68,9 +68,9 @@ are one pass, 5 depends on 4, 8 must be last.
 
 - [x] **1.** Rewrite `todo.md` ✅ *(2026-09)*
 - [x] **2.** Condense `decisions.md` ✅ *(2026-09)* — SPLIT by audience, not condensed in place:
-      findings → **[engine-findings.md](engine-findings.md)**, entries cut to their decision
+      findings → **[engine-traps.md](engine-traps.md)**, entries cut to their decision
       letters. 599k → 38k + 20k. ⚠ Never renumber: ~1,900 citations resolve by number **and letter**.
-- [ ] **3.** Sweep the `sim` package's Java comments — ⚠ **not coupled to 2**; only renumbering
+- [x] **3.** Sweep the `sim` package's Java comments — ⚠ **not coupled to 2**; only renumbering
       would break a citation. ⚠ Fix here: `SimConfig.java` (~L75, ~L176) still warns that
       `base-no-basket-foul` runs the wrong way — #036 disproved it and the properties file
       already disagrees.

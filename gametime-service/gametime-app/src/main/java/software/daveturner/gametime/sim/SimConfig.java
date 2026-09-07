@@ -30,8 +30,8 @@ import java.util.Properties;
  * <ul>
  *   <li><b>docs/calibration.md</b> — the targets, and the SOURCE OF TRUTH for them.
  *       Read it before changing any constant here or calling a landing "on target".</li>
- *   <li><b>docs/engine-findings.md</b> — the traps, wrong-way levers, saturated knobs,
- *       measured elasticities and the current landing. The facts no source file holds.</li>
+ *   <li><b>docs/engine-traps.md</b> — the traps, wrong-way levers, saturated knobs and
+ *       measured elasticities. The facts no source file holds.</li>
  *   <li><b>docs/decisions.md #NNN</b> — the archive each constant's note cites for the
  *       argument behind its value.</li>
  * </ul>
@@ -778,7 +778,7 @@ public class SimConfig {
      * that moves the foul rate must RE-MEASURE this deliberately and record the result,
      * even if the answer is "unchanged". It has fired for four consecutive phases and
      * moved on three of them (19.0 -> 20.15 -> 17.82 -> 18.52 -> 19.08; §3.22 measured
-     * 19.015 and left it as noise). engine-findings.md carries the chain and its causes.
+     * 19.015 and left it as noise). engine-traps.md carries the chain and its causes.
      *
      * <p>⚠ IT MOVES INDIRECTLY, WHICH IS WHY THE RULE EXISTS. §3.17 touched no foul
      * constant at all and still moved it -11.5%, by shifting draws from DRIVE/POST

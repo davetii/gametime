@@ -5,7 +5,7 @@ date, and its Decision letters — the crux of each call in one or two sentences
 The full design-pass reasoning was cut in 2026-09 (Phase 3 closed; nothing consumes it).
 ⚠ **The measured findings that outlived those passes — traps, wrong-way levers,
 saturations, elasticities, final constants — live in
-[engine-findings.md](engine-findings.md). Read that, not this.**
+[engine-traps.md](engine-traps.md). Read that, not this.**
 
 **This file exists so the ~1,700 `#NNN` citations in the Java and the other docs resolve
 to something.**
@@ -173,7 +173,7 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 **Date**: 2026-07
 
 - **A1** — block-first: carve `P(BLOCK)` off the top, then run the already-calibrated make contest on the remainder.
-- **B2** — block is a defender-vs-finisher contest, not a defender-only rate. ⚠ It needed its own `BLOCK_SENSITIVITY` (0.12) — see engine-findings.
+- **B2** — block is a defender-vs-finisher contest, not a defender-only rate. ⚠ It needed its own `BLOCK_SENSITIVITY` (0.12) — see engine-traps.
 - **C** — block base rates ordered by shot type, targeting ~5/team/game.
 - **D** — loose-ball recovery is a flat four-way draw, defense-leaning.
 - **E** — a block is a field-goal OUTCOME, not a new `PlayType` — a block is to a shot what a steal is to a turnover.
@@ -207,7 +207,7 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **B** — the fouled team benefits: retention under the bonus, bonus FTs once in the penalty; the fork depends on WHO fouled.
 - **C** — the foul roll is layered on the rebound phase BEFORE the board contest, short-circuiting it (the §3.7 carve shape).
 - **D** — a `FOUL` event plus a new `committing_team_id` column; the committer is the primary player.
-- **E** — recalibration expected. ⚠ Produced the wrong-way-lever finding — since SUPERSEDED by #036; see engine-findings.
+- **E** — recalibration expected. ⚠ Produced the wrong-way-lever finding — since SUPERSEDED by #036; see engine-traps.
 
 ### 029 — And-1 / shooting foul on a made basket (§3.11)
 
@@ -243,7 +243,7 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **E** — foul trouble is a DERIVED predicate over `fouls`; no stored `inFoulTrouble`.
 - **F** — when the bench is thin the SOFT rule yields; the foul-out bar is absolute — a fouled-out player NEVER returns.
 - **G** — judge by the 4/5/6 DISTRIBUTION, not the headline count; the minutes cost is budgeted up front.
-- **H** — foul-outs promoted from ballpark to TARGET; §3.14's ejection must reuse this removal machinery. ⚠ The lever is SATURATED — see engine-findings.
+- **H** — foul-outs promoted from ballpark to TARGET; §3.14's ejection must reuse this removal machinery. ⚠ The lever is SATURATED — see engine-traps.
 
 ### 032 — Technical fouls (§3.14a)
 
@@ -293,7 +293,7 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **C** — the profilable set is WIDE; only rules and model machinery stay `static final`.
 - **D** — a missing or unbindable value is a STARTUP FAILURE, structural rather than hand-written (no defaults to fall back on).
 - **E** — tests construct a baseline default and read it as an instance; no static aliases.
-- **F** — one profile per harness invocation via the ordinary Spring profile list, and it prints the effective config. ⚠ That dump caught a hardcoded pace — see engine-findings.
+- **F** — one profile per harness invocation via the ordinary Spring profile list, and it prints the effective config. ⚠ That dump caught a hardcoded pace — see engine-traps.
 - **G** — the validation gate: the baseline profile reproduces §3.14b's landing **per-seed identical**, not merely in aggregate.
 - **H** — the doc-drift generator is OUT, decided deliberately rather than by omission.
 - **I** — calibration targets are BASELINE-ONLY; off-baseline the harness prints profile-vs-baseline deltas.
@@ -309,7 +309,7 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **E** — §3.18 (recalibration) goes LAST — the calibration-blast-radius principle; three passes already paid for a stale anchor.
 - **F** — the phases RENUMBER rather than take a/b suffixes; the mapping is recorded here. ⚠ Superseded by #038.
 - **G** — #034's "last new mechanic in Phase 3" is AMENDED, not quietly broken.
-- ⚠ **Also here (in the cut Alternatives): the measured DISPROOF of #028's wrong-way lever — see engine-findings.**
+- ⚠ **Also here (in the cut Alternatives): the measured DISPROOF of #028's wrong-way lever — see engine-traps.**
 
 ### 037 — Charges are personal fouls by rule; folded into §3.16
 
@@ -375,7 +375,7 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 **Date**: 2026-08
 
 - **A** — the over-determination is NOT real; the pass targets the full landing.
-- **B** — ⚠ claims `non-shooting-foul-share` moves FTA and FGA as ONE lever. **This is DISPROVED in execution — see engine-findings.**
+- **B** — ⚠ claims `non-shooting-foul-share` moves FTA and FGA as ONE lever. **This is DISPROVED in execution — see engine-traps.**
 - **C** — FT% becomes a sourced TARGET (it was running 4.6 points hot and absent from calibration.md entirely).
 - **D** — the 2P% lever is `base-drive`/`base-post`/`base-perimeter`, moved UNEQUALLY; `base-three` is frozen.
 - **E** — 3PA is held at 37.0 with `shot-share-three` rather than left to fall.
