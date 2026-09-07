@@ -40,23 +40,15 @@ public class TurnoverResolver {
     }
 
     /**
-     * §3.9 (decisions.md #027 A/C): given a turnover has ALREADY been declared by
-     * {@link #isTurnover}, pick which of the nine {@link TurnoverCause} values it
-     * was — a single weighted categorical draw that replaces the pre-§3.9
-     * {@code isStolen} binary. This runs ONLY after the (unchanged) gate fires, so
-     * it re-partitions the existing turnovers: it can shift the mix but never the
-     * count (Decision A).
+     * §3.9 (decisions.md #027 A/C): given a turnover has ALREADY been declared by {@link
+     * #isTurnover}, pick which of the nine {@link TurnoverCause} values it was. ⚠ Runs
+     * ONLY after the unchanged gate fires, so it re-partitions existing turnovers — it
+     * shifts the mix but <b>never the count</b> (Decision A).
      *
-     * <p>Each cause's raw weight is its {@code SimConfig.TO_WEIGHT_*} tier base,
-     * multiplied by a modest avg-10 lean on the four scaled causes (Decision C):
-     * {@code SHOT_CLOCK_VIOLATION} rises as the ball-handler's {@code acumen} falls
-     * and as the defending coach's {@code defensivePressure} (the {@code
-     * defensiveScheme} multiplier, already computed per-possession) rises;
-     * {@code OFFENSIVE_FOUL} / {@code BAD_PASS} rise as the offense's
-     * {@code teamOffense} falls. The weights are normalized to sum to 1.0 on THIS
-     * turnover (the cumulative-sum walk {@code pickStealer}/{@code pickShooter}
-     * already use), so the leans move only the relative shares — no lean can change
-     * the turnover total (Decision C).
+     * <p>Each raw weight is a {@code SimConfig.TO_WEIGHT_*} tier base times a modest
+     * avg-10 lean on the four scaled causes (Decision C). ⚠ Weights are normalized on
+     * THIS turnover, so a lean moves only relative shares and can never change the
+     * turnover total.
      *
      * @param ballHandler      the on-ball player who lost it (charged the turnover)
      * @param teamOffense      the offense's average {@code teamOffense} this

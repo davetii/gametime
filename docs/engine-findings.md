@@ -28,11 +28,21 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   **#036 C (§3.16, 2026-08) then DISPROVED it at the current configuration**: 0.15 → 0.11
   over 3 seeds *lowered* points 118.3 → 117.1 (and FTA 34.0 → 29.1), because #028 was
   measured **pre-§3.12**, before perimeter and three shots could draw fouls.
-  ⚠ **The live comments contradict each other**: `application-baseline.properties`
-  ("Raising base-no-basket-foul LOWERS points") matches #036, while `SimConfig.java`
-  (~L75, ~L176) still repeats #028's wrong-way warning. **#036 is the current record.**
-  ⚠ **The knob is still not a clean lever** — the same trim moved fouls 19.35 → 17.27
-  (away from 19.9) and FGA 88.4 → 91.2 (overshooting 89.1): one rate governs both.
+  ✅ **RESOLVED 2026-09 by direct measurement** (gate step 3). This entry previously
+  said the properties file "matches #036" while `SimConfig.java` alone was stale. That
+  was wrong: **all three sites stated #028's superseded direction.** Swept at seed 1000,
+  one variable, nothing else changed:
+  | `base-no-basket-foul` | Points | FGA | FTA | Fouls |
+  |---|---|---|---|---|
+  | 0.140 | 114.7 | 91.0 | 20.9 | 17.94 |
+  | **0.178 (baseline)** | **114.8** | **89.3** | **23.8** | **19.33** |
+  | 0.210 | 115.6 | 87.6 | 26.7 | 20.74 |
+  **Raising it RAISES points, monotonically** — #036's sign confirmed, #028 dead. All
+  three comments were corrected to match.
+  ⚠ **It is NOT a points lever, and that is the operative fact** — points move **+0.9
+  across a 50% swing** while FTA moves **+5.8** and FGA **−3.4**. Nearly inert on points,
+  strong on FGA/FTA/fouls, which are over-determined through it (~1.4 FGA per foul).
+  **Tune it against FGA, never against points.**
 - **`base-block-three` (0.005) is INERT — `PROB_FLOOR` (0.02) is 4× it**, so a three's
   block probability is *floored, not based*. Predicted blocks 4.8 → ~2.6 on a 1.9×
   three-volume shift; measured **4.80, flat**. ⚠ The four `base-block-*` cannot be

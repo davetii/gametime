@@ -29,12 +29,10 @@ public class FoulResolver {
      * turnovers and concedes more fouls (the pressure/breakdown trade-off in
      * coach.md). 1.0 = neutral.
      *
-     * <p>§3.12 (decisions.md #030 A1/A2): <b>every</b> shot type can draw a foul
-     * here. This used to early-return {@code false} for anything but a DRIVE/POST
-     * (the deleted {@code ShotType.isContactType()} gate); it now multiplies by
-     * {@link SimConfig#foulMultiplier} instead, so the rate — not a gate — carries
-     * how contact-prone the shot type is. Because the table anchors DRIVE/POST at
-     * 1.0, their rates are numerically unchanged from §3.11.
+     * <p>§3.12 (decisions.md #030 A1/A2): <b>every</b> shot type can draw a foul here,
+     * graduated by {@link SimConfig#foulMultiplier} — the rate, not a gate, carries how
+     * contact-prone a shot type is. The table anchors DRIVE/POST at 1.0, so their rates
+     * are unchanged from §3.11.
      */
     public boolean isFoul(ShotType shotType, PlayerGameState shooter,
                           PlayerGameState defender, double defensivePressure,
@@ -47,25 +45,17 @@ public class FoulResolver {
         double effectiveDefense = (SimConfig.SCALE_AVG * 2 - defender.getFoulProne())
                 * defender.fatigueFactor();
         double foulDrawing = shooter.getFoulDrawing() * shooter.fatigueFactor();
-        // §3.12: the per-shot-type multiplier scales the WHOLE probability, skill
-        // term included — which is what makes a 0.0 multiplier a true off-switch,
-        // unlike a zero base (#029's finding: the skill term alone keeps a zero-base
-        // rate positive).
+        // §3.12: the multiplier scales the WHOLE probability, skill term included —
+        // which is what makes a 0.0 multiplier a true off-switch, unlike a zero base
+        // (#029: the skill term alone keeps a zero-base rate positive).
         //
-        // ⚠ The multiplied result is clamped WITHOUT PROB_FLOOR (0.02), the #028
-        // trap in its §3.12 form. FOUL_MULT_THREE targets exactly 2% — sitting ON
-        // the floor — so clampProbability here would (a) silently ignore any
-        // downward tuning of the THREE multiplier and (b) floor a 0.0 multiplier up
-        // to 2%, destroying the off-switch #030 A1 relies on. The floor exists so a
-        // skill mismatch cannot make a NORMAL outcome impossible; a deliberately
-        // rare per-type carve is the case it was never meant for. The unmultiplied
-        // DRIVE/POST path is unaffected — at mult 1.0 the value is far above the
-        // floor, so drive/post stay bit-identical to §3.11 (A2).
-        //
-        // §3.14a (#032 H): the hand-rolled clamp here now runs through the shared
-        // SimConfig.clampRareProbability — the fourth site consolidated onto one
-        // owner. Behavior-neutral: the added max(0.0, ...) can never bind, since
-        // both factors above are non-negative.
+        // ⚠ Clamped WITHOUT PROB_FLOOR (0.02) — the #028 trap in its §3.12 form.
+        // FOUL_MULT_THREE targets exactly 2%, ON the floor, so clampProbability here
+        // would silently ignore downward tuning of the THREE multiplier AND floor a 0.0
+        // multiplier back up, destroying the off-switch #030 A1 relies on. The floor is
+        // there so a skill mismatch cannot make a NORMAL outcome impossible; a
+        // deliberately rare per-type carve is the case it was never meant for. DRIVE/POST
+        // are unaffected — at mult 1.0 the value sits far above the floor (#030 A2).
         double contested = defensivePressure * config.contestProbability(
                 config.baseNoBasketFoul(), foulDrawing, effectiveDefense);
         double prob = config.clampRareProbability(
@@ -81,43 +71,25 @@ public class FoulResolver {
      * calibration (#029 A1). The caller rolls this only on a MADE shot, so this
      * method does not re-check the make.
      *
-     * <p>§3.12 (decisions.md #030 A1/B): rolled on <b>every</b> made shot, not just
-     * a made DRIVE/POST — the caller's {@code isContactType()} gate is gone. The
-     * graduation now rides on {@code shotType}, which scales this roll by the
-     * <b>same</b> {@link SimConfig#foulMultiplier} table {@link #isFoul} uses: a
-     * shot type's propensity to draw contact is a property of the shot, not of
-     * which roll is asking.
+     * <p>§3.12 (decisions.md #030 A1/B): rolled on <b>every</b> made shot, scaled by the
+     * <b>same</b> {@link SimConfig#foulMultiplier} table {@link #isFoul} uses — a shot
+     * type's propensity to draw contact is a property of the shot, not of which roll is
+     * asking. ⚠ <b>Do NOT add a second, steeper and-1 table</b> (#030 B): an and-1 on a
+     * three is already rarer than a foul on a three, because the two rolls are
+     * independent and the shot must ALSO go in. A second table would double-count that.
+     * The multiplier consequently lands twice in this path (here, and on the stopped-shot
+     * roll the shot had to survive), so the knob is non-linear on and-1 rates.
      *
-     * <p><b>An and-1 on a three is rarer than a foul on a three for free</b> — the
-     * two rolls are independent, so the shot must ALSO go in, and a three both
-     * makes less often and fouls less often. That compounding is why there is no
-     * second, steeper and-1 table (#030 B): adding one would double-count it. Note
-     * the multiplier consequently lands twice in the and-1 path (here, and on the
-     * stopped-shot roll this shot had to survive), making the knob non-linear on
-     * and-1 rates.
+     * <p><b>This roll and {@link #isFoul} are mutually exclusive by CONTROL FLOW</b>, not
+     * by any check here: the caller's stopped-shot branch returns, so a shot that drew a
+     * foul there never reaches the make/miss roll. One shot emits at most one of {@code
+     * SHOOTING_FOUL} / {@code AND_ONE}.
      *
-     * <p><b>This roll and {@link #isFoul} are mutually exclusive</b> — not by any
-     * check here, but by control flow: the caller's stopped-shot branch returns, so
-     * a shot that drew a foul there never reaches the make/miss roll and never
-     * reaches this one. One shot emits at most one of {@code SHOOTING_FOUL} /
-     * {@code AND_ONE}, never both, and sharing one multiplier table does not apply
-     * it twice to a single shot.
-     *
-     * <p><b>Carved off the top</b>, the §3.7 block / §3.10 rebound-foul shape a
-     * third time: an independent roll layered on an existing outcome, never
-     * entangled with the outcome it rides, which is what keeps its rate tunable on
-     * its own.
-     *
-     * <p>Probability reuses {@link #isFoul}'s exact avg-10 inputs (#021 C / #022) —
-     * the shooter's {@code foulDrawing} against the defender's effective discipline
-     * ({@code foulProne} inverted), both fatigue-scaled, scaled by {@code
-     * defensivePressure} (an aggressive scheme concedes more contact, the coach.md
-     * pressure/breakdown trade-off) — but on {@link SimConfig#andOneBase()} through
-     * {@link SimConfig#rareEventProbability}, NOT {@code contestProbability}: the
-     * global {@code PROB_FLOOR} (0.02) would act as a floor on a thin base and make
-     * this knob tunable only upward (the #028 trap), and the global {@code
-     * SENSITIVITY} (0.5) would swamp it — hence its own {@link
-     * SimConfig#AND_ONE_SENSITIVITY} (#029 C).
+     * <p>Inputs are {@link #isFoul}'s exact avg-10 form (#021 C / #022), but on {@link
+     * SimConfig#andOneBase()} through {@link SimConfig#rareEventProbability}, NOT {@code
+     * contestProbability}: {@code PROB_FLOOR} (0.02) would floor a thin base and make the
+     * knob tunable only upward (the #028 trap), and the global {@code SENSITIVITY} (0.5)
+     * would swamp it — hence {@link SimConfig#AND_ONE_SENSITIVITY} (#029 C).
      */
     public boolean isAndOne(ShotType shotType, PlayerGameState shooter,
                             PlayerGameState defender, double defensivePressure,
@@ -139,34 +111,28 @@ public class FoulResolver {
      * site and the rebounding-foul site all ask this same question, and it must never
      * become three copies.
      *
-     * <p><b>This is LAYERED ON TOP of an outcome that is already fully resolved, not
-     * carved OUT of one</b>, and that inversion is what makes §3.14b free on every
-     * existing rate. §3.7's block, §3.10's rebounding foul and §3.11's and-1 each take
-     * a slice out of an outcome, re-partitioning it. This one is asked only after
-     * {@link #isFoul}, {@link #isAndOne} or {@link #resolveReboundFoul} has already
-     * returned a foul, so <b>nothing is re-partitioned and no existing rate moves by
-     * construction</b> (#034 A). {@code isFoul} / {@code isAndOne} /
-     * {@code resolveReboundFoul} keep their rates, their inputs and their RNG draws
-     * exactly as shipped.
+     * <p><b>LAYERED ON TOP of an already-resolved outcome, not carved OUT of one</b> —
+     * the inversion that makes §3.14b free on every existing rate (#034 A). §3.7's block,
+     * §3.10's rebounding foul and §3.11's and-1 each re-partition an outcome; this is
+     * asked only after a foul has already been returned, so nothing is re-partitioned and
+     * no existing rate moves by construction.
      *
-     * <p><b>⚠ NO SKILL INPUTS AT ALL — and unlike every other roll in this class, that
-     * is a positive design claim rather than a simplification (#034 E).</b> This takes
-     * no {@link PlayerGameState} because the engine cannot distinguish excessive
-     * contact from ordinary contact, so weighting it by {@code foulProne} would
-     * manufacture a signal the model does not have. More precisely: <b>{@code
-     * foulProne} has ALREADY had its say</b> — the committer was chosen before this
-     * roll fires ({@code pickDefender} at the shooting sites, {@code pickCommitter} at
-     * the rebounding site, both {@code foulProne}-weighted), so weighting the grade
-     * too would apply one signal twice. The symmetry with §3.14a's {@code foulProne}
-     * committer draw (#032 C) is tempting and <b>wrong</b>: that weighted a
-     * <i>selection</i>, this is a <i>grade</i> on a player already selected.
+     * <p><b>⚠ NO SKILL INPUTS AT ALL — a positive design claim, not a simplification
+     * (#034 E). This is the argument {@link #isNonShootingFoul} refers back to.</b> The
+     * engine cannot distinguish excessive contact from ordinary contact, so weighting by
+     * {@code foulProne} would manufacture a signal the model does not have. And {@code
+     * foulProne} has <b>already had its say</b>: the committer was chosen before this
+     * roll fires ({@code pickDefender} at the shooting sites, {@code pickCommitter} at the
+     * rebounding site, both {@code foulProne}-weighted), so weighting the grade too would
+     * apply one signal twice. ⚠ The symmetry with §3.14a's committer draw (#032 C) is
+     * tempting and <b>wrong</b> — that weighted a <i>selection</i>, this is a
+     * <i>grade</i> on a player already selected.
      *
-     * <p><b>Determinism:</b> this adds one {@code nextDouble()} <b>per FOUL</b>, not
-     * per possession. A deliberate exception to §3.14a's unconditional-draw discipline,
-     * permissible because the draw is nested <i>inside</i> an already-conditional
-     * branch (the foul), so it cannot fork the stream on rotation state the way #031's
-     * would have — it forks only on the foul's own outcome, which the stream has
-     * already forked on.
+     * <p><b>Determinism:</b> one {@code nextDouble()} <b>per FOUL</b>, not per
+     * possession. A deliberate exception to §3.14a's unconditional-draw discipline,
+     * permissible because the draw is nested inside an already-conditional branch, so it
+     * forks the stream only on the foul's own outcome — never on rotation state, as
+     * #031's would have.
      */
     public boolean isFlagrant(RandomGenerator rng) {
         return rng.nextDouble() < config.flagrantFoulProbability();
@@ -175,20 +141,16 @@ public class FoulResolver {
     /**
      * §3.14b (decisions.md #034 E): given a flagrant, was it a <b>FLAGRANT-2</b> — the
      * grade that ejects the committer immediately? A flat {@link
-     * SimConfig#FLAGRANT_TWO_SHARE} conditional sub-roll, taken <b>only on a hit</b>
+     * SimConfig#flagrantTwoShare()} conditional sub-roll, taken <b>only on a hit</b>
      * from {@link #isFlagrant}.
      *
-     * <p><b>One mechanic with a severity sub-roll, not two independently-rated
-     * mechanics.</b> A separately-tuned flagrant-2 <i>rate</i> was rejected on
-     * measurability: at ~33 flagrants per 102-game harness run a flagrant-2 line is ~5
-     * events, unresolvable at any seed count, so the second constant would be a knob
-     * nobody could ever read. A conditional share says the thing actually known —
-     * <i>what fraction of flagrants are severe</i> — and inherits the parent rate's
-     * resolvability.
+     * <p><b>⚠ One mechanic with a severity sub-roll, not two independently-rated
+     * mechanics</b> — a separately-tuned flagrant-2 <i>rate</i> was rejected as
+     * unmeasurable; the sizing is on {@code flagrantTwoShare}'s field.
      *
      * <p><b>The grade changes NOTHING but the ejection</b> (#034 C/E): two free throws
      * either way, the same possession fork, the same personal foul. Causally inert for
-     * the same reason {@link #isFlagrant} is — see its javadoc.
+     * the same reason {@link #isFlagrant} is.
      */
     public boolean isFlagrantTwo(RandomGenerator rng) {
         return rng.nextDouble() < config.flagrantTwoShare();
@@ -200,33 +162,27 @@ public class FoulResolver {
      * SimConfig#nonShootingFoulShare()} roll, {@link #isFlagrant}'s sibling and
      * deliberately its twin in shape.
      *
-     * <p><b>LAYERED ON TOP of a foul already rolled and charged, not carved OUT of
-     * one</b> — the inversion that makes §3.14b free on every existing rate, applied a
-     * second time. {@link #isFoul} keeps its rate, its skills and its RNG draw exactly
-     * as shipped, and {@code defender.recordFoul()} has already run before this is
-     * asked, so <b>the foul TOTAL holds by construction</b> (#039 A): foul-outs, {@code
-     * foulTroubleLevel()} and the bonus tally keep working on either branch with no
-     * tuning. What moves is the <i>outcome</i>, and with it the free throws.
+     * <p><b>LAYERED ON TOP of a foul already rolled and charged</b> — {@link
+     * #isFlagrant}'s inversion applied a second time. {@code defender.recordFoul()} has
+     * already run before this is asked, so <b>the foul TOTAL holds by construction</b>
+     * (#039 A): foul-outs, {@code foulTroubleLevel()} and the bonus tally keep working on
+     * either branch with no tuning. What moves is the <i>outcome</i>, and with it the
+     * free throws.
      *
      * <p><b>⚠ The converted foul awards NO free throws outside the bonus, and ENDS the
-     * possession — the ball does NOT come back</b> (#039 C). That is wrong as
-     * basketball (a real common foul is a side inbound; the offense keeps the ball) and
-     * it is deliberate: every returning variant re-enters the loop at {@code
-     * ShotSelector} and yields a live attempt worth ~0.76 FGA where the stopped shot
-     * charged none, and FGA is 88.4 against 89.1 real — <b>0.7 of headroom</b>. That
-     * caps a retaining variant at a ~6% share, which moves FTA by less than one
-     * attempt. The retention reading and this phase's goal are arithmetically
-     * incompatible; FGA wins because it is sourced and already correct. The caller owns
-     * that fork — see {@code PossessionEngine}'s foul block.
+     * possession — the ball does NOT come back</b> (#039 C). <b>This is wrong as
+     * basketball and it is deliberate</b>, so do not "fix" it as a bug: a real common
+     * foul is a side inbound and the offense keeps the ball, but every returning variant
+     * re-enters the loop at {@code ShotSelector} for a live attempt worth ~0.76 FGA where
+     * the stopped shot charged none — against only 0.7 of FGA headroom (88.4 vs 89.1
+     * real). That caps a retaining variant near a ~6% share, moving FTA by less than one
+     * attempt. FGA wins because it is sourced and already correct. The caller owns the
+     * fork — see {@code PossessionEngine}'s foul block.
      *
-     * <p><b>⚠ NO SKILL INPUTS, and as with {@link #isFlagrant} that is a positive
-     * design claim rather than a simplification (#039 E).</b> {@code foulProne} has
-     * <b>already had its say</b> — {@code pickDefender} chose the committer before this
-     * roll fires — so weighting the <i>kind</i> of foul by it too would apply one
-     * signal twice (#034 E). It is also the honest position: the engine has no
+     * <p><b>⚠ NO SKILL INPUTS — a positive design claim, on {@link #isFlagrant}'s
+     * argument (#039 E).</b> Additionally specific to this roll: the engine has no
      * representation of <i>where on the floor</i> the contact happened, which is the
-     * thing that actually decides shooting vs. non-shooting, so any skill weighting here
-     * would manufacture a signal the model does not have.
+     * thing that actually decides shooting vs. non-shooting.
      *
      * <p><b>⚠ Rolled only AFTER {@link #isFlagrant} misses</b> (#039 F). A flagrant
      * common foul is simply a flagrant — it awards its flat 2 FTs and returns the ball
@@ -234,9 +190,7 @@ public class FoulResolver {
      * The ordering is load-bearing, not incidental.
      *
      * <p><b>Determinism:</b> one {@code nextDouble()} <b>per non-flagrant foul</b>,
-     * nested inside the already-conditional foul branch exactly as {@link #isFlagrant}
-     * is, so it forks the stream only on the foul's own outcome. Seed-pinned assertions
-     * downstream of any foul re-baseline once.
+     * nested inside the conditional foul branch exactly as {@link #isFlagrant} is.
      */
     public boolean isNonShootingFoul(RandomGenerator rng) {
         return rng.nextDouble() < config.nonShootingFoulShare();
@@ -252,29 +206,23 @@ public class FoulResolver {
      * missed shot. Returns {@code null} when no foul was committed (the common
      * case) — the caller then runs the normal four-way board draw.
      *
-     * <p><b>Carved off the top</b> (Decision C, the §3.7 {@code P(BLOCK)} shape):
-     * this is rolled BEFORE the board contest and short-circuits it on a hit (the
-     * whistle stopped play, so nobody rebounds). Keeping it a separate roll rather
-     * than a fifth outcome inside the four-way draw is what keeps the foul rate
-     * independently tunable — it never entangles with the rebound weights.
+     * <p><b>Carved off the top</b> (Decision C, the §3.7 {@code P(BLOCK)} shape): rolled
+     * BEFORE the board contest and short-circuits it on a hit (the whistle stopped play,
+     * so nobody rebounds). ⚠ Keeping it a separate roll rather than a fifth outcome in
+     * the four-way draw is what keeps the foul rate independently tunable — it never
+     * entangles with the rebound weights.
      *
-     * <p><b>Two-sided</b> (Decision A2): on a foul, a second, defense-LEANING draw
-     * picks the committing side — a defensive box-out push (dominant) or an
-     * offensive over-the-back (the minority) — and the committer is then picked
-     * from that side by a {@code foulProne}-weighted draw, so the undisciplined
-     * players foul most. The side determines who is fouled and how the possession
-     * forks (Decision B), which the caller owns.
+     * <p><b>Two-sided</b> (Decision A2): a defense-LEANING draw picks the committing side
+     * (box-out push, dominant; over-the-back, the minority), then a {@code
+     * foulProne}-weighted draw picks the committer from that side. The side determines
+     * who is fouled and how the possession forks (Decision B), which the caller owns.
      *
-     * <p>Probability reuses the shooting foul's inputs in the avg-10 form (#021 C
-     * / #022): the aggregate discipline of the rebounding side against the
-     * aggregate foul-drawing of the other, scaled by {@code defensivePressure} (an
-     * aggressive scheme concedes more contact — the coach.md pressure/breakdown
-     * trade-off), all on a small {@link SimConfig#reboundFoulBase()}. Fatigue
-     * scales each side's skills exactly as {@link #isFoul} does.
+     * <p>Probability reuses the shooting foul's avg-10 inputs (#021 C / #022) in
+     * aggregate per side, fatigue-scaled as {@link #isFoul} does, on a small {@link
+     * SimConfig#reboundFoulBase()}.
      *
-     * <p><b>RNG order is fixed</b> (#028, determinism): the foul roll, then (only
-     * on a hit) the side draw, then the committer draw — all before the board
-     * draw. Seed-pinned rebound assertions re-baseline once against this shift.
+     * <p><b>⚠ RNG order is fixed</b> (#028): the foul roll, then (only on a hit) the side
+     * draw, then the committer draw — all before the board draw.
      */
     public ReboundFoul resolveReboundFoul(List<PlayerGameState> offense,
                                           List<PlayerGameState> defense,

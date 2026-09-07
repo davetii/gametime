@@ -7,17 +7,14 @@ import java.util.*;
 public class GameData {
 
     /**
-     * §3.14a (decisions.md #032 D/E): the {@code outcome} string for a technical
-     * foul, on the existing {@link PlayType#FOUL} — a technical is a KIND of foul, so
-     * no new {@code PlayType} (the #025 F / #026 E / #028 D reuse discipline), and
-     * free text since #020 means no migration. Mirrors the established {@code
-     * SHOOTING_FOUL} / {@code REBOUNDING_FOUL_*} / {@code AND_ONE} vocabulary and
-     * collides with nothing in the §3.8/§3.9/§3.10 strings (#027 D).
+     * §3.14a (decisions.md #032 D/E): the {@code outcome} string for a technical foul, on
+     * the existing {@link PlayType#FOUL} — a technical is a KIND of foul, so no new
+     * {@code PlayType} (the #025 F / #026 E / #028 D reuse discipline).
      *
-     * <p>It lives HERE rather than on {@link PossessionEngine} (which emits it)
-     * because this class is the one that must recognise it: it is the single outcome
-     * excluded from the penalty tally below, and a literal on both sides of that
-     * agreement is exactly how the two would drift apart.
+     * <p>⚠ It lives HERE rather than on {@link PossessionEngine} (which emits it) because
+     * this class is the one that must RECOGNISE it: it is the single outcome excluded
+     * from the penalty tally below, and a literal on both sides of that agreement is
+     * exactly how the two would drift apart.
      */
     public static final String TECHNICAL_FOUL_OUTCOME = "TECHNICAL_FOUL";
 
@@ -82,34 +79,24 @@ public class GameData {
     public List<EventRecord> getEvents() { return events; }
 
     /**
-     * §3.10 (decisions.md #028 A1 — the crux): is {@code teamId} in the BONUS
-     * (penalty) for period {@code period}? Computed on demand from the FOUL event
-     * log — {@code count(FOUL events with committingTeamId == teamId in this
-     * period) >= config.bonusFoulsPerPeriod()} — with <b>no stored teamFouls
-     * counter and no reset logic</b>. The events already hold the fact (#020), so
-     * a counter could only ever disagree with them; this is exactly the derived-
-     * predicate discipline #023 F applied to foul-OUTS, carried to the team level.
+     * §3.10 (decisions.md #028 A1 — the crux): is {@code teamId} in the BONUS (penalty)
+     * for period {@code period}? Derived on demand from the FOUL event log, with <b>no
+     * stored teamFouls counter and no reset logic</b> — the events already hold the fact
+     * (#020), so a counter could only ever disagree with them (#023 F's derived-predicate
+     * discipline, at the team level).
      *
-     * <p><b>Emit-then-count</b> (#028 A1): callers {@code addEvent} the current
-     * FOUL <i>first</i>, then ask — so the Nth foul (the one that reaches the
-     * threshold) itself awards the bonus free throws. "In the bonus" means the
-     * count HAS reached the limit, not exceeded it.
+     * <p><b>⚠ EMIT-THEN-COUNT</b> (#028 A1): callers {@code addEvent} the current FOUL
+     * <i>first</i>, then ask — so the Nth foul, the one reaching the threshold, itself
+     * awards the bonus free throws. "In the bonus" means the count HAS reached the limit,
+     * not exceeded it.
      *
-     * <p>The <b>personal</b> foul kinds count toward one unified tally (#028 A1):
-     * {@code SHOOTING_FOUL} and the two-sided {@code REBOUNDING_FOUL_*} alike,
-     * grouped by the {@code committingTeamId} field they all carry.
+     * <p>All <b>personal</b> foul kinds count toward one unified tally (#028 A1),
+     * grouped by the {@code committingTeamId} they carry. The one exclusion is a {@link
+     * #TECHNICAL_FOUL_OUTCOME}, which does not put a team in the bonus (#032 E).
      *
-     * <p><b>§3.14a (#032 E) gave this its FIRST outcome-aware exclusion:</b> a {@link
-     * #TECHNICAL_FOUL_OUTCOME} does <b>not</b> count toward the penalty, because a
-     * technical does not put a team in the bonus. So #028 A1's "one unified
-     * derivation over all {@code FOUL} events, not split per foul type" <b>no longer
-     * holds literally</b>, and the exclusion is written explicitly rather than left
-     * incidental.
-     *
-     * <p><b>Consequence for every future foul type: it must now consciously decide
-     * whether it counts.</b> §3.14b's flagrant is the immediate next case — and it
-     * <b>does</b> count (unlike a technical, a flagrant is a personal foul and also
-     * feeds the six-foul limit).
+     * <p><b>⚠ EVERY NEW FOUL TYPE MUST CONSCIOUSLY DECIDE WHETHER IT COUNTS</b>, and say
+     * so in {@link #countsTowardBonus}. A flagrant, for instance, DOES count — it is a
+     * personal foul and also feeds the six-foul limit.
      */
     public boolean isInBonus(String teamId, int period, SimConfig config) {
         return periodFoulCount(teamId, period) >= config.bonusFoulsPerPeriod();
