@@ -11,7 +11,7 @@ phase that consumed it, so leaving it here duplicates that record and buries the
 work. (Seven done items were cleared in 2026-08; the file was 30% completed work.)
 
 For deferred *gameplay* scope (sim-fidelity events the engine doesn't model yet),
-see the **§3.x Deferred sim-fidelity details** section of [roadmap.md](roadmap.md)
+see the phase bullets in [roadmap.md](roadmap.md)
 — those have a phase home and live with the phase that will consume them. For
 untriaged *future-improvement ideas* with no phase home yet (not chores, not
 planned features), see [ideas.md](ideas.md).

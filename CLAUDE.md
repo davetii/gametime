@@ -160,7 +160,13 @@ to a different phase entirely. Stale references remain throughout `decisions.md`
 `roadmap.md`, `backlog.md` and `ideas.md` — **left deliberately**, because most sit in
 `#NNN` entries, which are history and must never be retro-edited. **Annotate what you
 touch; do not mass-rewrite.**
-**Rule: read the phase NAME, never the number alone.** roadmap.md carries the mapping.
+**Rule: read the phase NAME, never the number alone.** The mapping:
+
+| number | phase |
+|---|---|
+| §3.16 | shooting-foul composition + the charge fix (#039) |
+| §3.19 | instrumentation (no `#NNN` — it resolved no design question) |
+| §3.20 | recalibration against verified targets (#042) |
 
 **2. A NUMBER CAN MOVE — OR FAIL TO MOVE — FOR REASONS THAT ARE NOT THE ENGINE, and no
 test will catch any of them.** `CalibrationHarness` infers meaning from what an event

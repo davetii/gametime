@@ -327,7 +327,7 @@ to `clampRareProbability`) is a **Java change** and was out of §3.20's scope.
 |---|---|
 | **this file** | **source of truth** for targets — all of them baseline-profile |
 | `CalibrationHarness` `(target ~N)` strings | the operative copy a tuner reads mid-run; printed on `baseline` only |
-| `roadmap.md` §3.20 bullet | the recalibration pass's goals and sequencing |
+| `decisions.md` #042 | the recalibration pass's goals, sequencing and landing |
 | `decisions.md` | **the history** — why each target is what it is, and each phase's landing |
 
 **When a target changes:** update this table **and** the harness strings in the same

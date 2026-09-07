@@ -167,6 +167,23 @@ constants: … Landing (harness, N games): <aggregates>. Coverage: … gate gree
   each needs its own design pass (the "do not execute a bullet without its design
   pass" warning), and keep the calibration-blast-radius sequencing rationale.
 
+⚠ **A LANDING NOTE IS AT MOST A FEW LINES — the argument goes in the `#NNN`, not
+here** *(established 2026-09 by user call, after measuring)*. Phase 3's sixteen
+fidelity sub-phases each wrote their own callout and they grew monotonically —
+§3.7 took 19 lines, §3.22 took 253, **852 lines total, 84% of the file** — until
+roadmap.md was 113k against 13k for the entire unbuilt future. **Every one was a
+lossy copy**: the landings, constants and traps were already in `#025`–`#044`, and
+the mechanics carry 513 `#NNN` citations in the `sim` package. Two callouts had
+drifted far enough to need block-quoted errata warning that the bullet below them
+was disproved. Condensed to one shared section, 852 → ~30 lines.
+**The test before you write a line here: does this fact live in a `#NNN`, in
+`calibration.md`, or in a Java comment? Then it does not belong in the roadmap.**
+What only this file holds — and what a condense pass must never cut — is the
+**phase structure**, the **sequencing rationale**, the **seams-not-plans rule**,
+and the **§3.16/§3.19 number→name mapping** (~300 citations depend on it).
+⚠ **A closed arc of sub-phases collapses into ONE section**, not one bullet each:
+per-phase granularity stops being meaningful once the arc is shipped.
+
 ## ideas.md / backlog.md / risks.md
 
 Lighter — a titled bullet or short block per item with enough context to act on

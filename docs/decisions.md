@@ -1690,8 +1690,10 @@ moved 0.0090 → 0.0086 with the divisor.
 > [#042](#042) A–J.** This block did its job; it is kept as the record of what was handed
 > over, **not as open work**. ⚠ **Its pointers are STALE**: "the design questions are
 > indexed as Q1–Q7 in `todo.md`" — **that section is gone**, replaced by the execute-ready
-> plan; and **`roadmap.md`'s §3.20 bullet is annotated SUPERSEDED** (its
-> over-determination conclusion is disproved by #042 A). **For current work read #042 and
+> plan; and **`roadmap.md`'s §3.20 bullet is GONE** — it was
+> annotated SUPERSEDED (its over-determination conclusion is disproved by #042 A) and was
+> condensed away with the other Phase-3 callouts in 2026-09; recover it from
+> `git show d526e73:docs/roadmap.md` if ever needed. **For current work read #042 and
 > todo.md's §3.20 execution plan.**
 >
 > ⚠ **One row below is now known to be WRONG, not merely stale** — the *Points 110.0 vs
@@ -1709,7 +1711,8 @@ to assemble it. **This block is an INDEX, not a new decision**: each row cites t
 that owns it, and that entry stays authoritative. Live values are in `calibration.md`;
 **the design questions are indexed as Q1–Q7 in `todo.md`'s §3.20 section**, with the full
 argument, levers and sizing behind them in **`roadmap.md`'s §3.20 bullet** (they were
-parked there so they survive todo.md's per-phase rewrite). ⚠ **todo.md's Step 0 comes
+parked there so they survive todo.md's per-phase rewrite) — ⚠ **that bullet no longer
+exists; #042 A–J is the record, and the original is in `git show d526e73:docs/roadmap.md`**. ⚠ **todo.md's Step 0 comes
 first: this pass opens with a fresh 5-seed harness run, not with the questions.***
 
 **§3.20 is the LAST Phase-3 sub-phase and adds NO mechanic.** Every pass before it
