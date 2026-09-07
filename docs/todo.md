@@ -23,27 +23,35 @@ on 4; 8 is a snapshot check and must be last.
 
 - [x] **1. Rewrite `todo.md`.** ✅ Done 2026-09: §3.22's finished execution plan (33
       completed checkboxes) removed, and this gate is now the active work here.
-- [ ] **2. Condense `decisions.md`** — the file is **600k / 44 entries**, and **94% of it
-      is 23 engine entries** a Phase-4 reader never opens. Target the **five pre-cap
-      giants** (#030 53.8k, #031 47.6k, #032 44.9k, #034 44.7k, #040 35.9k ≈ 227k) —
-      halving those recovers **~113k, ~19% of the file** and touches nothing written under
-      the current proportionality rule. Add a short **navigation header** (#001–#020 are
-      foundational, start here; #021+ are engine sub-phases, read only the one you touch).
-      ⚠ **NEVER renumber and NEVER retro-edit** — ~300 `#NNN` citations resolve by number,
-      from docs *and Java comments*. ⚠ **Never compress away the crux, the final constants,
-      or the traps** (the wrong-way lever, the clamp flooring a rare rate, the
-      over-determined pair) — those are what later phases reach for. What is compressible
-      is the *Alternatives* / *Trade-off* re-argument and the design-pass narrative.
-      ⚠ **A split was tried 2026-07 and REVERTED (one file, user call)** — condense, don't
-      split. If it is ever revisited, the only clean cut is **after #020**: engine entries
-      cite #001–#020 **172×**, and #001–#020 cite engine entries **0×**.
-- [ ] **3. Sweep the `sim` package's Java comments — IN THE SAME PASS as step 2.** Not
-      sequential: simultaneous. Java comments cite `decisions.md` **by number**, so
-      condensing one without the other is exactly how a doc gets repaired while the thing
-      referencing it goes stale.
+- [x] **2. Condense `decisions.md`** ✅ *(2026-09)* — **the premise changed during the work
+      and the outcome is a SPLIT, not a condense.** Measured: *Alternatives* + *Trade-off* were
+      only ~15% of the file, so halving them recovered ~7% — the plan below targeted the wrong
+      sections. The real division is by **audience**: the operative findings (traps, wrong-way
+      levers, saturations, elasticities, final constants) are ~18k and are what anyone actually
+      reads; the rest was design-pass narrative for a phase that is now closed.
+      **What shipped**: findings extracted to **[engine-findings.md](engine-findings.md)**;
+      every `#NNN` cut to its title, date and decision letters. **599k → 38k + 20k.**
+      ⚠ This is **not** the 2026-07 split that was reverted — no entry moved file, no number
+      changed. ⚠ **Never renumber**: ~1,900 citations resolve by number **and letter** (157
+      distinct entry+letter pairs; `#025 F` alone is cited 15×).
+- [ ] **3. Sweep the `sim` package's Java comments.** ⚠ **NOT the same pass as 2** — that
+      coupling was asserted, then tested and found false: condensing never breaks a citation,
+      only renumbering would. Scope is narrow — rename stories, "before it, X couldn't happen"
+      descriptions of code that no longer exists, and design-pass narrative. ⚠ **Leave every ⚠
+      warning where it is**; the comments are mostly operative warnings sitting on the field they
+      protect. ⚠ **One known bug to fix**: `SimConfig.java` (~L75, ~L176) still repeats #028's
+      wrong-way-lever warning for `base-no-basket-foul`; #036 disproved it at the current
+      configuration and `application-baseline.properties` already says the opposite.
 - [ ] **4. Split `possession-flow.puml`** into a high-level outline + sub-section diagrams.
       It is **64k, 52% inside `note` blocks, and renders at 13,800px against a 16,384
-      ceiling** — roughly one phase of headroom left. ⚠ **Cut at PARTITION boundaries** —
+      ceiling** — roughly one phase of headroom left. ⚠ **THIN THE PROSE FIRST, THEN
+      SPLIT** — measured across two phases, ~68% of the file is notes + legend and only
+      ~25% is the flow, so splitting first yields four files that are each still mostly
+      notes. Most notes re-argue their decision instead of describing the branch; the
+      diagram needs **the pointer, not the argument** (phase + decision letters + the
+      one-line crux + the ⚠ trap). The 208-line legend is reference material, not flow —
+      move it to its own file, ⚠ **not into `game.md`**, which is the other half of this
+      duplication (step 5). Re-measure after; steps 1–2 may be enough on their own. ⚠ **Cut at PARTITION boundaries** —
       branch order *within* a partition is load-bearing and this file is where it is
       recorded (the §3.14b/§3.16 drift happened inside one flow). ⚠ **Keep the render check
       per sub-diagram**: `plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng` and confirm the
@@ -51,6 +59,17 @@ on 4; 8 is a snapshot check and must be last.
       out, so a green check does not prove the PNG is whole.
 - [ ] **5. `game.md` dedup against the new diagrams** — the two describe the same flow
       twice. **After step 4**: it is cheaper once each sub-diagram's ownership is settled.
+      Measured 2026-08: `game.md` is **47.7k**, and its `### The calculation sequence`
+      subsection alone is ~22.5k — half the file — walking the same branch order the
+      diagram draws. ~70k of combined description of one flow. **Thin them TOGETHER or
+      not at all**; fixing one side leaves the duplicate looking authoritative.
+      ⚠ **Its ~253 `#NNN` citations are NOT the bloat** — unlike calibration.md's (which
+      marked history in a targets reference), these annotate **live mechanics** and are how
+      a reader finds the argument. Cutting them removes navigation. The job is
+      de-duplication against the diagram.
+      ⚠ **The hard part**: decide what only prose can carry — **the WHY behind an ordering**
+      — versus what the picture already shows. Deleting an ordering rationale is the one
+      irreversible mistake here.
 - [ ] **6. Triage `backlog.md`.** Move the three items that are already gates here out of
       it (condense `decisions.md`, thin the `.puml`, the Java-comment sweep). Move the
       **`PROB_FLOOR` / `base-block-three` finding** to `calibration.md`'s Blocks row or

@@ -9,7 +9,8 @@ gametime/
 ├── CLAUDE.md                  AI session entry point (this file)
 ├── docs/                      Project documentation
 │   ├── roadmap.md             Phased roadmap (Phases 3–8; 1–2 shipped, see "What Exists Today")
-│   ├── decisions.md           Architecture decision log
+│   ├── engine-findings.md     ⚠ THE ENGINE TRAPS — read before touching the sim
+│   ├── decisions.md           Decision INDEX (title + decision letters; citations resolve here)
 │   ├── risks.md               Active risks and concerns
 │   ├── todo.md                Tactical task list (current phase only — CURRENTLY:
 │   │                          NO ACTIVE PHASE. §3.22 shipped as #044 and was the
@@ -43,6 +44,10 @@ gametime/
 ## Project docs
 
 Before starting work, review these for context:
+- **`docs/engine-findings.md`** — ⚠ **read this before changing any engine constant.**
+  The traps, wrong-way levers, saturated knobs, measured elasticities and final
+  constants — the facts no source file holds. `decisions.md` is the archive behind it:
+  an index of what each `#NNN` decided, which is what the ~1,900 citations resolve into.
 - **`docs/roadmap.md`** — phased roadmap, what's built vs what's needed
 - **`docs/roster.md`** — roster & lineup domain: player↔team link, lineups, transactions
 - **`docs/player.md`** — player domain reference: attributes, derived skills, calculator design

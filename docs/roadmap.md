@@ -20,20 +20,13 @@ _Last updated: 2026-09. **Next: the pre-work gate below.**_
 - **Skill calculation engine**: SkillCalculator interface, 23 calculator implementations, SkillMapper orchestrator
 - **Entity-to-model mapping**: EntityMapper with full attribute + skill wiring
 - **Database**: Postgres (local dev) + H2 (tests), Liquibase migrations, gametime schema, audit triggers
-- **Possession engine — ALL of Phase 3 (§3.1–§3.22, shipped 2026-06 → 2026-09)** —
-  a full, seeded, deterministic game simulation, not a stub. Shot selection (four
-  tunable shot shares) → turnover (9 causes, steals as a first-class counterparty)
-  → foul → three-way MAKE/MISS/BLOCK draw → missed-shot outcome (rebound / out of
-  bounds / putback-weighted second chance), with coach pace/scheme modifiers, real
-  assists, minutes/fatigue/substitution, the full foul system (rebounding fouls +
-  a derived team-foul/bonus model, and-1s, foul trouble & foul-outs, technicals,
-  flagrants), and **63 tunable constants loaded from swappable profiles**.
-  Persists a full `GameEvent` log + per-player `BoxScore`, exposed via the §3.6
-  simulation APIs. Calibrated against sourced modern-NBA targets with a
-  `CalibrationHarness` — every one lands but four reported residuals (Blocks
-  −0.26, Fouls −0.55, OffReb +0.60, DefReb −0.85).
+- **Possession engine — ALL of Phase 3 (§3.1–§3.22, shipped 2026-06 → 2026-09)** — a full
+  seeded, deterministic possession simulation with the complete foul system, minutes/fatigue/
+  substitution, and **63 tunable constants in swappable profiles**. Persists a `GameEvent` log +
+  per-player `BoxScore` behind the §3.6 APIs. Calibrated against sourced modern-NBA targets;
+  every row lands but four reported residuals (Blocks −0.26, Fouls −0.55, OffReb +0.60, DefReb −0.85).
   Flow: **game.md** / **possession-flow.puml**. Targets: **calibration.md**.
-  Per-sub-phase record: **decisions.md #020–#044**.
+  ⚠ Traps and measured findings: **engine-findings.md**. Per-sub-phase record: **decisions.md #020–#044**.
 - **Test suite**: unit + Cucumber integration, 80% line coverage enforced (JaCoCo gate)
 - **Build pipeline**: Multi-module Maven, OpenAPI codegen with delegate pattern, Docker Compose
 
@@ -74,8 +67,13 @@ backlog item that ships late or not at all. **Order is dependency-driven** — 2
 are one pass, 5 depends on 4, 8 must be last.
 
 - [x] **1.** Rewrite `todo.md` ✅ *(2026-09)*
-- [ ] **2.** Condense `decisions.md` (600k / 44 entries) — ⚠ never renumber, never retro-edit
-- [ ] **3.** Sweep the `sim` package's Java comments — **same pass as 2**
+- [x] **2.** Condense `decisions.md` ✅ *(2026-09)* — SPLIT by audience, not condensed in place:
+      findings → **[engine-findings.md](engine-findings.md)**, entries cut to their decision
+      letters. 599k → 38k + 20k. ⚠ Never renumber: ~1,900 citations resolve by number **and letter**.
+- [ ] **3.** Sweep the `sim` package's Java comments — ⚠ **not coupled to 2**; only renumbering
+      would break a citation. ⚠ Fix here: `SimConfig.java` (~L75, ~L176) still warns that
+      `base-no-basket-foul` runs the wrong way — #036 disproved it and the properties file
+      already disagrees.
 - [ ] **4.** Split `possession-flow.puml` (64k, near the render ceiling) — ⚠ cut at partition boundaries
 - [ ] **5.** `game.md` dedup against the new diagrams — **after 4**
 - [ ] **6.** Triage `backlog.md`
@@ -243,33 +241,25 @@ the **bead is the only record** and the doc entry is deleted.
 
 ## Design Decisions To Make
 
-These are open questions that should be resolved before or during implementation:
+Open questions to resolve before or during the phase that needs them.
 
-1. **Simulation granularity**: Possession-by-possession (detailed, slow) vs. quarter-level (faster, less detail) vs. configurable?
-2. **Game clock model**: Real seconds ticking down, or abstract possession count per quarter?
-3. **Coach attribute design**: Continuous attributes (1-10 scale like players) or categorical styles (enum-based)?
-4. **Salary/contract complexity**: Simple (flat salary, fixed years) or realistic (cap exceptions, bird rights, max contracts)?
-5. **Draft class generation**: Fully random, template-based archetypes, or a mix?
-6. **Frontend-first or API-first for new features?**: Build APIs then UI, or design UI mockups first?
-7. **Real-time simulation**: Should game simulation stream play-by-play via WebSocket, or generate all at once and let the frontend replay?
-8. **Multi-user**: Is this single-player (user controls one team) or spectator-mode (AI runs everything, user watches)?
-9. **Persistence strategy for game events**: Store every possession in the DB, or only final box scores?
-10. **Season length**: How many games per team per season? (NBA is 82 — that's a lot of simulation data)
+1. **Salary/contract complexity** (Phase 6.4): simple (flat salary, fixed years) or realistic
+   (cap exceptions, bird rights, max contracts)?
+2. **Draft class generation** (Phase 6.3): fully random, template-based archetypes, or a mix?
+3. **Real-time simulation** (Phase 7): stream play-by-play over WebSocket, or generate all at
+   once and let the frontend replay?
+4. **Multi-user** (Phase 7/8): single-player (user controls one team) or spectator mode?
+5. **Season length** (Phase 5): games per team per season — 82 is a lot of simulation data.
+
+⚠ **Already decided — do not reopen**: simulation granularity and the clock model
+(possession-by-possession, no clock — **#021 B**, **#024 E**); coach attributes
+(continuous 1–20, not enums — **#018**); event persistence (every `GameEvent` stored,
+events are the source of truth — **#020**).
 
 ---
 
-## Suggested Build Order
+## Build order
 
-The phases above are roughly sequential, but here's the critical path:
-
-```
-[Foundation ✓] ──> Phase 2 (Rosters) ✓ ──> Coach model ✓ ──> Phase 3 (Game Engine) ──> Phase 4 (Stats)
-                                                        │
-                                                        v
-                                                Phase 5 (Season) ──> Phase 6 (Progression)
-                                                        │
-                                                        v
-                                                Phase 7 (Frontend) ──> Phase 8 (Polish)
-```
-
-Phases 1-3 are the core loop. Once you can simulate a game and get a box score, everything else builds on top. The frontend can start in parallel with Phase 4+ once the game simulation API exists.
+Phases 1–3 are shipped. The remaining path: **Phase 4 (Stats) → Phase 5 (Season) →
+Phase 6 (Progression)**, with **Phase 7 (Frontend)** able to start in parallel from
+Phase 4 onward (the §3.6 simulation API it needs already exists), and **Phase 8** last.
