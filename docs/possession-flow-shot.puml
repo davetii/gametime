@@ -1,0 +1,100 @@
+@startuml possession-flow-shot
+' ⚠ A DETAIL DIAGRAM. The whole possession, and the second-chance LOOP that
+' wraps this one, are in possession-flow.puml — read that first.
+' ⚠ THIS FILE OWNS: the three-way MAKE/MISS/BLOCK draw, the block recovery,
+' the assist, and the and-1.
+' ⚠ Notes say what the flow DOES; the argument lives in possession-flow-model.md.
+' Render: plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng   (every diagram is now under
+'   the 4096px default, so the flag is insurance — but keep using it, and ⚠ keep each
+'   diagram SCREEN-SIZED: past ~2,000px it stops being readable long before it stops
+'   rendering. ⚠ `-checkonly` does not lay out and does not catch deprecated syntax
+'   that renders as a warning box — look at the PNG.)
+title ShotResolver — make, miss, or block\n//§3.7 blocks · §3.11 and-1 · §3.21 block credits · §3.22 the putback assist//
+
+skinparam ActivityDiamondFontSize 11
+skinparam ActivityFontSize 12
+skinparam NoteFontSize 10
+
+start
+:record FGA (+ 3PA if THREE);
+
+switch (**one three-way draw**\n//offense skill for shot type vs defense//\n//P(BLOCK) carved off the top, own sensitivity//)
+case (BLOCKED)
+  :SHOT — BLOCKED_//shotType//
+  missed FGA on the shooter
+  **opponentPlayerId = the BLOCKER**, //recordBlock()//
+  no assist;
+  note right
+     **Block = a field-goal outcome, exactly as a steal is a turnover outcome.** One three-way draw — no double-count.
+    There is no PlayType.BLOCK.
+    ⚠ **The blocker rides opponentPlayerId** (no new draw —
+    `defender` was already selected).
+    Reconciliation: count(BLOCKED% with opponent = X) == blocks(X).
+  end note
+  :**flat four-way loose-ball recovery**
+  //fixed weights, defense-leaning — NOT the board contest//
+  offense/defense × in-bounds/OOB;
+  note right
+    A blocked ball is a **chaotic loose ball**, not the
+    box-out contest.
+    ⚠ **THE FLAT ROLL PICKS A SIDE, NEVER A PLAYER.** Two
+    different questions: *which side* is this flat roll; *which
+    of that side's five* is a separate skill-weighted pick.
+    ⚠ **The board contest is NEVER run here** — the side is
+    already decided.
+    ⚠ **COUNT THE EVENTS: a block emits TWO** — ``SHOT`` then
+    ``REBOUND``, one of each, on every one of the four cases.
+    Four MUTUALLY EXCLUSIVE cases, not four events.
+  end note
+  if (recovered IN BOUNDS by the OFFENSE?) then (yes)
+    :REBOUND — OFFENSIVE (credited)
+    → **OFFENSE RETAINS** → second chance
+    //this player becomes the putback candidate//;
+    stop
+  else (no)
+    :REBOUND — DEFENSIVE, or OUT_OF_BOUNDS_*
+    → **possession over**;
+    stop
+  endif
+
+case (MADE)
+  :SHOT — MADE_//shotType//
+  +2 or +3 points;
+  if (assisted?\n//teamOffense / passing of the four teammates//) then (yes)
+    :assistPlayerId = the passer
+    //recordAssist()//;
+    note right
+      ⚠ **A PUTBACK is assisted at HALF the ordinary chance, not zero**
+      — nobody passed the rebounder his own board, but
+      zeroing it would miss the assists row. The rule keys off
+      `shooter == rebounder`, **NOT** "any second-chance shot":
+      a kick-out three off an offensive rebound is an ordinary
+      assisted basket.
+    end note
+  endif
+  if (**and-1?**\n//shooter foulDrawing vs defender discipline//\n//× foulMultiplier(shotType) — the SAME shared table//) then (yes)
+    :FOUL — AND_ONE  (+ the defender charged)
+    :FREE_THROW ×**1** — *_AND_ONE
+    //ONE for every shot type, a made three included//;
+    note right
+      ⚠ **The two foul rolls are MUTUALLY EXCLUSIVE** — the
+      pre-shot FoulResolver branch **stops**, so a stopped shot
+      never reaches here. One shot emits at most ONE of
+      SHOOTING_FOUL / AND_ONE, never both.
+      Where they DO compound is the period foul tally: both emit
+      a FOUL and both count toward the bonus.
+      An and-1 on a THREE is rarer **automatically** — the rolls
+      are independent and the shot must ALSO go in.
+      ⚠ **A missed live last FT here can RETAIN** — see
+      possession-flow-foul.puml's live-board fork.
+    end note
+  endif
+  :**possession over**;
+  stop
+
+case (MISSED)
+  :→ on to the rebounding foul, then the board
+  //possession-flow-rebound.puml//;
+  stop
+endswitch
+@enduml

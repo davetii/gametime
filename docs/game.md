@@ -164,12 +164,17 @@ section above; decisions.md #020).
 
 ### Possession flow (§3.2–§3.3) — see also [possession-flow.puml](possession-flow.puml)
 
+> **The diagrams**: [possession-flow.puml](possession-flow.puml) is the overview — the
+> whole possession on one screen, and the only place the second-chance loop is drawn as
+> a loop. Each resolver's branches live in its own `possession-flow-*.puml`; the maths
+> and each pass's history live in [possession-flow-model.md](possession-flow-model.md).
+
 ### The calculation sequence (which resolver runs when)
 
 Before the event-by-event detail below, the **order the engine actually executes**.
 Two phases per possession: a **rotation phase** (state only) and the **possession
 phase** (the branching path). The rotation phase is the one that is easy to forget —
-it is not on `possession-flow.puml`'s path and emits no events, but it runs first and
+it sits outside the overview's loop and emits no events, but it runs first and
 decides *who* the possession is played with.
 
 | # | Phase / resolver | What it decides | On a hit |

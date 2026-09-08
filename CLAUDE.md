@@ -69,7 +69,14 @@ traps are real and cost real time — but it is **guidance, not authority**.
 docs/
   engine-traps.md   ⚠ THE ENGINE TRAPS — read before changing any engine constant
   calibration.md       The calibration targets — source of truth for what to tune toward
-  possession-flow.puml The possession flow as a diagram — fastest way to learn the engine
+  possession-flow.puml ⚠ START HERE — the possession on ONE SCREEN, loop and all
+    possession-flow-rotation.puml        subs · fatigue · the technical foul
+    possession-flow-shot-selection.puml  who shoots · what shot · the putback
+    possession-flow-turnover.puml        the gate · nine causes · the charge
+    possession-flow-foul.puml            one foul → three labels · FTs · live board
+    possession-flow-shot.puml            make/miss/block · recovery · assist · and-1
+    possession-flow-rebound.puml         the rebounding foul · the four-way board
+  possession-flow-model.md  The maths behind the boxes + each pass's history
   game-events.md       The event vocabulary — every (play_type, outcome), one master table
   game.md              Game domain + possession engine (models + flow)
   decisions.md         Decision INDEX — what each #NNN decided (~1,900 citations resolve here)
@@ -90,10 +97,26 @@ Part 1). Next is roadmap.md's Phase 3 → Phase 4 pre-work gate.
 
 - **`engine-traps.md` first** — the traps, wrong-way levers, inert knobs and measured
   elasticities. The facts no source file holds.
-- **`possession-flow.puml`** is a living spec, not an illustration. A new branch or event
-  belongs there in the same change. ⚠ Branch **order** within a partition is often
-  load-bearing. Render with `plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng` — **the size flag
-  is required**; plain `-tpng` silently truncates at 4096px.
+- **The flow diagrams** are a living spec, not an illustration. A new branch or event
+  belongs there in the same change. ⚠ **They tell the story of the LOGIC — notes say
+  what the flow does, they do not argue the decision behind it** (the user's rule,
+  2026-09). The argument goes to `possession-flow-model.md` or `decisions.md`.
+  ⚠ **WHERE A NEW BRANCH GOES**: a fork *inside* a resolver → that resolver's own
+  file. A new resolver, or **a new way the offense RETAINS** → the overview **too**.
+  Drawing it in both places by accident is a drift bug; so is adding a retention path
+  the overview's loop condition doesn't mention.
+  ⚠ **Every diagram must stay screen-sized** (~2,000px). That is the real ceiling —
+  PlantUML's 16,384px limit is only when it stops rendering. The 2026-09 gate found
+  the single 13,800px file failed both readers (learn it / modify one branch) and
+  split it into an overview + six detail diagrams. ⚠ Branch **order** within a file is
+  often load-bearing. Render them all with:
+  ```bash
+  plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng docs/possession-flow*.puml
+  ```
+  **The size flag is required** — plain `-tpng` silently truncates at 4096px. ⚠ And
+  **`-checkonly` is not enough**: it does not lay out (so it cannot tell you a PNG is
+  complete) and it does not catch deprecated syntax, which renders as a **warning box
+  inside the diagram**. Look at the PNG.
 - **`calibration.md`** owns the targets. Read it before changing a `SimConfig` constant or
   calling a landing "on target"; update it and the harness `(target ~N)` strings together.
 - **`game-events.md`** owns the event vocabulary — one table, one place. A new outcome

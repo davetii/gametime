@@ -1,0 +1,93 @@
+@startuml possession-flow-rebound
+' ⚠ A DETAIL DIAGRAM. The whole possession, and the second-chance LOOP that
+' wraps this one, are in possession-flow.puml — read that first.
+' ⚠ THIS FILE OWNS: the rebounding foul (carved off the TOP), and the four-way
+' missed-shot resolution. This is where MOST second chances are created.
+' ⚠ ORDER IS LOAD-BEARING: the rebounding foul is rolled BEFORE the board
+' contest and SHORT-CIRCUITS it — the whistle stopped play, so nobody rebounds.
+' ⚠ Notes say what the flow DOES; the argument lives in possession-flow-model.md.
+' Render: plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng   (every diagram is now under
+'   the 4096px default, so the flag is insurance — but keep using it, and ⚠ keep each
+'   diagram SCREEN-SIZED: past ~2,000px it stops being readable long before it stops
+'   rendering. ⚠ `-checkonly` does not lay out and does not catch deprecated syntax
+'   that renders as a warning box — look at the PNG.)
+title Rebounding foul + MissedShotResolver\n//§3.8 the OOB carve · §3.10 rebounding fouls + bonus · §3.21 the rebound pool//
+
+skinparam ActivityDiamondFontSize 11
+skinparam ActivityFontSize 12
+skinparam NoteFontSize 10
+
+start
+if (**rebounding foul?**\n//rareEventProbability, own base + sensitivity//\n//× defensivePressure — floor-free//) then (yes)
+  note right
+     **Carved off the TOP of the rebound phase** — rolled BEFORE
+    the board contest and SHORT-CIRCUITING it on a hit (the
+    whistle stopped play, so nobody rebounds). This keeps the
+    rate independently tunable; it never entangles with the
+    rebound weights.
+     **TWO-SIDED**: a defensive box-out push (dominant) or an
+    offensive over-the-back (the minority). The committer is
+    drawn //foulProne//-weighted from the committing five.
+  end note
+  :FOUL — REBOUNDING
+  committingTeamId = the committing side
+  //opponentPlayerId is **NULL BY CONTRACT** — the foul is//
+  //against the TEAM contesting the board; no individual victim//;
+  if (committed by the DEFENSE?) then (yes)
+    if (offense in the bonus?) then (yes)
+      :FREE_THROW ×**2** — BONUS
+      //shooter is a foulDrawing-weighted draw//;
+    else (no)
+    endif
+    :→ **OFFENSE RETAINS** → second chance
+    //back to the loop in possession-flow.puml//;
+    stop
+  else (no — committed by the OFFENSE)
+    :→ **ball flips** → possession over
+    //one of only two sites where the committer is on OFFENSE//;
+    stop
+  endif
+else (no)
+endif
+
+:pick offensive rebounder (offenseRebound draw)
+pick defensive rebounder (defenseRebound draw);
+
+switch (**missed-shot outcome — ONE skill-weighted draw**\n//rebound balance: offenseRebound vs defenseRebound//\n//× fatigueFactor; OOB slices carved by a defense-leaning lean//)
+case (OFFENSIVE rebound)
+  :REBOUND — OFFENSIVE
+  credit the off rebounder
+  //this player becomes the putback candidate//
+  → **OFFENSE RETAINS** → second chance;
+  stop
+case (DEFENSIVE rebound)
+  :REBOUND — DEFENSIVE
+  credit the def rebounder
+  → **possession over**;
+  stop
+case (OOB — offense)
+  :OUT_OF_BOUNDS_OFFENSE
+  //credits NO rebounder — stays out of the reconciliation//
+  → **OFFENSE RETAINS** → second chance;
+  stop
+case (OOB — defense)
+  :OUT_OF_BOUNDS_DEFENSE
+  //credits NO rebounder//
+  → **possession over**;
+  stop
+endswitch
+
+legend bottom left
+  ONE draw, FOUR outcomes — the OOB slices are carved off the
+  top by a flat defense-leaning lean FIRST, then the board contest
+  runs on the clean-rebound remainder. NOT a separate "is it OOB?"
+  sub-decision, so OOB never inherits the board winner.
+  ⚠ Once the retention cap is reached, an offense-retained outcome
+  is FORCED to a DEFENSIVE rebound — that is what bounds the loop.
+  ⚠ THREE different offensive shares feed ONE rebound pool, and
+  only one has a knob: the ordinary board contest
+  (`base-offensive-rebound`), the block recovery (FIXED flat
+  weights), and the free-throw board (a rule). Do NOT reach for
+  `base-offensive-rebound` to move the other two.
+endlegend
+@enduml

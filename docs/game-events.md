@@ -3,7 +3,7 @@
 Every event `PossessionEngine` writes to `game_event`, as a `(play_type, outcome)`
 pair with **who is on the row**. This is the single per-event reference; `game.md`
 keeps the models (`Game`, `GameEvent`, `BoxScore`), the possession flow and the API
-surface, and `docs/possession-flow.puml` draws the branch order.
+surface, and the `docs/possession-flow*.puml` diagrams draw the branch order.
 
 > **⚠ This documents what the engine DOES, never what would be nice.** Every row is
 > derived from the `addEvent` call sites in `PossessionEngine`. An outcome listed here
@@ -460,7 +460,8 @@ wants "3-FT trips" counts `SHOOTING` FTs per preceding `FOUL`.
 
 - **`docs/game.md`** — the models (`Game`, `GameEvent`, `BoxScore`), the possession flow
   / calculation sequence, and the API surface.
-- **`docs/possession-flow.puml`** — the flow as a diagram: every branch in engine order.
+- **`docs/possession-flow.puml`** — the flow as a diagram: the overview, plus one
+  detail diagram per resolver that draws every branch in engine order.
   ⚠ **Branch ORDER within a partition is often load-bearing**, and the diagram is the
   place that records why.
 - **`docs/player.md`** — the *"Possession Event → Skills Used"* table: which skills each

@@ -42,23 +42,52 @@ on 4; 8 is a snapshot check and must be last.
       protect. ⚠ **One known bug to fix**: `SimConfig.java` (~L75, ~L176) still repeats #028's
       wrong-way-lever warning for `base-no-basket-foul`; #036 disproved it at the current
       configuration and `application-baseline.properties` already says the opposite.
-- [ ] **4. Split `possession-flow.puml`** into a high-level outline + sub-section diagrams.
-      It is **64k, 52% inside `note` blocks, and renders at 13,800px against a 16,384
-      ceiling** — roughly one phase of headroom left. ⚠ **THIN THE PROSE FIRST, THEN
-      SPLIT** — measured across two phases, ~68% of the file is notes + legend and only
-      ~25% is the flow, so splitting first yields four files that are each still mostly
-      notes. Most notes re-argue their decision instead of describing the branch; the
-      diagram needs **the pointer, not the argument** (phase + decision letters + the
-      one-line crux + the ⚠ trap). The 208-line legend is reference material, not flow —
-      move it to its own file, ⚠ **not into `game.md`**, which is the other half of this
-      duplication (step 5). Re-measure after; steps 1–2 may be enough on their own. ⚠ **Cut at PARTITION boundaries** —
-      branch order *within* a partition is load-bearing and this file is where it is
-      recorded (the §3.14b/§3.16 drift happened inside one flow). ⚠ **Keep the render check
-      per sub-diagram**: `plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng` and confirm the
-      height — a plain `-tpng` truncates silently at 4096px, and `-checkonly` does not lay
-      out, so a green check does not prove the PNG is whole.
-- [ ] **5. `game.md` dedup against the new diagrams** — the two describe the same flow
-      twice. **After step 4**: it is cheaper once each sub-diagram's ownership is settled.
+- [x] **4. `possession-flow.puml`** ✅ *(2026-09)* — **an OVERVIEW + six detail
+      diagrams.** Done in two moves, and the first one was not enough:
+      **(a) the prose.** The file was 74% notes + legend and only ~25% flow. The rule
+      adopted, and it is the user's: *the diagram tells the story of the logic; it does
+      not carry boxes of verbiage explaining decisions.* The 279-line legend (a third of
+      the height, no part of it flow) moved whole to **possession-flow-model.md**.
+      13,800px → 7,365px, flow byte-identical (skeleton diffed, all counts equal).
+      **(b) the split — because (a) missed the point.** ⚠ **The ceiling that mattered was
+      never PlantUML's 16,384px; it was the SCREEN.** 7,365px is ~15 letter pages: no zoom
+      shows a branch and its context together. Even the bare flow with every note deleted
+      measured **5,802px**, so the structural floor alone busts a human budget — *the
+      split was always necessary and the prose argument obscured it.*
+      **The shape**: two readers, not one. **Learn it** → the overview
+      (`possession-flow.puml`, 793×1778): every resolver as one box, and **the
+      second-chance loop drawn as a loop** — an artifact that did not exist at any size
+      before. **Modify one branch** → that resolver's own diagram, which owns its forks.
+      **Measured**: overview 1778px · rotation 957 · shot-selection 549 · turnover 753 ·
+      foul 2102 · shot 895 · rebound 1212. All render with
+      `-DPLANTUML_LIMIT_SIZE=16384 -tpng`; all pass `-checkonly`; all inspected as PNGs.
+      ⚠ **OWNERSHIP, and this is the thing a future sub-phase needs**: a fork *inside* a
+      resolver → that resolver's file. A new resolver, or **a new way the offense
+      RETAINS** → the overview **too** (its loop condition is the retention question).
+      Drawing one branch in both files is a drift bug; adding a retention path the
+      overview doesn't mention is the same bug inverted.
+      ⚠ **`!include` was verified and REJECTED** — an included fragment renders to the
+      byte-identical height as inlining it, so it solves source duplication, not the
+      ceiling. These are **standalone diagrams**. (`!startsub`/`!includesub` does yield an
+      independently `-checkonly`-able fragment if one is ever needed; a bare fragment
+      fails `-checkonly` with "No diagram found".)
+      ⚠ **`-checkonly` is weaker than it looks** — it does not lay out, AND it passes
+      deprecated syntax that renders as a **warning box inside the PNG** (hit during this
+      pass with `#color:`). Look at the image.
+      ⚠ **Fixed in passing**: the header claimed "~9,600px as of §3.14b" (it was 13,800);
+      the title omitted §3.22; the loop note's headline said **five** re-entry paths while
+      its own parenthetical admitted §3.21 made it **six** — now six everywhere, with
+      "a SEVENTH is the signal to restructure". Also: the old file had **ten** partitions
+      and **two** `repeat` loops, not the six and one the gate assumed — four were nested.
+- [ ] **5. `game.md` dedup against the diagrams** — the two describe the same flow twice.
+      **Step 4 settled the ownership this depends on**: the overview owns resolver ORDER
+      and the retention question; each detail diagram owns its own forks;
+      `possession-flow-model.md` owns the maths and each pass's history. So the question
+      for every paragraph of `game.md`'s `### The calculation sequence` (~22.5k, half the
+      file) is now answerable: **which of those four already carries this?**
+      **Step 4's rule applies here too** — a diagram is not where an argument lives, so
+      prose explaining WHY an ordering holds belongs in game.md or the model file and
+      should not be pushed back onto the picture.
       Measured 2026-08: `game.md` is **47.7k**, and its `### The calculation sequence`
       subsection alone is ~22.5k — half the file — walking the same branch order the
       diagram draws. ~70k of combined description of one flow. **Thin them TOGETHER or
@@ -82,7 +111,7 @@ on 4; 8 is a snapshot check and must be last.
       then migrate the ~9 clean chores left after step 6. **Migrate the POINTER, not the
       prose** — several entries carry 6–7k of argument, and moving that into an issue body
       relocates the bloat somewhere less readable.
-      ⚠ **`decisions.md`, `calibration.md`, `game-events.md` and `possession-flow.puml` do
+      ⚠ **`decisions.md`, `calibration.md`, `game-events.md` and the `possession-flow*` diagrams do
       NOT migrate** — append-only reference cited by number; they are not work items.
 - [ ] **8. Re-read every `calibration.md` verdict against its own Current number.** ⚠ **Not
       a re-run — a re-READ**, and it must be **last** so it reflects final state. The

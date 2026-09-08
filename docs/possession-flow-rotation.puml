@@ -1,0 +1,70 @@
+@startuml possession-flow-rotation
+' ⚠ A DETAIL DIAGRAM. The whole possession, and the second-chance LOOP, are in
+' possession-flow.puml — read that first. This step runs BETWEEN possessions,
+' OUTSIDE that loop.
+' ⚠ THIS FILE OWNS: the three substitution tiers, and the technical-foul roll.
+' ⚠ Notes say what the flow DOES; the argument lives in possession-flow-model.md.
+' Render: plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng   (every diagram is now under
+'   the 4096px default, so the flag is insurance — but keep using it, and ⚠ keep each
+'   diagram SCREEN-SIZED: past ~2,000px it stops being readable long before it stops
+'   rendering. ⚠ `-checkonly` does not lay out and does not catch deprecated syntax
+'   that renders as a warning box — look at the PNG.)
+title RotationState — between-possession substitution\n//§3.5 fatigue · §3.13 foul trouble · §3.14a technicals//
+
+skinparam ActivityDiamondFontSize 11
+skinparam ActivityFontSize 12
+skinparam NoteFontSize 10
+
+start
+:drain on-floor energy (× endurance)
+recover benched energy;
+
+if (**technical foul?**\n//P = TECHNICAL_FOULS_PER_TEAM_GAME ÷ nominal checks//\n//rolled PER TEAM, no causal model at all//) then (yes)
+  :FOUL — TECHNICAL_FOUL
+  committer: //foulProne//-weighted draw
+  over the ON-FLOOR FIVE only
+  **own counter** — not foul-out, not foul-trouble, not bonus;
+  :**1 free throw** to the other team
+  shooter = highest //freeThrows// on the floor
+  (DETERMINISTIC — consumes no RNG);
+  note right
+    A technical hangs off no contest, so it is rolled HERE,
+    between possessions, and not on the possession path.
+     **The possession is UNCHANGED** — no fork, no retention,
+    no switch, even when the offense commits it.
+  end note
+else (no)
+endif
+
+:**hard** — force off any fouled-out OR ejected player
+//isFouledOut() || isEjected() || isEjectedForFlagrant()//
+//(fouls >= 6 · technicalFouls >= 2 · flagrantTwos >= 1)//
+→ sub from full roster;
+:**soft** — foul-trouble sub
+//P = base(fouls) × subAggressiveness × value × roster//
+from //rotationDepth// window only; yields if bench can't cover;
+:fatigue sub — pull most-tired starter below
+//subAggressiveness// threshold for freshest bench
+within //rotationDepth//; starters pulled later / return first;
+note right
+  Three tiers: **hard/forced · soft/preference · fatigue**.
+  Ejection extends the HARD tier via the `eligible(...)`
+  filter — NOT a fourth removal path. Disqualification is
+  always **DERIVED** from monotonic counters.
+  ⚠ **Consumes THREE RNG draws** — the sit roll, the technical
+  roll and the committer draw — ALL taken unconditionally at
+  fixed points, even when unneeded, so the stream never forks
+  on rotation state.
+  The step emits no events: it RETURNS the technical's
+  committer; PossessionEngine emits the FOUL + free throw.
+  The soft rule protects the BEST players MORE — the deliberate
+  inverse of the fatigue rule's starter tolerance. Sticky sit:
+  return is EARNED via the fatigue freshness path, never
+  re-rolled. onFloor() is always exactly 5. A fouled-out
+  player NEVER returns.
+end note
+
+:→ the possession begins
+//possession-flow.puml//;
+stop
+@enduml

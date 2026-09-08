@@ -25,7 +25,8 @@ _Last updated: 2026-09. **Next: the pre-work gate below.**_
   substitution, and **63 tunable constants in swappable profiles**. Persists a `GameEvent` log +
   per-player `BoxScore` behind the §3.6 APIs. Calibrated against sourced modern-NBA targets;
   every row lands but four reported residuals (Blocks −0.26, Fouls −0.55, OffReb +0.60, DefReb −0.85).
-  Flow: **game.md** / **possession-flow.puml**. Targets: **calibration.md**.
+  Flow: **game.md** / **possession-flow.puml** (the overview — each resolver has its
+  own diagram). Targets: **calibration.md**.
   ⚠ Traps and measured findings: **engine-traps.md**. Per-sub-phase record: **decisions.md #020–#044**.
 - **Test suite**: unit + Cucumber integration, 80% line coverage enforced (JaCoCo gate)
 - **Build pipeline**: Multi-module Maven, OpenAPI codegen with delegate pattern, Docker Compose
@@ -74,8 +75,15 @@ are one pass, 5 depends on 4, 8 must be last.
       would break a citation. ⚠ Fix here: `SimConfig.java` (~L75, ~L176) still warns that
       `base-no-basket-foul` runs the wrong way — #036 disproved it and the properties file
       already disagrees.
-- [ ] **4.** Split `possession-flow.puml` (64k, near the render ceiling) — ⚠ cut at partition boundaries
-- [ ] **5.** `game.md` dedup against the new diagrams — **after 4**
+- [x] **4.** `possession-flow.puml` ✅ *(2026-09)* — **SPLIT into an overview + six
+      detail diagrams**, after first cutting the prose and moving the 279-line legend to
+      **possession-flow-model.md**. ⚠ **The real ceiling was never PlantUML's 16,384px —
+      it was the SCREEN.** Thinning alone got 13,800px → 7,365px, still ~15 pages and
+      unreadable. Every diagram is now screen-sized (549–2,102px), and the overview is
+      the first artifact that shows the second-chance **loop as a loop**.
+      ⚠ **Ownership rule**: a fork inside a resolver → that resolver's file; a new
+      resolver or **a new retention path** → the overview too.
+- [ ] **5.** `game.md` dedup against the diagram — **after 4**
 - [ ] **6.** Triage `backlog.md`
 - [ ] **7.** Adopt Beads and cut over for Phase 4 work
 - [ ] **8.** Re-read every `calibration.md` verdict against its own Current number — **last**
