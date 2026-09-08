@@ -19,6 +19,13 @@ now needs its own sub-phase or a Phase 4+ home.
 
 ## Gameplay / simulation
 
+- **Offense Opportunity Event**
+  The notion i am touching at here is whats been discussed in other places. A defensive play doesnt produce offense when it should.  
+  For example a steal or or turn over MIGHT result in a fastbreak. 
+  Instead today a steal or turnover results in moving the team with posession to the top of an offensive posession.
+  but what about a fastbreak, this about this concept some more the offense opportuntiy event ( good defense creating offense). 
+  Its a good way to reward good defenses.
+
 - **Raise the offensive-retention cap from 3 → 5.**
   `sim.max-offensive-retentions-per-possession` bounds `PossessionEngine`'s second-chance
   `while(true)` loop. The realism argument: a genuine scramble can run longer than three
