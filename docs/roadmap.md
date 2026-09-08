@@ -83,7 +83,18 @@ are one pass, 5 depends on 4, 8 must be last.
       the first artifact that shows the second-chance **loop as a loop**.
       ⚠ **Ownership rule**: a fork inside a resolver → that resolver's file; a new
       resolver or **a new retention path** → the overview too.
-- [ ] **5.** `game.md` dedup against the diagram — **after 4**
+- [x] **5.** `game.md` dedup against the diagrams ✅ *(2026-09)* — 48k → 41.6k. The
+      **event walk and the 18 emission patterns were cut** (the diagrams and
+      **game-events.md**'s test-enforced master table own them); the **calculation
+      sequence absorbed them** and is now one flow section, not two. ⚠ **What game.md
+      uniquely owns is the ORDERING RATIONALE** — why steps cannot be reordered, which
+      a diagram cannot state ("because the method returns"). Three facts that lived
+      nowhere else were rescued into it: the **FGA-headroom arithmetic** behind #039 C,
+      the cap's **`OUT_OF_BOUNDS_OFFENSE`→`OUT_OF_BOUNDS_DEFENSE`** forcing pair, and
+      sail-out/tipped-OOB sharing one outcome. The shot-type skills table went to
+      **player.md**, which already owned that view. All 27 `#NNN` citations preserved.
+      ⚠ **The §-list was also STALE** — it stopped at §3.16 while the body cited
+      §3.17–§3.22; rebuilt, which is why the net cut is only 13%.
 - [ ] **6.** Triage `backlog.md`
 - [ ] **7.** Adopt Beads and cut over for Phase 4 work
 - [ ] **8.** Re-read every `calibration.md` verdict against its own Current number — **last**

@@ -7,13 +7,16 @@ shape — a `Game` *has* `GameEvent`s and *produces* a `BoxScore` — so they li
 one doc, the way [roster.md](roster.md) holds player↔team + lineups + transactions
 together.
 
-The **model** shipped in §3.1; the **possession engine** that fills it is built
-through §3.16 and this doc now documents both:
+The **model** shipped in §3.1; the **possession engine** that fills it was built
+across §3.2–§3.22 and this doc documents both. Each sub-phase below names what it
+added to the flow; the argument for each is `decisions.md #NNN`.
 - **§3.2** possession flow — shot selection / turnover / foul / shot outcome
 - **§3.3** rebounding — the second-chance loop after a missed shot
 - **§3.4** coaching + chemistry — coach modifiers on the flow, and real assists
 - **§3.5** minutes / fatigue / substitution — the on-floor five changes during a
   game; `BoxScore.minutes` is now real (derived from possession share)
+- **§3.6** the API surface — simulate / get / play-by-play over the persisted log
+  (#024; the API section below)
 - **§3.7** blocked shots — a three-way MAKE/MISS/BLOCK draw; `BoxScore.blocks` is
   now real (a `SHOT`/`BLOCKED_*` event + a BLK credit, mirroring steals)
 - **§3.8** missed-shot out of bounds — a missed shot resolves to one of four
@@ -43,10 +46,27 @@ through §3.16 and this doc now documents both:
   path that returns the ball to the offense** — breaking #030 B's invariant, via the
   second-chance loop's existing `continue` under its existing cap. A flagrant-2 (a
   flat 15%) ejects immediately, still as a **derived** predicate
-
+- **§3.15** sim profiles — the tunables become swappable Spring profiles composed
+  over `baseline`; `sim.default-possessions-per-period` becomes profilable (#035)
 - **§3.16** shooting-foul composition + the charge fix — a second roll re-partitions
   the stopped-shot foul into a free-throw-free **`NON_SHOOTING_FOUL`**, and the **charge**
-  becomes a real personal foul emitting its own `FOUL` event (decisions.md #039)
+  becomes a real personal foul emitting its own `FOUL` event (#039)
+- **§3.17** the shot mix — the base mix becomes an explicit four-value **share table**
+  (`sim.shot-share-*`) that skill modulates rather than defines, and the coach's lean
+  splits: `THREE` × the multiplier, `PERIMETER` × its **reciprocal** (#040)
+- **§3.18** the counterparty column — a generalized `opponent_player_id` carries the
+  stealer, the blocker and the fouled shooter onto three **existing** events; no new
+  event, no new draw (#041)
+- **§3.19** instrumentation — harness self-verification and seeded-test
+  trustworthiness; no `#NNN`, no mechanic, no branch
+- **§3.20** recalibration against verified targets — no branch and no event; it
+  re-solved **numbers** once the shape was final (#042). Live values: calibration.md
+- **§3.21** the rebound gaps — a recovered blocked shot now credits a rebounder, the
+  block-OOB slices emit their event, and a missed **last** free throw is a **live**
+  board that can return the ball (#043)
+- **§3.22** the putback — the player who just took the offensive board carries
+  `sim.offensive-rebounder-shot-weight` at the **next** shot-selector draw, on all
+  three paths that identify a rebounder; a weight, not a branch (#044)
 
 ⚠ **THIS DOC ONCE CLAIMED PHASE 3'S POSSESSION MODEL WAS FEATURE-COMPLETE AFTER
 §3.14b. IT WAS NOT — and the claim was stale in two ways worth naming**, because the
@@ -55,23 +75,27 @@ mechanic and no new possession branch, so `possession-flow.puml` is structurally
 final."*
 
 1. **The numbering moved underneath it.** "§3.16 = recalibration" was true when
-   written; **#038 renumbered recalibration to §3.19**, and the §3.16 slot became the
-   foul-composition pass — which added **two** branches. ⚠ **Every "§3.16" in #030,
-   #031, #032, #034 and #035 still means RECALIBRATION**; roadmap.md carries the
-   mapping callout. Read the phase *name*, never the number alone.
+   written; **#038 renumbered recalibration to §3.19** — and it moved **again**, to
+   **§3.20**, when the §3.19 slot became the instrumentation pass. The §3.16 slot
+   became the foul-composition pass, which added **two** branches. ⚠ **Every "§3.16"
+   in #030, #031, #032, #034 and #035 still means RECALIBRATION**; roadmap.md carries
+   the mapping callout. Read the phase *name*, never the number alone.
 2. **"Structurally final" was never safe to assert forward.** §3.16 added the
-   `NON_SHOOTING_FOUL` fork and the charge's `FOUL`; §3.17 and §3.18 may add more.
+   `NON_SHOOTING_FOUL` fork and the charge's `FOUL`; **§3.21 then added two more**
+   (the live free-throw board and the block's rebound credit), and **§3.22 changed
+   the shot-selector draw**. Three passes added or changed branches after the claim.
 
-`possession-flow.puml` **is** current as of §3.16 — both new forks are drawn — but it is
-current because it was updated, not because the flow is finished.
+⚠ **And the list above is not a closed set either.** Phase 3 is an **open arc** — it
+was planned with far fewer than 22 sub-phases and grew because holes kept being found.
+"Built through §3.22" describes what exists; it is not evidence the engine is finished.
 
-The "Possession flow" section below reflects what the engine actually does today.
+The diagrams **are** current as of §3.22 — they are current because they were updated,
+not because the flow is finished.
 
 > **Scope discipline** (cf. decisions.md #014, #017, #020): the entities shipped
 > §3.1 shaped for their consumers, not guessing the algorithm; each piece of
 > simulation logic + any event-shape change (e.g. §3.4's `assist_player_id`)
 > landed *with* the engine phase that consumes it, additively.
-
 ---
 
 ## Event persistence — RESOLVED *(decisions.md #020)*
@@ -162,30 +186,37 @@ section above; decisions.md #020).
   Phase 7 game view needs a per-event clock. `period` + `sequence` give full
   ordering today.
 
-### Possession flow (§3.2–§3.3) — see also [possession-flow.puml](possession-flow.puml)
+### Possession flow (§3.2–§3.22) — see also [possession-flow.puml](possession-flow.puml)
 
-> **The diagrams**: [possession-flow.puml](possession-flow.puml) is the overview — the
-> whole possession on one screen, and the only place the second-chance loop is drawn as
-> a loop. Each resolver's branches live in its own `possession-flow-*.puml`; the maths
-> and each pass's history live in [possession-flow-model.md](possession-flow-model.md).
+> **The diagrams are the entry point, not this section.**
+> [possession-flow.puml](possession-flow.puml) is the overview — the whole possession on
+> one screen, and the only place the second-chance loop is drawn as a loop. Each
+> resolver's branches live in its own `possession-flow-*.puml`; the maths and each
+> pass's history live in [possession-flow-model.md](possession-flow-model.md); the
+> per-event vocabulary lives in [game-events.md](game-events.md).
+>
+> **What follows is the ORDERING RATIONALE** — the sequence the engine executes, the
+> `resolvePossession()` boundary, and *why* several of these steps cannot be reordered.
+> A diagram can show a path; it cannot say "because the method returns." Read the
+> overview first, then read this to learn what constrains it.
 
 ### The calculation sequence (which resolver runs when)
 
-Before the event-by-event detail below, the **order the engine actually executes**.
-Two phases per possession: a **rotation phase** (state only) and the **possession
-phase** (the branching path). The rotation phase is the one that is easy to forget —
-it sits outside the overview's loop and emits no events, but it runs first and
-decides *who* the possession is played with.
+**The order the engine actually executes.** Two phases per possession: a **rotation
+phase** (state only) and the **possession phase** (the branching path). The rotation
+phase is the one that is easy to forget — it sits outside the overview's loop and
+emits no events of its own, but it runs first and decides *who* the possession is
+played with.
 
 | # | Phase / resolver | What it decides | On a hit |
 |---|---|---|---|
 | 0 | **`RotationState.advancePossession()`** — **both teams**, before every possession | drain/recover energy, **roll a technical (§3.14a)**, force off fouled-out **or ejected**, **foul-trouble sub (§3.13)**, fatigue sub | a `FOUL`/`TECHNICAL_FOUL` + **1 FT** on a technical hit — emitted by `PossessionEngine`, which the step returns the committer to (**three RNG draws**†) |
 | 1 | **`ShotSelector`** | picks the shooter — **§3.22 (#044): the player who just took the offensive board carries × `sim.offensive-rebounder-shot-weight` for this draw only, `null` otherwise** — then the shot type — **§3.17: the type is a per-type SHARE TABLE (`sim.shot-share-*`) × an avg-10 skill modifier, with the coach's lean applied to THREE and its RECIPROCAL to PERIMETER** (#040 C/D) | — |
-| 2 | **`TurnoverResolver`** | turnover? then a 9-way cause draw; **§3.16: an `OFFENSIVE_FOUL` cause also charges a personal foul** | possession **ends** — and on a charge a **second** `FOUL` event is emitted for the same occurrence (§3.16) |
-| 3 | **`FoulResolver.isFoul`** | foul that **stops** the shot (no basket), then **§3.14b: was it flagrant?**, then **§3.16: was it a non-shooting foul?** | FTs, possession **ends** — *unless flagrant: 2 FTs and the offense **RETAINS***; *if non-shooting: **no FTs at all** outside the penalty, 2 bonus FTs inside it, possession ends either way* |
-| 4 | **`BlockResolver`** (via `ShotResolver`) | block carved off the top | loose-ball recovery |
+| 2 | **`TurnoverResolver`** | turnover? then a 9-way cause draw (§3.9, #027 A — the gate is unchanged, so the count never moves); **§3.16: an `OFFENSIVE_FOUL` cause also charges a personal foul** | possession **ends** — and on a charge a **second** `FOUL` event is emitted for the same occurrence (§3.16) |
+| 3 | **`FoulResolver.isFoul`** | foul that **stops** the shot (no basket), then **§3.14b: was it flagrant?**, then **§3.16: was it a non-shooting foul?** | FTs, possession **ends** — *unless flagrant: 2 FTs and the offense **RETAINS***; *if non-shooting: **no FTs at all** outside the penalty, 2 bonus FTs inside it, possession ends either way*. ⚠ **§3.21: a missed LAST FT is live** and its offensive board retains |
+| 4 | **`BlockResolver`** (via `ShotResolver`) | block carved off the top | loose-ball recovery — **§3.21: it now emits a `REBOUND` and credits a rebounder** on the two in-bounds outcomes |
 | 5 | **`ShotResolver.isMade`** | make / miss | — |
-| 6 | **`FoulResolver.isAndOne`** — *on a make only* | foul the shot **survived**, then **§3.14b: was it flagrant?** | +1 FT, possession ends — *unless flagrant: basket **+** 2 FTs **+** the offense **RETAINS*** |
+| 6 | **`FoulResolver.isAndOne`** — *on a make only* (§3.11, #029) | foul the shot **survived**, then **§3.14b: was it flagrant?** | +1 FT, possession ends — *unless flagrant: basket **+** 2 FTs **+** the offense **RETAINS***; and the and-1's single FT is always the trip's last, so **§3.21 makes it live** |
 | 7 | **`MissedShotResolver`** — *on a miss only* | wraps `ReboundResolver`; the §3.10 **rebounding foul** is carved off first (then **§3.14b: was it flagrant?**), then a single four-way board/OOB draw | ends, or a second-chance possession |
 
 † **Steps 2–7 are the `resolvePossession()` path**; step 0 runs in `PossessionEngine`'s
@@ -193,11 +224,13 @@ loop *before* it, for **both** rotations (both teams are on the floor, so both t
 Step 1 is easy to overlook but is load-bearing: the shot type it picks is what step 3
 multiplies by (§3.12's per-shot-type foul multiplier), so it must precede the foul roll.
 
-**Six things this ordering makes clear that the event list below does not:**
+**Seven things this ordering makes clear that a diagram cannot state:**
+
 - **Steps 3 and 6 are mutually exclusive by control flow.** Step 3 *returns*, so a
   shot that draws a stopped-shot foul never reaches make/miss and therefore never
   reaches the and-1. One shot cannot be fouled twice (#030 B — the thing most likely
-  to be misread in the foul model).
+  to be misread in the foul model). The diagrams can draw the path terminating; only
+  prose can name the *mechanism* as an early return.
 - **§3.14b's flagrant is a fourth question asked at three of these steps, not a fourth
   step.** It is *layered on top of* a foul that steps 3, 6 or 7 already resolved, so it
   re-partitions nothing and **no existing foul rate moves by construction** (#034 A).
@@ -215,13 +248,13 @@ multiplies by (§3.12's per-shot-type foul multiplier), so it must precede the f
 - **"No basket" ≠ "non-shooting", and since §3.16 step 3 produces BOTH.** The roll at
   step 3 is named for *stopping the shot*, not for being non-shooting — which is why
   §3.12 renamed the constant to `BASE_NO_BASKET_FOUL` (#030 F). **§3.16 then split its
-  outcome**: a second roll (`sim.non-shooting-foul-share`, **0.3766 since §3.20**;
-  §3.16 shipped it at 0.50)
-  re-partitions the already-charged foul into a `SHOOTING_FOUL` (free throws follow) or
-  a **`NON_SHOOTING_FOUL`** (no free throws outside the penalty). The engine's non-shooting
+  outcome**: a second roll (`sim.non-shooting-foul-share`) re-partitions the
+  already-charged foul into a `SHOOTING_FOUL` (free throws follow) or a
+  **`NON_SHOOTING_FOUL`** (no free throws outside the penalty). The engine's non-shooting
   fouls are therefore now **step 3's `NON_SHOOTING_FOUL`**, step 7's rebounding fouls, and
   step 2's `OFFENSIVE_FOUL` charge — the last of which §3.16 also made a real personal
-  foul (#039 G).
+  foul (#039 G). ⚠ **Both constants were re-solved by §3.20 and neither value belongs
+  here** — [calibration.md](calibration.md) is the source of truth for live numbers.
 - **§3.16's composition roll is the flagrant's twin, and the ORDER is load-bearing**
   (#039 F). Both are layered on a foul that `isFoul` already rolled and
   `recordFoul()` already charged, so **the foul total holds by construction** and no
@@ -235,7 +268,16 @@ multiplies by (§3.12's per-shot-type foul multiplier), so it must precede the f
   FGA where the stopped shot charged none — and FGA is 88.8 against 89.1 real, ~0.3 of
   headroom. That caps a retaining variant at a ~6% share, which moves FTA by less than
   one attempt: the retention reading and the phase's goal are arithmetically
-  incompatible. **Revisit only if §3.17's shot-mix work buys FGA headroom.**
+  incompatible. ⚠ **This arithmetic exists nowhere else** — #039 C carries the
+  conclusion, the foul diagram carries the assertion. **Revisit only if shot-mix work
+  buys FGA headroom.**
+- **⚠ The retention cap terminates the loop by FORCING a sibling outcome.** Every
+  offense-retaining path bumps the same counter and is bounded by the same
+  `MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION`; once it is reached, a retained outcome is
+  rewritten to its possession-ending sibling — **`OFFENSIVE`→`DEFENSIVE`** and
+  **`OUT_OF_BOUNDS_OFFENSE`→`OUT_OF_BOUNDS_DEFENSE`** — so the possession terminates.
+  The overview names the cap and the rebound diagram names the first mapping; **the OOB
+  pair is recorded only here.**
 
 † **`advancePossession()` consumes exactly THREE RNG draws per call** — §3.13's
 foul-trouble sit roll (decisions.md #031, revising #023 C's RNG-free substitution),
@@ -253,196 +295,67 @@ ids, period or sequence. `advancePossession()` **returns the committer** (or nul
 in the rotation; only the plumbing lives in the engine. See the substitution
 paragraph below.
 
----
+**One detail of step 7 that lives nowhere else**: both **sail-out** (the shot flies OOB
+untouched) and **tipped-OOB** (a board contest whose ball deflects out, last-touch
+decides) resolve into the **same two** `OUT_OF_BOUNDS_*` outcomes, one per side. The
+distinction is deliberately **not recorded on the event** — nothing consumes it, and the
+last-touch team is already implied by the offense/defense suffix.
 
-Each possession produces **one or more** `GameEvent` rows in this order:
+### What one possession emits
 
-1. **Turnover check** — rolled before the shot. If triggered:
-   - A single weighted **cause draw** (§3.9, `TurnoverResolver.pickCause`) labels
-     the turnover as one of **nine** causes — `STOLEN` (kept dominant),
-     `SHOT_CLOCK_VIOLATION`, `OFFENSIVE_FOUL`, `BAD_PASS`, `TRAVELLING`,
-     `LOST_BALL_OUT_OF_BOUNDS`, `3_SECONDS_VIOLATION`,
-     `8_SECONDS_BACKCOURT_VIOLATION`, `OVER_AND_BACK`. The **gate is unchanged** —
-     the draw runs only *after* a turnover is declared, so it re-partitions the
-     label without moving the count (#027 A). Every cause charges the ball-handler;
-     `STOLEN` also credits a stealer.
-   - `TURNOVER` event → possession ends, ball goes to the other team.
-2. **Foul check** — rolled on **every** shot type (§3.12, #030 A1). The old
-   `DRIVE`/`POST`-only gate (`ShotType.isContactType()`) is **deleted**: the
-   graduation now lives in the **rate**, not a gate, via a per-shot-type multiplier
-   on `BASE_NO_BASKET_FOUL` (DRIVE 1.0 the anchor ≈ POST > PERIMETER > THREE). A
-   closeout on a three-point shooter is a real foul. If triggered:
-   - `FOUL` event (primary_player = fouling defender) → free throws follow.
-   - `FREE_THROW` events (primary_player = shooter), each with its own make/miss
-     outcome, tagged `*_SHOOTING` (§3.11 D). **The count comes from
-     `ShotType.freeThrowsIfFouled()`: 3 for a fouled `THREE`, otherwise 2** (§3.12,
-     #030 C — a rule of basketball, so it lives on the enum, not in `SimConfig`).
-     ⚠ **§3.21 (#043 C): the possession does NOT simply end after free throws any more.**
-     The **LAST** attempt of a trip is **live** — a missed one is rebounded through
-     `MissedShotResolver` (at a defence-leaning base, `FREE_THROW_REBOUND_LEAN`) and an
-     **offensive** board returns the ball for a second chance under the same cap. Applies
-     at `SHOOTING`, `BONUS` and `AND_ONE` **only**: `FLAGRANT` and `TECHNICAL` are
-     excluded by rule (#034 B, #032 G). ⚠ **Only the LAST attempt is live** — a missed
-     first FT is a dead ball. In code this is a second layer, `awardLiveFreeThrows`,
-     wrapping an **unchanged** `awardFreeThrows` (#043 H).
-   - **This branch is only the "contact STOPPED the shot" case** — hence the
-     constant's name (`BASE_NO_BASKET_FOUL`, renamed from `BASE_FOUL` in §3.12,
-     #030 F — §3.12 left the value at 0.15; **§3.20 raised it to 0.1687 to land FGA**,
-     #042 D6). A foul on a shot that still goes in is the
-     **and-1**, rolled after the make in step 3 (§3.11), and it is **not** reachable
-     from here — this branch returns.
-3. **Shot** — if no turnover and no foul. The shooter is charged an FGA (+3PA if a
-   THREE), then the outcome is a **three-way MAKE/MISS/BLOCK draw** (§3.7):
-   - **Block check first (§3.7)** — `P(BLOCK)` is carved off the top: a
-     defender-vs-finisher contest (`rimProtection` at the rim / `shotContest` on
-     jumpers, vs the shooter's `finishing`), shot-type-scaled (rim ≫ three). If
-     blocked: a `SHOT` / `BLOCKED_*` event (primary_player = shooter, the victim),
-     the blocker credited a BLK via `recordBlock()` **and riding the event as the
-     counterparty** (§3.18), a missed FGA on the shooter, no assist. A flat four-way
-     `BlockResolver` then resolves the loose ball — a **defense recovery** (in-bounds or
-     OOB) ends the possession; an **offense recovery** re-enters the second-chance loop at
-     the shot selector, capped like an offensive rebound — and **§3.22 (#044 A/C): the
-     player who recovered it is the `putbackCandidate` for that next draw**.
-     ⚠ **§3.21 (#043 E): a recovery now EMITS a `REBOUND` event and credits a rebounder**
-     on the two in-bounds outcomes — it no longer "skips the rebound step". The flat roll
-     still picks the **side**; a skill-weighted draw then picks **which of that side's
-     five**. The two OOB outcomes emit a `REBOUND / OUT_OF_BOUNDS_*` with no rebounder.
-   - Otherwise `SHOT` event → made or missed. On a make, points are scored and the
-     possession ends. On a made FG, an **assist** may be attributed (§3.4): a roll
-     (scaled by the other on-floor offensive players' `passing` / team
-     `teamOffense`) decides whether the make was assisted; if so, an assister is
-     picked by a weighted `passing` draw over the other four offensive players
-     (the shooter excluded) and stamped on the SHOT event's `assist_player_id`.
-     Not every make is assisted.
-   - **And-1 check (§3.11, #029; widened §3.12, #030)** — on **any** made shot, a
-     second, independent foul roll runs **after** the assist and before the
-     possession ends. (§3.11 rolled this only on a made DRIVE/POST; §3.12 deleted
-     that gate — the graduation now lives in the rate, not a gate.) On a hit: the defender is charged a foul, a `FOUL` / `AND_ONE` event is
-     emitted (`committing_team_id` = the defense), and **one** `FREE_THROW`
-     (`*_AND_ONE`) follows for the shooter. The FG points/FGM/assist are **not**
-     re-rolled or re-scored, and the possession is **never forked** — the make
-     already ended it. An and-1 is always exactly 1 FT and never consults the bonus.
-     On a **miss**, a rebound is resolved (§3.3):
-4. **Rebounding foul** (§3.10, #028) — rolled after a missed `SHOT` but **before**
-   the board draw below, and **short-circuiting it** on a hit (the whistle stopped
-   play, so nobody rebounds). A small, independently-tunable slice carved off the
-   top, scaled by `foulProne` / `foulDrawing` / `defensivePressure`. On a hit,
-   a defense-leaning side draw picks the committer and emits `FOUL` /
-   `REBOUNDING_FOUL_DEFENSE` or `REBOUNDING_FOUL_OFFENSE` with `committing_team_id`
-   set; the possession then forks on who fouled, and the **penalty predicate**
-   (derived from the `FOUL` log — see [game-events.md](game-events.md)) decides whether bonus
-   `FREE_THROW`s follow. Otherwise the miss falls through to:
-5. **Missed-shot outcome** (§3.3 + §3.8) — rolled only after a missed `SHOT`.
-   `MissedShotResolver` (which wraps `ReboundResolver`) resolves the miss to
-   **one of four outcomes in a single draw** (decisions.md #026), all carried on
-   the `REBOUND` play type:
-   - `REBOUND` / `DEFENSIVE` (primary_player = defensive rebounder) → possession
-     ends, ball goes to the other team; **or**
-   - `REBOUND` / `OFFENSIVE` (primary_player = offensive rebounder) → the shooting
-     team retains the ball and runs a **second-chance possession** through the
-     full flow above (turnover → foul → shot → miss-outcome). ⚠ **Until §3.22 the
-     rebounder got NO preference at the shot selector** — the next shooter was the
-     ordinary five-way `offensiveWeight` draw, so a putback could not happen.
-     **§3.22 (#044 A–E): the rebounder's weight is multiplied by
-     `sim.offensive-rebounder-shot-weight` (2.0) for that ONE draw** — a weight, not a
-     forced rim shot and not a branch — on all three paths that identify a rebounder
-     (this one, the block recovery and the missed last free throw); and when he does
-     take the shot, a make is assisted at half the ordinary chance
-     (`OFFENSIVE_REBOUNDER_ASSIST_LEAN`). No decay across retentions; **or**
-   - `REBOUND` / `OUT_OF_BOUNDS_DEFENSE` — the ball left the court, defense's ball
-     → possession ends. **No rebounder credited** (#026 E); **or**
-   - `REBOUND` / `OUT_OF_BOUNDS_OFFENSE` — the ball left the court, offense retains
-     → second-chance possession. **No rebounder credited** (#026 E).
+> **→ The emission patterns live in [`game-events.md`](game-events.md)'s master table.**
 
-   The rebound-vs-rebound balance is a **skill-weighted** board contest
-   (`offenseRebound` vs `defenseRebound`); the two OOB slices are carved off the
-   top FIRST by a **flat, defense-leaning lean** that is skill-independent (not a
-   second contest, not inheriting the board winner). Both **sail-out** (the shot
-   flies OOB untouched) and **tipped-OOB** (a board contest whose ball deflects
-   out, last-touch decides) resolve here and **share one OOB outcome each**
-   (offense/defense) — the distinction is not recorded on the event (nothing
-   consumes it; the last-touch team is implied by the offense/defense suffix).
-   **OOB-offense is a third offense-retention path** alongside the offensive
-   rebound and the §3.7 offense-recovered block: all three bump the offensive-
-   rebound counter and count against the same `MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION`
-   cap; after the cap a retained outcome is forced to its possession-ending
-   sibling (`OFFENSIVE`→`DEFENSIVE`, `OUT_OF_BOUNDS_OFFENSE`→`OUT_OF_BOUNDS_DEFENSE`)
-   so the possession terminates.
-
-A single possession therefore emits one of these patterns (a missed shot is
-always resolved — by a `REBOUND` event, an actual rebound or an OOB, **or** by a
-`REBOUNDING_FOUL_*` that stopped play, §3.10):
-- `TURNOVER`
-- `TURNOVER` (`OFFENSIVE_FOUL`) → `FOUL` (`OFFENSIVE_FOUL`) — a **charge**: TWO events
-  for ONE occurrence (§3.16, #039 G). The foul carries
-  `committing_team_id` = the **offense**, so it moves the **defense** toward the bonus
-- `FOUL` (`NON_SHOOTING_FOUL`) — **no free throws at all**; the non-shooting foul outside the
-  penalty, and the point of §3.16. Possession ends (the ball does **not** come back)
-- `FOUL` (`NON_SHOOTING_FOUL`) → `FREE_THROW` ×**2** (`*_BONUS`) — the same foul committed
-  **in the penalty**; possession ends (§3.16)
-- `FOUL` (`SHOOTING_FOUL`) → `FREE_THROW` ×**2** (both `*_SHOOTING`) — any shot type
-  except a three (§3.12)
-- `FOUL` (`SHOOTING_FOUL`) → `FREE_THROW` ×**3** (all `*_SHOOTING`) — a fouled
-  `THREE`; the 3-FT trip (§3.12, #030 C)
-- `SHOT` (made) — possession ends
-- `SHOT` (made, **any** shot type) → `FOUL` (`AND_ONE`) → `FREE_THROW` (`*_AND_ONE`) —
-  the and-1: the basket counts, **one** FT follows (even on a made three — 3 pts + 1
-  FT, never 3 FTs), possession still ends (§3.11; widened to all types by §3.12)
-- `SHOT` (missed) → `REBOUND` (`DEFENSIVE`) — possession ends
-- `SHOT` (missed) → `REBOUND` (`OFFENSIVE`) → … second-chance possession …
-- `SHOT` (missed) → `REBOUND` (`OUT_OF_BOUNDS_DEFENSE`) — possession ends (§3.8)
-- `SHOT` (missed) → `REBOUND` (`OUT_OF_BOUNDS_OFFENSE`) → … second-chance … (§3.8)
-- `SHOT` (`BLOCKED_*`) — defense recovers (in-bounds/OOB), possession ends
-- `SHOT` (`BLOCKED_*`) → … second-chance possession … — offense recovers the block
-- `SHOT` (missed) → `FOUL` (`REBOUNDING_FOUL_DEFENSE`) → … second-chance … — under
-  the bonus, the offense retains (§3.10)
-- `SHOT` (missed) → `FOUL` (`REBOUNDING_FOUL_DEFENSE`) → `FREE_THROW` ×2 (`*_BONUS`) — in
-  the bonus, the offense shoots; possession ends (§3.10)
-- `SHOT` (missed) → `FOUL` (`REBOUNDING_FOUL_OFFENSE`) — possession ends, defense's
-  ball (§3.10)
-- `SHOT` (missed) → `FOUL` (`REBOUNDING_FOUL_OFFENSE`) → `FREE_THROW` ×2 (`*_BONUS`) — in
-  the bonus, the **defense** shoots; possession still ends (§3.10)
+Every `(play_type, outcome)` pair the engine emits, with explicit participant columns,
+is one table there — and unlike a prose list it is **checked against real simulated
+events** by `GameSimulatorIntegrationTest`, so it cannot silently drift. ⚠ **Do not
+restate it here.** The traps worth knowing before you read it: a **charge emits TWO
+events for ONE occurrence** (a `TURNOVER` *and* a `FOUL`), a **block emits two** (`SHOT`
+then `REBOUND`), and an `OUT_OF_BOUNDS_*` is a `REBOUND` row that credits **no
+rebounder**.
 
 All events in a possession share the same `offense_team_id` / `defense_team_id`
 and `period`. `sequence` increments globally (not per possession).
 
 **Substitution + fatigue + foul-outs (§3.5)** run as a **between-possession** step
 that changes *who* is on the floor without altering the possession flow's shape
-(decisions.md #023) — step 0 of the calculation sequence above. Before each
-possession the engine, **for BOTH teams** (both are on the floor, so both tire —
+(decisions.md #023) — step 0 of the calculation sequence above, and drawn in full in
+[possession-flow-rotation.puml](possession-flow-rotation.puml), which owns its three
+tiers. It runs **for BOTH teams** (both are on the floor, so both tire —
 `PossessionEngine.simulate()` advances the home and away rotations before
-`resolvePossession()`): drains the on-floor five's `currentEnergy` (drain scaled by `endurance`),
-recovers the benched players' energy, **rolls §3.14a's technical foul**, **forces off
-any player who is DISQUALIFIED** — fouled out (`getFouls() >= FOUL_OUT_LIMIT`),
-ejected on technicals (`technicalFouls >= TECHNICAL_EJECTION_LIMIT`) **or, since
-§3.14b, ejected on a flagrant-2** (`flagrantTwos >= FLAGRANT_EJECTION_LIMIT`, i.e. one
-is enough), **all three** derived predicates over monotonic counters, none a stored
-flag (#023 F, #032 F, #034 F) — then runs
-**§3.13's soft foul-trouble sub**, then a fatigue substitution (pull the most-tired
-starter below a `substitutionAggressiveness`-scaled threshold for the freshest
-eligible bench player, drawing down the `rotationOrder` queue only as far as
-`rotationDepth` allows; starters tolerate more fatigue and return first). The
-on-floor five (`RotationState.onFloor()`) is **always exactly 5**: if the roster is
-exhausted (everyone fouled out **or ejected**), a disqualified player stays on so the
-floor never drops below 5. **All THREE disqualification causes run through ONE
-filter** — `RotationState.isDisqualified(p)`, behind the single `eligible(...)` gate
-every candidate pool passes through — so each new ejection cause extends the existing
-**hard/forced** tier rather than adding a removal path (#031 H, held for three passes
-running). **§3.14b is where that tier stopped being dead-but-correct code**: ejections
-measure **0.027 per team-game** across both causes, roughly double §3.14a's 0.014 alone,
-because a flagrant-2 ejects on the *first* one where a technical needs two. A fatigue **multiplier** over each on-floor player's
-skills (`effectiveSkill = skill × fatigueFactor(energy)`) then bends shot/defense/
-rebound contests — a modest thumb on the scale composed multiplicatively with the
-§3.4 coach/chemistry modifiers.
+`resolvePossession()`).
+
+What the diagram does not carry:
+
+- **The on-floor five is ALWAYS exactly 5, even when the rule cannot be honoured.**
+  If the roster is exhausted — everyone fouled out or ejected — a **disqualified
+  player stays on the floor** rather than the floor dropping below five. A hard
+  invariant beats a hard rule.
+- **All THREE disqualification causes run through ONE filter**
+  (`RotationState.isDisqualified(p)`, behind the single `eligible(...)` gate every
+  candidate pool passes through), so each new ejection cause **extends** the existing
+  hard/forced tier rather than adding a removal path (#031 H, held for three passes
+  running). All three are **derived** predicates over monotonic counters, never a
+  stored flag (#023 F, #032 F, #034 F).
+- **§3.14b is where that tier stopped being dead-but-correct code.** Ejections measure
+  **0.027 per team-game** across both causes — roughly double §3.14a's **0.014** alone,
+  because a flagrant-2 ejects on the *first* one where a technical needs two. The
+  forced-substitution path is now genuinely exercised.
+- **Fatigue is a multiplier, not a gate.** `effectiveSkill = skill × fatigueFactor(energy)`
+  bends the shot/defense/rebound contests — a modest thumb on the scale, composed
+  multiplicatively with the §3.4 coach/chemistry modifiers.
 
 **The step is reproducible from the seed but is NOT RNG-free** (§3.13, decisions.md
-**#031**, which deliberately revises #023 C). It consumes **exactly one draw per
-call** — the foul-trouble sit roll — taken **unconditionally at a fixed point**, so
-the stream advances identically whether or not anyone is in foul trouble. #023 C's
-"subs are a coaching decision, not chance" reasoning still fits the *fatigue* sub,
-whose trigger is a measurable state; it fits foul trouble poorly, because two coaches
-facing the same 4-foul situation genuinely make different calls. The step still
-produces no `GameEvent` rows.
+**#031**, which deliberately revises #023 C). ⚠ **It consumes THREE draws per call, not
+one** — §3.13 introduced the foul-trouble sit roll and §3.14a added the technical roll
+and its committer draw (#032 B); the "exactly one draw" framing is §3.13-era and was
+superseded. All three are taken **unconditionally at a fixed point**, so the stream
+advances identically whether or not anyone is in foul trouble and whether or not the
+technical fires. #023 C's "subs are a coaching decision, not chance" reasoning still
+fits the *fatigue* sub, whose trigger is a measurable state; it fits foul trouble
+poorly, because two coaches facing the same 4-foul situation genuinely make different
+calls. The step still produces no `GameEvent` rows **of its own** — a technical's
+`FOUL` and `FREE_THROW` are emitted by `PossessionEngine` from the committer the step
+returns.
 
 **The foul-trouble sub (§3.13)**, sequenced between the force-off and the fatigue
 sub, is the engine's **first strategic substitution** and the only thing in it that
@@ -514,14 +427,17 @@ sources).
 one — the failure mode `CLAUDE.md` documents for `possession-flow.puml`. This file keeps
 the **models**, the **possession flow / calculation sequence** and the **API surface**.
 
-### Shot types → skill matchups (decisions.md #021, Decision C)
+### Shot types → skill matchups
 
-| Shot type | Offensive skill(s) | Defensive skill(s) | Points |
-|---|---|---|---|
-| Drive / finish | `drive`, `finishing` | `rimProtection` | 2 |
-| Perimeter / mid-range | `perimeter` | `individualDefense`, `shotContest` | 2 |
-| Post | `post` | `individualDefense` | 2 |
-| Long range / three | `longRange` | `shotContest` | 3 |
+> **→ Which skills each possession event reads lives in
+> [`player.md`](player.md)'s *Possession Event → Skills Used* table.**
+
+That table is a superset of the four-row one this section used to carry — it covers
+every event, not just the shot, and it tracks what is **not** modelled too. ⚠ **Do not
+restate it here**; `player.md` declares ownership of the skills-and-formulas view
+explicitly, and two per-event tables that do not point at each other **will** drift.
+Points per shot type (2, except a `THREE`) are a rule of basketball and live on
+`ShotType` (#021 D).
 
 ---
 
@@ -557,8 +473,8 @@ into season totals).
   **missed FGA** (`+1 FGA`, `+1 3PA` if a blocked THREE, `0 FGM` — a block counts
   against FG%), and a blocked shot carries **no `assist_player_id`**. Reconciliation
   invariant: count of `SHOT` events with `outcome LIKE 'BLOCKED%'` **==** sum of
-  `BoxScore.blocks` (same shape steals/assists/rebounds use). See the `play_type` /
-  `outcome` vocabulary below for the `BLOCKED_*` strings.
+  `BoxScore.blocks` (same shape steals/assists/rebounds use). See
+  [game-events.md](game-events.md) for the `BLOCKED_*` strings.
 
 - **`technical_fouls` is a SECOND, separate foul counter as of §3.14a (decisions.md
   #032 E, surfaced by #033).** `fouls` means **personal fouls only** — a technical
