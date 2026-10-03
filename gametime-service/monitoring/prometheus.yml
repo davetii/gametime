@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: gametime
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # The app runs on the host (spring-boot:run), not in compose.
+      - targets: ["host.docker.internal:8080"]
