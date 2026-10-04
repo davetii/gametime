@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "gametime",
+  "project_id": "85b91840-6efb-4e9c-9190-5f83dec23767"
+}
