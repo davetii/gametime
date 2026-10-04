@@ -32,6 +32,23 @@ found** — every addition was correct. More will surface. **"Phase 3 shipped" d
 what's built so far; it is NOT evidence the engine is finished.** When the user wants a
 new sub-phase, help scope it — **do not argue about whether it's allowed.**
 
+### Issue tracking — beads (`bd`)
+
+Work items live in beads, not markdown lists. `bd prime` runs at session start (hook).
+- **Beads holds:** chores (open) and parked ideas (`deferred`, label `idea`). Phase 3
+  sub-phases may become children of a Phase 3 epic — put the phase **NAME** in the title,
+  not just §N.
+- **Docs still hold:** decisions.md, engine-traps.md, calibration.md, the reference docs,
+  the diagrams, roadmap.md's phases and seams, and todo.md's execute-ready plans — those
+  are reasoning and structure, not tickets.
+- **When work becomes a bead, the bead is the only record** — a doc may cite its id
+  (`gametime-xxx`), never copy its description.
+- **`bd dolt push` is a push** — same rule as git: only when asked. Run `bd` writes with
+  `--sandbox` (disables Dolt auto-push; `sync.remote` points at GitHub).
+- `.beads/issues.jsonl` is the **git-tracked copy** of the issues (auto-export; the Dolt DB
+  is gitignored). Every `bd` write rewrites it — it rides along in whatever commit is next.
+- Don't use `bd remember`; durable facts go where they already go.
+
 ### Java 21 — never JDK 25
 
 Homebrew Maven defaults to JDK 25, which breaks Lombok 1.18.x. Always:
@@ -82,7 +99,7 @@ docs/
   decisions.md         Decision INDEX — crux, constants, traps per #NNN (~1,900 citations resolve here)
   roadmap.md           Phased roadmap; phase structure and seams
   todo.md              Current phase only — states which session it needs
-  risks.md             Active risks · backlog.md  Infra chores · ideas.md  Parking lot
+  risks.md             Active risks  (chores + parked ideas → beads: `bd ready`, `bd list --status deferred`)
   player.md · roster.md · coach.md    Domain rules: current behavior, no decision history
 
 gametime-service/      Multi-module Maven (Spring Boot 3.5.14)

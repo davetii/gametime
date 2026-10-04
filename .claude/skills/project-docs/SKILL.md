@@ -24,8 +24,7 @@ Put a note in exactly one file.
 | **engine-traps.md** | Measured findings a tuner must hit: wrong-way levers, inert knobs, saturations, elasticities | Decisions, history |
 | **todo.md** | **Current phase only**: the active design pass's open questions and reasoning, then its execute-ready plan | Anything that outlives the phase (route it out, see below) |
 | **roadmap.md** | Phase structure, sequencing rationale, shipped (`[x]` + a few-line landing note) vs. pending (`[ ]`) | Tactical steps (todo.md), decision reasoning |
-| **backlog.md** | Cross-phase infra, tooling, data-hygiene and code-quality chores with no phase home | Gameplay scope (roadmap), ideas |
-| **ideas.md** | Unimplemented features and game concepts: what it is, why it matters, what blocks it, what would make it real | Planned work, decided things, chores |
+| **beads** (`bd`, not a file) | Chores (`-t chore`, open) and parked ideas (`-t feature -s deferred -l idea`). Replaced backlog.md and ideas.md in 2026-10 | Phase structure and seams (roadmap), decisions, reference |
 | **risks.md** | Live risks: what could go wrong and the mitigation | Decisions, tasks, resolved items |
 | **calibration.md** | Targets, where each number sits now, and the **operative rules** for reading and moving it | How a target was argued; which pass landed it |
 | **game.md, game-events.md, player.md, coach.md, roster.md** | **Reference docs: how it works now.** Rules, columns, constraints, what is simplified | Decision history, phase narrative, `#NNN` citations, measured landings |
@@ -33,7 +32,7 @@ Put a note in exactly one file.
 
 **todo.md is current-phase-only.** When a phase closes it is rewritten, so anything that
 must survive has to live elsewhere *first*. Deferred gameplay → a roadmap sub-phase;
-infra/tooling → backlog.md; an untriaged idea → ideas.md; a measured finding →
+infra/tooling → a beads chore; an untriaged idea → a deferred beads idea; a measured finding →
 engine-traps.md; a seam left open by a decision → that entry's letter and, if it is the
 next phase, todo.md.
 
@@ -119,14 +118,15 @@ docs resolve by number **and letter**). An entry:
 - What only this file holds, and a condense pass must never cut: the **phase structure**,
   the **sequencing rationale**, the **seams-not-plans rule**.
 
-## ideas.md, backlog.md, risks.md, calibration.md
+## Beads issues, risks.md, calibration.md
 
-- **ideas.md**: a titled entry per idea. Say what it is, why it would matter, what blocks
-  it, and **what would make it real** (its missing consumer). A shipped idea is deleted.
-  No decision citations.
-- **backlog.md**: a **completed chore is removed, not checked off**. Before deleting, confirm
-  the content is recorded elsewhere, and `grep` `docs/` and `CLAUDE.md` for inbound
-  references to the removed text.
+- **A beads idea** (`bd create -t feature -s deferred -l idea -p 4`): say what it is, why it
+  would matter, what blocks it, and **what would make it real** (its missing consumer).
+  Promote by moving it to `open`; drop it with `bd close`.
+- **A beads chore** (`bd create -t chore`): a **Done** line plus the ⚠ traps; cite `#NNN`
+  rather than restating the argument. The bead is the only record — docs may point at its
+  id, never duplicate its description. Before closing, `grep` `docs/` and `CLAUDE.md` for
+  the id.
 - **risks.md**: delete an item when it is resolved. Keep each entry to what could go wrong
   and the mitigation.
 - **calibration.md** is a reference: targets, where they sit, and the operative rules
@@ -140,7 +140,7 @@ docs resolve by number **and letter**). An entry:
 - New `#NNN` appended (not renumbered), in the index shape, under ~2k characters.
 - Nothing in a reference doc cites a decision or narrates history.
 - The note is in the right file; nothing phase-surviving is left only in todo.md.
-- backlog.md: completed chores removed, with inbound references checked.
+- Beads: finished chores closed, with inbound references to the id checked.
 - Design pass: no production code, execute-ready plan left in todo.md.
 - Execution: diverged letters edited, traps in engine-traps.md, roadmap bullet `[x]` with a
   few-line note.

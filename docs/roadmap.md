@@ -68,7 +68,8 @@ are one pass, 5 depends on 4, 8 must be last.
       resolver's file; a new resolver or a new retention path goes in the overview too.
 - [x] **5.** `game.md` dedup against the diagrams *(2026-09)*.
 - [x] **6.** Triage `backlog.md` *(2026-10, docs-reduction pass)*
-- [ ] **7.** Adopt Beads and cut over for Phase 4 work
+- [x] **7.** Adopt Beads and cut over for Phase 4 work *(2026-10: `backlog.md` and `ideas.md`
+      migrated to beads and deleted — chores open, ideas `deferred`)*
 - [x] **8.** Re-read every `calibration.md` verdict *(2026-10, docs-reduction pass: rewritten as a
       reference; its Current column is the §3.22 landing and was not re-measured)*
 
@@ -87,7 +88,7 @@ the **bead is the only record** and the doc entry is deleted.
 > Read [risks.md](risks.md)'s "Stats are written twice" before designing 4.1: counters and
 > events agree only by convention, and this phase is the natural place to ask whether the box
 > score should be derived from the event log. Not a gate. Tracked in
-> [backlog.md](backlog.md) (`BoxScoreReconciler`).
+> beads as `gametime-fwy` (`BoxScoreReconciler`).
 
 ### 4.1 Game Stats Model
 - [ ] Per-game player stats: points, rebounds (off/def), assists, steals, blocks, turnovers, fouls, minutes, FGA/FGM, 3PA/3PM, FTA/FTM

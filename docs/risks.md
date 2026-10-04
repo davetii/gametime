@@ -79,8 +79,8 @@ team outcomes are realistic. Still open: whether the attribute distributions the
 realistic at the individual level, which is hard to separate from formula balance until
 Phase 4 surfaces per-player season lines.
 **Mitigation**: Compare per-player stat distributions to real benchmarks once Phase 4 stats
-exist; adjust seed data or formulas then. Related chore in [backlog.md](backlog.md): hand-tune
-marquee players to 18–20.
+exist; adjust seed data or formulas then. Related chore in beads: `gametime-9up` (hand-tune
+marquee players to 18–20).
 
 ---
 
@@ -106,7 +106,7 @@ as the one deliberately non-derived field.
 **The sharpest consumer is single-game summarization**, not leaderboards: a box score rendered
 beside the play-by-play makes any disagreement between the two visible to the user.
 
-**Status**: not scheduled and not a gate. Tracked in [backlog.md](backlog.md)
+**Status**: not scheduled and not a gate. Tracked in beads as `gametime-fwy`
 (`BoxScoreReconciler`); Phase 4's design pass should see it, since it would already be
 touching every stat path. It is an architecture call, not a chore.
 

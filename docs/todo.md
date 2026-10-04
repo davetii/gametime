@@ -2,8 +2,8 @@
 
 Tactical task list for the **current phase only**. Check items off or remove
 them as completed. For the big-picture phased roadmap and what's already
-shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
-[backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
+shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores and parked
+ideas live in beads (`bd list`); deferred *gameplay* scope lives in roadmap.md's
 phase bullets.
 
 Current focus: **the Phase 3 → Phase 4 pre-work GATE.** Phase 3 is complete
@@ -75,10 +75,10 @@ on 4; 8 is a snapshot check and must be last.
       and **two** `repeat` loops, not the six and one the gate assumed — four were nested.
 - [x] **5. `game.md` dedup against the diagrams** ✅ *(2026-09)*, then rewritten as a rules doc in the 2026-10 docs-reduction pass.
 - [x] **6. Triage `backlog.md`.** ✅ *(2026-10, docs-reduction pass)* — gate items moved out; the `PROB_FLOOR` / `base-block-three` finding lives in `calibration.md`'s Blocks row and `engine-traps.md`.
-- [ ] **7. Adopt Beads, and cut over for Phase 4 work.** ⚠ `bd` is installed and the
-      `SessionStart` hook (`bd prime --hook-json`) is already in `.claude/settings.json`,
-      but **there is no `.beads/` database** — it currently primes nothing. Initialize it,
-      then migrate the ~9 clean chores left after step 6. **Migrate the POINTER, not the
+- [x] **7. Adopt Beads, and cut over for Phase 4 work.** ✅ *(2026-10)* — `bd init`
+      (maintainer, embedded Dolt, JSONL auto-export on); `backlog.md`'s 12 chores became
+      open `chore` beads and `ideas.md`'s 10 entries became `deferred` `feature` beads labelled
+      `idea`; both docs deleted. Was: migrate the ~9 clean chores left after step 6. **Migrate the POINTER, not the
       prose** — several entries carry 6–7k of argument, and moving that into an issue body
       relocates the bloat somewhere less readable.
       ⚠ **`decisions.md`, `calibration.md`, `game-events.md` and the `possession-flow*` diagrams do
@@ -93,7 +93,7 @@ Markdown**: it is a sequenced dependency chain, which reads better as an ordered
 list than as eight issues with dependency edges, and Beads starts clean with Phase
 4 work. ⚠ **When work becomes a bead, the BEAD is the only record and the doc entry
 is DELETED** — a pointer to a bead id is fine, a duplicated description is not
-(the convention backlog.md already uses). **Two records of the same work WILL drift.**
+(the convention the old backlog.md used). **Two records of the same work WILL drift.**
 
 ---
 ## Where deferred work lives (not here)
@@ -137,7 +137,7 @@ not add "done" entries (those are the `#NNN` entry's job).
 - **Infra/tooling/data-hygiene chores**, and **the `decisions.md` condense pass** (a
   **gate on starting Phase 4**) → [roadmap.md](roadmap.md)'s *Phase 3 → Phase 4 pre-work*
 - **Untriaged ideas**, incl. the parked cap 3→5 tuning idea and strategic substitution →
-  [ideas.md](ideas.md)
+  beads, status `deferred`, label `idea` (`bd list --status deferred`)
 
 **Standing facts (true every phase, not deferrals):**
 

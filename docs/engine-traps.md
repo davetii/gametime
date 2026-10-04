@@ -242,9 +242,9 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   STOLEN)`; hoisting the *call* would consume a draw on all nine causes and move every
   number. The code carries a ⚠ comment because it is the one edit where a plausible
   simplification breaks the premise. → **#041**
-- **`resolvePossession` has EIGHT loop re-entry paths** (listed in backlog.md). **A sixth
-  was the signal to restructure the loop, and that trigger has fired.** Tracked in
-  backlog.md. → **#034 B**
+- **`resolvePossession` has EIGHT loop re-entry paths** (listed in beads `gametime-01n`). **A sixth
+  was the signal to restructure the loop, and that trigger has fired.** Tracked as
+  `gametime-01n`. → **#034 B**
 - **A key/field mismatch in `SimConfig` does NOT fail loudly** — it binds `null`, and the
   first symptom was **184 NPEs**, not a bind error. Key and field name are kept in step by
   hand. Conversely, A's "no initializers" rule is enforced by **javac** (a `final` field
