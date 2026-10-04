@@ -48,6 +48,9 @@ Work items live in beads, not markdown lists. `bd prime` runs at session start (
 - `.beads/issues.jsonl` is the **git-tracked copy** of the issues (auto-export; the Dolt DB
   is gitignored). Every `bd` write rewrites it — it rides along in whatever commit is next.
 - Don't use `bd remember`; durable facts go where they already go.
+- **`scrap.md` (repo root) is Dave's scratch page for bead descriptions — never write to
+  it.** Put `--body-file` text in the session scratchpad. Human-facing beads routines are
+  in README.md.
 
 ### Java 21 — never JDK 25
 
