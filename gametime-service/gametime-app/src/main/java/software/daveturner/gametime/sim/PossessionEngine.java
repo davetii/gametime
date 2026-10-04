@@ -319,7 +319,7 @@ public class PossessionEngine {
             // ⚠ This is also why a shooting foul must NOT be folded into the SHOT event
             // as an outcome: every SHOT event is an attempt, which is what makes
             // count(SHOT) == sum(fieldGoalsAttempted) hold. See docs/game-events.md,
-            // "Why a stopped shot is not a field-goal attempt".
+            // "Why a shooting foul is not folded into the SHOT event".
             if (foulResolver.isFoul(shotType, shooter, defender, defensivePressure, rng)) {
                 defender.recordFoul();
 
@@ -361,7 +361,8 @@ public class PossessionEngine {
                 // offense keeps the ball. It is not modelled that way because every
                 // returning variant re-enters the loop at ShotSelector and yields a
                 // live attempt worth ~0.76 FGA where the stopped shot charged NONE,
-                // and FGA is 88.4 against 89.1 real — 0.7 of headroom. That caps a
+                // and FGA had under one attempt of headroom (88.4 against 89.1 real
+                // when this was designed; calibration.md has the current reading). That caps a
                 // retaining variant at a ~6% share, which moves FTA by less than one
                 // attempt: the retention reading and this phase's goal are
                 // arithmetically incompatible. FGA wins because it is sourced and

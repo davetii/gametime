@@ -25,7 +25,7 @@ association; a team's roster is **assembled at read time** by
 `TeamQueryService.toTeamWithRoster` — it fetches the assignments
 (`PlayerTeamRepo.findByTeamId`), loads those players in one batch, and hands all
 three to `EntityMapper.entityToTeam` to map. The link is decoupled from both
-entities — see decisions.md #012.
+entities.
 
 > **`TeamQueryService` is a deliberate seam, not a helper.** It is the single
 > read path for "a team with its roster," and both `GametimeServiceImp` (the
@@ -54,7 +54,7 @@ RELEASE` (`SEED` = the initial CSV backfill, provenance unknown).
 
 ## Player status vs lineup role
 
-Two independent axes, with no shared values (decisions.md #013):
+Two independent axes with no shared values:
 
 - `Player.status` — player-**intrinsic availability**, independent of any team:
   `ACTIVE, INJURED, SUSPENDED`. Roster membership is *not* encoded here — a free
@@ -82,7 +82,7 @@ history, newest first.
 ## Lineups
 
 A team's lineup is **sticky persistent state** on `player_team`, set with
-`PUT /v1/team/{teamId}/lineup` (decisions.md #014). The request is replace-all:
+`PUT /v1/team/{teamId}/lineup`. The request is replace-all:
 it describes every roster player's `lineupRole` + `rotationOrder` and overwrites
 those fields. The lineup is set-on-change, not per-game — once set it persists,
 and every team is seeded with a valid 5-starter lineup. In-game substitutions
@@ -95,7 +95,7 @@ are transient game-simulation state and never write back here.
 ## Endpoints
 
 A team's roster is **part of the team resource** — there is no separate roster
-endpoint (decisions.md #015). `GET /v1/team/{teamId}` returns the `Team` with
+endpoint. `GET /v1/team/{teamId}` returns the `Team` with
 `players: [RosterEntry]`, each entry = player + `lineupRole` + `rotationOrder`.
 
 | Method | Path | Purpose | Responses |
@@ -127,126 +127,35 @@ Size caps (`MAX_ACTIVE_ROSTER = 15`, `MAX_MINORS = 5` in `GametimeServiceImp`):
   is purely a lineup-PUT invariant (400).
 - **Position** — intentionally unconstrained: there are no position minimums or
   maximums. A team may carry any positional mix; a lopsided roster is punished by
-  the game engine, not an API rule. See decisions.md #017.
+  the game engine, not an API rule.
 
-## How gameplay consumes the roster (built)
+## How gameplay consumes the roster
 
-The roster domain feeds the game engine, and all three consumers are now live.
+**The bridge is `TeamQueryService`** (see Data model). At the start of a simulation
+`GameSimulator` calls `teamQueryService.getTeam(...)` for each side, the same read path
+`GET /v1/team/{teamId}` uses. It splits the returned `RosterEntry` list into starters
+(`lineupRole == STARTER`) and a bench of the remaining players that carry a
+`rotationOrder`, sorted by it, and turns each into a `PlayerGameState` inside a
+`RotationState` + `TeamContext`. A non-starter with no `rotationOrder` (an `INACTIVE` or
+`MINORS` player not yet slotted) never enters the squad and never plays.
 
-**The bridge is `TeamQueryService`** (see Data model above). At the start of a
-simulation `GameSimulator` calls `teamQueryService.getTeam(...)` for each side —
-the *same* read path the `GET /v1/team/{teamId}` endpoint uses — then splits the
-returned `RosterEntry` list into starters (`lineupRole == STARTER`) and a bench
-sorted by `rotationOrder`, turning each into a `PlayerGameState` and wrapping the
-squad in a `RotationState` + `TeamContext`. The two fields this domain owns
-therefore cross into gameplay at exactly one point, as ordinary API-model data:
-`lineupRole == STARTER` becomes `PlayerGameState.isStarter()` (driving sub
-priority, rested-return, and the starter fatigue tolerance of §3.5 Decision C),
-and `rotationOrder` becomes the bench queue order `RotationState` draws from.
+The two fields this domain owns cross into gameplay at exactly this point:
+`lineupRole == STARTER` becomes `PlayerGameState.isStarter()`, and `rotationOrder` becomes
+the bench queue `RotationState` draws from. The engine's rotation rules (fatigue subs,
+foul-trouble subs, disqualification, the on-floor five as the pool for technicals) are in
+[game.md](game.md); how the coach uses the bench queue is in [coach.md](coach.md).
 
-> ⚠️ **The `squad` list is NOT ordered by rotation priority — do not read it that
-> way.** `GameSimulator.buildRotation` appends the five starters **in whatever order
-> `team.getPlayers()` returns**, then the bench sorted by `rotationOrder`. Because
-> starters carry a **null `rotationOrder`** (see Lineups above), **squad indices 0–4
-> are unordered among themselves**; only indices 5+ carry real priority. A §3.13
-> design draft derived a player's importance from his squad index and would have made
-> "the most protected player" a database-ordering accident — caught and corrected in
-> `decisions.md` #031 B. **The trap is still live in the code**, so anything needing
-> "how good is this player" must use a skill composite (§3.13's
-> `PlayerGameState.valueComposite()`), not a position in this list.
-
-The four live consumers:
-
-- **Minutes & fatigue** (§3.5, decisions.md #023) — the lineup this domain owns
-  (`STARTER` set + `rotationOrder` bench queue) drives the engine's dynamic
-  rotation: `rotationOrder` + a player's `endurance` govern minutes allocation and
-  the between-possession substitution check (`RotationState`). In-game subs stay
-  transient — they never write back to `player_team` (see Lineups above), so a
-  simulation never mutates roster state.
-- **Coach rotation influence** (§3.5, decisions.md #023) — the coach's
-  `rotationDepth` / `substitutionAggressiveness` (built and read; see
-  [coach.md](coach.md)) decide how far down the `rotationOrder` queue the bench
-  plays and how eagerly tired starters are pulled. `rotationOrder` is the roster's
-  contribution; the coach knobs are how that chart is *used* — the clean seam
-  between this domain and gameplay.
-- **Foul-trouble benching** (§3.13, decisions.md #031) — a **soft** substitution
-  rule that sits a player carrying fouls before he fouls out. It reads this
-  domain's two fields as a *protection* signal, **combined with** (not replaced by)
-  a skill composite: a `STARTER` is managed slightly more tightly, and a bench
-  player is discounted progressively down the `rotationOrder` queue, floored so a
-  deep reserve is protected less but never exempt.
-  **⚠️ The direction is the opposite of the fatigue rule, deliberately.** §3.5 lets
-  starters tolerate *more* fatigue before being pulled; §3.13 pulls the better
-  player *sooner*. You ride your star when he's tired, you protect him when he's in
-  foul trouble. It reads like an inconsistency between the two consumers of the same
-  field and is not — do not "fix" it into agreement.
-  Like the fatigue rule, it draws only within `rotationDepth` and **never writes
-  back to `player_team`**; and it can never bring a fouled-out player back.
-- **Technical fouls & ejections** (§3.14a, decisions.md #032) — the **on-floor five**
-  is the committer pool for a technical: the draw is `foulProne`-weighted over
-  whoever this domain's lineup currently has playing, and **the bench is excluded**.
-  That is a *measurement* call, not a realism one (#032 C): the bench pool is ~10
-  against the floor's 5, so ~2/3 of technicals would land on players who are not
-  playing and whose ejections have no engine consequence. **The accepted fidelity
-  loss: bench and coach technicals are not modelled** — a coach is not a
-  `PlayerGameState` at all. Two technicals ejects a player, which extends the same
-  hard-tier disqualification filter as a foul-out (`RotationState.isDisqualified`),
-  so an ejected player is forced off and never selected again. Like every other
-  consumer here it is **transient — no write-back to `player_team`**: an ejection
-  lasts the game, not the season.
-- **Flagrant fouls & their ejections** (§3.14b, decisions.md #034) — **this one needs
-  no committer pool at all**, which is the cleanest
-  contrast with the technical above. A flagrant rides a foul that **already happened**,
-  so the committer was picked by the possession's own machinery (`pickDefender`, or the
-  rebounding foul's `foulProne`-weighted draw) before the flagrant question is even
-  asked. This domain contributes nothing beyond the on-floor five it already supplies.
-  A **flagrant-2** ejects immediately and extends the **same** `isDisqualified` filter
-  to a third cause — so from this domain's point of view nothing changes: a disqualified
-  player is forced off, replaced from the **full** bench, and never selected again,
-  whatever disqualified him. **Also transient — no write-back to `player_team`.**
-  **Measured at 0.023 flagrant-2s per team-game** (against #034 F's predicted ~0.024),
-  taking total ejections to **0.027** — roughly double §3.14a's 0.014 alone. So this is
-  the sub-phase where the hard tier stopped being dead-but-correct code and started
-  being exercised at a rate worth noticing.
-  ⚠ **A flagrant IS a personal foul** (#034 I), so unlike a technical it also feeds the
-  six-foul limit and §3.13's foul-trouble bench rule above — a player can foul out on
-  one, or be sat for accumulating one, with no extra code.
-- **Charges & common fouls** (§3.16, decisions.md #039) — like the flagrant, **no new
-  committer pool**: both ride machinery that had already picked a player. But §3.16 is
-  the sub-phase that **most moved the numbers this section tracks**, in two ways.
-  ⚠ **The CHARGE is the first foul in the engine charged to an OFFENSIVE player**
-  (#039 G). Every foul consumer above — the six-foul limit, §3.13's foul-trouble bench
-  rule, `isDisqualified` — had only ever seen fouls committed by defenders. A charge is
-  committed by the **ball-handler**, so **a player can now foul out while his team has
-  the ball**, and the foul-trouble rule can sit a team's primary offensive creator for
-  fouls he committed *on offense*. No new code was needed for any of that, which is the
-  seam working — but it is a genuinely new way for this domain's lineup to be disrupted.
-  It was also a **correctness fix, not a feature** (#037): before §3.16 a charge called
-  `recordFoul()` on nobody, so a player could commit unlimited charges and never foul
-  out, and none of them reached the box-score `fouls` column.
-  ⚠ **Foul-outs rose 0.358 → 0.517 per team-game** as a direct result — the single
-  largest move this line had seen since §3.13 landed it at ~0.39, taking it **above
-  that soft target**. ⚠ **§3.17 then took it back DOWN to 0.304**, below the target, as
-  a by-product of its lower foul rate (#040) — again with no change to this rule. It is a *consequence* of the correctness fix rather than a
-  regression in the bench rule, so §3.13's saturated sit curve must **not** be re-tuned
-  against it (see calibration.md, and #031's saturation finding). Players at 4/5/6 fouls
-  moved 1.09/0.52/0.37 → **1.31/0.63/0.52**, so more of every game is now played under
-  foul-trouble management by this domain's rules.
-  The `NON_SHOOTING_FOUL` half contributes nothing new here: it re-labels a foul already
-  rolled and charged, so it feeds the same limit and the same bench rule as the
-  `SHOOTING_FOUL` it replaced, by construction (#039 A). **Both are transient — no
-  write-back to `player_team`.**
-- **The counterparty column** (§3.18, decisions.md #041) — **this domain contributes and
-  changes NOTHING**, stated so the next pass does not re-check it. §3.18 is pure
-  attribution: it records *who* was on the other side of an event — the stealer, the
-  blocker, the fouled shooter — where the engine already held that player and discarded
-  them. **Every player it names was selected by an existing draw from the on-floor five
-  this domain already supplies**, so there is no new pool, no new selection, no new
-  disqualification cause, and no write-back. It adds no RNG draw and moves no number.
-  ⚠ The one thing worth knowing here is a **guarantee** rather than a change: the column
-  is contractually **always the opposite team** from `primary_player_id`, which is
-  enforced by a test over every simulated event — so a future pass that tried to put a
-  **teammate** there (an assister belongs on `assist_player_id`) fails the build.
+- **The squad list is not ordered by priority.** Starters are appended in whatever order
+  `team.getPlayers()` returns, and starters carry a null `rotationOrder`, so squad indices
+  0–4 are unordered among themselves; only indices 5+ carry real priority. Anything that
+  needs "how good is this player" must use a skill composite
+  (`PlayerGameState.valueComposite()`), never a position in this list.
+- **Simulation never writes back to the roster.** In-game substitutions, fatigue, foul-outs
+  and ejections are transient game state: nothing mutates `player_team`. An ejection lasts
+  the game, not the season.
+- **Every player the engine names is drawn from the on-floor five** this domain supplies.
+  Charges, flagrants, technicals and the counterparty column add no new pool and no
+  write-back.
 
 ## Not yet built
 

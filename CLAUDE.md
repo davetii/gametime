@@ -78,12 +78,12 @@ docs/
     possession-flow-rebound.puml         the rebounding foul · the four-way board
   possession-flow-model.md  The maths behind the boxes + each pass's history
   game-events.md       The event vocabulary — every (play_type, outcome), one master table
-  game.md              Game domain + possession engine (models + flow)
-  decisions.md         Decision INDEX — what each #NNN decided (~1,900 citations resolve here)
+  game.md              The game's rules: models, possession order, API, what is simplified
+  decisions.md         Decision INDEX — crux, constants, traps per #NNN (~1,900 citations resolve here)
   roadmap.md           Phased roadmap; phase structure and seams
   todo.md              Current phase only — states which session it needs
   risks.md             Active risks · backlog.md  Infra chores · ideas.md  Parking lot
-  player.md · roster.md · coach.md    Domain design references
+  player.md · roster.md · coach.md    Domain rules: current behavior, no decision history
 
 gametime-service/      Multi-module Maven (Spring Boot 3.5.14)
   gametime-api/        Generated code ONLY — spec at yml/gametime.yaml
@@ -156,11 +156,11 @@ JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -pl gametime-app -f
 
 *(A convention, and a useful one — it's what let §3.22 be verified against §3.21
 byte-for-byte. Not a rule the user is bound by.)* Engine sub-phases have run in three
-sessions: a **design pass** (open questions → a `decisions.md #NNN` + an execute-ready
-todo.md plan, no production code), an **execution** (build it, add an implementation note,
-flip the roadmap bullet), then the next design pass. `todo.md`'s header says which session
-the current phase needs. Roadmap bullets are seams, not plans — they're under-specified on
-purpose.
+sessions: a **design pass** (open questions → a short `decisions.md #NNN` + an execute-ready
+todo.md plan, no production code), an **execution** (build it, edit any decision letter that
+diverged, put a trap in `engine-traps.md`, flip the roadmap bullet), then the next design
+pass. `todo.md`'s header says which session the current phase needs. Roadmap bullets are
+seams, not plans — they're under-specified on purpose.
 
 The `project-docs` skill carries the doc house style and routing rules. Same status as
 this section: useful defaults, not mandates.

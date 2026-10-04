@@ -2,41 +2,32 @@
 
 Basketball simulation game — 40-team league with attribute-driven gameplay, season management, and a React frontend.
 
-_Last updated: 2026-09. **Next: the pre-work gate below.**_
+_Last updated: 2026-10. **Next: the pre-work gate below.**_
 
 ## What Exists Today
 
 ### Shipped
-- **21 player attributes**: agility, awareness, aggression, charisma, cohesion, composure, determination, ego, endurance, energy, handle, health, intelligence, luck, shotSelection, shotSkill, size, speed, strength, verticality, wingspan
-- **23 derived skills** on a 1–20 / avg-10 scale via a shared deviation helper: acumen, ballSecurity, passing, teamOffense, drive, freeThrows, longRange, perimeter, post, individualDefense, teamDefense, offenseRebound, defenseRebound, finishing, transition, rimProtection, stealing, shotContest, foulDrawing, foulProne, clutch, screenSetting, offBallMovement
-- **9 positions**: PG, CG, SG, W, SF, F, PF, FC, C
-- **Player status** (availability): ACTIVE, INJURED, SUSPENDED. Lineup slot is a
-  separate `lineupRole` (STARTER, ROTATION, BENCH, INACTIVE, MINORS) on the
-  roster assignment — see decisions.md #013.
-- **40-team league** across 4 conferences (EAST, NORTH, SOUTH, WEST), 422 seed players (CSV-driven via Liquibase)
-- **Entity layer**: Player, Team, Coach (5 decision attributes — #018), GM (name only); player↔team decoupled via `player_team` + `player_team_hist`
-- **Roster & lineup model**: a team's roster is part of the `Team` resource (`players` are roster entries with lineup slot); lineup (starting 5 + bench rotation order) is sticky state on `player_team`; player status (availability) is separate from lineup role; roster size caps (15 active / 5 minors) enforced on sign + lineup, signed players default to `INACTIVE`. Roster construction is unconstrained by position — no position minimums/maximums (#017). See decisions.md #013–#017.
-- **REST endpoints**: GET league, GET player by ID + history, createPlayer, updatePlayer; GET team by ID (incl. roster), addPlayerToTeam, removePlayerFromTeam, set lineup
-- **Skill calculation engine**: SkillCalculator interface, 23 calculator implementations, SkillMapper orchestrator
-- **Entity-to-model mapping**: EntityMapper with full attribute + skill wiring
-- **Database**: Postgres (local dev) + H2 (tests), Liquibase migrations, gametime schema, audit triggers
-- **Possession engine — ALL of Phase 3 (§3.1–§3.22, shipped 2026-06 → 2026-09)** — a full
-  seeded, deterministic possession simulation with the complete foul system, minutes/fatigue/
-  substitution, and **63 tunable constants in swappable profiles**. Persists a `GameEvent` log +
-  per-player `BoxScore` behind the §3.6 APIs. Calibrated against sourced modern-NBA targets;
-  every row lands but four reported residuals (Blocks −0.26, Fouls −0.55, OffReb +0.60, DefReb −0.85).
-  Flow: **game.md** / **possession-flow.puml** (the overview — each resolver has its
-  own diagram). Targets: **calibration.md**.
-  ⚠ Traps and measured findings: **engine-traps.md**. Per-sub-phase record: **decisions.md #020–#044**.
-- **Test suite**: unit + Cucumber integration, 80% line coverage enforced (JaCoCo gate)
-- **Build pipeline**: Multi-module Maven, OpenAPI codegen with delegate pattern, Docker Compose
+- **Player and skill model**: 21 attributes and 23 derived skills on a 1–20 / avg-10 scale,
+  9 positions, player status and lineup role as separate axes. See [player.md](player.md).
+- **League data**: 40 teams across 4 conferences (EAST, NORTH, SOUTH, WEST), 422 seed players
+  and 40 coaches, loaded through Liquibase. GM is name only.
+- **Roster and lineup**: a team's roster is part of the `Team` resource; lineup is sticky state
+  on `player_team`; size caps of 15 active / 5 minors; no position constraints. See
+  [roster.md](roster.md).
+- **REST endpoints**: league, player (get, create, update, history), team (get, add and remove
+  player, set lineup), and the game endpoints (simulate, get, play-by-play).
+- **Possession engine (Phase 3, §3.1–§3.22)**: a seeded, deterministic possession simulation
+  with the full foul system, minutes, fatigue and substitution, tunables in swappable Spring
+  profiles, and a persisted `GameEvent` log plus per-player `BoxScore`. Calibrated against
+  sourced modern-NBA targets. See [game.md](game.md), [calibration.md](calibration.md) and
+  [engine-traps.md](engine-traps.md).
+- **Infrastructure**: Postgres (local) and H2 (tests), Liquibase, multi-module Maven with
+  OpenAPI codegen, Docker Compose, unit and Cucumber tests with an 80% JaCoCo gate.
 
 ### Deferred
 - **GM attributes** — the name-only `GM` slot stays until its consumers are real
   (Phase 6.3 draft scouting / 6.4 trade evaluation). Resolve with the same
-  continuous 1–20 model as coach (decisions.md #018); see coach.md open-Q #3.
-  *(Coach attributes — done: Design Decision #3 resolved as #018, modeled
-  end-to-end; see Shipped above.)*
+  continuous 1–20 model as coach; see coach.md open-Q #3.
 - **Player age** — only `yearsPro` is modeled; no birth date / true age yet.
   `yearsPro` is sufficient for everything built so far; true age gains a consumer
   at Phase 6.1 (aging & development — attribute peak/decline curves), where the
@@ -51,7 +42,7 @@ because what gates a phase is the phase before it, not the month. `- [ ]` is not
 started, `- [x]` is shipped, ✓ marks a complete phase.
 
 ⚠ **Bullets are seams, not plans.** Every one is deliberately under-specified and
-needs its own design pass (a `decisions.md` #NNN + an execute-ready `todo.md`
+needs its own design pass (a `decisions.md` entry plus an execute-ready `todo.md`
 plan) before execution — every phase so far has found real design questions the
 one-liner hid. **Do not execute a bullet as if it were a plan.**
 
@@ -67,37 +58,19 @@ section deliberately: mixing gate work into the phase is how a gate becomes a
 backlog item that ships late or not at all. **Order is dependency-driven** — 2+3
 are one pass, 5 depends on 4, 8 must be last.
 
-- [x] **1.** Rewrite `todo.md` ✅ *(2026-09)*
-- [x] **2.** Condense `decisions.md` ✅ *(2026-09)* — SPLIT by audience, not condensed in place:
-      findings → **[engine-traps.md](engine-traps.md)**, entries cut to their decision
-      letters. 599k → 38k + 20k. ⚠ Never renumber: ~1,900 citations resolve by number **and letter**.
-- [x] **3.** Sweep the `sim` package's Java comments — ⚠ **not coupled to 2**; only renumbering
-      would break a citation. ⚠ Fix here: `SimConfig.java` (~L75, ~L176) still warns that
-      `base-no-basket-foul` runs the wrong way — #036 disproved it and the properties file
-      already disagrees.
-- [x] **4.** `possession-flow.puml` ✅ *(2026-09)* — **SPLIT into an overview + six
-      detail diagrams**, after first cutting the prose and moving the 279-line legend to
-      **possession-flow-model.md**. ⚠ **The real ceiling was never PlantUML's 16,384px —
-      it was the SCREEN.** Thinning alone got 13,800px → 7,365px, still ~15 pages and
-      unreadable. Every diagram is now screen-sized (549–2,102px), and the overview is
-      the first artifact that shows the second-chance **loop as a loop**.
-      ⚠ **Ownership rule**: a fork inside a resolver → that resolver's file; a new
-      resolver or **a new retention path** → the overview too.
-- [x] **5.** `game.md` dedup against the diagrams ✅ *(2026-09)* — 48k → 41.6k. The
-      **event walk and the 18 emission patterns were cut** (the diagrams and
-      **game-events.md**'s test-enforced master table own them); the **calculation
-      sequence absorbed them** and is now one flow section, not two. ⚠ **What game.md
-      uniquely owns is the ORDERING RATIONALE** — why steps cannot be reordered, which
-      a diagram cannot state ("because the method returns"). Three facts that lived
-      nowhere else were rescued into it: the **FGA-headroom arithmetic** behind #039 C,
-      the cap's **`OUT_OF_BOUNDS_OFFENSE`→`OUT_OF_BOUNDS_DEFENSE`** forcing pair, and
-      sail-out/tipped-OOB sharing one outcome. The shot-type skills table went to
-      **player.md**, which already owned that view. All 27 `#NNN` citations preserved.
-      ⚠ **The §-list was also STALE** — it stopped at §3.16 while the body cited
-      §3.17–§3.22; rebuilt, which is why the net cut is only 13%.
-- [ ] **6.** Triage `backlog.md`
+- [x] **1.** Rewrite `todo.md` *(2026-09)*
+- [x] **2.** Condense `decisions.md` *(2026-09)*: split by audience; findings moved to
+      [engine-traps.md](engine-traps.md), entries cut to their decision letters. Never
+      renumber: citations resolve by number **and letter**.
+- [x] **3.** Sweep the `sim` package's Java comments *(2026-09)*.
+- [x] **4.** `possession-flow.puml` *(2026-09)*: split into an overview and six detail
+      diagrams, each screen-sized. Ownership rule: a fork inside a resolver goes in that
+      resolver's file; a new resolver or a new retention path goes in the overview too.
+- [x] **5.** `game.md` dedup against the diagrams *(2026-09)*.
+- [x] **6.** Triage `backlog.md` *(2026-10, docs-reduction pass)*
 - [ ] **7.** Adopt Beads and cut over for Phase 4 work
-- [ ] **8.** Re-read every `calibration.md` verdict against its own Current number — **last**
+- [x] **8.** Re-read every `calibration.md` verdict *(2026-10, docs-reduction pass: rewritten as a
+      reference; its Current column is the §3.22 landing and was not re-measured)*
 
 **The how, and the traps for each, live in `todo.md`** when the gate is the active
 work. **The roadmap ↔ Beads boundary:** Beads holds actionable work with state;
@@ -111,12 +84,10 @@ the **bead is the only record** and the doc entry is deleted.
 
 **Goal**: Track, aggregate, and expose stats.
 
-> ⚠ **Worth reading before designing 4.1: stats are written TWICE and the two paths agree
-> only by convention** — `PlayerGameState.record*()` counters and the `GameEvent` for the
-> same play. §3.20 shipped (and fixed) a bug that is one realisation of it. **Not a gate
-> on this phase**, and not scheduled — but if the box score is ever to be **derived from
-> the event log**, this phase's design is the natural place to ask. Full write-up in
-> [risks.md](risks.md); parked as an idea in [ideas.md](ideas.md).
+> Read [risks.md](risks.md)'s "Stats are written twice" before designing 4.1: counters and
+> events agree only by convention, and this phase is the natural place to ask whether the box
+> score should be derived from the event log. Not a gate. Tracked in
+> [backlog.md](backlog.md) (`BoxScoreReconciler`).
 
 ### 4.1 Game Stats Model
 - [ ] Per-game player stats: points, rebounds (off/def), assists, steals, blocks, turnovers, fouls, minutes, FGA/FGM, 3PA/3PM, FTA/FTM
@@ -141,15 +112,10 @@ the **bead is the only record** and the doc entry is deleted.
 
 **Goal**: Full season lifecycle — schedule, standings, playoffs, awards.
 
-> ⚠ **READ [risks.md](risks.md)'s "Skill sensitivity is ~10× too steep" BEFORE designing
-> this phase.** Season play is the **first consumer of the engine's response to skill
-> SPREAD** — every simulation to date has been average-vs-average, because that is what
-> `CalibrationHarness` builds. Measured, an elite defense holds an average offense to
-> **16.2% FG** and a terrible one concedes **79.8%**, against a real spread of ~5 points.
-> **Left unaddressed, good teams will beat bad teams by impossible margins and the
-> standings will be degenerate — and the symptom will look like a scheduling or standings
-> bug, not an engine one.** It is a tuning problem with a cheap fix, but it needs a
-> skill-LADDER harness mode first, because the current report cannot show a slope.
+> **Read [risks.md](risks.md)'s "Skill sensitivity is ~10× too steep" before designing this
+> phase.** Season play is the first consumer of the engine's response to skill spread, and
+> left unaddressed the standings will be degenerate in a way that looks like a scheduling bug.
+> It needs a skill-ladder harness mode first.
 
 ### 5.1 Schedule Generation
 - [ ] Regular season: N games per team, balanced home/away
@@ -203,7 +169,7 @@ the **bead is the only record** and the doc entry is deleted.
 - [ ] Free agent signing period
 - [ ] Trade logic: player-for-player, picks, salary matching
 - [ ] GM attributes influence trade evaluation (model as continuous 1–20 like
-      coach #018 — see coach.md open-Q #3)
+      coach; see coach.md open-Q #3)
 
 ---
 
@@ -270,10 +236,9 @@ Open questions to resolve before or during the phase that needs them.
 4. **Multi-user** (Phase 7/8): single-player (user controls one team) or spectator mode?
 5. **Season length** (Phase 5): games per team per season — 82 is a lot of simulation data.
 
-⚠ **Already decided — do not reopen**: simulation granularity and the clock model
-(possession-by-possession, no clock — **#021 B**, **#024 E**); coach attributes
-(continuous 1–20, not enums — **#018**); event persistence (every `GameEvent` stored,
-events are the source of truth — **#020**).
+⚠ **Already decided, do not reopen**: simulation granularity and the clock model
+(possession-by-possession, no clock); coach attributes (continuous 1–20, not enums); event
+persistence (every `GameEvent` stored, events are the source of truth).
 
 ---
 

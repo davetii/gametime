@@ -121,9 +121,10 @@ public class FoulResolver {
      * (#034 E). This is the argument {@link #isNonShootingFoul} refers back to.</b> The
      * engine cannot distinguish excessive contact from ordinary contact, so weighting by
      * {@code foulProne} would manufacture a signal the model does not have. And {@code
-     * foulProne} has <b>already had its say</b>: the committer was chosen before this
-     * roll fires ({@code pickDefender} at the shooting sites, {@code pickCommitter} at the
-     * rebounding site, both {@code foulProne}-weighted), so weighting the grade too would
+     * foulProne} has <b>already had its say</b>: at the shooting sites the defender's
+     * {@code foulProne} is already in the foul <i>rate</i> (the defender is drawn by
+     * {@code individualDefense}, not {@code foulProne}), and at the rebounding site {@code
+     * pickCommitter} is {@code foulProne}-weighted, so weighting the grade too would
      * apply one signal twice. ⚠ The symmetry with §3.14a's committer draw (#032 C) is
      * tempting and <b>wrong</b> — that weighted a <i>selection</i>, this is a
      * <i>grade</i> on a player already selected.
@@ -174,8 +175,8 @@ public class FoulResolver {
      * basketball and it is deliberate</b>, so do not "fix" it as a bug: a real common
      * foul is a side inbound and the offense keeps the ball, but every returning variant
      * re-enters the loop at {@code ShotSelector} for a live attempt worth ~0.76 FGA where
-     * the stopped shot charged none — against only 0.7 of FGA headroom (88.4 vs 89.1
-     * real). That caps a retaining variant near a ~6% share, moving FTA by less than one
+     * the stopped shot charged none — against under one attempt of FGA headroom (88.4
+     * vs 89.1 real when this was designed; see calibration.md for the current reading). That caps a retaining variant near a ~6% share, moving FTA by less than one
      * attempt. FGA wins because it is sourced and already correct. The caller owns the
      * fork — see {@code PossessionEngine}'s foul block.
      *

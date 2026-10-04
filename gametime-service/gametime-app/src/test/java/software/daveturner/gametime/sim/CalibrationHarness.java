@@ -783,7 +783,7 @@ class CalibrationHarness {
                     + " (FREE_THROW_REBOUND_LEAN, a rule). The knob reaches only the first."
                     + " §3.21 closed the POOL 37.80 -> 43.72 against a real 43.70; what"
                     + " remains is the split. Do NOT re-weight block-* to chase it either."
-                    + " See calibration.md, The rebound pool)", offReb / tg));
+                    + " See calibration.md, Rebound pool)", offReb / tg));
             lines.add(String.format("Def reb / team / game:  %.2f   (target ~32.4 — SOURCED"
                     + " 2025-26. Residual — see the Off reb note above)", defReb / tg));
             lines.add(String.format("Blocks / team / game:   %.1f   (target 4.8 — sourced"

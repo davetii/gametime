@@ -34,14 +34,8 @@ on 4; 8 is a snapshot check and must be last.
       ⚠ This is **not** the 2026-07 split that was reverted — no entry moved file, no number
       changed. ⚠ **Never renumber**: ~1,900 citations resolve by number **and letter** (157
       distinct entry+letter pairs; `#025 F` alone is cited 15×).
-- [ ] **3. Sweep the `sim` package's Java comments.** ⚠ **NOT the same pass as 2** — that
-      coupling was asserted, then tested and found false: condensing never breaks a citation,
-      only renumbering would. Scope is narrow — rename stories, "before it, X couldn't happen"
-      descriptions of code that no longer exists, and design-pass narrative. ⚠ **Leave every ⚠
-      warning where it is**; the comments are mostly operative warnings sitting on the field they
-      protect. ⚠ **One known bug to fix**: `SimConfig.java` (~L75, ~L176) still repeats #028's
-      wrong-way-lever warning for `base-no-basket-foul`; #036 disproved it at the current
-      configuration and `application-baseline.properties` already says the opposite.
+- [x] **3. Sweep the `sim` package's Java comments.** ✅ *(2026-09)* — comment-only across 12 files;
+      the `base-no-basket-foul` sign warning in `SimConfig` and the properties file was corrected.
 - [x] **4. `possession-flow.puml`** ✅ *(2026-09)* — **an OVERVIEW + six detail
       diagrams.** Done in two moves, and the first one was not enough:
       **(a) the prose.** The file was 74% notes + legend and only ~25% flow. The rule
@@ -79,32 +73,8 @@ on 4; 8 is a snapshot check and must be last.
       its own parenthetical admitted §3.21 made it **six** — now six everywhere, with
       "a SEVENTH is the signal to restructure". Also: the old file had **ten** partitions
       and **two** `repeat` loops, not the six and one the gate assumed — four were nested.
-- [ ] **5. `game.md` dedup against the diagrams** — the two describe the same flow twice.
-      **Step 4 settled the ownership this depends on**: the overview owns resolver ORDER
-      and the retention question; each detail diagram owns its own forks;
-      `possession-flow-model.md` owns the maths and each pass's history. So the question
-      for every paragraph of `game.md`'s `### The calculation sequence` (~22.5k, half the
-      file) is now answerable: **which of those four already carries this?**
-      **Step 4's rule applies here too** — a diagram is not where an argument lives, so
-      prose explaining WHY an ordering holds belongs in game.md or the model file and
-      should not be pushed back onto the picture.
-      Measured 2026-08: `game.md` is **47.7k**, and its `### The calculation sequence`
-      subsection alone is ~22.5k — half the file — walking the same branch order the
-      diagram draws. ~70k of combined description of one flow. **Thin them TOGETHER or
-      not at all**; fixing one side leaves the duplicate looking authoritative.
-      ⚠ **Its ~253 `#NNN` citations are NOT the bloat** — unlike calibration.md's (which
-      marked history in a targets reference), these annotate **live mechanics** and are how
-      a reader finds the argument. Cutting them removes navigation. The job is
-      de-duplication against the diagram.
-      ⚠ **The hard part**: decide what only prose can carry — **the WHY behind an ordering**
-      — versus what the picture already shows. Deleting an ordering rationale is the one
-      irreversible mistake here.
-- [ ] **6. Triage `backlog.md`.** Move the three items that are already gates here out of
-      it (condense `decisions.md`, thin the `.puml`, the Java-comment sweep). Move the
-      **`PROB_FLOOR` / `base-block-three` finding** to `calibration.md`'s Blocks row or
-      #040's note — it is an **engine trap a future tuner must hit at the moment they
-      reach for that knob**, not a chore. Condense the four large remainders to a summary
-      plus a pointer.
+- [x] **5. `game.md` dedup against the diagrams** ✅ *(2026-09)*, then rewritten as a rules doc in the 2026-10 docs-reduction pass.
+- [x] **6. Triage `backlog.md`.** ✅ *(2026-10, docs-reduction pass)* — gate items moved out; the `PROB_FLOOR` / `base-block-three` finding lives in `calibration.md`'s Blocks row and `engine-traps.md`.
 - [ ] **7. Adopt Beads, and cut over for Phase 4 work.** ⚠ `bd` is installed and the
       `SessionStart` hook (`bd prime --hook-json`) is already in `.claude/settings.json`,
       but **there is no `.beads/` database** — it currently primes nothing. Initialize it,
@@ -113,14 +83,7 @@ on 4; 8 is a snapshot check and must be last.
       relocates the bloat somewhere less readable.
       ⚠ **`decisions.md`, `calibration.md`, `game-events.md` and the `possession-flow*` diagrams do
       NOT migrate** — append-only reference cited by number; they are not work items.
-- [ ] **8. Re-read every `calibration.md` verdict against its own Current number.** ⚠ **Not
-      a re-run — a re-READ**, and it must be **last** so it reflects final state. The
-      Current column is updated each landing; the status prose beside it is not, so a row
-      can carry a stale verdict indefinitely and **nothing fails**. Found 2026-09: four
-      rows disagreed with their own numbers — 3P% marked `🟡 −0.52` while reading **+0.14
-      (green)**, def rebounds marked `−0.48` while sitting at **−0.85**. Phase 4 reads this
-      table as its input the way §3.20 did, so a wrong verdict here is a wrong premise
-      there.
+- [x] **8. Re-read every `calibration.md` verdict.** ✅ *(2026-10, docs-reduction pass)* — `calibration.md` rewritten as a reference; its Current column is the §3.22 landing and was not re-measured.
 
 **⚠ The roadmap ↔ Beads boundary** (decided 2026-09 so step 7 does not re-litigate
 it). Beads holds **actionable work with state**; roadmap.md holds the phase

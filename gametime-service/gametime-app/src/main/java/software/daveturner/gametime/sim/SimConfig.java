@@ -32,8 +32,8 @@ import java.util.Properties;
  *       Read it before changing any constant here or calling a landing "on target".</li>
  *   <li><b>docs/engine-traps.md</b> — the traps, wrong-way levers, saturated knobs and
  *       measured elasticities. The facts no source file holds.</li>
- *   <li><b>docs/decisions.md #NNN</b> — the archive each constant's note cites for the
- *       argument behind its value.</li>
+ *   <li><b>docs/decisions.md #NNN</b> — the index of decisions each constant's note cites
+ *       (the crux call per letter, not the full argument).</li>
  * </ul>
  * Per-constant notes below carry what is operative for that field; they are the
  * warnings that must stay next to the thing they protect.

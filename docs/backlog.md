@@ -66,6 +66,25 @@ Deferred *gameplay* scope → [roadmap.md](roadmap.md) phase bullets. Untriaged 
       **Timing: Phase 4**, when season aggregation makes a drifted row compound — not §3.19,
       which needs the numbers to hold still. Subsumes #041's `box_score.steals` follow-up.
 
+- [ ] **Restructure `resolvePossession`'s second-chance loop. Behavior-free.**
+      A code-quality chore: no event, rate or calibration number changes; the payoff is the
+      cost of adding the next retention path. The offense keeps the ball at eight sites, each
+      an `offensiveRetentions++` at a different depth of one method: ordinary offensive
+      rebound, block recovery, OOB-offense (shares block recovery's branch), rebounding foul
+      (offensive board off the bonus trip's last FT), flagrant on a stopped shot, flagrant on a
+      made shot, bonus free throws, and shooting-foul / and-1 free throws.
+      Two concrete costs: the cap is enforced two ways (five sites guard with
+      `if (result.offenseRetains())` with the cap pushed into the helper, three test
+      `!capReached` inline), so a ninth path has two precedents to copy; and threading one new
+      variable (`putbackCandidate`) touched six of the eight, set at five and deliberately null
+      at the two flagrant sites.
+      **Done** = one place that says "the offense kept the ball": one cap check, one
+      putback-candidate rule, one `continue`.
+      ⚠ **Prove it moved nothing**: run the harness, `git stash`, run again on the **same seed**,
+      diff; identical line for line or the claim is false.
+      ⚠ **Must not ride a tuning pass**: a control-flow change alongside a recalibration blurs
+      what moved a number.
+
 ## Tooling & infra
 
 - [ ] **A constants-reference table GENERATED FROM SOURCE**, so docs link rather than
@@ -73,19 +92,6 @@ Deferred *gameplay* scope → [roadmap.md](roadmap.md) phase bullets. Untriaged 
       Decided out of §3.15 deliberately (#035 H). ⚠ **Re-scope before building**: #035 F's
       effective-config dump already serves the runtime half, and #035 C split the constants
       into two declared groups — measure what is still restated by hand first.
-
-- [ ] **Add the four domain docs to the `project-docs` skill's routing table.**
-      `game.md`, `player.md`, `coach.md` and `roster.md` are absent from it, so they are
-      kept current by noticing rather than by rule — §3.17 had to update all four as an
-      enumerated checklist item because no rule would have caught them.
-      ⚠ **The failure mode is silent and asymmetric**: a stale *planning* doc gets caught by
-      the next design pass reading it end to end; a stale *domain* doc is read by whoever is
-      learning the model, who cannot know it is wrong. Both known drifts (`coach.md`'s
-      `offensiveScheme` axis, `player.md`'s five-skills-for-four-types wording) were repaired
-      by later phases — **the rule was not**, which is the point.
-      **Fix**: a row per domain doc (what it owns, what it does not) plus a "Before you
-      finish" check. ⚠ Make it grep-based — *"grep the domain docs for every identifier this
-      phase renamed or re-specified"* — not a prose reminder to remember.
 
 - [ ] **Clear the 6 open Dependabot alerts** — all `gametime-frontend` (`package-lock.json`),
       all **development**-scope, none in the Java service: `postcss` (high + medium), `vite`
@@ -109,7 +115,20 @@ Deferred *gameplay* scope → [roadmap.md](roadmap.md) phase bullets. Untriaged 
       fixed fixture so `main/resources/db/` can evolve independently. *Partly mitigated*:
       `RosterLineupDelegateTest` now signs its own players; the hardcoded team IDs remain.
 
+- [ ] **A per-shot-type FG% instrument in `CalibrationHarness`.** The harness reports FG% in
+      aggregate only, so `base-drive` / `base-post` / `base-perimeter` can be tuned only
+      against the aggregate; realized rim, post-up and mid-range make rates are invisible. The
+      current split was set against real separation (rim ~66%, mid-range ~42–45%) as an
+      argument and cannot be verified. Test-side only, no engine surface.
+
 ## Data
 
 - [ ] **Hand-tune marquee/star players to 18–20** where appropriate — the 1–20 rescale
       (#008) was mechanical. Deferred until the engine shows whether it matters.
+
+- [ ] **Measure the generated player population's mean per skill against the avg-10 scale.**
+      Realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10` and the population's mean
+      `freeThrows` is ~13.8, so `sim.ft-base` was pulled down to land 78%: a global constant
+      correcting a population effect. Other `base-*` constants may be absorbing the same bias
+      invisibly. Measuring is cheap and says at once whether this is one skill or systemic;
+      fixing it is a player-generation pass.
