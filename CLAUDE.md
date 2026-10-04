@@ -52,6 +52,19 @@ Work items live in beads, not markdown lists. `bd prime` runs at session start (
   it.** Put `--body-file` text in the session scratchpad. Human-facing beads routines are
   in README.md.
 
+**Work protocol.** ⚠ **Where `bd prime`'s generic workflow disagrees with this file, this
+file wins** — notably its "create an issue before writing code", "use `bd remember`, not
+MEMORY.md", `bd dolt pull`/`push` at session close, and "use parallel subagents".
+- **Propose new beads; don't create them unasked.** When work surfaces that should outlive
+  the session (a drift, a follow-up, an idea), propose it with the exact `bd create`
+  command. Create it only after Dave's go-ahead — then creating it directly is fine.
+- **No bead for a one-off chat request.** Beads are for work with state, not every edit.
+- **Claim** an existing bead (`bd update <id> --claim`) when starting work it covers.
+- **Close** a bead only when its Done/acceptance criteria are met **and verified**; say so
+  in the summary. The `issues.jsonl` change waits for Dave's commit like any other edit.
+- **Never run** `bd dolt push`, `bd dolt pull`, `bd remember`, or `bd edit` (opens an
+  editor and blocks).
+
 ### Java 21 — never JDK 25
 
 Homebrew Maven defaults to JDK 25, which breaks Lombok 1.18.x. Always:
