@@ -12,6 +12,7 @@ target/
 .settings
 .springBeans
 .sts4-cache
+scrap.md
 
 ### Claude ###
 # Ignore local Claude config (settings, worktrees) but share project skills.

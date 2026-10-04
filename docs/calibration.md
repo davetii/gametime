@@ -40,7 +40,8 @@ whether it is a league average or per-team mean, and whether it is pace-adjusted
 ## The table
 
 Per team per game unless noted. **Current** is the 5-seed mean (seeds 1000–5000) on the
-`baseline` profile at the putback landing (2026-09). Sourced rows are Basketball-Reference
+`baseline` profile, re-measured 2026-10-04 at the pre-Phase-4 gate (`gametime-6q5`). Every
+row reproduced the putback landing (2026-09) to the printed decimal. Sourced rows are Basketball-Reference
 league averages, per game, 2025-26.
 
 **Type:** `TARGET` = calibrated, steer by it. `ballpark` = a plausibility range; judge
@@ -63,7 +64,7 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Fouls | TARGET (sourced) | 19.9 | 19.35 | **Residual (−0.55).** Lever is `base-no-basket-foul`. Over-determined with FGA: each extra foul costs **1.49 FGA**, so closing the gap would pull FGA out of band. It moves only as a side effect of re-landing FGA. `PERSONAL_FOULS_PER_TEAM_GAME` (the flagrant divisor) must be re-measured whenever the foul rate moves |
 | FTA | TARGET (sourced) | 23.5 | 23.58 | `sim.non-shooting-foul-share`. See *Non-shooting-foul share* |
 | FT% | TARGET (sourced) | 78.0% | 77.64% | `sim.ft-base`. Realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10` and the roster mean `freeThrows` is ~13.8, so the base is not the landing |
-| 3PA | TARGET (sourced) | 37.0 | 36.96 | `sim.shot-share-*`. Charged three share is 41.1% vs a real 41.5% |
+| 3PA | TARGET (sourced) | 37.0 | 36.96 | `sim.shot-share-*`. Charged three share is 41.3% vs a real 41.5% |
 | FGA | TARGET (sourced) | 89.1 | 89.40 | `sim.base-no-basket-foul`, **not** `non-shooting-foul-share` (both foul branches return before an attempt is charged). Bought against Fouls |
 | Off rebounds | TARGET (sourced) | 11.3 | 11.90 | **Residual (+0.60), reported not tuned.** See *Rebound pool* |
 | Def rebounds | TARGET (sourced) | 32.4 | 31.55 | **Residual (−0.85), reported not tuned.** The pool total itself is 43.45 vs 43.70. See *Rebound pool* |
@@ -75,7 +76,7 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Flagrants | ballpark (unsourced) | ~0.13–0.20 | 0.159 | 5 seeds only; coarsest row. See *Flagrants* |
 | Flagrant-2s | none | | 0.027 | The ejection driver (15% share of flagrants) |
 | Ejections | none | | 0.037 | Both causes |
-| Fouled-three rate | ballpark | ~2% of 3PA | 3.10% *(corrected)* | Scale-free. Judge the corrected figure, not the raw tally (1.46%) |
+| Fouled-three rate | ballpark | ~2% of 3PA | 3.10% *(corrected)* | Scale-free. Judge the corrected figure, not the raw tally (1.82%) |
 | 3-FT trips | ballpark | ~0.3–0.6 | 1.15 *(corrected)* | The range was set at half the current 3PA, so the count scales with 3PA |
 | And-1s | ballpark | ~4–6% of made FG | 1.63 (3.9%) | |
 | Fouls / team / period | observed | | 4.88 | The bonus threshold is 5, so the penalty rate is volatile |

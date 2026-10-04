@@ -71,7 +71,8 @@ are one pass, 5 depends on 4, 8 must be last.
 - [x] **7.** Adopt Beads and cut over for Phase 4 work *(2026-10: `backlog.md` and `ideas.md`
       migrated to beads and deleted — chores open, ideas `deferred`)*
 - [x] **8.** Re-read every `calibration.md` verdict *(2026-10, docs-reduction pass: rewritten as a
-      reference; its Current column is the §3.22 landing and was not re-measured)*
+      reference; its Current column re-measured at 5 seeds in `gametime-6q5` and reproduced the
+      §3.22 landing to the decimal)*
 
 **The how, and the traps for each, live in `todo.md`** when the gate is the active
 work. **The roadmap ↔ Beads boundary:** Beads holds actionable work with state;
