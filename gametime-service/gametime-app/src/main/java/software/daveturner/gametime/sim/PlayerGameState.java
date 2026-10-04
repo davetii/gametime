@@ -19,7 +19,8 @@ public class PlayerGameState {
     private final Integer rotationOrder;
 
     // Fatigue attributes (§3.5): endurance slows the per-possession energy drain;
-    // energy seeds a player's starting in-game currentEnergy above/below full.
+    // energy speeds the benched player's recovery. Neither seeds starting energy:
+    // everyone tips off at a full tank (see the constructor).
     private final double endurance;
     private final double energy;
 

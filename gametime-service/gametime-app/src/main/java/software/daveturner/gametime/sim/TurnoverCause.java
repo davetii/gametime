@@ -1,37 +1,23 @@
 package software.daveturner.gametime.sim;
 
 /**
- * §3.9 (decisions.md #027 B): the cause of a declared turnover. Once the
- * (unchanged) turnover gate fires, a single weighted draw ({@link
- * TurnoverResolver#pickCause}) picks exactly one of these nine causes — a pure
- * re-partition of an event that already fires, so the turnover <i>count</i> never
- * moves (Decision A). Each cause carries the {@code outcome} string emitted on the
- * {@code TURNOVER} {@link PlayType} event; the field is open-ended free text
- * (#020), so there is no schema or OpenAPI cost to the nine labels.
+ * §3.9 (decisions.md #027 B): the cause of a declared turnover. One weighted draw
+ * ({@link TurnoverResolver#pickCause}) picks a cause after the unchanged gate fires — a
+ * pure re-partition, so the turnover <b>count never moves</b> (Decision A). Each carries
+ * the free-text {@code outcome} string for the {@code TURNOVER} event (#020).
  *
- * <p><b>Attribution (Decision B).</b> Every cause credits the current ball-handler
- * ({@code shooter.recordTurnover()}, {@code primaryPlayerId = shooter}) exactly as
- * the pre-§3.9 binary did — the per-player turnover count and reconciliation are
- * byte-unchanged; only the label differs. {@link #STOLEN} is the sole two-sided
- * cause: the ball-loser is on the event and a stealer is credited separately (via
- * {@code pickStealer} + {@code recordSteal()}), unchanged. The three team-level
- * violations ({@link #SHOT_CLOCK_VIOLATION}, {@link #EIGHT_SECONDS_BACKCOURT_VIOLATION},
- * {@link #OVER_AND_BACK}) are team failures in reality but are charged to the
- * on-ball player anyway — reusing the ball-handler charge avoids fabricating a
- * separate "who caused the team violation" picker (the #014/#017/#020 discipline).
+ * <p><b>Attribution (Decision B):</b> every cause charges the current ball-handler.
+ * {@link #STOLEN} is the sole two-sided one — a stealer is credited separately via
+ * {@code pickStealer}. ⚠ The three team-level violations ({@link #SHOT_CLOCK_VIOLATION},
+ * {@link #EIGHT_SECONDS_BACKCOURT_VIOLATION}, {@link #OVER_AND_BACK}) are team failures
+ * in reality but are charged to the on-ball player anyway, rather than fabricating a
+ * separate "who caused the team violation" picker.
  *
- * <p><b>Naming (Decision D).</b> {@link #LOST_BALL_OUT_OF_BOUNDS} is a live-ball
- * handling turnover on the {@code TURNOVER} {@code PlayType} — deliberately
- * distinct from §3.8's {@code OUT_OF_BOUNDS_*} outcomes on the {@code REBOUND}
- * {@code PlayType} (a missed shot leaving the court, #026). They must never read as
- * the same thing. The two digit-leading causes carry the digit form in the
- * {@code outcome} string ({@code "3_SECONDS_VIOLATION"} /
- * {@code "8_SECONDS_BACKCOURT_VIOLATION"}) while the enum constant uses the letter
- * form (a constant cannot start with a digit).
- *
- * <p>{@code LOST_BALL} (the pre-§3.9 unforced catch-all) is <b>retired</b> — its
- * old ~40% share is split across the eight non-{@code STOLEN} causes, so no generic
- * unforced bucket survives (Decision B).
+ * <p>⚠ <b>{@link #LOST_BALL_OUT_OF_BOUNDS} is NOT §3.8's {@code OUT_OF_BOUNDS_*}</b> —
+ * this is a live-ball handling turnover on {@code TURNOVER}; those are a missed shot
+ * leaving the court, on {@code REBOUND} (#026). They must never read as the same thing.
+ * ⚠ The two digit-leading causes carry the digit form in the {@code outcome} string
+ * while the constant uses the letter form (a constant cannot start with a digit).
  */
 public enum TurnoverCause {
     /** Live-ball steal — the plurality of turnovers; also credits a stealer. */

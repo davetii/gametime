@@ -1,0 +1,61 @@
+@startuml possession-flow-shot-selection
+' ⚠ A DETAIL DIAGRAM. The whole possession, and the second-chance LOOP that
+' this step sits at the TOP of, are in possession-flow.puml — read that first.
+' ⚠ THIS FILE OWNS: who shoots, what kind of shot, and the putback weighting.
+' ⚠ Notes say what the flow DOES; the argument lives in possession-flow-model.md.
+' Render: plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng   (every diagram is now under
+'   the 4096px default, so the flag is insurance — but keep using it, and ⚠ keep each
+'   diagram SCREEN-SIZED: past ~2,000px it stops being readable long before it stops
+'   rendering. ⚠ `-checkonly` does not lay out and does not catch deprecated syntax
+'   that renders as a warning box — look at the PNG.)
+title ShotSelector — who shoots, and what shot\n//§3.17 the shot mix · §3.22 the putback//
+
+skinparam ActivityDiamondFontSize 11
+skinparam ActivityFontSize 12
+skinparam NoteFontSize 10
+
+start
+:read-and-clear the //putbackCandidate//
+//set by whichever path just identified a rebounder//;
+note right
+  ⚠ **READ AND CLEARED IN ONE STEP, at the top of the iteration** —
+  so a stale candidate is structurally impossible, and there is
+   **NO decay across retentions**: the second putback in a
+  possession is as likely as the first.
+   **A rebounder is identified on THREE paths only** — the
+  missed-shot board, the in-bounds block recovery, and the missed
+  last free throw. The four other retention paths pass `null`
+  and draw exactly as before.
+end note
+
+:**pick the shooter** — offensive-weight draw
+//the putback candidate's weight ×  sim.offensive-rebounder-shot-weight//;
+note right
+   **The putback is a WEIGHT, not a branch** — there is no
+  "is this a putback?" fork anywhere. Still **ONE** `nextDouble()`;
+  only the boundaries move.
+  ⚠ The RNG STREAM still moves: a different shooter takes a
+  different branch, so downstream draws differ in meaning.
+end note
+
+:**pick the shot type** — per-type SHARE table
+× avg-10 skill modifier of the shooter
+//DRIVE / PERIMETER / POST / THREE  (sim.shot-share-*)//
+//THREE × offensiveScheme lean · PERIMETER × its RECIPROCAL//;
+note right
+  One `nextDouble()`, four types.
+   **Shot TYPE is not forced to the rim on a putback** —
+  `pickShotType` bends by the shooter's own skills, so a big
+  leans interior on his own.
+  The lean split is the modern-vs-traditional axis: it moves the
+  MIX per coach, not the league's three-point volume.
+  ⚠ **A stopped shot charges NO FGA** (the foul branch returns
+  before recordFieldGoalAttempt), and the three's foul multiplier
+  is far below DRIVE's — so moving a draw to a three makes it far
+  less likely to be stopped. **This path does NOT hold FGA constant.**
+end note
+
+:→ on to TurnoverResolver
+//possession-flow.puml//;
+stop
+@enduml

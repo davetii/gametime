@@ -1,0 +1,159 @@
+@startuml possession-flow-foul
+' ⚠ A DETAIL DIAGRAM. The whole possession, and the second-chance LOOP that
+' wraps this one, are in possession-flow.puml — read that first.
+' ⚠ THIS FILE OWNS: the foul gate, the THREE labels one foul can take, the
+' free-throw trip, and the live board on a missed last FT.
+' ⚠ BRANCH ORDER HERE IS LOAD-BEARING: flagrant is rolled FIRST, non-shooting
+' SECOND, and SHOOTING_FOUL is the FALL-THROUGH. Reordering changes the model.
+' ⚠ Notes say what the flow DOES; the argument lives in possession-flow-model.md.
+' Render: plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng   (every diagram is now under
+'   the 4096px default, so the flag is insurance — but keep using it, and ⚠ keep each
+'   diagram SCREEN-SIZED: past ~2,000px it stops being readable long before it stops
+'   rendering. ⚠ `-checkonly` does not lay out and does not catch deprecated syntax
+'   that renders as a warning box — look at the PNG.)
+title FoulResolver — ONE foul, THREE labels\n//§3.12 all shot types · §3.14b flagrants · §3.16 composition · §3.21 the live FT board//
+
+skinparam ActivityDiamondFontSize 11
+skinparam ActivityFontSize 12
+skinparam NoteFontSize 10
+
+start
+note right
+   **Every** shot type can be fouled, graduated by a per-shot-type
+  multiplier: DRIVE 1.0 (the anchor) ≈ POST > PERIMETER > THREE.
+  ⚠ ``BASE_NO_BASKET_FOUL`` does not mean "the foul rate" — it
+  means the foul STOPPED the shot, which is why trimming it moves
+  points the WRONG way. A multiplier of 0.0 — not a zero base —
+  is the only true off-switch.
+end note
+
+if (**foul?**\n//foulDrawing vs (20 − foulProne)//\n//× foulMultiplier(shotType)//\n//× fatigueFactor per player//) then (yes)
+  :**defender.recordFoul()** — the foul is CHARGED here
+  //NO event is emitted yet — the two rolls below decide WHICH//
+  //foul event this becomes. Exactly ONE is ever emitted, and//
+  //the charge is what holds the foul TOTAL by construction//;
+  note right
+    The **pre-shot** foul — the shot is stopped, a 2-FT trip
+    (**3 on a THREE**), mutually exclusive with a made basket.
+    The **and-1** (foul WITH a made shot) is a separate post-make
+    roll — see possession-flow-shot.puml.
+     **The stopped shot charges NO FGA** — this branch returns
+    before recordFieldGoalAttempt().
+    ⚠ **READ THE THREE-WAY SHAPE BELOW CAREFULLY — it is ONE foul with THREE possible labels, not three fouls.** ``recordFoul()``
+    has ALREADY run above, so neither roll below moves the foul
+    RATE; they only decide the outcome STRING and the free throws.
+     **SHOOTING_FOUL is the FALL-THROUGH** — the label a foul gets
+    when both rolls miss, which is why it appears LAST even though
+    it is the most common. A flagrant REPLACES it; a non-shooting
+    foul REPLACES it. They never compose.
+  end note
+
+  if (**FLAGRANT?**\n//P = FLAGRANT_FOULS_PER_TEAM_GAME ÷ personal fouls//\n//layered ON TOP of the foul — no rate re-partitioned//) then (yes)
+    :FOUL — FLAGRANT_FOUL_1 or _2
+    //15% severity sub-roll — flat, no causal input//
+    charge committer //recordFoul()// — a PERSONAL foul
+    on _2: //recordFlagrantTwo()// → EJECTED;
+    :FREE_THROW ×**2** — *_FLAGRANT
+    the FOULED player shoots
+    **REPLACES the 2/3 FTs below — does NOT add**;
+    :→ **OFFENSE RETAINS** → second chance
+    //back to the loop in possession-flow.puml//;
+    note right
+       **THE POSSESSION-RETENTION FORK** — the first FT path in this
+      engine that does NOT end the possession. This site is
+       **always defensive**, so it always retains, under the same
+      cap as every other retention path.
+      ⚠ **This is a RETURN TO THE LOOP, not the end of the possession** — activity-diagram syntax cannot draw an edge
+      back into the enclosing ``repeat`` from inside a partition.
+    end note
+    stop
+  endif
+
+  if (**NON-SHOOTING FOUL?**\n//flat sim.non-shooting-foul-share, NO skill input//\n//a SECOND roll on the foul already charged above//) then (yes)
+    :FOUL — **NON_SHOOTING_FOUL**
+    //the foul was ALREADY charged above — this only re-labels it//
+    counts toward the bonus AND FOUL_OUT_LIMIT;
+    note right
+       **Layered, not carved** — the ``isFoul`` roll above is
+      UNCHANGED and ``recordFoul()`` has already run, so **the foul TOTAL holds by construction.**
+      ⚠ **Order matters: flagrant is rolled FIRST**, so a flagrant
+      common foul is simply a flagrant — the two never compose.
+      ⚠ **THE POSSESSION ENDS AND THE BALL DOES NOT COME BACK, AND THAT IS DELIBERATELY WRONG AS BASKETBALL.** A real common foul
+      is a side inbound: the offense keeps the ball. Every returning
+      variant would yield a live attempt where the stopped shot
+      charged none, and FGA has no headroom for it.
+    end note
+    if (committing team already in the penalty?\n//GameData.isInBonus — emit-then-count//) then (yes)
+      :FREE_THROW ×**2** — BONUS
+      //the fouled team shoots//;
+    else (no)
+      :**no free throws** — the point of the phase;
+    endif
+    :**possession over**;
+    stop
+  endif
+
+  :FOUL — **SHOOTING_FOUL**
+  //THE FALL-THROUGH: both rolls above missed//
+  primaryPlayerId = the DEFENDER who committed it
+  **opponentPlayerId = the FOULED SHOOTER**;
+  note right
+    ⚠ **The counterparty's ORIENTATION FLIPS here** relative to the
+    steal and the block. There, primary is the victim and the
+    opponent is the defender who acted; here primary is the
+    COMMITTER, so the opponent is on OFFENSE. The rule that
+    survives every site: **opponent is ALWAYS the opposite team from primary.** A teammate never goes here.
+    ⚠ On EVERY FOUL event primaryPlayerId is the COMMITTER — the
+    inverse of SHOT/TURNOVER, where primary is the victim.
+    Test-enforced.
+  end note
+
+  repeat
+    if (free throw made?\n//freeThrows skill//) then (yes)
+      :FREE_THROW — MADE_SHOOTING
+      +1 point;
+    else (no)
+      :FREE_THROW — MISSED_SHOOTING;
+    endif
+  repeat while (**more attempts in the trip?**\n//3 for a fouled THREE, else 2//) is (yes) not (no)
+  note right
+    ⚠ **The COUNT is a RULE on ShotType, not a tunable.**
+    A stopped THREE = **3** FTs.
+    ⚠ **If this foul had turned FLAGRANT the count is a flat 2** —
+    so a flagrant stopped THREE awards FEWER FTs than the ordinary
+    foul it upgraded. Correct by rule, counter-intuitive, and
+     **NOT to be "fixed" into 3 + 2.**
+  end note
+
+  if (**last FT of the trip, AND missed?**\n//the last attempt is LIVE by rule//) then (yes)
+    :resolve the board through **MissedShotResolver**
+    //reused WHOLE — see possession-flow-rebound.puml//;
+    note right
+      ⚠ **ONLY THE LAST ATTEMPT IS LIVE.** A missed FIRST FT is a
+      dead ball; non-last misses are LARGER in number than live
+      ones, so the terminal test is the whole correctness here.
+      ⚠ **TWO SOURCES ARE EXCLUDED BY RULE** — FLAGRANT (the offense
+      already RETAINS) and TECHNICAL (play resumes with the ball as
+      it was). **They are absent from this fork rather than drawn as a "no" leg**, because their possession consequence is fixed by
+      rule, independent of the FT outcome.
+      ⚠ **The contest is the ORDINARY board contest at a REDUCED base** (``× FREE_THROW_REBOUND_LEAN``): the defense has inside
+      position **by rule**, so the realized offensive share is
+      ~**0.19**, not the board's 0.262. That lean is a
+      ``public static final`` **RULE constant, NOT a tunable.**
+      ⚠ **An OFFENSIVE board here RETURNS THE BALL** → the same
+      retention the offensive rebound uses, under the SAME cap.
+    end note
+    :→ offense may **RETAIN**
+    //back to the loop in possession-flow.puml//;
+    stop
+  else (no — dead ball, or an excluded source)
+    :**possession over**;
+    stop
+  endif
+
+else (no)
+  :→ on to ShotResolver
+  //possession-flow.puml//;
+  stop
+endif
+@enduml

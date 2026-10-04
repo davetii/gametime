@@ -6,40 +6,24 @@ import java.util.List;
 import java.util.random.RandomGenerator;
 
 /**
- * §3.8 (decisions.md #026): resolves "a shot missed, now what?" as a single
- * four-way outcome — offensive rebound / defensive rebound / OOB-offense /
- * OOB-defense (Decision A). Owns the full missed-shot decision and forks the
- * possession; {@link PossessionEngine}'s old {@code // 4. Rebound} block shrinks
- * to one call here.
+ * §3.8 (decisions.md #026): resolves "a shot missed, now what?" as a single four-way
+ * outcome — offensive rebound / defensive rebound / OOB-offense / OOB-defense
+ * (Decision A). <b>Wraps, does not replace, {@link ReboundResolver}</b> (Decision B):
+ * the skill-weighted board contest stays there; this applies the OOB carve on top.
  *
- * <p><b>Wraps, does not replace, {@link ReboundResolver}</b> (Decision B): the
- * skill-weighted two-way board contest + rebounder selection stays in
- * {@code ReboundResolver} (unchanged, still crediting a rebounder on its two
- * outcomes); this resolver applies the OOB lean on top.
+ * <p><b>⚠ CARVE ORDER IS THE CRUX (Decision A).</b> OOB is split off FIRST, by flat
+ * skill-INDEPENDENT defense-leaning weights, and the skill contest runs ONLY on the
+ * clean-rebound remainder. Deliberately NOT "run the board contest, then flip some
+ * results to OOB" — that would make OOB inherit the board winner, so a dominant
+ * offensive rebounder would skew the OOB split too (#026 A rejects it).
  *
- * <p><b>Carve order (Decision A — the crux):</b> split off OOB vs. clean-rebound
- * <i>FIRST</i>, by the flat, skill-INDEPENDENT, defense-leaning {@code SimConfig}
- * OOB weights; run {@code ReboundResolver}'s skill contest <i>only</i> on the
- * clean-rebound remainder. This is deliberately NOT "run the board contest, then
- * flip some results to OOB on the same skill-decided side" — that would make OOB
- * inherit the board winner (a dominant offensive rebounder's OOBs skewing
- * offense), which #026 A rejects. Net: the rebound-vs-rebound balance is
- * skill-weighted (the deliberate difference from the flat {@link BlockResolver},
- * Decision C), while the OOB slices are flat + defense-leaning.
+ * <p><b>OOB credits no rebounder</b> (Decision E): {@link Result#rebounder()} is null on
+ * the OOB outcomes, keeping them out of the rebound reconciliation invariant.
  *
- * <p><b>OOB credits no rebounder</b> (Decision E): {@link Result#rebounder()} is
- * populated only on the two rebound outcomes; on OOB it is {@code null} and the
- * engine records no rebound, so OOB events stay out of the rebound reconciliation
- * invariant.
- *
- * <p><b>Cap (one of three retention paths):</b> {@code capReached} is passed in so
- * the resolver never returns an offense-retained outcome when the second-chance
- * cap is hit — a would-be {@code OFFENSIVE_REBOUND} is forced to
- * {@code DEFENSIVE_REBOUND} and a would-be {@code OOB_OFFENSE} to
- * {@code OOB_DEFENSE} (the outcome <i>family</i> is preserved — an OOB stays an
- * OOB event, a rebound stays a rebound event). The loop itself still owns
- * {@code continue} vs. {@code return}; this just centralizes the "force an ending
- * outcome when capped" logic that was duplicated at the block fork + rebound branch.
+ * <p><b>Cap:</b> {@code capReached} forces an ending outcome — {@code OFFENSIVE_REBOUND}
+ * becomes {@code DEFENSIVE_REBOUND}, {@code OOB_OFFENSE} becomes {@code OOB_DEFENSE}.
+ * ⚠ The outcome <i>family</i> is preserved: an OOB stays an OOB event, a rebound stays a
+ * rebound event. The loop still owns {@code continue} vs. {@code return}.
  */
 @Component
 public class MissedShotResolver {
@@ -80,16 +64,14 @@ public class MissedShotResolver {
      * the base is {@code baseOffensiveRebound() × }{@link
      * SimConfig#FREE_THROW_REBOUND_LEAN}.
      *
-     * <p><b>This resolver is reused WHOLE and deliberately so</b> (#043 C, #026 B's
-     * discipline one level up): the OOB carve, the cap forcing and the rebounder
-     * selection all come for free, and the free-throw board needs no machinery of its
-     * own. ⚠ <b>The OOB slices come along, and that is right</b> — ~7% of free-throw
-     * rebounds resolve {@code OUT_OF_BOUNDS_*} rather than to a rebounder. A missed free
-     * throw that goes out of bounds is a real outcome, not a defect of the reuse.
+     * <p><b>Reused WHOLE and deliberately so</b> (#043 C): the OOB carve, cap forcing and
+     * rebounder selection all come for free. ⚠ <b>The OOB slices come along, and that is
+     * right</b> — ~7% of free-throw rebounds resolve {@code OUT_OF_BOUNDS_*}; a missed FT
+     * going out of bounds is a real outcome, not a defect of the reuse.
      *
-     * <p>⚠ <b>Only the rebound CONTEST reads the supplied base.</b> The OOB carve above
-     * it is flat and skill-independent (Decision A) and is unchanged here — a free throw
-     * does not sail out of bounds more or less often because of where the players stand.
+     * <p>⚠ <b>Only the rebound CONTEST reads the supplied base.</b> The OOB carve stays
+     * flat and skill-independent — a free throw does not sail out of bounds more or less
+     * often because of where the players stand.
      */
     public Result resolve(List<PlayerGameState> offense, List<PlayerGameState> defense,
                           boolean capReached, double offensiveReboundBase,

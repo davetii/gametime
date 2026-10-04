@@ -2,51 +2,100 @@
 
 Tactical task list for the **current phase only**. Check items off or remove
 them as completed. For the big-picture phased roadmap and what's already
-shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores live in
-[backlog.md](backlog.md); deferred *gameplay* scope lives in roadmap.md's
-**Possession-fidelity completion** section.
+shipped, see [roadmap.md](roadmap.md). Homeless infra/tooling chores and parked
+ideas live in beads (`bd list`); deferred *gameplay* scope lives in roadmap.md's
+phase bullets.
 
-Current focus: **NONE — Phase 3 is complete.** ✅ **§3.22 (the putback) shipped as
-[decisions.md](decisions.md) #044**, and it was the **last engine sub-phase**. §3.7–§3.22
-have all shipped.
+Current focus: **the Phase 3 → Phase 4 pre-work GATE.** Phase 3 is complete
+(§3.22 shipped as [decisions.md](decisions.md) #044, the last engine sub-phase).
 
-> ⚠ **THERE IS NO CURRENT PHASE, AND THIS FILE IS DELIBERATELY EMPTY OF ONE.**
-> What comes next is **not** a sub-phase: it is the **[roadmap.md](roadmap.md) *Phase 3 →
-> Phase 4 pre-work* gate** — eight ordered items (todo.md rewrite, condense
-> `decisions.md` + the Java-comment sweep as ONE pass, split `possession-flow.puml`,
-> `game.md` dedup, backlog triage, adopt Beads, re-read the calibration verdicts).
-> **That section is the authority on sequence and constraints** — it is a GATE, not
-> Phase 4's first task, and Phase 4's design pass does not start until it is done.
->
-> **This file is rewritten when a phase starts.** Phase 4's design pass owns the next
-> rewrite; until then the routing table and standing facts below are the only live
-> content here.
+> ⚠ **This is a GATE, not Phase 4's first task** — Phase 4's design pass does not
+> start until all eight are done. [roadmap.md](roadmap.md) lists the items and their
+> order; **this file holds the how and the traps**, and is rewritten when Phase 4's
+> design pass starts.
 
 ---
 
-## §3.22 — the putback (✅ SHIPPED, #044)
+## The gate — eight ordered items
 
-Landed 2026-09 with **no divergence** from the design. `pickShooter` takes the offensive
-rebounder as a **parameter** and doubles his `offensiveWeight` for that one draw; a
-putback make is assisted at **half** the ordinary chance. Two constants — `sim.offensive-
-rebounder-shot-weight = 2.0` (tunable) and `OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5`
-(static) — taking the count to **63 / 29**; `sim.base-no-basket-foul` 0.1753 → **0.178**
-re-landed FGA at **89.40**.
+**Order is dependency-driven, not size-driven.** Steps 2+3 are one pass; 5 depends
+on 4; 8 is a snapshot check and must be last.
 
-⚠ **Two results worth carrying forward, both recorded in #044's implementation note:**
-- **The design run reproduced to the DECIMAL** (Points 115.700, FG% 47.020, FGA 89.600,
-  Assists 27.000, Fouls 19.220). When a design pass has already run a mechanic in a
-  temporary tree, an **exact** match is the verification — a near-match means a
-  divergence to find, not a row to tune.
-- **All 167 seeded sim tests passed UNCHANGED** though the RNG stream moved — the first
-  phase to collect on the instrumentation pass's batch-invariant rewrite.
+- [x] **1. Rewrite `todo.md`.** ✅ Done 2026-09: §3.22's finished execution plan (33
+      completed checkboxes) removed, and this gate is now the active work here.
+- [x] **2. Condense `decisions.md`** ✅ *(2026-09)* — **the premise changed during the work
+      and the outcome is a SPLIT, not a condense.** Measured: *Alternatives* + *Trade-off* were
+      only ~15% of the file, so halving them recovered ~7% — the plan below targeted the wrong
+      sections. The real division is by **audience**: the operative findings (traps, wrong-way
+      levers, saturations, elasticities, final constants) are ~18k and are what anyone actually
+      reads; the rest was design-pass narrative for a phase that is now closed.
+      **What shipped**: findings extracted to **[engine-traps.md](engine-traps.md)**;
+      every `#NNN` cut to its title, date and decision letters. **599k → 38k + 20k.**
+      ⚠ This is **not** the 2026-07 split that was reverted — no entry moved file, no number
+      changed. ⚠ **Never renumber**: ~1,900 citations resolve by number **and letter** (157
+      distinct entry+letter pairs; `#025 F` alone is cited 15×).
+- [x] **3. Sweep the `sim` package's Java comments.** ✅ *(2026-09)* — comment-only across 12 files;
+      the `base-no-basket-foul` sign warning in `SimConfig` and the properties file was corrected.
+- [x] **4. `possession-flow.puml`** ✅ *(2026-09)* — **an OVERVIEW + six detail
+      diagrams.** Done in two moves, and the first one was not enough:
+      **(a) the prose.** The file was 74% notes + legend and only ~25% flow. The rule
+      adopted, and it is the user's: *the diagram tells the story of the logic; it does
+      not carry boxes of verbiage explaining decisions.* The 279-line legend (a third of
+      the height, no part of it flow) moved whole to **possession-flow-model.md**.
+      13,800px → 7,365px, flow byte-identical (skeleton diffed, all counts equal).
+      **(b) the split — because (a) missed the point.** ⚠ **The ceiling that mattered was
+      never PlantUML's 16,384px; it was the SCREEN.** 7,365px is ~15 letter pages: no zoom
+      shows a branch and its context together. Even the bare flow with every note deleted
+      measured **5,802px**, so the structural floor alone busts a human budget — *the
+      split was always necessary and the prose argument obscured it.*
+      **The shape**: two readers, not one. **Learn it** → the overview
+      (`possession-flow.puml`, 793×1778): every resolver as one box, and **the
+      second-chance loop drawn as a loop** — an artifact that did not exist at any size
+      before. **Modify one branch** → that resolver's own diagram, which owns its forks.
+      **Measured**: overview 1778px · rotation 957 · shot-selection 549 · turnover 753 ·
+      foul 2102 · shot 895 · rebound 1212. All render with
+      `-DPLANTUML_LIMIT_SIZE=16384 -tpng`; all pass `-checkonly`; all inspected as PNGs.
+      ⚠ **OWNERSHIP, and this is the thing a future sub-phase needs**: a fork *inside* a
+      resolver → that resolver's file. A new resolver, or **a new way the offense
+      RETAINS** → the overview **too** (its loop condition is the retention question).
+      Drawing one branch in both files is a drift bug; adding a retention path the
+      overview doesn't mention is the same bug inverted.
+      ⚠ **`!include` was verified and REJECTED** — an included fragment renders to the
+      byte-identical height as inlining it, so it solves source duplication, not the
+      ceiling. These are **standalone diagrams**. (`!startsub`/`!includesub` does yield an
+      independently `-checkonly`-able fragment if one is ever needed; a bare fragment
+      fails `-checkonly` with "No diagram found".)
+      ⚠ **`-checkonly` is weaker than it looks** — it does not lay out, AND it passes
+      deprecated syntax that renders as a **warning box inside the PNG** (hit during this
+      pass with `#color:`). Look at the image.
+      ⚠ **Fixed in passing**: the header claimed "~9,600px as of §3.14b" (it was 13,800);
+      the title omitted §3.22; the loop note's headline said **five** re-entry paths while
+      its own parenthetical admitted §3.21 made it **six** — now six everywhere, with
+      "a SEVENTH is the signal to restructure". Also: the old file had **ten** partitions
+      and **two** `repeat` loops, not the six and one the gate assumed — four were nested.
+- [x] **5. `game.md` dedup against the diagrams** ✅ *(2026-09)*, then rewritten as a rules doc in the 2026-10 docs-reduction pass.
+- [x] **6. Triage `backlog.md`.** ✅ *(2026-10, docs-reduction pass)* — gate items moved out; the `PROB_FLOOR` / `base-block-three` finding lives in `calibration.md`'s Blocks row and `engine-traps.md`.
+- [x] **7. Adopt Beads, and cut over for Phase 4 work.** ✅ *(2026-10)* — `bd init`
+      (maintainer, embedded Dolt, JSONL auto-export on); `backlog.md`'s 12 chores became
+      open `chore` beads and `ideas.md`'s 10 entries became `deferred` `feature` beads labelled
+      `idea`; both docs deleted. Was: migrate the ~9 clean chores left after step 6. **Migrate the POINTER, not the
+      prose** — several entries carry 6–7k of argument, and moving that into an issue body
+      relocates the bloat somewhere less readable.
+      ⚠ **`decisions.md`, `calibration.md`, `game-events.md` and the `possession-flow*` diagrams do
+      NOT migrate** — append-only reference cited by number; they are not work items.
+- [x] **8. Re-read every `calibration.md` verdict.** ✅ *(2026-10, docs-reduction pass)* — `calibration.md` rewritten as a reference; its Current column is the §3.22 landing and was not re-measured.
 
-**The full landing, the realized putback shares, and the open residuals live in
-[decisions.md](decisions.md) #044 and [calibration.md](calibration.md).** Do not restate
-them here.
+**⚠ The roadmap ↔ Beads boundary** (decided 2026-09 so step 7 does not re-litigate
+it). Beads holds **actionable work with state**; roadmap.md holds the phase
+structure and the seams. **Phases 5–8's open bullets do NOT migrate** — a seam
+turned into a ticket lies about its readiness. **The gate itself stays in
+Markdown**: it is a sequenced dependency chain, which reads better as an ordered
+list than as eight issues with dependency edges, and Beads starts clean with Phase
+4 work. ⚠ **When work becomes a bead, the BEAD is the only record and the doc entry
+is DELETED** — a pointer to a bead id is fine, a duplicated description is not
+(the convention the old backlog.md used). **Two records of the same work WILL drift.**
 
 ---
-
 ## Where deferred work lives (not here)
 
 todo.md is **current-phase-only**. Work that outlives the current phase has moved out
@@ -88,7 +137,7 @@ not add "done" entries (those are the `#NNN` entry's job).
 - **Infra/tooling/data-hygiene chores**, and **the `decisions.md` condense pass** (a
   **gate on starting Phase 4**) → [roadmap.md](roadmap.md)'s *Phase 3 → Phase 4 pre-work*
 - **Untriaged ideas**, incl. the parked cap 3→5 tuning idea and strategic substitution →
-  [ideas.md](ideas.md)
+  beads, status `deferred`, label `idea` (`bd list --status deferred`)
 
 **Standing facts (true every phase, not deferrals):**
 

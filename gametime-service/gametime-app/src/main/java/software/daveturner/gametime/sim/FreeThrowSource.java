@@ -4,23 +4,21 @@ package software.daveturner.gametime.sim;
  * §3.11 (decisions.md #029 D): what sent a shooter to the line. Every {@code
  * FREE_THROW} event carries its source, so a free throw is <b>self-describing</b>.
  *
- * <p>This retires the ambiguity §3.10 knowingly accepted (#028 D: "a bonus FT is
- * indistinguishable from a shooting-foul FT except by its preceding {@code FOUL}").
- * That backward-join was tolerable at two sources; §3.11 adds a third (the and-1),
- * and a Phase-4 stats consumer wanting FT% by source should not have to replay the
- * event sequence to get it (#020 — derive nothing at read time).
+ * <p><b>No schema change</b>: the source is folded into the free-text {@code outcome}
+ * string (#020) as a {@code MADE_*} / {@code MISSED_*} suffix, so made-vs-missed stays
+ * readable by the {@code startsWith("MADE")} tests the box score and the harness already
+ * use. It cannot collide with the {@code FOUL} outcomes — those live on a different
+ * {@code PlayType}.
  *
- * <p><b>No schema change</b>: the source is folded into the existing free-text
- * {@code outcome} string (#020) as a {@code MADE_*} / {@code MISSED_*} suffix, so
- * made-vs-missed stays readable by the {@code startsWith("MADE")} tests the box
- * score and the harness already use. The strings cannot collide with the {@code
- * FOUL} outcomes ({@code SHOOTING_FOUL} / {@code REBOUNDING_FOUL_*} / {@code
- * AND_ONE}) — those live on a different {@code PlayType}.
+ * <p><b>⚠ Source and count are INDEPENDENT.</b> The count is a separate per-situation
+ * parameter (an and-1 is always 1, #029 B; a shooting foul and a bonus trip are {@link
+ * SimConfig#FREE_THROWS_PER_FOUL}), which is what lets §3.12 pass 3 for a fouled three
+ * without touching this enum.
  *
- * <p>The count of free throws is a separate, per-situation parameter (an and-1 is
- * always exactly 1, #029 B; a shooting foul and a bonus trip are {@link
- * SimConfig#FREE_THROWS_PER_FOUL}) — source and count are independent, which is
- * what lets §3.12 pass 3 for a fouled three without touching this enum.
+ * <p><b>⚠ The harness reads FT source straight off this suffix</b> (#029 D), so a new
+ * award site needs its OWN value: reusing one silently inflates a real source's share on
+ * the instrument that phase is judged by, and an untagged outcome buckets as {@code
+ * UNKNOWN}. This is why {@code TECHNICAL} and {@code FLAGRANT} exist.
  */
 public enum FreeThrowSource {
 
@@ -31,38 +29,19 @@ public enum FreeThrowSource {
     /** The bonus free throw riding a made basket (§3.11 — always exactly one). */
     AND_ONE("AND_ONE"),
     /**
-     * §3.14a (decisions.md #032 G): the single free throw awarded for a TECHNICAL
-     * foul — the one source where <b>nobody was fouled</b>, so the offended team
-     * chooses its best shooter rather than the fouled player shooting.
-     *
-     * <p>#032's Status block said "no new {@code FreeThrowSource}", leaving the
-     * choice open at execution between reusing a value and letting the outcome
-     * string carry it. <b>A new value was added, and the reason is the harness.</b>
-     * The FT-source line reads the source straight off this suffix (#029 D), so
-     * reusing {@code SHOOTING} or {@code BONUS} would silently inflate a real
-     * source's share on the very instrument §3.14a is judged by, and emitting an
-     * untagged outcome would bucket every technical FT as {@code UNKNOWN} — the
-     * self-check #029 D built this enum to provide. The constraint the Status block
-     * was protecting (no schema change, no migration) is untouched: the source is
-     * free text folded into {@code outcome} since #020, and this enum is internal to
-     * the {@code sim} package.
+     * §3.14a (decisions.md #032 G): the single free throw for a TECHNICAL foul — ⚠ the
+     * one source where <b>nobody was fouled</b>, so the offended team chooses its best
+     * shooter rather than the fouled player shooting.
      */
     TECHNICAL("TECHNICAL"),
     /**
-     * §3.14b (decisions.md #034): the <b>two</b> free throws awarded for a FLAGRANT
-     * foul — flat, at all three foul sites, <b>replacing</b> whatever the underlying
-     * foul would have awarded rather than adding to it (#034 C).
+     * §3.14b (decisions.md #034): the <b>two</b> free throws for a FLAGRANT foul — flat,
+     * at all three foul sites, <b>replacing</b> whatever the underlying foul would have
+     * awarded rather than adding to it (#034 C).
      *
-     * <p><b>A new value rather than a reuse, on §3.14a's argument restated.</b> The
-     * harness reads FT source straight off this suffix (#029 D), so folding flagrant
-     * FTs into {@code SHOOTING} would silently inflate a real source's share <b>on the
-     * very line §3.14b is judged by</b>. It would also be factually wrong at the
-     * rebounding site, which is not a shooting foul at all.
-     *
-     * <p><b>The grade rides the FOUL event's outcome suffix</b> ({@code
-     * FLAGRANT_FOUL_1} / {@code _2}), not this enum — a flagrant-1 and a flagrant-2
-     * both award exactly two free throws (#034 E), so splitting the source by grade
-     * would carry a distinction the free throws themselves do not have.
+     * <p><b>⚠ The grade rides the FOUL event's outcome suffix</b> ({@code FLAGRANT_FOUL_1}
+     * / {@code _2}), not this enum: both grades award exactly two free throws (#034 E), so
+     * splitting the source by grade would carry a distinction the free throws do not have.
      */
     FLAGRANT("FLAGRANT");
 

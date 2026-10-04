@@ -1,0 +1,79 @@
+@startuml possession-flow-turnover
+' ⚠ A DETAIL DIAGRAM. The whole possession, and the second-chance LOOP that
+' wraps this one, are in possession-flow.puml — read that first.
+' ⚠ THIS FILE OWNS: the turnover gate, the nine causes, and the charge's
+' second event. Every path here ENDS the possession.
+' ⚠ Notes say what the flow DOES; the argument lives in possession-flow-model.md.
+' Render: plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng   (every diagram is now under
+'   the 4096px default, so the flag is insurance — but keep using it, and ⚠ keep each
+'   diagram SCREEN-SIZED: past ~2,000px it stops being readable long before it stops
+'   rendering. ⚠ `-checkonly` does not lay out and does not catch deprecated syntax
+'   that renders as a warning box — look at the PNG.)
+title TurnoverResolver — the nine causes\n//§3.9 causes · §3.16 the charge//
+
+skinparam ActivityDiamondFontSize 11
+skinparam ActivityFontSize 12
+skinparam NoteFontSize 10
+
+start
+if (**turnover?**\n//ballSecurity vs stealing/individualDefense//\n//× defensiveScheme pressure//\n//× fatigueFactor per player//) then (yes)
+  note right
+    The gate decides IF; a weighted nine-way draw then picks WHICH
+    cause — re-partitioning the label without moving the count.
+    Leans: SHOT_CLOCK_VIOLATION on //acumen//↓ × //defensiveScheme//↑;
+    OFFENSIVE_FOUL / BAD_PASS on //teamOffense//↓. STOLEN stays
+    dominant. Every cause charges the ball-handler.
+  end note
+  if (cause == STOLEN?\n//weighted nine-way draw//) then (yes)
+    :TURNOVER — STOLEN
+    primaryPlayerId = the ball-handler (the victim)
+    **opponentPlayerId = the STEALER**
+    stealer.recordSteal() — the box-score credit;
+    note right
+      The stealer lands ON THE EVENT — ONE row, not two: there is no
+      PlayType.STEAL. ⚠ **The rule that decides that**, and governs
+      any future participant: **second PARTICIPANT → a column; second ACCOUNTING → an event; neither → nothing.** A steal has
+      a participant, so it takes the column; the charge below has an
+      accounting consequence a column cannot carry (isInBonus counts
+      FOUL EVENTS), so it keeps its two events.
+      ⚠ **NO NEW DRAW** — pickStealer runs at the same point in the
+      stream; only the declaration was hoisted so the value reaches
+      addEvent.
+    end note
+  else (no)
+    :TURNOVER — one of
+    SHOT_CLOCK_VIOLATION / OFFENSIVE_FOUL / BAD_PASS /
+    TRAVELLING / LOST_BALL_OUT_OF_BOUNDS / 3_SECONDS_VIOLATION /
+    8_SECONDS_BACKCOURT_VIOLATION / OVER_AND_BACK
+    //no stealer credited//;
+    note right
+      ⚠ **opponentPlayerId is NULL on all eight — a DECISION, not an omission.** Seven have no counterparty at all. A charge
+      does have one (the defender who drew it) but the engine
+      never picks one; doing so needs a new draw and would shift
+      the stream.
+    end note
+    if (**cause == OFFENSIVE_FOUL?**\n//the charge / illegal screen — a PERSONAL FOUL by rule//) then (yes)
+      :FOUL — OFFENSIVE_FOUL
+      charge the BALL-HANDLER //recordFoul()//
+      committingTeamId = **OFFENSE** — so the DEFENSE gains the bonus;
+      note right
+        ⚠ **TWO EVENTS FOR ONE OCCURRENCE** — the TURNOVER above and
+        this FOUL both describe the same charge. Any reconciliation
+        that counts events must tolerate it.
+         **One of only two sites where the committer is on OFFENSE**
+        (the other is the rebounding foul), so it is the only other
+        path that puts the DEFENSIVE team in the bonus.
+         **NOT flagrant-eligible** — the flagrant roll lives in
+        FoulResolver and this path never reaches it. It is a personal
+        foul: counts toward the bonus and FOUL_OUT_LIMIT.
+      end note
+    endif
+  endif
+  :**possession over**;
+  stop
+else (no)
+  :→ on to FoulResolver
+  //possession-flow.puml//;
+  stop
+endif
+@enduml

@@ -22,131 +22,46 @@ import java.util.Properties;
  * All simulation constants in one place (decisions.md #021) so they can be tuned
  * without touching the resolvers.
  *
- * <p><b>§3.4 calibration (decisions.md #022, Decision D).</b> The shot/turnover
- * base rates were tuned empirically via {@code CalibrationHarness} (102 games over
- * the H2-seeded league) toward the agreed modern-NBA benchmarks. The landing spot:
- * <pre>
- *   Points/team 111.7 (~112) | FG% 47.1% (~47) | 3P% 34.9% (~36)
- *   Assists/team 27.0 (~26)  | Turnovers/team 15.3 (~14)
- * </pre>
- * Turnovers settle around 15 rather than 14: each possession can run several
- * turnover checks (second-chance possessions after offensive rebounds re-roll the
- * full flow), so the per-check {@code sim.base-turnover} hits diminishing returns
- * below ~0.04 — pushing it lower distorts the steal distribution for &lt;1 TO of
- * gain. 15.3 is within ~10% of target, accepted. Re-run the harness after any
- * change here to re-observe the aggregates (it is disabled in the normal build).
- *
- * <p><b>§3.5 calibration (decisions.md #023, Decision E).</b> With fatigue +
- * substitution on, the §3.4 aggregates still hold (harness, 102 games):
- * <pre>
- *   Points/team 112.4 | FG% 47.2% | 3P% 35.4% | Assists 27.6 | Turnovers 13.4
- * </pre>
- * and the minutes distribution lands on the user-agreed §3.5 targets — top starter
- * ~37, no one over ~42, benches scaling down (34/32/29/27/24/22/20/16). Note: the
- * period-by-period FG% stays roughly flat rather than sagging late — this is the
- * correct emergent behavior, not a miss: substitution pulls tired legs and cycles
- * fresh ones in, so the on-floor FG% holds even as {@code sim.fatigue-max-penalty}
- * bites harder. Fatigue shows up as <i>who is on the floor</i> (the minutes curve),
- * and it degrades players who <i>stay</i> on tired (thin benches, foul trouble,
- * exhausted deep-bench late games).
- *
- * <p><b>§3.7 calibration (decisions.md #025).</b> Blocks convert some would-be
- * makes into blocks, so scoring dropped and one recalibration pass followed. The
- * shot {@code BASE_*} rates were nudged up to refill the removed points and the
- * {@code BASE_BLOCK_*} rates + {@link #BLOCK_SENSITIVITY} tuned toward ~5 blocks/
- * team. The landing spot (harness, 102 games):
- * <pre>
- *   Points/team 112.9 | FG% 47.2% | 3P% 36.0% | Assists 27.1 | Turnovers 13.5
- *   Blocks/team 4.8 (~5)
- * </pre>
- * The §3.4/§3.5 aggregates and the §3.5 minutes distribution still hold. Note the
- * block contest needed its OWN sensitivity ({@link #BLOCK_SENSITIVITY}, far below
- * the global {@link #SENSITIVITY}): blocks are rare enough that the global 0.5
- * makes a good rim protector block ~23% of shots, so skilled defenders alone drove
- * blocks 2–3× over target regardless of the thin base — see the constant's note.
- *
- * <p><b>§3.10 calibration (decisions.md #028, Decision E).</b> Rebounding fouls add
- * bonus free throws AND extra retained possessions, so — unlike §3.8/§3.9 — §3.10
- * was NOT free: +2.7 pts before tuning, of which only ~1.1 was the bonus FTs. Two
- * findings worth keeping:
+ * <p><b>Where the numbers and their history live.</b> This header used to carry a
+ * per-phase calibration changelog (§3.4 → §3.11, each with its landing box). It was
+ * removed as stale narrative: those boxes reported a ~112-point target and landings
+ * of 111.7 → 115.9, all superseded. The current record is elsewhere and is kept
+ * current:
  * <ul>
- *   <li>{@link #baseNoBasketFoul()} (then named {@code BASE_FOUL}) is a
- *       <b>counter-intuitive lever that moves points the
- *       WRONG way</b> — trimming it 0.15→0.138 <i>raised</i> scoring, because a
- *       shooting foul ENDS a possession for ~1.5 expected FT points, which is worth
- *       less than the live shot attempt it replaces at this FG%. Do not reach for it
- *       to remove points.</li>
- *   <li>The recalibration used the <b>§3.7 lever in reverse</b> — the shot
- *       {@code BASE_*} rates trimmed ~1.2% (the same knob §3.7 nudged UP to refill
- *       points blocks removed).</li>
+ *   <li><b>docs/calibration.md</b> — the targets, and the SOURCE OF TRUTH for them.
+ *       Read it before changing any constant here or calling a landing "on target".</li>
+ *   <li><b>docs/engine-traps.md</b> — the traps, wrong-way levers, saturated knobs and
+ *       measured elasticities. The facts no source file holds.</li>
+ *   <li><b>docs/decisions.md #NNN</b> — the index of decisions each constant's note cites
+ *       (the crux call per letter, not the full argument).</li>
  * </ul>
- * The landing spot, agreed with the user at 113.8 rather than chasing 112.9 exactly
- * (trimming further pulls FG% below its calibrated target — a bad trade):
- * <pre>
- *   Points/team 113.8 | FG% 46.9% | 3P% 37.6% | Assists 27.7 | Turnovers 14.2
- *   Blocks/team 5.0   | OOB 2.8
- *   Fouls 3.95/team/period | 37.1% of team-periods in the penalty
- *   Rebounding fouls 1.75 def + 0.48 off | Bonus FTA 0.8/team/game
- * </pre>
- * Turnovers 13.5→14.2 is an emergent §3.5 effect, not drift: more glass scrambles ⇒
- * more possessions played ⇒ more fatigue ⇒ worse {@code ballSecurity} in
- * {@code isTurnover}'s fatigue-scaled contest (and 14.2 is closer to the ~14 target).
- *
- * <p><b>§3.11 calibration (decisions.md #029, Decision E).</b> And-1s add free throws
- * on top of shots that already scored, with <b>no offsetting removal</b> — a
- * pure-additive lift, and the harness confirmed the prediction exactly: of the +2.4
- * pts the untuned placeholder added, <b>essentially all of it was the FT channel</b>
- * (the mirror image of §3.10, where retained possessions dominated — an and-1 never
- * forks a possession, so there is no retention channel). The recalibration was
- * therefore a <b>lever choice</b>, and the finding worth keeping is this:
- * <ul>
- *   <li>The placeholder {@code AND_ONE_BASE = 0.11} was wrong on <b>realism</b>
- *       independent of points (11.4% of made contact FG vs. a real ~4–6%), so
- *       trimming it to <b>0.055</b> fixed the rate AND removed ~0.9 of the lift —
- *       a lever §3.10 did not have.</li>
- *   <li>The shot {@code BASE_*} lever costs <b>~0.6% FG% per 1.0 point</b> removed
- *       here — a worse exchange rate than §3.10's, precisely BECAUSE this lift is
- *       free throws, which cost no FG%. Spending calibrated FG% to hide it (only for
- *       §3.12 to re-tune the same number) was rejected: <b>no {@code BASE_*} trim was
- *       taken</b> (user call), leaving points knowingly high for §3.12 to re-center
- *       once. {@link #baseNoBasketFoul()} was again NOT touched (see §3.10
- *       above).</li>
- * </ul>
- * The landing (harness, ~102 games × <b>5 seeds, tuned to the mean</b> — a single run
- * carries enough per-seed noise to bait an over-correction):
- * <pre>
- *   Points/team 115.9 | FG% 46.8% | 3P% 37.6% | Assists 27.5 | Turnovers 13.9
- *   Blocks/team 4.9   | OOB 2.8
- *   And-1s 1.67/team/game (6.4% of made contact FG)
- *   FT sources: SHOOTING 90.6% | AND_ONE 5.8% | BONUS 3.6%
- *   Fouls 4.41/team/period | 43.4% of team-periods in the penalty
- * </pre>
- * FG% and 3P% sit ON their §3.4 targets — that is what the no-trim call bought.
- * <b>Points are deliberately ~3.9 above the ~112 target; that is deferred debt for
- * §3.12, not drift.</b>
+ * Per-constant notes below carry what is operative for that field; they are the
+ * warnings that must stay next to the thing they protect.
  */
 @ConfigurationProperties(prefix = "sim")
 @Validated
 public class SimConfig {
 
-    // Two kinds of constant live here, and the declaration form tells them apart:
-    //
-    //   public static final       a RULE of basketball or the SHAPE of the model.
-    //                             Not a knob. 29 of them.
-    //   private final + accessor  a tunable knob, bound by Spring from
-    //                             application-baseline.properties. 63 of them.
-    //
-    // The instance fields take NO INITIALIZERS: the values exist only in the
-    // properties file, and a missing key fails the context at startup. Adding a
-    // default back here would create a second source of truth (javac rejects it
-    // outright, since the fields are final and constructor-assigned).
-    //
-    // Never add a public static final alias for a tunable constant: javac inlines
-    // constant variables into each caller at that caller's compile time, so an
-    // alias becomes a stale second value with no link to the real one.
-    //
-    // SCALE_AVG and MAX_ENERGY are scale DEFINITIONS, not knobs - each is the
-    // denominator that gives its family meaning.
+    /*
+    Two kinds of constant live here, and the declaration form tells them apart:
+
+      public static final       a RULE of basketball or the SHAPE of the model.
+                                Not a knob. 29 of them.
+      private final + accessor  a tunable knob, bound by Spring from
+                                application-baseline.properties. 63 of them.
+
+    The instance fields take NO INITIALIZERS: the values exist only in the
+    properties file, and a missing key fails the context at startup. Adding a
+    default back here would create a second source of truth (javac rejects it
+    outright, since the fields are final and constructor-assigned).
+
+    Never add a public static final alias for a tunable constant: javac inlines
+    constant variables into each caller at that caller's compile time, so an
+    alias becomes a stale second value with no link to the real one.
+
+    SCALE_AVG and MAX_ENERGY are scale DEFINITIONS, not knobs - each is the
+    denominator that gives its family meaning.
+    */
 
     // --- Possession count (Decision B) ---
     private final int defaultPossessionsPerPeriod;
@@ -168,67 +83,57 @@ public class SimConfig {
     // --- Turnover base rate (per possession; calibrated §3.4 toward ~14 TO/team) ---
     private final double baseTurnover;
 
-    // --- Foul base rate: P(a foul STOPPED the shot) on a DRIVE (§3.12 anchor) ---
-    // RENAMED from BASE_FOUL by §3.12 (#030 F). The VALUE NEVER MOVED — it is the
-    // same §3.4-calibrated 0.15, under a name that says which outcome it governs.
-    // "BASE_FOUL" read as "the foul rate" and is not that: it is the possession-
-    // ENDING branch (foul, no basket, go to the line), which is exactly why
-    // trimming it moves points the WRONG way (#028's measured finding, re-warned in
-    // #029). Its pair is AND_ONE_BASE — no basket vs. basket-plus-one.
-    //
-    // Since §3.12 this is the DRIVE rate and the anchor for the FOUL_MULT_* table
-    // below (#030 A2): every shot type's stopped-shot probability is
-    // BASE_NO_BASKET_FOUL × FOUL_MULT_<type>. It is deliberately NOT re-derived as
-    // a league-wide average — keeping it the drive rate is what makes drive/post
-    // behavior bit-identical to §3.11 and §3.12's whole delta attributable to
-    // perimeter/three.
+    /**
+     * Foul base rate: P(a foul STOPPED the shot) on a DRIVE (§3.12 anchor).
+     * This is the possession-ENDING branch (foul, no basket, go to the line), not
+     * "the foul rate". Its pair is AND_ONE_BASE — no basket vs. basket-plus-one.
+     *
+     * <p>⚠ NOT A POINTS LEVER — measured 2026-09, seed 1000, this value the only change:
+     * <pre>
+     *   0.140 -> points 114.7 | FGA 91.0 | FTA 20.9 | fouls 17.94
+     *   0.178 -> points 114.8 | FGA 89.3 | FTA 23.8 | fouls 19.33   (baseline)
+     *   0.210 -> points 115.6 | FGA 87.6 | FTA 26.7 | fouls 20.74
+     * </pre>
+     *
+     * <p>Points move +0.9 across a 50% swing while FTA moves +5.8 and FGA -3.4. TUNE IT
+     * AGAINST FGA, NEVER AGAINST POINTS; FGA and fouls are over-determined through it
+     * (~1.4 FGA per foul). ⚠ Ignore any older "trimming moves points the WRONG way"
+     * warning — that was #028 E, measured pre-§3.12 and disproved by #036 C.
+     *
+     * <p>Since §3.12 this is the DRIVE rate and the anchor for the FOUL_MULT_* table
+     * below (#030 A2): every shot type's stopped-shot probability is
+     * BASE_NO_BASKET_FOUL × FOUL_MULT_<type>. It is deliberately NOT re-derived as
+     * a league-wide average — keeping it the drive rate is what makes drive/post
+     * behavior bit-identical to §3.11 and §3.12's whole delta attributable to
+     * perimeter/three.
+     */
     private final double baseNoBasketFoul;
 
-    // --- Per-shot-type foul multipliers (§3.12, decisions.md #030 A1/A2/B) ---
-    //
-    // ⚠ THESE ARE MULTIPLIERS, NOT PROBABILITIES. They sit beside
-    // BASE_NO_BASKET_FOUL = 0.15, where every value looks like a probability, so
-    // read them carefully: FOUL_MULT_THREE = 0.133 does NOT mean "13.3% of threes
-    // are fouled" — it means "a three draws contact at 13.3% of the rate a drive
-    // does", i.e. 0.15 × 0.133 = 0.02 = 2%. (This misreading happened once during
-    // the design pass; hence the shouting.)
-    //
-    // §3.12 DELETED the binary ShotType.isContactType() (#030 A1): before it, a
-    // PERIMETER or THREE could not draw a shooting foul or an and-1 at any rate.
-    // Now every type can, at a GRADUATED rate — post/drive frequent, perimeter
-    // uncommon, three rare (a closeout on a three-point shooter is a real foul).
-    // The rate carries the information the gate used to carry, so there is one
-    // mechanism instead of a gate plus a rate (the #013/#015 single-source rule).
-    //
-    // ANCHORED at DRIVE = 1.0 on the untouched BASE_NO_BASKET_FOUL (#030 A2), NOT
-    // re-derived as a new league-wide base. The consequence is the point: drive and
-    // post foul rates are numerically IDENTICAL to §3.11, so §3.12's entire delta
-    // is isolated to the two types that previously could not foul at all — a
-    // decomposable, attributable change on the harness. Re-deriving the base would
-    // have entangled a calibrated-number re-solve with two new scoring sources in
-    // one measurement (the #029 A1 trap).
-    //
-    // ONE SHARED TABLE drives BOTH foul rolls (#030 B) — FoulResolver.isFoul (the
-    // shot was stopped) and FoulResolver.isAndOne (the shot went in anyway). A shot
-    // type's propensity to draw contact is a property of THE SHOT, not of which
-    // roll is asking. Do NOT add a second, steeper and-1 table: an and-1 on a three
-    // being rarer than a foul on a three ALREADY falls out of the two rolls being
-    // independent (the shot must also go in), so modeling it again double-counts
-    // it. Note the multiplier therefore lands TWICE in the and-1 path (scaling both
-    // the stopped-shot roll the shot must survive and the and-1 roll itself), which
-    // makes these knobs NON-LINEAR on and-1s: halving FOUL_MULT_THREE more than
-    // halves the three's and-1 rate.
-    //
-    // A multiplier of exactly 0.0 is the ONE true off-switch for a shot type — it
-    // scales the whole probability, skill term included. A zero BASE does NOT
-    // switch a rare event off (#029's measured finding): base + sensitivity ×
-    // (driving − opposing)/10 stays positive off the skill term alone whenever the
-    // shooter is favored. Since §3.12 removed the caller's gate, the multiplier is
-    // the only remaining honest off-switch.
-    //
-    // Raising DRIVE above 1.0 would break the attributability A2 was chosen for; if
-    // drives should foul more, that is a BASE_NO_BASKET_FOUL conversation, and it
-    // reopens a §3.4-calibrated number.
+    /**
+     * Per-shot-type foul multipliers (§3.12, decisions.md #030 A1/A2/B).
+     *
+     * <p>⚠ THESE ARE MULTIPLIERS, NOT PROBABILITIES. They sit beside
+     * BASE_NO_BASKET_FOUL = 0.15, where every value looks like a probability, so
+     * read them carefully: FOUL_MULT_THREE = 0.133 does NOT mean "13.3% of threes
+     * are fouled" — it means "a three draws contact at 13.3% of the rate a drive
+     * does", i.e. 0.15 × 0.133 = 0.02 = 2%. (This misreading happened once during
+     * the design pass; hence the shouting.)
+     *
+     * <p>⚠ DRIVE = 1.0 IS THE ANCHOR, and raising it is not the way to make drives foul
+     * more — that is a BASE_NO_BASKET_FOUL conversation, and it reopens a
+     * §3.4-calibrated number (#030 A2).
+     *
+     * <p>⚠ Do NOT re-introduce a boolean contact-type gate: every shot type draws contact
+     * at a graduated rate, and the rate carries what the gate used to (#030 A1, the
+     * #013/#015 single-source rule). A multiplier of exactly 0.0 is the one true
+     * off-switch — it scales the whole probability, skill term included, where a zero
+     * BASE does not (#029: the skill term alone keeps a zero-base rate positive).
+     *
+     * <p>⚠ ONE SHARED TABLE drives BOTH foul rolls (#030 B) — FoulResolver.isFoul and
+     * .isAndOne. It therefore lands TWICE in the and-1 path, making these knobs
+     * NON-LINEAR on and-1s: halving FOUL_MULT_THREE more than halves the three's and-1
+     * rate. Do NOT add a second and-1 table; see FoulResolver.isAndOne.
+     */
     private final double foulMultDrive;
     private final double foulMultPost;
     private final double foulMultPerimeter;
@@ -261,30 +166,30 @@ public class SimConfig {
     public static final double FT_SENSITIVITY = 0.20;
     public static final int FREE_THROWS_PER_FOUL = 2;
 
-    // --- Rebounding (§3.3) ---
-    // Base offensive-rebound rate at an average-vs-average contest (NBA ~25–28%).
-    // Tuned empirically in §3.4. Rebound contests reuse the global SENSITIVITY.
+    /**
+     * Rebounding (§3.3): the rate at an average-vs-average contest (NBA ~25–28%).
+     * Rebound contests reuse the global {@link #SENSITIVITY}.
+     */
     private final double baseOffensiveRebound;
-    // The ONLY bound on PossessionEngine.resolvePossession's second-chance
-    // `while (true)` loop: how many times the offense may keep the ball and run the
-    // flow again within one possession. Once reached, the retaining path is refused
-    // and the possession ends (a missed shot is forced to a defensive rebound; a
-    // §3.14b flagrant still awards its free throws, then ends it).
-    //
-    // ⚠ RENAMED from MAX_OFFENSIVE_REBOUNDS_PER_POSSESSION (2026-08, post-§3.14b) —
-    // a pure rename, the value is UNCHANGED at its §3.3-era calibrated 3. The old
-    // name described only the original §3.3 path, but FIVE paths now count against
-    // this cap and FOUR of them are not rebounds: §3.7 block recovery, §3.8
-    // OOB-offense, §3.10's rebounding foul and §3.14b's flagrant retention. Every one
-    // of them is a RETENTION — the offense kept the ball — which is the word the rest
-    // of the engine already uses (BlockRecovery/MissedShotOutcome/ReboundFoulResult
-    // all expose offenseRetains()). The local counter in resolvePossession was
-    // renamed to `offensiveRetentions` in the same change; PlayerGameState's
-    // `offensiveRebounds` is the BOX-SCORE STAT and is deliberately untouched.
-    //
-    // Raising it 3 → 5 is a SEPARATE, parked tuning idea (ideas.md): it fires on the
-    // common path, so it would add offensive rebounds, shot attempts and points across
-    // every game and needs its own recalibration pass. Do not change the value here.
+    /**
+     * The ONLY bound on PossessionEngine.resolvePossession's second-chance
+     * `while (true)` loop: how many times the offense may keep the ball and run the
+     * flow again within one possession. Once reached, the retaining path is refused
+     * and the possession ends (a missed shot is forced to a defensive rebound; a
+     * §3.14b flagrant still awards its free throws, then ends it).
+     *
+     * <p>⚠ RETENTIONS, NOT REBOUNDS: FIVE paths count against this cap and FOUR of them
+     * are not rebounds — §3.7 block recovery, §3.8 OOB-offense, §3.10's rebounding
+     * foul and §3.14b's flagrant retention, alongside the original §3.3 offensive
+     * rebound. Every one is the offense keeping the ball, the sense
+     * BlockRecovery/MissedShotOutcome/ReboundFoulResult all expose as offenseRetains().
+     * ⚠ Do NOT confuse it with PlayerGameState's `offensiveRebounds`, which is the
+     * BOX-SCORE STAT and counts something different.
+     *
+     * <p>Raising it 3 → 5 is a SEPARATE, parked tuning idea (ideas.md): it fires on the
+     * common path, so it would add offensive rebounds, shot attempts and points across
+     * every game and needs its own recalibration pass. Do not change the value here.
+     */
     private final int maxOffensiveRetentionsPerPossession;
 
     /**
@@ -294,28 +199,16 @@ public class SimConfig {
      * defense lines up inside on both blocks — the realized offensive share is ~0.19
      * against the ordinary board's 0.262.
      *
-     * <p><b>A RULE, NOT A TUNABLE</b>, and that is the reason for the {@code public
-     * static final} form (see the declaration convention at the top of this class).
-     * The lane positions on a free throw are set by the rulebook, not by an era or a
-     * coach. §3.20 held at <b>62</b> tunables and this does not move that count; the
-     * statics move 27 → 28.
+     * <p><b>A RULE, NOT A TUNABLE</b> — hence {@code public static final}: lane
+     * positions on a free throw are set by the rulebook, not by an era or a coach.
+     * ⚠ It therefore gets NO properties line and NO {@code calibration.md} row — a value
+     * in Java <i>and</i> a properties line is the double-value trap this class's header
+     * names, and a calibration row would be an unsourced target.
      *
-     * <p>⚠ <b>It therefore gets NO line in {@code application-baseline.properties} and
-     * NO row in {@code calibration.md}.</b> A value in Java <i>and</i> a properties line
-     * is the double-value trap this class's header names explicitly (javac inlines
-     * constant variables into each caller), and a calibration row would be an unsourced
-     * target — there is no real-basketball figure for the multiplier itself and no
-     * harness line measuring it. It appears in {@code calibration.md} only inside the
-     * three-share rule, as the reason one slice of the rebound pool splits as it does.
-     *
-     * <p>⚠ <b>The contest is logistic, so this is not the realized share</b> — the
-     * value was set once from the real ~0.19 figure and the realized share MEASURED,
-     * never back-solved (#043 D). The whole plausible spread (0.14 → 0.262) is 0.32
-     * rebounds either way, smaller than the residual it would chase: <b>do not
-     * iterate on it.</b>
-     *
-     * <p>The cost, stated: an era profile cannot vary the free-throw board. If one ever
-     * needs to, it is promoted to a tunable then and the count moves with it.
+     * <p>⚠ <b>The contest is logistic, so this is NOT the realized share</b> — set once
+     * from the real ~0.19 figure, with the realized share MEASURED, never back-solved
+     * (#043 D). The whole plausible spread (0.14 → 0.262) is 0.32 rebounds either way,
+     * smaller than the residual it would chase: <b>do not iterate on it.</b>
      */
     public static final double FREE_THROW_REBOUND_LEAN = 0.68;
 
@@ -323,32 +216,23 @@ public class SimConfig {
      * §3.22 (decisions.md #044 A/B): the offensive rebounder's pull on the NEXT shot —
      * a multiplier on his {@code offensiveWeight()} in {@link
      * ShotSelector#pickShooter(java.util.List, PlayerGameState, java.util.random.RandomGenerator)},
-     * for that ONE draw only. Before §3.22 an offensive rebound re-entered the
-     * possession loop at a draw that did not know who had just got the board, so the
-     * rebounder was no likelier to shoot than the guard at the arc and a putback could
-     * not happen.
+     * for that ONE draw only.
      *
      * <p><b>A WEIGHT, NOT A BRANCH, and the shot type is NOT forced.</b> {@link
      * ShotSelector#pickShotType} already bends by the shooter's own skills (#040 C) and
-     * the rebounder — usually a big — already leans interior on his own. A weight
-     * reproduces the whole second-chance distribution (sometimes the ball is kicked out
-     * for three); a branch hard-codes one leg of it.
+     * the rebounder — usually a big — leans interior on his own. A weight reproduces the
+     * whole second-chance distribution (the ball is sometimes kicked out for three); a
+     * branch hard-codes one leg of it. <b>Multiplicative, not additive</b> (#044 A), so
+     * the rebounder keeps his <i>relative</i> standing — a weak-scoring big doubled is
+     * still below a star guard. {@code 1.0} means "off".
      *
-     * <p><b>Multiplicative, not additive</b> (#044 A): {@code × M} keeps the rebounder's
-     * <i>relative</i> standing among his four teammates, so a weak-scoring big doubled
-     * is still below a star guard. An additive share would hand the same absolute bump
-     * to both, which is a quota rather than a tendency. {@code 1.0} means "off" with no
-     * special case.
+     * <p>⚠ <b>THE CONSTANT IS THE MULTIPLIER; THE SHARE IS WHAT IT REALIZES.</b> {@code
+     * 2.0} yields 33.3% at five equal weights but realizes <b>35.4%</b> on the seeded
+     * league. <b>Do not back-solve this from a target share</b> (#043 D's discipline).
+     * It sits below real basketball's ~45–55%: a deliberate, conservative first step.
      *
-     * <p>⚠ <b>THE CONSTANT IS THE MULTIPLIER; THE SHARE IS WHAT IT REALIZES, and they
-     * are not the same number.</b> At five equal weights {@code 2.0} yields 33.3% for
-     * the rebounder; on the seeded league it realizes <b>35.4%</b> from a 22.4% base.
-     * That share was MEASURED and REPORTED — <b>do not back-solve this value from a
-     * target share</b> (#043 D's discipline). It sits below real basketball's ~45–55%
-     * of immediate second-chance attempts: a deliberate, conservative first step.
-     *
-     * <p>A TUNABLE and not a static, because the go-back-up was a bigger share of the
-     * 1990s game than of the modern one — a tendency is an era knob (#044 B).
+     * <p>A TUNABLE, not a static: the go-back-up was a bigger share of the 1990s game
+     * than the modern one, and a tendency is an era knob (#044 B).
      */
     private final double offensiveRebounderShotWeight;
 
@@ -358,110 +242,108 @@ public class SimConfig {
      * player who took the offensive board. Nobody passed the rebounder his own board,
      * so crediting a teammate — measured at 66.7% of his makes — is wrong.
      *
-     * <p><b>HALVED, NOT ZEROED, and the reason is measured rather than aesthetic.</b>
-     * Assists sit at +0.40 over target (noise-scale); zeroing would remove every
-     * rebounder-make assist, ≈ −1.1/team-game, and land a <i>real</i> miss the other
-     * way. Trading an unmeasurable overshoot for a measurable undershoot is a bad trade
-     * (#043 B). At 0.5 the removal measures −0.52 and assists land 27.00.
+     * <p><b>⚠ HALVED, NOT ZEROED, for a measured reason.</b> Zeroing removes every
+     * rebounder-make assist (≈ −1.1/team-game) and lands a <i>real</i> miss the other
+     * way, trading an unmeasurable overshoot for a measurable undershoot (#043 B). At
+     * 0.5 the removal measures −0.52 and assists land 27.00.
      *
-     * <p><b>A RULE, NOT A TUNABLE</b>, and that is the reason for the {@code public
-     * static final} form — the {@link #FREE_THROW_REBOUND_LEAN} shape exactly (#043 D).
-     * Nobody assists a tip-in in any era: the 0.5 is the model's estimate of how many
-     * "the rebounder shoots next" draws are true go-back-ups rather than a kick-out that
-     * came back. Model <i>shape</i>, while the tendency knob ({@link
-     * #offensiveRebounderShotWeight()}) is the era lever. So 63 tunables / 29 statics,
-     * not 64 / 28.
+     * <p><b>A RULE, NOT A TUNABLE</b> — hence {@code public static final}, the {@link
+     * #FREE_THROW_REBOUND_LEAN} shape (#043 D): nobody assists a tip-in in any era, so
+     * this is model shape while the era lever is {@link
+     * #offensiveRebounderShotWeight()}. ⚠ It therefore gets NO properties line and NO
+     * {@code calibration.md} row — a value in Java <i>and</i> a properties line is the
+     * double-value trap this class's header names.
      *
-     * <p>⚠ <b>It therefore gets NO line in {@code application-baseline.properties} and
-     * NO row in {@code calibration.md}</b> — a value in Java <i>and</i> a properties
-     * line is the double-value trap this class's header names, and a calibration row
-     * would be an unsourced target. It appears in {@code calibration.md} only as the
-     * operative rule under the Assists row.
-     *
-     * <p>Applied <b>AFTER</b> {@link #clampProbability}, at the site, so the floor is
-     * not in play: 0.62 × 0.5 = 0.31 ≫ {@link #PROB_FLOOR}. It keys off {@code shooter
-     * == rebounder}, <b>NOT</b> "any second-chance shot" — a kick-out three off an
-     * offensive rebound is an ordinary assisted basket and taxing it would be the blunt
-     * rule this decision rejected.
-     *
-     * <p>The cost, stated: an era profile cannot vary it. If one ever needs to, it is
-     * promoted to a tunable then and the count moves with it.
+     * <p>⚠ Keys off {@code shooter == rebounder}, <b>NOT</b> "any second-chance shot" —
+     * a kick-out three off an offensive rebound is an ordinary assisted basket, and
+     * taxing it is the blunt rule #044 E rejected. Applied AFTER {@link
+     * #clampProbability}, so the floor is not in play (0.62 × 0.5 = 0.31).
      */
     public static final double OFFENSIVE_REBOUNDER_ASSIST_LEAN = 0.5;
 
-    // --- Missed-shot out of bounds (§3.8, decisions.md #026) ---
-    // A missed shot resolves to one of FOUR outcomes in a single draw (Decision A):
-    // offensive rebound / defensive rebound / OOB-offense / OOB-defense. The OOB
-    // share is carved off FIRST by these flat, skill-INDEPENDENT weights (a fixed
-    // defensive lean, NOT a second skilled contest — Decision A); only the clean-
-    // rebound remainder runs ReboundResolver's skill contest. oobTotalWeight is
-    // the fraction of missed shots that leave the court (sail-out untouched or
-    // tipped out in a scramble); the two slices below split THAT share, leaning
-    // defensive (a loose ball in a scrum favors the defense). MissedShotResolver
-    // normalizes the two slices by their sum, so they need not add to anything in
-    // particular — only their ratio and oobTotalWeight matter. Placeholders,
-    // settled by the CalibrationHarness OOB line (Decision D): OOB removes some
-    // second-chance possessions, so its rate must be visible and the §3.4/§3.5
-    // aggregates re-confirmed. Kept smaller than the two rebound outcomes.
+    /**
+     * Missed-shot out of bounds (§3.8, decisions.md #026).
+     * A missed shot resolves to one of FOUR outcomes in a single draw (Decision A):
+     * offensive rebound / defensive rebound / OOB-offense / OOB-defense. The OOB
+     * share is carved off FIRST by these flat, skill-INDEPENDENT weights (a fixed
+     * defensive lean, NOT a second skilled contest — Decision A); only the clean-
+     * rebound remainder runs ReboundResolver's skill contest. oobTotalWeight is
+     * the fraction of missed shots that leave the court (sail-out untouched or
+     * tipped out in a scramble); the two slices below split THAT share, leaning
+     * defensive (a loose ball in a scrum favors the defense). MissedShotResolver
+     * normalizes the two slices by their sum, so they need not add to anything in
+     * particular — only their ratio and oobTotalWeight matter. Placeholders,
+     * settled by the CalibrationHarness OOB line (Decision D): OOB removes some
+     * second-chance possessions, so its rate must be visible and the §3.4/§3.5
+     * aggregates re-confirmed. Kept smaller than the two rebound outcomes.
+     */
     private final double oobTotalWeight;
     private final double oobDefenseWeight;
     private final double oobOffenseWeight;
 
-    // --- Blocked shots (§3.7, decisions.md #025) ---
-    // Per-shot-type block base rate at an average-vs-average contest (defender
-    // block skill vs. shooter finishing, both 10). A block is carved off the top
-    // of the shot outcome (Decision A1) before the make/miss contest runs on the
-    // remainder. Ordering DRIVE ≥ POST > PERIMETER ≫ THREE (Decision C): rim
-    // attempts are far more blockable than threes; THREE is very-low (a rare
-    // closeout swat) but not flat-zero (which would make threes unblockable, an
-    // artifact for no benefit). Placeholders — tuned empirically by the
-    // CalibrationHarness toward ~5 blocks/team/game (Decision C), same as the
-    // §3.4 BASE_* shot rates. Blocks reuse the global SENSITIVITY.
+    /**
+     * Blocked shots (§3.7, decisions.md #025).
+     * Per-shot-type block base rate at an average-vs-average contest (defender
+     * block skill vs. shooter finishing, both 10). A block is carved off the top
+     * of the shot outcome (Decision A1) before the make/miss contest runs on the
+     * remainder. Ordering DRIVE ≥ POST > PERIMETER ≫ THREE (Decision C): rim
+     * attempts are far more blockable than threes; THREE is very-low (a rare
+     * closeout swat) but not flat-zero (which would make threes unblockable, an
+     * artifact for no benefit). Placeholders — tuned empirically by the
+     * CalibrationHarness toward ~5 blocks/team/game (Decision C), same as the
+     * §3.4 BASE_* shot rates. Blocks reuse the global SENSITIVITY.
+     */
     private final double baseBlockDrive;
     private final double baseBlockPost;
     private final double baseBlockPerimeter;
     private final double baseBlockThree;
-    // Block-specific contest sensitivity (Decision B: "same logistic shape"). The
-    // global SENSITIVITY (0.5) is far too steep for blocks — a real event so rare
-    // that a good rim protector blocks only ~5–6% of opponent attempts, so a ±0.5
-    // swing per 10 skill points swamps the thin base and drives blocks 2–3× over
-    // target. Blocks therefore use their own, much gentler sensitivity: the defender
-    // still matters (elite rim protectors block more, elite finishers get blocked
-    // less — Decision B2) but the base rate stays the dominant term, keeping blocks
-    // a thin slice off the top (Decision A1). Tuned with BASE_BLOCK_* toward ~5/team.
+    /**
+     * Block-specific contest sensitivity (Decision B: "same logistic shape"). The
+     * global SENSITIVITY (0.5) is far too steep for blocks — a real event so rare
+     * that a good rim protector blocks only ~5–6% of opponent attempts, so a ±0.5
+     * swing per 10 skill points swamps the thin base and drives blocks 2–3× over
+     * target. Blocks therefore use their own, much gentler sensitivity: the defender
+     * still matters (elite rim protectors block more, elite finishers get blocked
+     * less — Decision B2) but the base rate stays the dominant term, keeping blocks
+     * a thin slice off the top (Decision A1). Tuned with BASE_BLOCK_* toward ~5/team.
+     */
     public static final double BLOCK_SENSITIVITY = 0.12;
 
-    // Flat four-way loose-ball recovery weights (Decision D). After a block, a
-    // single roll picks where the swatted ball goes. This is FLAT — fixed weights
-    // identical for every block, no skill input — because a blocked ball is a
-    // chaotic loose ball dominated by physics/chance, not the offenseRebound-vs-
-    // defenseRebound box-out contest ReboundResolver models. The split is
-    // defense-leaning (RECOVERED_DEFENSE > RECOVERED_OFFENSE > the two OOB slices).
-    // Weights are raw (BlockResolver normalizes by their sum) and are unsourced
-    // placeholders — no citable NBA block-recovery distribution exists — settled
-    // by the harness against the ~5/team target. Defense keeps the ball on
-    // RECOVERED_DEFENSE + OOB_DEFENSE (OOB off the shooter/offense).
+    /**
+     * Flat four-way loose-ball recovery weights (Decision D). After a block, a
+     * single roll picks where the swatted ball goes. This is FLAT — fixed weights
+     * identical for every block, no skill input — because a blocked ball is a
+     * chaotic loose ball dominated by physics/chance, not the offenseRebound-vs-
+     * defenseRebound box-out contest ReboundResolver models. The split is
+     * defense-leaning (RECOVERED_DEFENSE > RECOVERED_OFFENSE > the two OOB slices).
+     * Weights are raw (BlockResolver normalizes by their sum) and are unsourced
+     * placeholders — no citable NBA block-recovery distribution exists — settled
+     * by the harness against the ~5/team target. Defense keeps the ball on
+     * RECOVERED_DEFENSE + OOB_DEFENSE (OOB off the shooter/offense).
+     */
     private final double blockRecoveredDefense;
     private final double blockRecoveredOffense;
     private final double blockOobDefense;
     private final double blockOobOffense;
 
-    // --- Turnover sub-cause weights (§3.9, decisions.md #027) ---
-    // Once the (unchanged) turnover gate fires, TurnoverResolver.pickCause runs a
-    // single weighted categorical draw over the nine TurnoverCause values — a pure
-    // RE-PARTITION of a turnover that already occurred, so it can shift the mix but
-    // NEVER the count (Decision A: the count is fixed by the untouched gate). These
-    // are RAW base weights (pickCause normalizes them to sum to 1.0 on EACH declared
-    // turnover), tiered by relative magnitude (Decision B): STOLEN dominant, then
-    // high / mid / low / super-low. STOLEN is kept ~56% of the mix so BoxScore.steals
-    // (the one calibrated number a turnover taxonomy could disturb) does not drift —
-    // its share is the tier weight here; WHO steals is still shaped by pickStealer's
-    // stealing-weighted draw. The other eight causes carve out of the old ~40%
-    // LOST_BALL bucket, which is RETIRED as the catch-all. Placeholders — settled by
-    // the CalibrationHarness per-cause line (Decision E) so the mix looks plausible;
-    // there is NO hard per-cause target and these do NOT touch the aggregates (the
-    // turnover count is free by construction). Same static-base-plus-modest-lean
-    // pattern as the block-recovery / OOB weights above.
+    /**
+     * Turnover sub-cause weights (§3.9, decisions.md #027).
+     * Once the (unchanged) turnover gate fires, TurnoverResolver.pickCause runs a
+     * single weighted categorical draw over the nine TurnoverCause values — a pure
+     * RE-PARTITION of a turnover that already occurred, so it can shift the mix but
+     * NEVER the count (Decision A: the count is fixed by the untouched gate). These
+     * are RAW base weights (pickCause normalizes them to sum to 1.0 on EACH declared
+     * turnover), tiered by relative magnitude (Decision B): STOLEN dominant, then
+     * high / mid / low / super-low. STOLEN is kept ~56% of the mix so BoxScore.steals
+     * (the one calibrated number a turnover taxonomy could disturb) does not drift —
+     * its share is the tier weight here; WHO steals is still shaped by pickStealer's
+     * stealing-weighted draw. The other eight causes carve out of the old ~40%
+     * LOST_BALL bucket, which is RETIRED as the catch-all. Placeholders — settled by
+     * the CalibrationHarness per-cause line (Decision E) so the mix looks plausible;
+     * there is NO hard per-cause target and these do NOT touch the aggregates (the
+     * turnover count is free by construction). Same static-base-plus-modest-lean
+     * pattern as the block-recovery / OOB weights above.
+     */
     private final double toWeightStolen;
     private final double toWeightShotClock;
     private final double toWeightOffensiveFoul;
@@ -472,357 +354,366 @@ public class SimConfig {
     private final double toWeightEightSecondsBackcourt;
     private final double toWeightOverAndBack;
 
-    // Modest avg-10 deviation sensitivity for the four LEANED causes (Decision C).
-    // Only four causes scale (the rest are flat tier weights): SHOT_CLOCK_VIOLATION
-    // (ball-handler acumen ↓ + defending coach defensiveScheme/defensivePressure ↑),
-    // OFFENSIVE_FOUL and BAD_PASS (offense teamOffense ↓ — a poorly-coordinated
-    // offense charges/throws it away more). The lean multiplies that cause's base
-    // weight by (1 + TO_CAUSE_SENSITIVITY × deviation/10) before the per-turnover
-    // normalization, so the leans shift the RELATIVE shares only — no lean can change
-    // the turnover count (Decision C). Kept modest and single-form (the #022 shape).
-    // Placeholder, settled by the harness line alongside the weights above.
+    /**
+     * Modest avg-10 deviation sensitivity for the four LEANED causes (Decision C).
+     * Only four causes scale (the rest are flat tier weights): SHOT_CLOCK_VIOLATION
+     * (ball-handler acumen ↓ + defending coach defensiveScheme/defensivePressure ↑),
+     * OFFENSIVE_FOUL and BAD_PASS (offense teamOffense ↓ — a poorly-coordinated
+     * offense charges/throws it away more). The lean multiplies that cause's base
+     * weight by (1 + TO_CAUSE_SENSITIVITY × deviation/10) before the per-turnover
+     * normalization, so the leans shift the RELATIVE shares only — no lean can change
+     * the turnover count (Decision C). Kept modest and single-form (the #022 shape).
+     * Placeholder, settled by the harness line alongside the weights above.
+     */
     public static final double TO_CAUSE_SENSITIVITY = 0.20;
 
-    // --- Rebounding fouls + team-foul / bonus substrate (§3.10, decisions.md #028) ---
-    // A non-shooting foul during the rebound phase — a defensive box-out push or an
-    // offensive over-the-back. Carved off the TOP of the miss flow (Decision C, the
-    // §3.7 block-carve shape): rolled BEFORE the four-way board draw and short-
-    // circuiting it on a hit, so the rebound-foul rate stays independently tunable
-    // and never entangles with the rebound weights.
-    //
-    // reboundFoulBase is the per-missed-shot probability at an average-vs-average
-    // contest, scaled by the same discipline/pressure inputs the shooting foul uses
-    // (foulProne / defensivePressure) in the avg-10 form (#021 C / #022). It must
-    // stay SMALL: every hit either hands the offense a second chance or (in the
-    // bonus) two free throws, so this is the knob that drives §3.10's scoring lift.
+    /**
+     * Rebounding fouls + team-foul / bonus substrate (§3.10, decisions.md #028).
+     * A non-shooting foul during the rebound phase — a defensive box-out push or an
+     * offensive over-the-back. Carved off the TOP of the miss flow (Decision C, the
+     * §3.7 block-carve shape): rolled BEFORE the four-way board draw and short-
+     * circuiting it on a hit, so the rebound-foul rate stays independently tunable
+     * and never entangles with the rebound weights.
+     *
+     * <p>reboundFoulBase is the per-missed-shot probability at an average-vs-average
+     * contest, scaled by the same discipline/pressure inputs the shooting foul uses
+     * (foulProne / defensivePressure) in the avg-10 form (#021 C / #022). It must
+     * stay SMALL: every hit either hands the offense a second chance or (in the
+     * bonus) two free throws, so this is the knob that drives §3.10's scoring lift.
+     */
     private final double reboundFoulBase;
-    // Two-sided split (Decision A2), DEFENSE-LEANING: box-out contact dominates,
-    // over-the-back is the genuine minority. Raw weights — the resolver normalizes
-    // by their sum, so only the ratio matters.
+    /**
+     * Two-sided split (Decision A2), DEFENSE-LEANING: box-out contact dominates,
+     * over-the-back is the genuine minority. Raw weights — the resolver normalizes
+     * by their sum, so only the ratio matters.
+     */
     private final double reboundFoulDefenseWeight;
     private final double reboundFoulOffenseWeight;
-    // Rebound-foul contest sensitivity — its OWN, far below the global SENSITIVITY
-    // (0.5), for the same reason BLOCK_SENSITIVITY is (§3.7): at a ~0.03 base, a
-    // ±0.5 swing per 10 skill points swamps the base entirely and lets skill alone
-    // drive the rate several-fold over target. The skills still matter (an
-    // undisciplined five fouls more on the glass) but the base stays dominant, so
-    // this remains a thin, independently-tunable slice off the top (#028 C).
+    /**
+     * Rebound-foul contest sensitivity — its OWN, far below the global SENSITIVITY
+     * (0.5), for the same reason BLOCK_SENSITIVITY is (§3.7): at a ~0.03 base, a
+     * ±0.5 swing per 10 skill points swamps the base entirely and lets skill alone
+     * drive the rate several-fold over target. The skills still matter (an
+     * undisciplined five fouls more on the glass) but the base stays dominant, so
+     * this remains a thin, independently-tunable slice off the top (#028 C).
+     */
     public static final double REBOUND_FOUL_SENSITIVITY = 0.10;
 
-    // Team fouls per period after which the OTHER team is in the bonus (penalty) —
-    // the modern-NBA 5th team foul. The predicate is DERIVED from the FOUL event log
-    // (GameData.isInBonus), never stored (#028 A1); this is the only constant it
-    // needs. EMIT-THEN-COUNT: the Nth foul is emitted first, so it awards the bonus
-    // itself.
+    /**
+     * Team fouls per period after which the OTHER team is in the bonus (penalty) —
+     * the modern-NBA 5th team foul. The predicate is DERIVED from the FOUL event log
+     * (GameData.isInBonus), never stored (#028 A1); this is the only constant it
+     * needs. EMIT-THEN-COUNT: the Nth foul is emitted first, so it awards the bonus
+     * itself.
+     */
     private final int bonusFoulsPerPeriod;
 
-    // --- And-1 / shooting foul on a made basket (§3.11, decisions.md #029) ---
-    // An and-1 is a SECOND, post-make foul roll (#029 A1) carved beside the assist:
-    // the pre-shot foul branch and baseNoBasketFoul are untouched, so "P(a foul
-    // stops the shot)" keeps its §3.4 meaning and this rate stays independently
-    // tunable — the §3.7 block / §3.10 rebound-foul carve, a third time.
-    //
-    // andOneBase is P(the make also drew a foul) at an average-vs-average contest,
-    // rolled ONLY on a made DRIVE/POST (#029 A2 — widening to all shot types is
-    // §3.12). It must stay THIN: every hit is a pure-additive point (a made FG plus
-    // one FT with no offsetting removal), so this is the knob that drives §3.11's
-    // scoring lift. Placeholder, settled by the CalibrationHarness and-1 line (E).
+    /**
+     * And-1 / shooting foul on a made basket (§3.11, decisions.md #029).
+     * An and-1 is a SECOND, post-make foul roll (#029 A1) carved beside the assist:
+     * the pre-shot foul branch and baseNoBasketFoul are untouched, so "P(a foul
+     * stops the shot)" keeps its §3.4 meaning and this rate stays independently
+     * tunable — the §3.7 block / §3.10 rebound-foul carve, a third time.
+     *
+     * <p>andOneBase is P(the make also drew a foul) at an average-vs-average contest,
+     * rolled ONLY on a made DRIVE/POST (#029 A2 — widening to all shot types is
+     * §3.12). It must stay THIN: every hit is a pure-additive point (a made FG plus
+     * one FT with no offsetting removal), so this is the knob that drives §3.11's
+     * scoring lift. Placeholder, settled by the CalibrationHarness and-1 line (E).
+     */
     private final double andOneBase;
-    // And-1 contest sensitivity — its OWN, far below the global SENSITIVITY (0.5),
-    // for the same reason BLOCK_SENSITIVITY (§3.7) and REBOUND_FOUL_SENSITIVITY
-    // (§3.10) are: at a thin base, a ±0.5 swing per 10 skill points swamps the base
-    // and lets skill alone drive the rate several-fold over target. The skills still
-    // matter (a strong foul-drawer converts more contact) but the base stays
-    // dominant (#029 C). Note this rate rides rareEventProbability, NOT
-    // contestProbability — the PROB_FLOOR (0.02) would make a thin base tunable
-    // only UPWARD (the #028 trap), and §3.11's recalibration needs it to go down.
+    /**
+     * And-1 contest sensitivity — its OWN, far below the global SENSITIVITY (0.5),
+     * for the same reason BLOCK_SENSITIVITY (§3.7) and REBOUND_FOUL_SENSITIVITY
+     * (§3.10) are: at a thin base, a ±0.5 swing per 10 skill points swamps the base
+     * and lets skill alone drive the rate several-fold over target. The skills still
+     * matter (a strong foul-drawer converts more contact) but the base stays
+     * dominant (#029 C). Note this rate rides rareEventProbability, NOT
+     * contestProbability — the PROB_FLOOR (0.02) would make a thin base tunable
+     * only UPWARD (the #028 trap), and §3.11's recalibration needs it to go down.
+     */
     public static final double AND_ONE_SENSITIVITY = 0.10;
-    // An and-1 is ALWAYS exactly one free throw, by rule — independent of the bonus
-    // (#029 B). Threaded through awardFreeThrows as the per-situation count, the
-    // same seam §3.12 will reuse to pass 3 for a fouled three.
+    /**
+     * An and-1 is ALWAYS exactly one free throw, by rule — independent of the bonus
+     * (#029 B). Threaded through awardFreeThrows as the per-situation count, the
+     * same seam §3.12 will reuse to pass 3 for a fouled three.
+     */
     public static final int AND_ONE_FREE_THROWS = 1;
 
-    // --- Coach / chemistry modifiers (§3.4, decisions.md #022) ---
-    // Single avg-10 deviation sensitivity shared by all coach effects
-    // (pace / offensiveScheme / defensiveScheme, plus the §3.5 rotationDepth /
-    // substitutionAggressiveness). attr 10 ⇒ ×1.0. Split per-effect only if
-    // calibration shows one knob can't fit all effects.
+    /**
+     * Coach / chemistry modifiers (§3.4, decisions.md #022).
+     * Single avg-10 deviation sensitivity shared by all coach effects
+     * (pace / offensiveScheme / defensiveScheme, plus the §3.5 rotationDepth /
+     * substitutionAggressiveness). attr 10 ⇒ ×1.0. Split per-effect only if
+     * calibration shows one knob can't fit all effects.
+     */
     public static final double COACH_SENSITIVITY = 0.20;
 
-    // --- Minutes / fatigue / substitution (§3.5, decisions.md #023) ---
-    // Foul-out disqualification limit (Decision F). A player with >= this many
-    // fouls is forced off the floor and ineligible to return (a derived predicate
-    // over the existing PlayerGameState.fouls counter — no stored flag).
+    /**
+     * Minutes / fatigue / substitution (§3.5, decisions.md #023).
+     * Foul-out disqualification limit (Decision F). A player with >= this many
+     * fouls is forced off the floor and ineligible to return (a derived predicate
+     * over the existing PlayerGameState.fouls counter — no stored flag).
+     */
     private final int foulOutLimit;
 
-    // Wall-clock minutes a full regulation game represents (PERIODS × MINUTES_PER
-    // = 48) and per-OT (Decision A). Minutes are a possession-share projection:
-    // team on-floor possessions map to (regulation + OT) minutes by ratio.
+    /**
+     * Wall-clock minutes a full regulation game represents (PERIODS × MINUTES_PER
+     * = 48) and per-OT (Decision A). Minutes are a possession-share projection:
+     * team on-floor possessions map to (regulation + OT) minutes by ratio.
+     */
     public static final int MINUTES_PER_PERIOD = 12;
     public static final int OT_MINUTES = 5;
 
-    // Energy (Decision B): a single per-player currentEnergy, full at tip-off,
-    // draining per on-floor possession and recovering while benched. Effect is one
-    // fatigue multiplier over the player's skills at contest time. All within-game.
+    /**
+     * Energy (Decision B): a single per-player currentEnergy, full at tip-off,
+     * draining per on-floor possession and recovering while benched. Effect is one
+     * fatigue multiplier over the player's skills at contest time. All within-game.
+     */
     public static final double MAX_ENERGY = 100.0;
-    // Base drain per possession a player is on the floor, before the endurance
-    // scale. At endurance 10 this is the raw drain; higher endurance drains less.
+    /** At endurance 10 this is the raw drain; higher endurance drains less. */
     private final double energyDrainPerPossession;
-    // How strongly endurance slows the drain (avg-10 deviation): drain is scaled
-    // by 1 − ENDURANCE_DRAIN_SENSITIVITY × (endurance − 10)/10, clamped ≥ a floor
-    // so an elite-endurance player still tires, just far slower.
+    /**
+     * Scales the drain by {@code 1 − ENDURANCE_DRAIN_SENSITIVITY × (endurance − 10)/10},
+     * clamped ≥ {@link #minDrainScale} so an elite-endurance player still tires.
+     */
     public static final double ENDURANCE_DRAIN_SENSITIVITY = 0.6;
     private final double minDrainScale;
-    // Recovery per possession spent benched.
     private final double energyRecoveryPerPossession;
-    // Fatigue multiplier over skills: at full energy ×1.0; as energy falls toward
-    // 0 the multiplier falls toward (1 − fatigueMaxPenalty). Tuned in §3.5
-    // calibration so tired players degrade visibly (late-period FG% sags a touch)
-    // while still a thumb on the scale, not a cliff (Decision B).
+    /**
+     * At full energy the multiplier is ×1.0; at zero it falls to
+     * {@code (1 − fatigueMaxPenalty)}. Tuned in §3.5 so tired players degrade visibly
+     * (late-period FG% sags a touch) while staying a thumb on the scale, not a cliff.
+     */
     private final double fatigueMaxPenalty;
 
-    // Substitution (Decisions C/D): a tired on-floor starter is pulled when their
-    // energy drops below a threshold. The base threshold is scaled per-coach by
-    // substitutionAggressiveness (higher ⇒ pull earlier ⇒ higher threshold).
+    /** Scaled per-coach by {@code substitutionAggressiveness} — higher pulls earlier. */
     private final double baseSubEnergyThreshold;
-    // Starters tolerate more fatigue before being pulled (Decision C star
-    // retention): their effective threshold is lowered by this many energy points,
-    // so a starter is pulled later than a bench player at the same energy. Tuned in
-    // §3.5 calibration to land the top starter near ~36 min (not 38+).
+    /**
+     * Starters tolerate more fatigue: their effective threshold is LOWERED by this many
+     * energy points, so a starter is pulled later than a bench player at equal energy
+     * (Decision C star retention). Tuned in §3.5 to land the top starter near ~36 min.
+     */
     private final double starterSubThresholdBonus;
-    // Base bench depth (players drawn off the rotationOrder queue) at an average
-    // (10) rotationDepth coach, scaled by rotationDepthFactor. Full squad is always
-    // available for forced (foul-out) subs regardless of this.
+    /**
+     * Bench depth at an average (10) {@code rotationDepth} coach, scaled by
+     * {@code rotationDepthFactor}. ⚠ The full squad is always available for forced
+     * (foul-out) subs regardless of this.
+     */
     private final int baseRotationDepth;
 
-    // --- Foul trouble (§3.13, decisions.md #031 B) ---
-    // The SOFT benching rule: a player carrying fouls is a bench CANDIDATE, and
-    // whether he actually sits is a per-possession probability, not a threshold.
-    //
-    // UNITS — read this before touching the numbers below (the #030 G lesson):
-    //   foulTroubleSitProbabilities()[f] is a PROBABILITY (per rotation check) that
-    //   an average-value player under an average (10) substitutionAggressiveness
-    //   coach is benched at foul count f. It is NOT a multiplier.
-    //   FOUL_TROUBLE_VALUE_SENSITIVITY is a MULTIPLIER sensitivity (avg-10
-    //   deviation form) — it scales the probability above, it is not one.
-    //
-    // Shape (#031 B, the user's stated intent and the acceptance criterion): one
-    // curve scaled by the coach factor, NOT three thresholds — a high-aggressiveness
-    // coach starts thinking about sitting at 3, a medium one at 4, a low one at 5.
-    // So index 3 is deliberately small (only an aggressive coach's multiplier lifts
-    // it to something that fires often) and index 5 is high (nearly everyone sits).
-    // Counts 0–2 are ZERO: no coach benches a player for 2 fouls. Index 6 is
-    // foulOutLimit — a foul-out is the HARD rule's business, not this one.
-    //
-    // These are per-CHECK probabilities and substitution is re-decided ~100 times
-    // per team per game, so even a small value fires reliably given exposure; the
-    // curve is what decides HOW EARLY, not whether. Tuned against the harness in
-    // §3.13 Step 6 (foul-outs + the 4/5/6 distribution + the per-slot minutes cost).
-    //
-    // THE CURVE IS SATURATED — do not reach for it to move foul-outs further. §3.13
-    // measured this directly: raising it to {0.25, 0.75, 0.95} moved foul-outs 0.377
-    // → 0.407, and {0.40, 0.90, 0.98} → 0.382, i.e. nothing, despite ~60% more subs.
-    // The binding constraint is not how readily the coach sits the player; it is that
-    // #031 D sends him BACK (via the ordinary freshness path, by design) into the same
-    // over-dispersed defender draw that gave him the fouls. Getting below ~0.38 needs
-    // a different lever than this one — see #031's implementation note.
+    /**
+     * Foul trouble (§3.13, decisions.md #031 B).
+     * The SOFT benching rule: a player carrying fouls is a bench CANDIDATE, and
+     * whether he actually sits is a per-possession probability, not a threshold.
+     *
+     * <p>UNITS — read this before touching the numbers below (the #030 G lesson):
+     *   foulTroubleSitProbabilities()[f] is a PROBABILITY (per rotation check) that
+     *   an average-value player under an average (10) substitutionAggressiveness
+     *   coach is benched at foul count f. It is NOT a multiplier.
+     *   FOUL_TROUBLE_VALUE_SENSITIVITY is a MULTIPLIER sensitivity (avg-10
+     *   deviation form) — it scales the probability above, it is not one.
+     *
+     * <p>Shape (#031 B, the user's stated intent and the acceptance criterion): one
+     * curve scaled by the coach factor, NOT three thresholds — a high-aggressiveness
+     * coach starts thinking about sitting at 3, a medium one at 4, a low one at 5.
+     * So index 3 is deliberately small (only an aggressive coach's multiplier lifts
+     * it to something that fires often) and index 5 is high (nearly everyone sits).
+     * Counts 0–2 are ZERO: no coach benches a player for 2 fouls. Index 6 is
+     * foulOutLimit — a foul-out is the HARD rule's business, not this one.
+     *
+     * <p>These are per-CHECK probabilities, re-decided ~100 times per team per game, so
+     * even a small value fires reliably; the curve decides HOW EARLY, not whether.
+     *
+     * <p>⚠ THE CURVE IS SATURATED — do not reach for it to move foul-outs further. §3.13
+     * measured it: {0.25, 0.75, 0.95} gives 0.407 and {0.40, 0.90, 0.98} gives 0.382 —
+     * ~60% more substitutions for nothing. The binding constraint is that #031 D sends
+     * the player BACK into the same over-dispersed defender draw that gave him the
+     * fouls. Below ~0.38 needs a different lever — see #031's implementation note.
+     */
     private final double[] foulTroubleSitProbabilities;
 
-    // How strongly the player's VALUE composite (PlayerGameState.valueComposite())
-    // bends the sit probability, in the avg-10 deviation form the rest of this class
-    // uses: factor = 1 + FOUL_TROUBLE_VALUE_SENSITIVITY × (value − 10)/10.
-    //
-    // DIRECTION IS DELIBERATE AND INVERTS THE FATIGUE RULE (#031 B): a POSITIVE
-    // sensitivity means a BETTER player is MORE likely to be sat at the same foul
-    // count. You ride your star when he's tired (starterSubThresholdBonus lets
-    // starters tolerate more fatigue); you PROTECT him when he's in foul trouble.
-    // This looks like an inconsistency and is not — do not "fix" it.
+    /**
+     * How strongly the player's VALUE composite (PlayerGameState.valueComposite())
+     * bends the sit probability, in the avg-10 deviation form the rest of this class
+     * uses: factor = 1 + FOUL_TROUBLE_VALUE_SENSITIVITY × (value − 10)/10.
+     *
+     * <p>DIRECTION IS DELIBERATE AND INVERTS THE FATIGUE RULE (#031 B): a POSITIVE
+     * sensitivity means a BETTER player is MORE likely to be sat at the same foul
+     * count. You ride your star when he's tired (starterSubThresholdBonus lets
+     * starters tolerate more fatigue); you PROTECT him when he's in foul trouble.
+     * This looks like an inconsistency and is not — do not "fix" it.
+     */
     public static final double FOUL_TROUBLE_VALUE_SENSITIVITY = 0.55;
 
-    // The extra protection the roster signal adds on top of the value composite
-    // (#031 B: the two signals are COMBINED, not substituted). A starter is a player
-    // the coach has already committed to, so he is managed a little more tightly
-    // still; bench players get a mild discount that deepens down the rotationOrder
-    // queue, capped so a deep reserve is never fully exempt.
+    /**
+     * The extra protection the roster signal adds on top of the value composite
+     * (#031 B: the two signals are COMBINED, not substituted). A starter is a player
+     * the coach has already committed to, so he is managed a little more tightly
+     * still; bench players get a mild discount that deepens down the rotationOrder
+     * queue, capped so a deep reserve is never fully exempt.
+     */
     private final double foulTroubleStarterBonus;
     private final double foulTroubleBenchDiscountPerSlot;
     private final double foulTroubleMinRosterFactor;
 
-    // How much fresher (energy points) a bench player must be before the SOFT
-    // foul-trouble rule will sit an on-floor player for him. This is the
-    // anti-oscillation guard, and it is what makes #031 D's sticky sit actually
-    // stick in BOTH directions without a stored flag or a countdown.
-    //
-    // Why it is needed: a player benched for foul trouble rests to full, returns via
-    // the ordinary freshness path, and is then — for a few possessions — barely less
-    // fresh than the bench. With NO margin at all the rule re-fires almost at once and
-    // the player visibly flickers on and off across consecutive possessions, which is
-    // exactly the behavior #031 D set out to prevent (measured during §3.13, not
-    // hypothetical).
-    //
-    // The value is NOT "as large as possible" — it is a genuine optimum, and the
-    // §3.13 sweep is worth recording because the direction is counter-intuitive. A
-    // LARGER margin makes foul-outs WORSE, because it blocks legitimate sits: at
-    // margin 12 it vetoed ~69% of fired rolls and foul-outs sat at 0.53; at 8 → 0.46;
-    // at 3 → 0.45; at 1 → 0.38. But 0 is also worse (0.40) than 1 — a bare `>` lets
-    // the rule swap for a replacement who is fresher by a rounding error, which
-    // churns without removing exposure. 1.0 is the floor of the useful band.
-    //
-    // Note this is BELOW one possession's drain (energyDrainPerPossession = 2.6),
-    // so it does not by itself keep a just-returned player on the floor for a fixed
-    // number of possessions. It doesn't need to: the anti-oscillation guarantee comes
-    // from the combination of this margin and the fact that a returning player enters
-    // at or near a full tank, and it is pinned by RotationStateTest's average-sit-
-    // length assertion rather than by this constant's size.
-    //
-    // A margin, in energy points — NOT a probability and NOT a multiplier.
+    /**
+     * How much fresher (energy points) a bench player must be before the SOFT
+     * foul-trouble rule will sit an on-floor player for him. This is the
+     * anti-oscillation guard, and it is what makes #031 D's sticky sit actually
+     * stick in BOTH directions without a stored flag or a countdown.
+     *
+     * <p>Why it is needed: a player benched for foul trouble rests to full, returns via the
+     * ordinary freshness path, and is briefly barely less fresh than the bench. With NO
+     * margin the rule re-fires at once and he flickers on and off (measured in §3.13).
+     *
+     * <p>⚠ NOT "as large as possible" — a LARGER margin makes foul-outs WORSE by blocking
+     * legitimate sits. Swept: 12 → 0.53 (vetoing ~69% of fired rolls), 8 → 0.46,
+     * 3 → 0.45, 1 → 0.38, but 0 → 0.40 (a bare `>` swaps for a replacement fresher by a
+     * rounding error). 1.0 is the floor of the useful band.
+     *
+     * <p>⚠ It sits BELOW one possession's drain (2.6), so it does not by itself hold a
+     * returning player on the floor — the anti-oscillation guarantee comes from this
+     * margin PLUS a returning player entering at a full tank, and is pinned by
+     * RotationStateTest's average-sit-length assertion, not by this constant's size.
+     *
+     * <p>A margin, in energy points — NOT a probability and NOT a multiplier.
+     */
     private final double foulTroubleFreshnessMargin;
 
-    // --- Technical fouls (§3.14a, decisions.md #032 B2/E/F) ---
-    //
-    // ⚠ THIS IS A PER-TEAM-PER-GAME RATE, NOT A PER-CHECK PROBABILITY. It sits in a
-    // file where nearly every double is a probability, so read it as what it is: the
-    // number of technical fouls one team is expected to commit in one game. The
-    // per-check probability the engine actually rolls is ~0.00175 and is DERIVED, by
-    // technicalFoulProbability() below (which also explains why that is half the
-    // ~0.0035 #032 B2 estimated).
-    //
-    // Stored this way deliberately (#032 B2): 0.00175 has no intuitive meaning, cannot
-    // be sanity-checked by eye, is not comparable to anything in calibration.md, and
-    // would silently drift if defaultPossessionsPerPeriod or PERIODS ever moved.
-    // 0.35 is the number a tuner reasons about.
-    //
-    // Set from the user's real-world figure of 0.6–0.8 technicals per GAME
-    // league-wide, i.e. ~0.3–0.4 per TEAM per game. UNSOURCED, like every row in
-    // calibration.md — §3.16's job (1) owns verifying it.
-    //
-    // A ballpark, NOT a target (#032 J): nothing in the engine is tuned toward it —
-    // the constant is set from the real-world figure directly, so the harness line is
-    // a correctness check that the roll fires at the rate configured, not a
-    // calibration objective. Judge it at 5 SEEDS ONLY (11.8% relative sd at 102
-    // games; 5.3% at 5 seeds).
+    /**
+     * Technical fouls (§3.14a, decisions.md #032 B2/E/F).
+     *
+     * <p>⚠ THIS IS A PER-TEAM-PER-GAME RATE, NOT A PER-CHECK PROBABILITY. It sits in a
+     * file where nearly every double is a probability, so read it as what it is: the
+     * number of technical fouls one team is expected to commit in one game. The
+     * per-check probability the engine actually rolls is ~0.00175 and is DERIVED, by
+     * technicalFoulProbability() below (which also explains why that is half the
+     * ~0.0035 #032 B2 estimated).
+     *
+     * <p>Stored this way deliberately (#032 B2): 0.00175 has no intuitive meaning, cannot
+     * be sanity-checked by eye, is not comparable to anything in calibration.md, and
+     * would silently drift if defaultPossessionsPerPeriod or PERIODS ever moved.
+     * 0.35 is the number a tuner reasons about.
+     *
+     * <p>Set from the user's real-world figure of 0.6–0.8 technicals per GAME
+     * league-wide, i.e. ~0.3–0.4 per TEAM per game. UNSOURCED, like every row in
+     * calibration.md — §3.16's job (1) owns verifying it.
+     *
+     * <p>A ballpark, NOT a target (#032 J): nothing in the engine is tuned toward it —
+     * the constant is set from the real-world figure directly, so the harness line is
+     * a correctness check that the roll fires at the rate configured, not a
+     * calibration objective. Judge it at 5 SEEDS ONLY (11.8% relative sd at 102
+     * games; 5.3% at 5 seeds).
+     */
     private final double technicalFoulsPerTeamGame;
 
-    // Two technicals in one game is an automatic ejection (#032 F). A monotonic
-    // counter exactly like foulOutLimit, which is why PlayerGameState.isEjected()
-    // is a DERIVED predicate with no stored flag — #023 F's discipline applies
-    // unchanged. (The stored-state exception belongs to §3.14b's flagrant-2, which
-    // is a severity grade with no counter behind it.)
+    /**
+     * Two technicals in one game is an automatic ejection (#032 F). A monotonic
+     * counter exactly like foulOutLimit, which is why PlayerGameState.isEjected()
+     * is a DERIVED predicate with no stored flag — #023 F's discipline applies
+     * unchanged. (The stored-state exception belongs to §3.14b's flagrant-2, which
+     * is a severity grade with no counter behind it.)
+     */
     public static final int TECHNICAL_EJECTION_LIMIT = 2;
 
-    // A technical is exactly ONE free throw (FREE_THROWS_PER_FOUL is 2,
-    // AND_ONE_FREE_THROWS is 1). Named separately rather than sharing AND_ONE's
-    // constant: the two are 1 for unrelated reasons, and §3.12 already showed what
-    // happens when one count is assumed to follow another (#030 C).
+    /**
+     * A technical is exactly ONE free throw (FREE_THROWS_PER_FOUL is 2,
+     * AND_ONE_FREE_THROWS is 1). Named separately rather than sharing AND_ONE's
+     * constant: the two are 1 for unrelated reasons, and §3.12 already showed what
+     * happens when one count is assumed to follow another (#030 C).
+     */
     public static final int TECHNICAL_FREE_THROWS = 1;
 
-    // --- Flagrant fouls (§3.14b, decisions.md #034 A/E/G) ---
-    //
-    // ⚠ THIS IS A PER-TEAM-PER-GAME RATE, NOT A PER-FOUL PROBABILITY — the same
-    // shape as technicalFoulsPerTeamGame above, and read the same way: the
-    // number of flagrant fouls one team is expected to commit in one game. The
-    // per-foul probability the engine actually rolls is ~0.0084 and is DERIVED, by
-    // flagrantFoulProbability() below.
-    //
-    // Stored this way deliberately (#032 B2's argument, #034 G): 0.0084 has no
-    // intuitive meaning, cannot be sanity-checked by eye, and is not comparable to
-    // anything in calibration.md. 0.16 is the number a tuner reasons about.
-    //
-    // Back-solved from the real-world figure of ~0.25-0.40 flagrants per GAME
-    // league-wide, i.e. ~0.13-0.20 per TEAM per game. UNSOURCED, like every row in
-    // calibration.md — §3.16's job (1) owns verifying it.
-    //
-    // A ballpark, NOT a target (#034 H): nothing in the engine is tuned toward it —
-    // the constant is set from the real-world figure directly, so the harness line is
-    // a correctness check that the roll fires at the rate configured, not a
-    // calibration objective. JUDGE IT AT 5 SEEDS ONLY — at 102 games this is ~33
-    // events (relative sd 17.4%) and at 5 seeds ~166 (7.8%), the COARSEST row in
-    // calibration.md. A single-seed reading is useless.
+    /**
+     * Flagrant fouls (§3.14b, decisions.md #034 A/E/G).
+     *
+     * <p>⚠ THIS IS A PER-TEAM-PER-GAME RATE, NOT A PER-FOUL PROBABILITY — the same
+     * shape as technicalFoulsPerTeamGame above, and read the same way: the
+     * number of flagrant fouls one team is expected to commit in one game. The
+     * per-foul probability the engine actually rolls is ~0.0084 and is DERIVED, by
+     * flagrantFoulProbability() below.
+     *
+     * <p>Stored this way deliberately (#032 B2's argument, #034 G): 0.0084 has no
+     * intuitive meaning, cannot be sanity-checked by eye, and is not comparable to
+     * anything in calibration.md. 0.16 is the number a tuner reasons about.
+     *
+     * <p>Back-solved from the real-world figure of ~0.25-0.40 flagrants per GAME
+     * league-wide, i.e. ~0.13-0.20 per TEAM per game. UNSOURCED, like every row in
+     * calibration.md — §3.16's job (1) owns verifying it.
+     *
+     * <p>A ballpark, NOT a target (#034 H): nothing in the engine is tuned toward it —
+     * the constant is set from the real-world figure directly, so the harness line is
+     * a correctness check that the roll fires at the rate configured, not a
+     * calibration objective. JUDGE IT AT 5 SEEDS ONLY — at 102 games this is ~33
+     * events (relative sd 17.4%) and at 5 seeds ~166 (7.8%), the COARSEST row in
+     * calibration.md. A single-seed reading is useless.
+     */
     private final double flagrantFoulsPerTeamGame;
 
-    // What fraction of flagrants are FLAGRANT-2 — the grade that ejects immediately
-    // (#034 E). A flat CONDITIONAL SHARE, rolled only once a flagrant has already
-    // happened, with no causal input: the engine cannot distinguish excessive from
-    // ordinary contact, and foulProne has already had its say in who was selected as
-    // the committer.
-    //
-    // ⚠ NOT a probability in the clamped sense — it is a share of an already-rare
-    // parent event, so it needs NO clamp (neither clampProbability nor
-    // clampRareProbability). It inherits the parent rate's resolvability rather than
-    // having its own: a separately-tuned flagrant-2 RATE was rejected because ~5
-    // events per 102-game run cannot be resolved at any seed count (#034 E).
+    /**
+     * What fraction of flagrants are FLAGRANT-2 — the grade that ejects immediately
+     * (#034 E). A flat CONDITIONAL SHARE, rolled only once a flagrant has already
+     * happened, with no causal input: the engine cannot distinguish excessive from
+     * ordinary contact, and foulProne has already had its say in who was selected as
+     * the committer.
+     *
+     * <p>⚠ NOT a probability in the clamped sense — it is a share of an already-rare
+     * parent event, so it needs NO clamp (neither clampProbability nor
+     * clampRareProbability). It inherits the parent rate's resolvability rather than
+     * having its own: a separately-tuned flagrant-2 RATE was rejected because ~5
+     * events per 102-game run cannot be resolved at any seed count (#034 E).
+     */
     private final double flagrantTwoShare;
 
-    // --- Shooting-foul composition (§3.16, decisions.md #039 A/B/D/E) ---
-    //
-    // What fraction of the fouls FoulResolver.isFoul has ALREADY rolled and charged
-    // are NON-SHOOTING fouls rather than SHOOTING_FOUL. A SECOND roll layered
-    // on the foul, the isFlagrant shape three fields up: isFoul keeps its rate, skills
-    // and RNG draw, recordFoul() has already run, so THE FOUL TOTAL HOLDS BY
-    // CONSTRUCTION and this knob re-partitions the outcome only (#039 A).
-    //
-    // ⚠ THE KEY AND THE EVENT OUTCOME NOW AGREE (§3.17, #040 M): both read
-    // NON_SHOOTING_FOUL, and COMMON_FOUL survives nowhere in engine logic.
-    // HISTORY, so the reversal is not re-litigated: #039 E had deliberately diverged
-    // them — key sim.non-shooting-foul-share, outcome COMMON_FOUL — on a
-    // different-audiences argument. #040 M reversed that by user call: the criticism
-    // that killed common-foul-share applied just as hard to the outcome string, and
-    // NON_SHOOTING_FOUL is the correct complement of SHOOTING_FOUL beside it in the log.
-    // See PossessionEngine.NON_SHOOTING_FOUL_OUTCOME for the full reasoning and for the
-    // no-migration cutover this rename leaves in game_event.outcome.
-    //
-    // ⚠ THE SHARE IS PRICED BY THE PENALTY RATE, not by the foul rate alone (§3.16's
-    // execution finding): inside the bonus a non-shooting foul still awards 2 FTs, so
-    // what this knob removes per conversion depends on how often teams are in the
-    // penalty. Any pass that moves the foul rate must RE-CHECK FTA rather than assume
-    // this value still lands it.
-    //
-    // ⚠ BACK-SOLVED, NOT SOURCED (#039 D). The real NBA shooting-foul share is not in
-    // a league-averages row and needs play-by-play derivation; this is the value that
-    // lands the engine on a SOURCED FTA (~23.5), which is a weaker claim than it being
-    // what the NBA does. calibration.md records it as derived. An earlier ~35% figure
-    // is WITHDRAWN — it assumed the converted foul awards zero FTs, but a large share
-    // of these fouls are committed ALREADY IN THE PENALTY and award 2 bonus FTs
-    // (#039 B), so each conversion removes well under 2 free throws.
-    //
-    // Measured 2026-08 at 5 seeds: 0.50 lands FTA at 23.6. #039 D predicted 0.43 from
-    // an 18.5% in-penalty share, but the §3.16 charge fix raises the bonus rate to
-    // ~56% of team-periods, so the in-penalty share is higher and each conversion
-    // removes ~1.47 FTs rather than 1.664 — hence the higher share. The LANDING is
-    // the target, not the constant.
-    //
-    // NO skill input by design (#039 E) — see FoulResolver.isNonShootingFoul.
+    /**
+     * Shooting-foul composition (§3.16, decisions.md #039 A/B/D/E).
+     *
+     * <p>What fraction of the fouls FoulResolver.isFoul has ALREADY rolled and charged
+     * are NON-SHOOTING fouls rather than SHOOTING_FOUL. A SECOND roll layered
+     * on the foul, the isFlagrant shape three fields up: isFoul keeps its rate, skills
+     * and RNG draw, recordFoul() has already run, so THE FOUL TOTAL HOLDS BY
+     * CONSTRUCTION and this knob re-partitions the outcome only (#039 A).
+     *
+     * <p>⚠ Key and event outcome agree — both NON_SHOOTING_FOUL since §3.17 (#040 M).
+     * COMMON_FOUL survives nowhere in engine logic, but it IS still in game_event.outcome
+     * for pre-§3.17 games; see PossessionEngine.NON_SHOOTING_FOUL_OUTCOME for that
+     * no-migration cutover.
+     *
+     * <p>⚠ PRICED BY THE PENALTY RATE, not the foul rate alone (§3.16's execution finding):
+     * inside the bonus a non-shooting foul still awards 2 FTs, so what a conversion
+     * removes depends on how often teams are in the penalty. Any pass moving the foul
+     * rate must RE-CHECK FTA rather than assume this value still lands it.
+     *
+     * <p>⚠ BACK-SOLVED, NOT SOURCED (#039 D) — the real NBA share needs play-by-play
+     * derivation; this is the value that lands a SOURCED FTA (~23.5), a weaker claim.
+     * ⚠ TUNE AGAINST THE MEASURED FTA LINE, never against points: the landing is the
+     * target, not the constant (#039 D predicted 0.43 and it came out 0.50).
+     *
+     * <p>NO skill input by design (#039 E) — see FoulResolver.isNonShootingFoul.
+     */
     private final double nonShootingFoulShare;
 
-    // §3.17 (decisions.md #040 C/J/K): THE SHOT-MIX SHARE TABLE — the league's base
-    // distribution over the four ShotTypes, as RAW WEIGHTS normalized at the call site
-    // (the to-weight-* / block-* / oob-* convention: only RATIOS matter, so a profile
-    // author never has to make them sum to 1).
-    //
-    // ⚠ WHY THIS EXISTS. Before §3.17 the mix was an EMERGENT property of the four
-    // skill calculators and nothing in the sim could tune it — and it was emergently
-    // wrong by 20 points. PlayerGameState.shotTypeWeight gave DRIVE the SUM of two
-    // skills (drive + finishing) while the other three types got one each, an artifact
-    // of #021 D's five-skills-for-four-types wording collapsing 5 into 4 (#040 B). At
-    // an average player that structurally predicts DRIVE 40 / PERIMETER 20 / POST 20 /
-    // THREE 20, and the engine measured a 20.9% three DRAW share against a real 41.5%.
-    // The gap was the formula, not the player population — every SkillCalculator
-    // centres on ~10 by construction, so no population shift could close it (#040 A).
-    //
-    // ⚠ THE MIX IS NO LONGER EMERGENT, AND THAT IS A REAL TRADE (#040 C). The league
-    // now imposes the base mix and players bend it via the skill modifier below; a
-    // future player-generation change can move a PLAYER's share within the mix but no
-    // longer moves the LEAGUE's. Accepted because an emergent property nobody can tune
-    // is not a feature when it is emergently wrong.
-    //
-    // ⚠ THE SHARES ARE SHARES OF *DRAWS*, NOT OF CHARGED ATTEMPTS, and the two differ
-    // (#040 E). A stopped shot charges NO FGA, and foul-mult-three (0.133) is 7.5x
-    // below DRIVE's 1.0, so a three is stopped far less often and converts to a charged
-    // attempt at a higher rate. The three DRAW share must therefore sit BELOW the
-    // target share of ATTEMPTS. Do not set these to the target percentages and expect
-    // them back out. TUNE AGAINST THE MEASURED 3PA LINE AT 5 SEEDS — the landing is the
-    // target, not the constant (the §3.16 lesson: #039's share came out 0.50 against a
-    // predicted 0.43).
+    /**
+     * §3.17 (decisions.md #040 C/J/K): THE SHOT-MIX SHARE TABLE — the league's base
+     * distribution over the four ShotTypes, as RAW WEIGHTS normalized at the call site
+     * (the to-weight-* / block-* / oob-* convention: only RATIOS matter, so a profile
+     * author never has to make them sum to 1).
+     *
+     * <p>⚠ THE MIX IS NO LONGER EMERGENT, AND THAT IS A REAL TRADE (#040 C). The league
+     * imposes the base mix and players bend it via the skill modifier; a future
+     * player-generation change moves a PLAYER's share within the mix but no longer moves
+     * the LEAGUE's. Accepted because an emergent property nobody can tune is not a
+     * feature when it is emergently wrong. See PlayerGameState.shotTypeWeight for the
+     * formula this replaced and why it was wrong.
+     *
+     * <p>⚠ THESE ARE SHARES OF *DRAWS*, NOT OF CHARGED ATTEMPTS (#040 E). A stopped shot
+     * charges NO FGA, and foul-mult-three (0.133) is 7.5x below DRIVE's 1.0, so a three
+     * is stopped far less often and converts to a charged attempt at a higher rate. The
+     * three DRAW share must therefore sit BELOW the target share of ATTEMPTS: do not set
+     * these to the target percentages and expect them back out. TUNE AGAINST THE
+     * MEASURED 3PA LINE AT 5 SEEDS — the landing is the target, not the constant.
+     */
     private final double shotShareDrive;
     private final double shotSharePerimeter;
     private final double shotSharePost;
@@ -851,97 +742,74 @@ public class SimConfig {
      */
     public static final double SHOT_MIX_SENSITIVITY = 0.5;
 
-    // ONE flagrant-2 is an automatic ejection (#034 E/F). Named rather than inlined as
-    // `>= 1` so the third disqualification threshold reads identically to the other two
-    // (foulOutLimit = 6, TECHNICAL_EJECTION_LIMIT = 2) — the shape is the point:
-    // PlayerGameState.isEjectedForFlagrant() is a DERIVED predicate over a monotonic
-    // counter, and a limit of 1 changes nothing about that. It is what makes the
-    // stored-state exception predicted by #031 H / #032 F unnecessary a second time.
+    /**
+     * ONE flagrant-2 is an automatic ejection (#034 E/F). Named rather than inlined as
+     * `>= 1` so the third disqualification threshold reads identically to the other two
+     * (foulOutLimit = 6, TECHNICAL_EJECTION_LIMIT = 2) — the shape is the point:
+     * PlayerGameState.isEjectedForFlagrant() is a DERIVED predicate over a monotonic
+     * counter, and a limit of 1 changes nothing about that. It is what makes the
+     * stored-state exception predicted by #031 H / #032 F unnecessary a second time.
+     */
     public static final int FLAGRANT_EJECTION_LIMIT = 1;
 
-    // A flagrant is exactly TWO free throws, at every site and for both grades (#034
-    // C/E). Named separately rather than sharing FREE_THROWS_PER_FOUL (also 2): the
-    // two are 2 for unrelated reasons, and §3.12 already showed what happens when one
-    // count is assumed to follow another (#030 C) — the same argument that gave
-    // TECHNICAL_FREE_THROWS its own name.
-    //
-    // ⚠ THIS REPLACES THE UNDERLYING FOUL'S AWARD, IT DOES NOT ADD TO IT. A flagrant
-    // stopped THREE is 2 FTs (not 3, not 5); a flagrant and-1 is 2 (not 1 + 2). See
-    // PossessionEngine.awardFlagrant.
+    /**
+     * A flagrant is exactly TWO free throws, at every site and for both grades (#034
+     * C/E). Named separately rather than sharing FREE_THROWS_PER_FOUL (also 2): the
+     * two are 2 for unrelated reasons, and §3.12 already showed what happens when one
+     * count is assumed to follow another (#030 C) — the same argument that gave
+     * TECHNICAL_FREE_THROWS its own name.
+     *
+     * <p>⚠ THIS REPLACES THE UNDERLYING FOUL'S AWARD, IT DOES NOT ADD TO IT. A flagrant
+     * stopped THREE is 2 FTs (not 3, not 5); a flagrant and-1 is 2 (not 1 + 2). See
+     * PossessionEngine.awardFlagrant.
+     */
     public static final int FLAGRANT_FREE_THROWS = 2;
 
-    // The divisor for flagrantFoulProbability() — personal fouls per team per game.
-    //
-    // ⚠ A NAMED CONSTANT, NOT A MAGIC NUMBER, because it is an ASSUMPTION ABOUT THE
-    // ENGINE'S CURRENT BEHAVIOR rather than a rule: it must be greppable when a pass
-    // invalidates it. Measured, not configured — the harness's `Fouls / team / game`
-    // MINUS the technicals on that line (it tallies ALL FOUL events), i.e. the
-    // personal-foul rate alone.
-    //
-    // ⚠ NOT A TUNABLE, AND NOT ALLOWED TO DRIFT EITHER (#034 G): a pass that moves
-    // the engine's foul rate must re-measure this DELIBERATELY. §3.16 is the first
-    // such pass and did so. §3.14a/§3.13 measured 19.0; §3.16's charge fix (#039 G)
-    // made ~1.2 charges per team-game personal fouls that had counted toward nothing,
-    // taking the measured rate to 20.50 all-events MINUS ~0.35 technicals = 20.15
-    // (5 seeds, 2026-08). Left at 19.0 the flagrant rate would have run ~6% high.
-    //
-    // §3.16's NON_SHOOTING_FOUL re-partition does NOT enter this number: it re-labels a
-    // foul that was already rolled and charged, so it moves composition, not the
-    // total (#039 A). Only the charge fix moved the rate.
-    //
-    // ⚠ §3.17 RE-MEASURED IT AGAIN AND MOVED IT: 20.15 -> 17.82 (5 seeds, 2026-08).
-    // #034 G forbids BOTH treating this as a tunable AND letting it drift, so a pass
-    // that moves the foul rate must decide it IN WRITING. §3.17 moves the foul rate
-    // hard and INDIRECTLY: it touches no foul constant at all, but shifting ~17 draws
-    // per team-game from DRIVE/POST (foul-mult 1.0) to THREE (0.133) means far fewer of
-    // them draw contact. All-foul events fell 20.53 -> 18.18, personal fouls
-    // 20.18 -> 17.82 — a -11.5% drift, and the largest this constant has ever taken.
-    //
-    // ⚠ THE DRIFT WAS ALREADY VISIBLE IN THE OUTPUT, WHICH IS WHY IT IS NOT LEFT: the
-    // measured flagrant rate ran 0.119 against its ~0.16 ballpark — 74%, i.e. precisely
-    // the 17.82/20.15 ratio. Leaving the divisor stale would have understated flagrants
-    // by ~13% permanently, and #032 B2's warning is that NOTHING WOULD HAVE FAILED.
-    // §3.20 (#042, Step 7) RE-MEASURED at the recalibration landing: 18.52.
-    // Personal fouls = all foul events (18.864) MINUS technicals (0.346); flagrants
-    // REPLACE a foul event and are therefore already inside the tally.
-    // ⚠ §3.20 moved this TWICE. Its main pass changed only the foul MIX and left the
-    // rate alone (17.82 -> 17.77, -0.31%, a non-event). Its follow-up raised
-    // base-no-basket-foul 0.15 -> 0.1687 to land FGA, which DOES move the rate:
-    // 17.77 -> 18.52, +4.2%. The lesson #034 G keeps making: this divisor tracks a
-    // MEASURED quantity, so re-measure it whenever ANY change touches the foul rate —
-    // the cost of a stale divisor is silence (#032 B2), not a failure.
-    // §3.21 (#043) RE-MEASURED AGAIN: 18.52 -> 19.08, +3.0%. Same cause as §3.20's
-    // follow-up — base-no-basket-foul moved again (0.1687 -> 0.1753) to buy back the
-    // FGA the new rebounds added, and the foul rate followed. Personal fouls = all foul
-    // events (19.416) MINUS technicals (0.336). ⚠ IT WAS FOUND BY THE RULE, NOT BY A
-    // FAILURE: calibration.md says any pass that moves the foul rate must re-measure
-    // this, the flagrants row was reading 0.156 against a ~0.16 ballpark it would have
-    // sat 3% hot in, and nothing anywhere would have complained. THREE consecutive
-    // phases have now moved it.
-    // §3.22 (#044) RE-MEASURED AND DELIBERATELY LEFT ALONE: 19.015 against this 19.08,
-    // a -0.34% drift. base-no-basket-foul moved again (0.1753 -> 0.178) to buy back the
-    // FGA the putback added, so the rule fired for a FOURTH consecutive phase — but the
-    // measurement came back inside noise this time, against the +4.2% and +3.0% that
-    // justified the last two updates. ⚠ THE POINT IS THAT IT WAS MEASURED, NOT THAT IT
-    // MOVED: the flagrants row read 0.159 against its ~0.13-0.20 ballpark, which cannot
-    // resolve a third of a percent, so churning the divisor would be false precision.
-    // Re-measure again on the next foul-rate move; do not assume this one held.
+    /**
+     * The divisor for flagrantFoulProbability() — personal fouls per team per game.
+     *
+     * <p>⚠ A NAMED CONSTANT, NOT A MAGIC NUMBER, because it is an ASSUMPTION ABOUT THE
+     * ENGINE'S CURRENT BEHAVIOR rather than a rule: it must be greppable when a pass
+     * invalidates it. Measured, not configured — the harness's `Fouls / team / game`
+     * MINUS the technicals on that line (it tallies ALL FOUL events), i.e. the
+     * personal-foul rate alone.
+     *
+     * <p>⚠ NOT A TUNABLE, AND NOT ALLOWED TO DRIFT EITHER (#034 G). THE RULE: any pass
+     * that moves the foul rate must RE-MEASURE this deliberately and record the result,
+     * even if the answer is "unchanged". It has fired for four consecutive phases and
+     * moved on three of them (19.0 -> 20.15 -> 17.82 -> 18.52 -> 19.08; §3.22 measured
+     * 19.015 and left it as noise). engine-traps.md carries the chain and its causes.
+     *
+     * <p>⚠ IT MOVES INDIRECTLY, WHICH IS WHY THE RULE EXISTS. §3.17 touched no foul
+     * constant at all and still moved it -11.5%, by shifting draws from DRIVE/POST
+     * (foul-mult 1.0) to THREE (0.133). Anything touching base-no-basket-foul or the
+     * shot mix moves it. A re-partition like NON_SHOOTING_FOUL does NOT — that re-labels
+     * an already-charged foul (#039 A).
+     *
+     * <p>⚠ A STALE DIVISOR FAILS SILENTLY (#032 B2) — nothing asserts it. The tell is in
+     * the harness's FLAGRANTS row before you look at anything else: at a stale 20.15
+     * against a real 17.82 it read 0.119 vs a ~0.16 ballpark, exactly the 74% ratio.
+     * Measure as: all FOUL events MINUS technicals (the harness line tallies both;
+     * flagrants REPLACE a foul event and are already inside it).
+     */
     public static final double PERSONAL_FOULS_PER_TEAM_GAME = 19.08;
 
-    // Base probability that a made field goal is assisted, at an average passing
-    // supporting cast (the other 4 offensive players ≈ 10). Scaled up/down by how
-    // much the supporting cast's passing deviates from average. Tuned in §3.4
-    // calibration toward ~26 assists/team/game.
+    /**
+     * At an average passing supporting cast — the other 4 offensive players ≈ 10, NOT
+     * the shooter. Tuned in §3.4 toward ~26 assists/team/game.
+     */
     private final double baseAssist;
-    // How strongly the supporting cast's average passing deviation bends the
-    // assist rate (avg-10 deviation form).
     public static final double ASSIST_SENSITIVITY = 0.30;
 
-    // acumen → a small shot-make-probability bonus (better shot selection ⇒
-    // higher-quality looks). Modest thumb on the scale, not a shot-type reweight.
+    /**
+     * acumen → a small shot-make-probability bonus (better shot selection ⇒
+     * higher-quality looks). Modest thumb on the scale, not a shot-type reweight.
+     */
     public static final double ACUMEN_SENSITIVITY = 0.05;
-    // teamOffense/teamDefense → a single possession-level efficiency multiplier on
-    // the shot make rate (offense lifts, defense suppresses). Modest.
+    /**
+     * teamOffense/teamDefense → a single possession-level efficiency multiplier on
+     * the shot make rate (offense lifts, defense suppresses). Modest.
+     */
     public static final double TEAM_EFFICIENCY_SENSITIVITY = 0.08;
 
     /**
@@ -1119,30 +987,17 @@ public class SimConfig {
 
     /**
      * §3.14a (decisions.md #032 H): clamp a probability to [0, {@link
-     * #PROB_CEILING}] — the <b>floor-free</b> sibling of {@link #clampProbability},
-     * and the single owner of an expression that had been hand-rolled character-for-
-     * character at four independent sites.
+     * #PROB_CEILING}] — the <b>floor-free</b> sibling of {@link #clampProbability}, and
+     * the single owner of an expression previously hand-rolled at four sites.
      *
-     * <p><b>Why the {@link #PROB_FLOOR} must not apply to a rare event.</b> The
-     * global floor (0.02) exists so a skill mismatch can never make a <i>normal</i>
-     * outcome impossible. Applied to a deliberately-rare carve it does the opposite:
-     * it becomes a floor the base rate cannot go below, so the constant is tunable
-     * only UPWARD and a "turn it down" recalibration silently does nothing. The
-     * margin is not subtle — §3.14a's per-check technical probability is ~0.00175, so
-     * {@link #PROB_FLOOR} is more than <b>10×</b> the rate itself and flooring would
-     * inflate technicals by that factor. (#032 H estimated ~6× off the design's
-     * ~0.0035; the true per-check rate is half that, so the margin is wider still —
-     * see {@link #technicalFoulProbability}.) It also destroys the true off-switch a
-     * 0.0 multiplier gives {@link FoulResolver#isFoul} (#030 A1).
-     *
-     * <p><b>The four sites this consolidates</b> (#030 set the trigger — two is a
-     * coincidence, a third is the signal; §3.13 added the third and §3.14a the
-     * fourth): {@link #rareEventProbability} (§3.10), {@link
-     * #foulTroubleSitProbability} (§3.13), {@link FoulResolver#isFoul}'s floor-free
-     * multiply (§3.12), and {@link #technicalFoulProbability} (§3.14a). The
-     * consolidation is <b>behavior-neutral</b> — no number moves, no recalibration —
-     * and the proof is that §3.10's and §3.13's existing tests pass unchanged. A
-     * fifth floor-free site now costs one call, not a fourth copy.
+     * <p><b>⚠ Why {@link #PROB_FLOOR} must not apply to a rare event.</b> The global
+     * floor (0.02) exists so a skill mismatch cannot make a <i>normal</i> outcome
+     * impossible. On a deliberately-rare carve it does the opposite: it becomes a floor
+     * the base cannot go below, so the constant is tunable only UPWARD and a "turn it
+     * down" recalibration silently does nothing. The margin is not subtle — the
+     * per-check technical rate is ~0.00175, so the floor is >10× the rate itself. It
+     * also destroys the off-switch a 0.0 multiplier gives {@link FoulResolver#isFoul}
+     * (#030 A1).
      *
      * <p>It is fine — intended, even — that a floor-free rate can leave some players
      * effectively never committing the event. No floor should manufacture a minimum.
@@ -1157,43 +1012,24 @@ public class SimConfig {
      * #TECHNICAL_FOULS_PER_TEAM_GAME} divided down by the nominal number of checks in
      * a game. Expect <b>~0.00175</b>.
      *
-     * <p><b>Note that figure corrects #032 B2's "~0.0035".</b> That estimate assumed
-     * ~100 checks per team per game — one per possession the team plays. The actual
-     * count is <b>~200</b>: {@link PossessionEngine#simulate} advances BOTH teams'
-     * rotations on EVERY possession, so a team is checked on its defensive
-     * possessions too. The divisor below is the true call count, which is what makes
-     * the harness land on the configured rate; using 100 would have doubled
-     * technicals to ~0.7 per team per game. The design's arithmetic slipped, not its
-     * intent — the constant it reasons about is unchanged.
+     * <p><b>⚠ THE ×2 IS LOAD-BEARING</b>, and corrects #032 B2's "~0.0035": {@link
+     * PossessionEngine#simulate} advances BOTH teams' rotations on EVERY possession, so
+     * a team gets ~200 checks per game, not the ~100 the design assumed. A divisor of
+     * 100 would double technicals to ~0.7 per team per game.
      *
-     * <p><b>There is no contest here, and that is a positive design claim rather than
-     * a simplification (#032 B).</b> Every other foul in the engine hangs off a
-     * contest — a defender is drawn, skills are contested, a foul falls out. A
-     * technical has no contest to hang off: it is not caused by the shot, the
-     * matchup, or the rebound. So this method takes <b>no skills, no coach factor,
-     * and no game situation</b> — a blowout, a rivalry and a walkover all produce
-     * technicals at the same rate. {@code foulProne} weights only WHICH of the
-     * on-floor five wears it (#032 C), never whether one happens.
+     * <p><b>No contest — a positive design claim, not a simplification (#032 B).</b>
+     * Every other foul hangs off a contest; a technical has none to hang off. No skills,
+     * no coach factor, no game situation: a blowout and a rivalry produce technicals at
+     * the same rate. {@code foulProne} weights only WHICH of the five wears it (#032 C).
      *
-     * <p><b>The divisor is NOMINAL, not actual, and the gap is deliberate.</b> The
-     * real possession count is pace-scaled per game ({@link
-     * PossessionEngine#simulate} blends both coaches' {@code paceMultiplier}) and
-     * overtime adds more, so a fast-paced game takes more checks and draws
-     * <b>slightly more</b> technicals than the constant nominally says. That is
-     * correct behavior — a longer game has more opportunity — but it means the
-     * constant reads as "technicals per team per game <i>at nominal pace</i>", and
-     * <b>a harness landing a few percent off the constant is NOT a bug and NOT
-     * drift.</b> Recorded because the alternative reading — treating the miss as a
-     * calibration error and back-solving the constant — would chase noise.
+     * <p><b>⚠ The divisor is NOMINAL, so a harness landing a few percent off the
+     * constant is NOT a bug and NOT drift</b> — real possession counts are pace-scaled
+     * and overtime adds more, so a fast game draws slightly more technicals. Do not
+     * back-solve the constant against that gap.
      *
-     * <p>Clamped through {@link #clampRareProbability}: the {@link #PROB_FLOOR}
-     * (0.02) is more than <b>ten times</b> this rate and would inflate it by that
-     * factor, making the constant tunable only upward (#032 H).
-     *
-     * <p>The ×2 in the divisor is the correction above: {@code advancePossession}
-     * runs once per team per possession and both teams advance on every possession,
-     * so a team gets {@code possessionsPerPeriod × PERIODS × 2} checks in a nominal
-     * game.
+     * <p>Clamped through {@link #clampRareProbability}: {@link #PROB_FLOOR} (0.02) is
+     * more than ten times this rate and would make the constant tunable only upward
+     * (#032 H).
      */
     public double technicalFoulProbability() {
         int nominalChecks = defaultPossessionsPerPeriod * PERIODS * 2;
@@ -1205,32 +1041,22 @@ public class SimConfig {
      * happened was a FLAGRANT</b> — {@link #flagrantFoulsPerTeamGame()} divided down
      * by the personal-foul rate. Expect <b>~0.0084</b> (0.16 / 19.0).
      *
-     * <p><b>This is a severity roll layered ON TOP of an existing foul, not a foul
-     * rate.</b> It is asked only after {@link FoulResolver#isFoul}, {@link
-     * FoulResolver#isAndOne} or {@link FoulResolver#resolveReboundFoul} has already
-     * returned a foul, so nothing is re-partitioned and <b>no existing rate moves by
-     * construction</b> (#034 A). That is why the divisor is the FOUL count and not a
-     * possession count: the roll fires per foul, so any other divisor would misstate
-     * the relationship and break the moment the foul rate moved.
+     * <p><b>A severity roll layered ON TOP of an existing foul, not a foul rate</b> —
+     * asked only after a foul has already been returned, so no existing rate moves by
+     * construction (#034 A). The roll fires per foul, which is why the divisor is the
+     * FOUL count: any other would break the moment the foul rate moved.
      *
-     * <p><b>⚠ THE DIVISOR IS EMERGENT, AND THAT IS THIS CONSTANT'S HONEST COST (#034
-     * G).</b> {@link #technicalFoulProbability}'s divisor is NOMINAL — derived from
-     * config ({@code defaultPossessionsPerPeriod × PERIODS × 2}), so it moves only
-     * when a constant moves. This one is different in kind: {@link
-     * #PERSONAL_FOULS_PER_TEAM_GAME} is a <b>measured</b> quantity, an assumption about
-     * what the engine currently does. <b>So §3.16 — or any pass that moves the foul
-     * rate — moves the flagrant rate too, without touching {@link
-     * #FLAGRANT_FOULS_PER_TEAM_GAME}.</b> Directionally that is correct (more fouls,
-     * more chances for one to be excessive), but it means this constant is <b>not a
-     * standalone dial</b>, and the coupling must be stated rather than discovered.
+     * <p><b>⚠ THE DIVISOR IS EMERGENT, SO THIS IS NOT A STANDALONE DIAL (#034 G).</b>
+     * Unlike {@link #technicalFoulProbability}'s nominal, config-derived divisor, {@link
+     * #PERSONAL_FOULS_PER_TEAM_GAME} is MEASURED — so any pass that moves the foul rate
+     * moves the flagrant rate too, without touching {@link #FLAGRANT_FOULS_PER_TEAM_GAME}.
+     * Directionally correct (more fouls, more chances for one to be excessive), but the
+     * coupling has to be stated rather than discovered.
      *
-     * <p><b>Clamped through {@link #clampRareProbability}</b> — #032 H's <b>fifth</b>
-     * site, one call rather than a fifth hand-rolled copy. The floor argument holds but
-     * is <b>thinner than §3.14a's</b> and so is argued rather than assumed: {@link
-     * #PROB_FLOOR} (0.02) is ~<b>2.4×</b> this rate, against the >10× margin the
-     * technical rate enjoys. Still decisive — flooring would inflate flagrants by 2.4×
-     * and make the constant tunable only upward (the #028 trap) — but a future rate
-     * increase could bring it near territory where the floor-free choice stops being
+     * <p>Clamped through {@link #clampRareProbability} — flooring would inflate flagrants
+     * and make the constant tunable only upward (the #028 trap). ⚠ The margin here is
+     * thin: {@link #PROB_FLOOR} (0.02) is only ~2.4× this rate, against >10× for
+     * technicals, so a future rate increase could reach where this choice stops being
      * obviously right.
      */
     public double flagrantFoulProbability() {
@@ -1242,13 +1068,9 @@ public class SimConfig {
      * §3.10 (decisions.md #028 C): the probability of a deliberately-RARE carved-off
      * event, contested in the usual avg-10 form but clamped WITHOUT the {@link
      * #PROB_FLOOR} — see {@link #clampRareProbability} for why the floor is wrong
-     * here. {@link #reboundFoulBase()} sits at ~0.03, close enough to 0.02 for the
-     * floor to bite. This is the same class of problem {@link #BLOCK_SENSITIVITY}
-     * solved for §3.7 — a global constant tuned for common events being wrong for a
-     * rare one.
-     *
-     * <p>§3.14a (#032 H) routed the hand-rolled clamp here through the shared
-     * helper. Behavior-neutral: the expression is identical.
+     * here. {@link #reboundFoulBase()} sits at ~0.03, close enough to 0.02 for the floor
+     * to bite. Same class of problem {@link #BLOCK_SENSITIVITY} solved for §3.7 — a
+     * global constant tuned for common events being wrong for a rare one.
      */
     public double rareEventProbability(double base, double drivingSkill,
                                        double opposingSkill, double sensitivity) {
@@ -1281,8 +1103,10 @@ public class SimConfig {
         return clampProbability(p);
     }
 
-    // Constructor binding is what lets every field be final with no initializer.
-    // Accessor names map to keys directly: baseThree() -> sim.base-three.
+    /**
+     * Constructor binding is what lets every field be final with no initializer.
+     * Accessor names map to keys directly: baseThree() -> sim.base-three.
+     */
 
     public SimConfig(
             @Positive int defaultPossessionsPerPeriod,

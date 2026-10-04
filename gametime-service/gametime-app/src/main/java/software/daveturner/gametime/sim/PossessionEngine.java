@@ -36,17 +36,8 @@ public class PossessionEngine {
      * §3.16 (decisions.md #039 B/E): the foul that awards no free throws outside the
      * bonus — {@link FoulResolver#isNonShootingFoul}'s outcome.
      *
-     * <p><b>⚠ RENAMED FROM {@code COMMON_FOUL} BY §3.17 (decisions.md #040 M, user
-     * call) — this REVERSES #039 E, deliberately and not by drift.</b> #039 E kept the
-     * outcome string as {@code COMMON_FOUL} while renaming the config key to
-     * {@code sim.non-shooting-foul-share}, arguing that config keys and play-by-play
-     * vocabulary serve different audiences. #040 M finds that argument real but
-     * outweighed: the criticism that justified the key rename — <i>"common" tells a
-     * cold reader nothing about what the thing DOES</i> — applies just as hard to the
-     * outcome string, and #039 E stopped at the vocabulary boundary without arguing
-     * why the boundary belonged there. {@code NON_SHOOTING_FOUL} is the correct
-     * complement of {@code SHOOTING_FOUL}, which sits beside it in the log: reading the
-     * pair now tells a cold reader the whole partition.
+     * <p>It is the correct complement of {@code SHOOTING_FOUL}, which sits beside it in
+     * the log: reading the pair tells a cold reader the whole partition (#040 M).
      *
      * <p>The name is <b>true in both branches</b> — outside the penalty this awards
      * nothing, inside it awards <i>bonus</i> FTs, which are a penalty-status
@@ -328,7 +319,7 @@ public class PossessionEngine {
             // ⚠ This is also why a shooting foul must NOT be folded into the SHOT event
             // as an outcome: every SHOT event is an attempt, which is what makes
             // count(SHOT) == sum(fieldGoalsAttempted) hold. See docs/game-events.md,
-            // "Why a stopped shot is not a field-goal attempt".
+            // "Why a shooting foul is not folded into the SHOT event".
             if (foulResolver.isFoul(shotType, shooter, defender, defensivePressure, rng)) {
                 defender.recordFoul();
 
@@ -370,7 +361,8 @@ public class PossessionEngine {
                 // offense keeps the ball. It is not modelled that way because every
                 // returning variant re-enters the loop at ShotSelector and yields a
                 // live attempt worth ~0.76 FGA where the stopped shot charged NONE,
-                // and FGA is 88.4 against 89.1 real — 0.7 of headroom. That caps a
+                // and FGA had under one attempt of headroom (88.4 against 89.1 real
+                // when this was designed; calibration.md has the current reading). That caps a
                 // retaining variant at a ~6% share, which moves FTA by less than one
                 // attempt: the retention reading and this phase's goal are
                 // arithmetically incompatible. FGA wins because it is sourced and

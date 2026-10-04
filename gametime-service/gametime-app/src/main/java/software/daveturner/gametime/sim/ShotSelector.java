@@ -26,33 +26,24 @@ public class ShotSelector {
     /**
      * §3.22 (decisions.md #044 A/H): the weighted shooter draw, with the player who took
      * the last offensive board weighted {@code × sim.offensive-rebounder-shot-weight}
-     * for THIS draw only. Before §3.22 an offensive rebound re-entered {@link
-     * PossessionEngine}'s loop here at a draw that did not know who had just got the
-     * ball, so a putback could not happen.
+     * for THIS draw only. See {@link SimConfig#offensiveRebounderShotWeight()} for why
+     * the mechanic is a multiplicative weight.
      *
-     * <p><b>A WEIGHT, NOT A BRANCH.</b> Nothing is switched off and no outcome is
-     * forced: it is still one weighted draw over the five, still exactly ONE {@code
-     * nextDouble()}, and only one player's weight differs. In particular <b>the shot
-     * TYPE is not forced to the rim</b> — {@link #pickShotType} already bends by the
-     * shooter's own skills (#040 C), and a rebounder (usually a big) leans interior on
-     * his own, measured at 54.8% on the next shot against a teammate's 45.6%. Forcing
-     * the type would bolt a second mechanism onto a job the first already does.
+     * <p><b>A WEIGHT, NOT A BRANCH.</b> Still one weighted draw over the five, still
+     * exactly ONE {@code nextDouble()}; only one player's weight differs. ⚠ In particular
+     * <b>the shot TYPE is not forced to the rim</b> — {@link #pickShotType} already bends
+     * by the shooter's own skills (#040 C) and a rebounder leans interior on his own
+     * (measured 54.8% vs a teammate's 45.6%). Forcing the type would bolt a second
+     * mechanism onto a job the first already does.
      *
-     * <p>The multiplier composes with the draw rather than replacing it, so the
-     * rebounder's <i>relative</i> standing survives: a low-weight rebounder doubled is
-     * still below a high-weight teammate. {@code 1.0} turns the mechanic off with no
-     * special case.
-     *
-     * <p><b>⚠ {@code rebounder} is a PARTICIPANT, not a MODE — and that is why it is a
-     * parameter here where #043 H rejected one.</b> That flag would have switched off
-     * the main thing its method does for two callers; this one <i>feeds</i> the same
-     * operation. A {@code null} rebounder means "no player was identified" — exactly
-     * what a {@code null} rebounder on the result records means — and it is the state
-     * on the four retention paths where nobody secured the ball (OOB-offense, both
-     * flagrant retentions, the rebounding foul's by-rule retain). A second
-     * {@code pickPutbackShooter} was rejected: it would duplicate this loop verbatim but
-     * for one multiplication, and every caller would still test {@code rebounder == null}
-     * to choose between the two.
+     * <p><b>⚠ {@code rebounder} is a PARTICIPANT, not a MODE — which is why it is a
+     * parameter here where #043 H rejected one.</b> That flag would have switched off the
+     * main thing its method does; this one <i>feeds</i> the same operation. {@code null}
+     * means "no player was identified", the state on the four retention paths where
+     * nobody secured the ball (OOB-offense, both flagrant retentions, the rebounding
+     * foul's by-rule retain). ⚠ Do not split out a {@code pickPutbackShooter}: it would
+     * duplicate this loop verbatim but for one multiplication, and every caller would
+     * still test {@code rebounder == null} to choose between the two.
      *
      * @param rebounder the player who took the offensive board that returned the ball,
      *                  or {@code null} when no rebounder was identified
@@ -92,31 +83,21 @@ public class ShotSelector {
      * modifier) leans the draw along the <b>mid-range-versus-three</b> axis.
      * {@code 1.0} = the unleaned draw.
      *
-     * <p><b>⚠ §3.17 (decisions.md #040 D) SPLIT THIS INTO TWO OPPOSED LEANS.</b> Until
-     * now the lean scaled <b>PERIMETER and THREE together</b>, so a jump-shooting coach
-     * raised mid-range and threes in lockstep — <b>the one shape the real game
-     * forbids</b>, since the modern game trades the mid-range jumper <i>for</i> the
-     * three. #036 D named that conflation as the blocker before anything was measured,
-     * and it could not survive the pass that owns the 3PA gap.
+     * <p><b>TWO OPPOSED LEANS</b> (#040 D): <b>THREE × {@code shotMixLean}; PERIMETER ×
+     * its RECIPROCAL; DRIVE and POST unscaled.</b> A high-{@code offensiveScheme} coach
+     * shoots more threes <i>and fewer mid-range jumpers</i>. ⚠ The axis is
+     * mid-range-vs-three, <b>NOT</b> jumper-vs-interior — scaling PERIMETER and THREE
+     * together is the one shape the real game forbids, since the modern game trades the
+     * mid-range jumper <i>for</i> the three.
      *
-     * <p>It is now: <b>THREE × {@code shotMixLean}; PERIMETER × its RECIPROCAL; DRIVE
-     * and POST unscaled.</b> A high-{@code offensiveScheme} coach shoots more threes
-     * <i>and fewer mid-range jumpers</i>; a low one does the inverse. The axis is
-     * mid-range-vs-three, <b>not</b> jumper-vs-interior.
+     * <p>⚠ <b>Aggregate-neutral by design, so this is NOT a 3PA lever.</b> {@code
+     * offensiveScheme} centres on 10 across the league, so the two directions roughly
+     * cancel over a full slate; the split exists so a <i>given</i> coach means something.
+     * The league mix is {@code sim.shot-share-*}'s job (#040 C).
      *
-     * <p>⚠ <b>Aggregate-neutral by design.</b> {@code offensiveScheme} centres on 10
-     * across the league, so the two directions roughly cancel over a full slate. This
-     * split exists so that a <i>given</i> coach finally means something — it is not a
-     * 3PA lever, and the league mix is {@code sim.shot-share-*}'s job (#040 C).
-     *
-     * <p>{@link CoachModifiers#shotMixLean()} itself is <b>untouched</b> — it stays the
-     * {@code offensiveScheme} avg-10 multiplier (#022). The conflation lived here and so
-     * does the split: <b>no new coach attribute</b> (#018's five are not reopened) and
-     * <b>no new {@code SimConfig} value</b> — the reciprocal is free.
-     *
-     * <p>⚠ The reciprocal makes {@code offensiveScheme} a <b>stronger</b> lever than
-     * before (two types moving in opposite directions), and nothing bounds how extreme
-     * an attribute-20 coach's mix becomes (#040 D trade-off).
+     * <p>⚠ The reciprocal makes {@code offensiveScheme} a <b>stronger</b> lever than a
+     * single-direction one, and nothing bounds how extreme an attribute-20 coach's mix
+     * becomes (#040 D trade-off).
      */
     public ShotType pickShotType(PlayerGameState shooter, double shotMixLean,
                                  RandomGenerator rng) {
