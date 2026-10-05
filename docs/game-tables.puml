@@ -1,0 +1,124 @@
+@startuml game-tables
+' The game + roster tables: who a game's stat lines belong to.
+' Audit columns (create_/update_ user/date) omitted except where they matter.
+' Render: plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng docs/game-tables.puml
+' Green italic = PLANNED for Phase 4 (todo.md), not built yet. When Phase 4 ships:
+'   make them plain columns, drop the red read-path line and the planned FK styling.
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam class {
+  BackgroundColor<<current>> #FFF4D6
+  BackgroundColor<<log>> #E4F0FF
+}
+
+entity team {
+  * id : VARCHAR <<PK>>
+  --
+  locale, name, conference
+  coach_id <<FK>>
+  gm_id <<FK>>
+}
+
+entity player {
+  * id : VARCHAR <<PK>>
+  --
+  name, position, status
+  ... 1-20 attributes ...
+}
+
+entity player_team <<current>> {
+  * player_id : VARCHAR <<PK, FK>>
+  --
+  * team_id <<FK>>
+  transaction_type
+  assigned_date
+  lineup_role
+  rotation_order
+}
+note right of player_team
+  CURRENT assignment only.
+  Free agent = no row.
+  Row is DELETED on release,
+  overwritten on a move.
+  Seed roster is loaded HERE only.
+end note
+
+entity player_team_hist <<log>> {
+  * id : VARCHAR <<PK>>
+  --
+  * player_id <<FK>>
+  * team_id <<FK>>
+  transaction_type
+  (SEED, DRAFT, TRADE, FREE_AGENCY,
+   WAIVER, SIGN, RELEASE)
+  transaction_date  (wall clock)
+}
+note right of player_team_hist
+  Append-only log. One row per move;
+  RELEASE carries the team LEFT.
+  ⚠ Seed roster wrote NO rows here.
+end note
+
+entity game {
+  * id : VARCHAR <<PK>>
+  --
+  * home_team_id <<FK>>
+  * away_team_id <<FK>>
+  status
+  home_score, away_score
+  periods, seed
+  <color:#1E8449><i>home_possessions, away_possessions</i>
+  <color:#1E8449><i>played_at  (game-world time)</i>
+  create_date  (audit, wall clock)
+}
+note left of game
+  No season until Phase 5;
+  played_at gets calendar
+  dates from the schedule then.
+end note
+
+entity game_event <<log>> {
+  * id : VARCHAR <<PK>>
+  --
+  * game_id <<FK>>
+  sequence, period
+  * offense_team_id
+  * defense_team_id
+  play_type, outcome
+  primary_player_id <<FK>>
+  assist_player_id <<FK>>
+  opponent_player_id <<FK>>
+  committing_team_id <<FK>>
+}
+
+entity box_score {
+  * id : VARCHAR <<PK>>
+  --
+  * game_id <<FK>>
+  * player_id <<FK>>
+  points, off/def rebounds, assists,
+  steals, blocks, turnovers,
+  fouls, technical_fouls, minutes,
+  FGA/FGM, 3PA/3PM, FTA/FTM
+  ..
+  <color:#1E8449><i>team_id <<FK>>  (team in THIS game)</i>
+  <color:#1E8449><i>started</i>
+  <color:#1E8449><i>unique (game_id, player_id)</i>
+}
+
+team ||--o{ player_team
+player ||--o| player_team
+team ||--o{ player_team_hist
+player ||--o{ player_team_hist
+
+team ||--o{ game : home
+team ||--o{ game : away
+game ||--o{ game_event
+game ||--o{ box_score
+player ||--o{ box_score
+player |o--o{ game_event : primary / assist / opponent
+
+box_score .[#C0392B,dashed].> player_team : <color:#C0392B>TODAY: home/away resolved\n<color:#C0392B>via CURRENT roster at read time\n<color:#C0392B>(replaced by box_score.team_id)
+team ||.[#1E8449,dashed].o{ box_score : <color:#1E8449>planned
+@enduml

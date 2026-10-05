@@ -2,7 +2,7 @@
 
 Basketball simulation game — 40-team league with attribute-driven gameplay, season management, and a React frontend.
 
-_Last updated: 2026-10. **Next: the pre-work gate below.**_
+_Last updated: 2026-10. **Next: Phase 4 execution** (designed as decisions.md #045)._
 
 ## What Exists Today
 
@@ -46,12 +46,12 @@ needs its own design pass (a `decisions.md` entry plus an execute-ready `todo.md
 plan) before execution — every phase so far has found real design questions the
 one-liner hid. **Do not execute a bullet as if it were a plan.**
 
-**Next up is the gate below, not Phase 4.** Shipped work is summarized in *What
-Exists Today*; its record is `decisions.md`, not this file.
+**Next up is Phase 4's execution**, then the Phase 3 revisit. Shipped work is summarized
+in *What Exists Today*; its record is `decisions.md`, not this file.
 
 ---
 
-## Now — Phase 3 → Phase 4 pre-work (a GATE)
+## Done — Phase 3 → Phase 4 pre-work (a GATE)
 
 ⚠ **Phase 4's design pass does not start until these are done.** It is its own
 section deliberately: mixing gate work into the phase is how a gate becomes a
@@ -86,10 +86,8 @@ the **bead is the only record** and the doc entry is deleted.
 
 **Goal**: Track, aggregate, and expose stats.
 
-> Read [risks.md](risks.md)'s "Stats are written twice" before designing 4.1: counters and
-> events agree only by convention, and this phase is the natural place to ask whether the box
-> score should be derived from the event log. Not a gate. Tracked in
-> beads as `gametime-fwy` (`BoxScoreReconciler`).
+> **Designed as [decisions.md](decisions.md) #045** (design pass `gametime-ta7`); the
+> execute-ready plan is in [todo.md](todo.md).
 
 ### 4.1 Game Stats Model
 - [ ] Per-game player stats: points, rebounds (off/def), assists, steals, blocks, turnovers, fouls, minutes, FGA/FGM, 3PA/3PM, FTA/FTM
@@ -107,6 +105,26 @@ the **bead is the only record** and the doc entry is deleted.
 - [ ] `GET /v1/player/{playerId}/gamelog` — game-by-game log
 - [ ] `GET /v1/team/{teamId}/stats` — team stats
 - [ ] `GET /v1/league/leaders` — league leaders by category
+- [ ] `GET /v1/league/game-highs` — single-game highs by category
+
+---
+
+## Next — Phase 4 → Phase 5: the Phase 3 revisit
+
+Phase 4's design pass found facts the event log does not record: starters, the team a player
+played for, substitutions and the tip-off. Phase 4 ships them as columns filled from the
+rotation. This revisit returns to the engine **after** Phase 4 ships, so it is scoped against
+real per-player stats rather than guesses. Its sub-phases continue Phase 3's numbering
+(§3.23+): Phase 3 is an open arc, and a new phase number would repeat the renumbering
+confusion.
+
+- **Starts with** `gametime-3sc`: game initialization (10 check-ins + a jump ball) and
+  substitution events. When it lands, `box_score.started` and `team_id` are derived from the
+  log instead; the columns stay.
+- **Candidates** are the engine and calibration beads (`bd list --label engine`,
+  `bd list --status deferred --label idea`). Its design pass picks which become sub-phases.
+- **Not a Phase 5 gate by default.** The design pass decides what must land before season
+  play.
 
 ---
 
@@ -141,6 +159,10 @@ the **bead is the only record** and the doc entry is deleted.
 - [ ] `POST /v1/season/{id}/simulate-all` — run entire season
 - [ ] `GET /v1/season/{id}/standings` — current standings
 - [ ] `GET /v1/season/{id}/schedule` — full schedule with results
+
+### 5.5 Season close
+- [ ] Freeze a closed season's stats into summaries and decide retention; may become its own
+      phase. Scoped in `gametime-1b1`
 
 ---
 
@@ -246,6 +268,6 @@ persistence (every `GameEvent` stored, events are the source of truth).
 
 ## Build order
 
-Phases 1–3 are shipped. The remaining path: **Phase 4 (Stats) → Phase 5 (Season) →
-Phase 6 (Progression)**, with **Phase 7 (Frontend)** able to start in parallel from
+Phases 1–3 are shipped. The remaining path: **Phase 4 (Stats) → the Phase 3 revisit →
+Phase 5 (Season) → Phase 6 (Progression)**, with **Phase 7 (Frontend)** able to start in parallel from
 Phase 4 onward (the §3.6 simulation API it needs already exists), and **Phase 8** last.
