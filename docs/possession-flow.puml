@@ -22,6 +22,8 @@
 ' BOX inside the image. Look at the PNG.
 ' ⚠ THE REAL CEILING IS THE SCREEN, ~2,000px — not 16,384. A diagram stops
 ' being readable long before PlantUML stops drawing it. This one especially.
+' ⚠ `!include` does NOT help with that ceiling: an included fragment renders to
+' the same height as inlining it. These are standalone diagrams on purpose.
 title Possession Resolution — OVERVIEW\n//the whole possession; each resolver has its own diagram//
 
 skinparam ActivityDiamondFontSize 12
