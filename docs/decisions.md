@@ -412,3 +412,21 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **H** — `pickShooter` takes the rebounder as a PARAMETER — the rebounder is a participant, not a mode. Resolves the OTHER way from #043 H.
 - **I** — the draw COUNT is unchanged, the stream still moves, and NO seeded test re-baselines.
 
+### 045 — Statistics & box scores (Phase 4)
+
+**Date**: 2026-10
+
+- **A** — **`box_score` is BUILT FROM the event log at game end**, not copied from the counters; the score sums each team's derived points. Not derived: `minutes`, `started`, `team_id`.
+- **B** — the counters stay (the engine reads them mid-game) and are COMPARED to the derived lines at game end; any per-player diff throws and rolls back. Supersedes `gametime-fwy`.
+- **C** — every stat is computed from `box_score` on read, never from `game_event`; no team or season summary tables (closed seasons: `gametime-1b1`).
+- **D** — **`box_score.team_id`**, from the squad. Supersedes #020's "no `team_id`": `player_team` is current-only (#012). ⚠ Never also store `player_team_hist_id` — one fact, two columns.
+- **E** — `box_score.started` = in `RotationState`'s opening five, ⚠ NOT `lineupRole == STARTER` (a released starter leaves four).
+- **F** — `game.home_possessions` / `away_possessions` from the engine's count, not the box-score estimate. Equal by construction today; a test pins it.
+- **G** — `game.played_at` is game-world time (run time now, the schedule from Phase 5). ⚠ Never `create_date`.
+- **H** — pace and offensive/defensive/net rating per 100 possessions; player TS% and eFG%. No PER (`gametime-bnp`), no plus/minus (`gametime-qs7`).
+- **I** — "season" = all FINAL games behind one scope seam; Phase 5 adds the boundary. No season table.
+- **J** — leaders rank the per-game average (⚠ `TECHNICAL_FOULS`: the total, unqualified); qualify at 70% of the most team games, percentages at 3.66 FGM / 1.0 3PM / 1.52 FTM per such game. `StatsConfig`, not `SimConfig`.
+- **K** — game highs: the top `box_score` rows per counting stat; players repeat; ties go to the earliest `played_at`.
+- **L** — unique `(game_id, player_id)`; indexes on `player_id`, `team_id`. Fresh DB, no backfill.
+- **M** — Phase 4 ships BEFORE `gametime-3sc`; its check-ins later become the source of `started` and `team_id`, and the columns stay.
+
