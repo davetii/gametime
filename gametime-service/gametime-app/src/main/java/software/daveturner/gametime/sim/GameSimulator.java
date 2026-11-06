@@ -9,6 +9,8 @@ import software.daveturner.gametime.model.Team;
 import software.daveturner.gametime.repo.*;
 import software.daveturner.gametime.service.TeamQueryService;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.random.RandomGenerator;
 import java.util.random.RandomGeneratorFactory;
@@ -23,16 +25,18 @@ public class GameSimulator {
     private final GameEventRepo gameEventRepo;
     private final BoxScoreRepo boxScoreRepo;
     private final SimConfig config;
+    private final Clock clock;
 
     public GameSimulator(TeamQueryService teamQueryService, PossessionEngine possessionEngine,
                          GameRepo gameRepo, GameEventRepo gameEventRepo,
-                         BoxScoreRepo boxScoreRepo, SimConfig config) {
+                         BoxScoreRepo boxScoreRepo, SimConfig config, Clock clock) {
         this.teamQueryService = teamQueryService;
         this.possessionEngine = possessionEngine;
         this.gameRepo = gameRepo;
         this.gameEventRepo = gameEventRepo;
         this.boxScoreRepo = boxScoreRepo;
         this.config = config;
+        this.clock = clock;
     }
 
     public SimResult simulate(String homeTeamId, String awayTeamId, long seed, int possessionsPerPeriod) {
@@ -59,6 +63,12 @@ public class GameSimulator {
 
         GameData data = possessionEngine.simulate(home, away, possessionsPerPeriod, rng);
 
+        // #045 A, B: box score and score come from the event log, checked against the counters.
+        BoxScoreSummarizer.Summary summary = BoxScoreSummarizer.summarize(data.getEvents());
+        verifyAgainstCounters(summary, homeSquad, awaySquad, data);
+        int homeScore = summary.points(playerIds(homeSquad));
+        int awayScore = summary.points(playerIds(awaySquad));
+
         String gameId = UUID.randomUUID().toString();
 
         GameEntity game = new GameEntity();
@@ -66,10 +76,13 @@ public class GameSimulator {
         game.setHomeTeamId(homeTeamId);
         game.setAwayTeamId(awayTeamId);
         game.setStatus(GameStatus.FINAL);
-        game.setHomeScore(data.getHomeScore());
-        game.setAwayScore(data.getAwayScore());
+        game.setHomeScore(homeScore);
+        game.setAwayScore(awayScore);
         game.setPeriods(data.getPeriods());
         game.setSeed(seed);
+        game.setHomePossessions(data.getHomePossessions());
+        game.setAwayPossessions(data.getAwayPossessions());
+        game.setPlayedAt(LocalDateTime.now(clock));
         gameRepo.save(game);
 
         for (GameData.EventRecord e : data.getEvents()) {
@@ -113,50 +126,50 @@ public class GameSimulator {
         allPlayers.addAll(awaySquad);
         int totalGameMinutes = SimConfig.PERIODS * SimConfig.MINUTES_PER_PERIOD
                 + Math.max(0, data.getPeriods() - SimConfig.PERIODS) * SimConfig.OT_MINUTES;
-        int homePossessions = totalOnFloorPossessions(homeSquad);
-        int awayPossessions = totalOnFloorPossessions(awaySquad);
+        int homeOnFloorPossessions = totalOnFloorPossessions(homeSquad);
+        int awayOnFloorPossessions = totalOnFloorPossessions(awaySquad);
         for (PlayerGameState p : allPlayers) {
             if (!p.tookFloor()) {
                 continue;
             }
+            BoxScoreSummarizer.Line line = summary.lineFor(p.getPlayerId());
             BoxScoreEntity bs = new BoxScoreEntity();
             bs.setId(UUID.randomUUID().toString());
             bs.setGameId(gameId);
             bs.setPlayerId(p.getPlayerId());
-            bs.setPoints(p.getPoints());
-            bs.setOffensiveRebounds(p.getOffensiveRebounds());
-            bs.setDefensiveRebounds(p.getDefensiveRebounds());
-            bs.setAssists(p.getAssists());
-            bs.setSteals(p.getSteals());
-            bs.setBlocks(p.getBlocks());
-            bs.setTurnovers(p.getTurnovers());
-            bs.setFouls(p.getFouls());
-            // §3.14a (#032 E): the twelfth accumulator, written alongside the other
-            // eleven. Separate from fouls — a technical does not feed the six-foul
-            // limit (the split is the whole point of #032 E).
-            bs.setTechnicalFouls(p.getTechnicalFouls());
+            bs.setTeamId(p.getTeamId());
+            bs.setStarted(p.startedGame());
+            bs.setPoints(line.points());
+            bs.setOffensiveRebounds(line.offensiveRebounds());
+            bs.setDefensiveRebounds(line.defensiveRebounds());
+            bs.setAssists(line.assists());
+            bs.setSteals(line.steals());
+            bs.setBlocks(line.blocks());
+            bs.setTurnovers(line.turnovers());
+            bs.setFouls(line.fouls());
+            bs.setTechnicalFouls(line.technicalFouls());
             // §3.5 (Decision A): minutes are a possession-share projection. The
             // team is 5-on-the-floor every possession, so team on-floor possessions
             // sum to 5 × (team possessions); a player's minutes are their share of
             // that × the team's total minutes (5 × game minutes). No game clock.
             int teamPossessions = p.getTeamId().equals(homeTeamId)
-                    ? homePossessions : awayPossessions;
+                    ? homeOnFloorPossessions : awayOnFloorPossessions;
             int minutes = teamPossessions == 0 ? 0
                     : (int) Math.round(
                             (double) p.getOnFloorPossessions() / teamPossessions
                                     * 5.0 * totalGameMinutes);
             bs.setMinutes(minutes);
-            bs.setFieldGoalsAttempted(p.getFieldGoalsAttempted());
-            bs.setFieldGoalsMade(p.getFieldGoalsMade());
-            bs.setThreePointersAttempted(p.getThreePointersAttempted());
-            bs.setThreePointersMade(p.getThreePointersMade());
-            bs.setFreeThrowsAttempted(p.getFreeThrowsAttempted());
-            bs.setFreeThrowsMade(p.getFreeThrowsMade());
+            bs.setFieldGoalsAttempted(line.fieldGoalsAttempted());
+            bs.setFieldGoalsMade(line.fieldGoalsMade());
+            bs.setThreePointersAttempted(line.threePointersAttempted());
+            bs.setThreePointersMade(line.threePointersMade());
+            bs.setFreeThrowsAttempted(line.freeThrowsAttempted());
+            bs.setFreeThrowsMade(line.freeThrowsMade());
             boxScoreRepo.save(bs);
         }
 
         return new SimResult(gameId, homeTeamId, awayTeamId,
-                data.getHomeScore(), data.getAwayScore(),
+                homeScore, awayScore,
                 data.getPeriods(), data.getEvents().size());
     }
 
@@ -189,6 +202,51 @@ public class GameSimulator {
             rotation.add(new PlayerGameState(e.getPlayer().getId(), teamId, e, config));
         }
         return rotation;
+    }
+
+    /** #045 B: throws if the event log and the engine's counters disagree anywhere. */
+    static void verifyAgainstCounters(BoxScoreSummarizer.Summary summary,
+                                      List<PlayerGameState> homeSquad,
+                                      List<PlayerGameState> awaySquad,
+                                      GameData data) {
+        Map<String, PlayerGameState> byId = new HashMap<>();
+        homeSquad.forEach(p -> byId.put(p.getPlayerId(), p));
+        awaySquad.forEach(p -> byId.put(p.getPlayerId(), p));
+
+        for (String creditedId : summary.lines().keySet()) {
+            PlayerGameState p = byId.get(creditedId);
+            if (p == null || !p.tookFloor()) {
+                throw new IllegalStateException("Box-score guard: an event credits player "
+                        + creditedId + ", who never took the floor and has no line");
+            }
+        }
+        for (PlayerGameState p : byId.values()) {
+            BoxScoreSummarizer.Line line = summary.lineFor(p.getPlayerId());
+            for (BoxScoreSummarizer.Column c : BoxScoreSummarizer.Column.values()) {
+                int derived = c.derived(line);
+                int counted = c.counted(p);
+                if (derived != counted) {
+                    throw new IllegalStateException("Box-score guard: player " + p.getPlayerId()
+                            + " " + c.columnName() + " derived " + derived
+                            + " from the event log, counted " + counted);
+                }
+            }
+        }
+        checkTeamPoints("home", data.getHomeTeamId(),
+                summary.points(playerIds(homeSquad)), data.getHomeScore());
+        checkTeamPoints("away", data.getAwayTeamId(),
+                summary.points(playerIds(awaySquad)), data.getAwayScore());
+    }
+
+    private static void checkTeamPoints(String side, String teamId, int derived, int counted) {
+        if (derived != counted) {
+            throw new IllegalStateException("Box-score guard: " + side + " team " + teamId
+                    + " points derived " + derived + " from the event log, scored " + counted);
+        }
+    }
+
+    private static List<String> playerIds(List<PlayerGameState> squad) {
+        return squad.stream().map(PlayerGameState::getPlayerId).toList();
     }
 
     private int totalOnFloorPossessions(List<PlayerGameState> squad) {

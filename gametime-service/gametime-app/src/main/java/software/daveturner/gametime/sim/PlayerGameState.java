@@ -104,6 +104,9 @@ public class PlayerGameState {
     // it on the player coming in. It never resets — "took the floor" is monotonic.
     private boolean tookFloor;
 
+    // In the opening five (#045 E) — not the same as `starter` (lineupRole).
+    private boolean startedGame;
+
     // This class reads BOTH kinds of SimConfig constant: the tunable ones through
     // this field, and SCALE_AVG / MAX_ENERGY / the ejection limits as statics below.
     private final SimConfig config;
@@ -179,6 +182,10 @@ public class PlayerGameState {
 
     /** Mark this player as having taken the floor (starter, or substituted in). */
     public void markTookFloor() { this.tookFloor = true; }
+
+    public boolean startedGame() { return startedGame; }
+
+    public void markStartedGame() { this.startedGame = true; }
 
     /**
      * A player is fouled out (Decision F) once their foul count reaches

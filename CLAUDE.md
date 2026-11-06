@@ -124,7 +124,7 @@ gametime-service/      Multi-module Maven (Spring Boot 3.5.14)
 ```
 
 **Current state:** §3.22 (#044) is the latest engine sub-phase — **not the last** (see
-Part 1). Next is Phase 4's execution (#045, plan in todo.md), then the Phase 3 revisit.
+Part 1). Phase 4 (#045, statistics) has shipped; next is the Phase 3 revisit's design pass.
 
 ## Before touching the engine
 

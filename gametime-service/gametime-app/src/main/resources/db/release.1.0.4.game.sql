@@ -191,6 +191,38 @@ alter table gametime.game_event
     foreign key (opponent_player_id)
     REFERENCES gametime.player (id);
 
+-- changeset 1.04.6 failOnError:true splitStatements:true
+
+-- Phase 4 (decisions.md #045). box_score.team_id replaces 1.04.1's "no team_id".
+-- All nullable, no backfill.
+alter table gametime.box_score
+    add column team_id VARCHAR;
+
+alter table gametime.box_score
+    add constraint fk_box_score_team
+    foreign key (team_id)
+    REFERENCES gametime.team (id);
+
+alter table gametime.box_score
+    add column started BOOLEAN;
+
+alter table gametime.game
+    add column home_possessions SMALLINT;
+
+alter table gametime.game
+    add column away_possessions SMALLINT;
+
+alter table gametime.game
+    add column played_at TIMESTAMP;
+
+alter table gametime.box_score
+    add constraint uq_box_score_game_player
+    unique (game_id, player_id);
+
+create index idx_box_score_player on gametime.box_score (player_id);
+
+create index idx_box_score_team on gametime.box_score (team_id);
+
 -- changeset 1.04.1-triggers failOnError:true splitStatements:true dbms:postgresql
 
 CREATE TRIGGER on_new_row_game BEFORE INSERT ON gametime.game FOR EACH ROW EXECUTE FUNCTION gametime.on_new_row();

@@ -28,7 +28,7 @@ if (**turnover?**\n//ballSecurity vs stealing/individualDefense//\n//× defensiv
     :TURNOVER — STOLEN
     primaryPlayerId = the ball-handler (the victim)
     **opponentPlayerId = the STEALER**
-    stealer.recordSteal() — the box-score credit;
+    stealer.recordSteal() — the counter the guard checks;
     note right
       The stealer lands ON THE EVENT — ONE row, not two: there is no
       PlayType.STEAL. ⚠ **The rule that decides that**, and governs

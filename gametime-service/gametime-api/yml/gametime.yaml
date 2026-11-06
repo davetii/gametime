@@ -259,6 +259,108 @@ paths:
         '404':
           description: Not Found
 
+  /v1/player/{playerId}/stats:
+    get:
+      summary: a player's aggregate stats over all FINAL games
+      tags:
+        - Stats
+      operationId: fetchPlayerStats
+      parameters:
+        - $ref: "#/components/parameters/playerIdPathParam"
+      responses:
+        '200':
+          description: Totals, per-game averages and shooting percentages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerStats"
+        '404':
+          description: Not Found
+
+  /v1/player/{playerId}/gamelog:
+    get:
+      summary: a player's game-by-game lines, oldest first
+      tags:
+        - Stats
+      operationId: fetchPlayerGameLog
+      parameters:
+        - $ref: "#/components/parameters/playerIdPathParam"
+      responses:
+        '200':
+          description: One entry per game, ordered by playedAt then game id
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameLogEntry"
+        '404':
+          description: Not Found
+
+  /v1/team/{teamId}/stats:
+    get:
+      summary: a team's and its opponents' aggregate stats over all FINAL games
+      tags:
+        - Stats
+      operationId: fetchTeamStats
+      parameters:
+        - $ref: "#/components/parameters/teamIdPathParam"
+      responses:
+        '200':
+          description: Team and opponent totals, per-game, pace and ratings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamStats"
+        '404':
+          description: Not Found
+
+  /v1/league/leaders:
+    get:
+      summary: league leaders in one category
+      tags:
+        - Stats
+      operationId: fetchLeaders
+      parameters:
+        - in: query
+          name: category
+          required: true
+          schema:
+            $ref: "#/components/schemas/LeaderCategory"
+        - $ref: "#/components/parameters/limitParam"
+      responses:
+        '200':
+          description: Ranked qualifying players; empty when nobody qualifies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderBoard"
+        '400':
+          description: Unknown category or limit out of range
+
+  /v1/league/game-highs:
+    get:
+      summary: the best single-game lines in one counting stat
+      tags:
+        - Stats
+      operationId: fetchGameHighs
+      parameters:
+        - in: query
+          name: category
+          required: true
+          schema:
+            $ref: "#/components/schemas/GameHighCategory"
+        - $ref: "#/components/parameters/limitParam"
+      responses:
+        '200':
+          description: Ranked single-game lines; a player may appear more than once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameHighs"
+        '400':
+          description: Unknown category or limit out of range
+
 components:
 
   parameters:
@@ -307,6 +409,15 @@ components:
         type: string
 
 
+
+    limitParam:
+      in: query
+      description: How many entries to return (1 to the configured maximum, 100)
+      name: limit
+      required: false
+      schema:
+        type: integer
+        format: int32
 
   schemas:
     Team:
@@ -638,9 +749,7 @@ components:
 
     BoxScore:
       type: object
-      description: A single player's stat line for one game. No teamId — the
-        team is resolved server-side into the home/away split of GameResult
-        (#020, #024 A).
+      description: A single player's stat line for one game.
       properties:
         playerId:
           type: string
@@ -768,3 +877,329 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BoxScore"
+        homeTeamStats:
+          $ref: "#/components/schemas/TeamGameStats"
+        awayTeamStats:
+          $ref: "#/components/schemas/TeamGameStats"
+
+    StatTotals:
+      type: object
+      description: Summed counting stats. rebounds = offensiveRebounds + defensiveRebounds.
+      properties:
+        points:
+          type: integer
+          format: int32
+        rebounds:
+          type: integer
+          format: int32
+        offensiveRebounds:
+          type: integer
+          format: int32
+        defensiveRebounds:
+          type: integer
+          format: int32
+        assists:
+          type: integer
+          format: int32
+        steals:
+          type: integer
+          format: int32
+        blocks:
+          type: integer
+          format: int32
+        turnovers:
+          type: integer
+          format: int32
+        fouls:
+          type: integer
+          format: int32
+        technicalFouls:
+          type: integer
+          format: int32
+        minutes:
+          type: integer
+          format: int32
+        fieldGoalsAttempted:
+          type: integer
+          format: int32
+        fieldGoalsMade:
+          type: integer
+          format: int32
+        threePointersAttempted:
+          type: integer
+          format: int32
+        threePointersMade:
+          type: integer
+          format: int32
+        freeThrowsAttempted:
+          type: integer
+          format: int32
+        freeThrowsMade:
+          type: integer
+          format: int32
+
+    StatAverages:
+      type: object
+      description: Per-game averages of StatTotals, unrounded.
+      properties:
+        points:
+          type: number
+          format: double
+        rebounds:
+          type: number
+          format: double
+        offensiveRebounds:
+          type: number
+          format: double
+        defensiveRebounds:
+          type: number
+          format: double
+        assists:
+          type: number
+          format: double
+        steals:
+          type: number
+          format: double
+        blocks:
+          type: number
+          format: double
+        turnovers:
+          type: number
+          format: double
+        fouls:
+          type: number
+          format: double
+        technicalFouls:
+          type: number
+          format: double
+        minutes:
+          type: number
+          format: double
+        fieldGoalsAttempted:
+          type: number
+          format: double
+        fieldGoalsMade:
+          type: number
+          format: double
+        threePointersAttempted:
+          type: number
+          format: double
+        threePointersMade:
+          type: number
+          format: double
+        freeThrowsAttempted:
+          type: number
+          format: double
+        freeThrowsMade:
+          type: number
+          format: double
+
+    ShootingPercentages:
+      type: object
+      description: Fractions (0–1) from summed makes and attempts; null when the
+        denominator is 0. TS% = PTS / (2 × (FGA + 0.44 × FTA)); eFG% = (FGM + 0.5 × 3PM) / FGA.
+      properties:
+        fieldGoalPct:
+          type: number
+          format: double
+        threePointPct:
+          type: number
+          format: double
+        freeThrowPct:
+          type: number
+          format: double
+        trueShootingPct:
+          type: number
+          format: double
+        effectiveFieldGoalPct:
+          type: number
+          format: double
+
+    PlayerStats:
+      type: object
+      properties:
+        playerId:
+          type: string
+        gamesPlayed:
+          type: integer
+          format: int32
+        gamesStarted:
+          type: integer
+          format: int32
+        totals:
+          $ref: "#/components/schemas/StatTotals"
+        perGame:
+          $ref: "#/components/schemas/StatAverages"
+        shooting:
+          $ref: "#/components/schemas/ShootingPercentages"
+
+    GameLogEntry:
+      type: object
+      properties:
+        gameId:
+          type: string
+        playedAt:
+          type: string
+          format: date-time
+        teamId:
+          type: string
+        opponentTeamId:
+          type: string
+        home:
+          type: boolean
+        teamScore:
+          type: integer
+          format: int32
+        opponentScore:
+          type: integer
+          format: int32
+        started:
+          type: boolean
+        boxScore:
+          $ref: "#/components/schemas/BoxScore"
+
+    TeamGameStats:
+      type: object
+      description: One team's line for one game. Ratings are per 100 possessions;
+        pace is possessions per 48 minutes.
+      properties:
+        teamId:
+          type: string
+        totals:
+          $ref: "#/components/schemas/StatTotals"
+        possessions:
+          type: integer
+          format: int32
+        pace:
+          type: number
+          format: double
+        offensiveRating:
+          type: number
+          format: double
+        defensiveRating:
+          type: number
+          format: double
+        netRating:
+          type: number
+          format: double
+
+    TeamStats:
+      type: object
+      description: A team's aggregates and its opponents' over all FINAL games.
+        No win–loss record (standings are Phase 5).
+      properties:
+        teamId:
+          type: string
+        gamesPlayed:
+          type: integer
+          format: int32
+        possessions:
+          type: integer
+          format: int32
+        pace:
+          type: number
+          format: double
+        offensiveRating:
+          type: number
+          format: double
+        defensiveRating:
+          type: number
+          format: double
+        netRating:
+          type: number
+          format: double
+        totals:
+          $ref: "#/components/schemas/StatTotals"
+        perGame:
+          $ref: "#/components/schemas/StatAverages"
+        opponentTotals:
+          $ref: "#/components/schemas/StatTotals"
+        opponentPerGame:
+          $ref: "#/components/schemas/StatAverages"
+
+    LeaderCategory:
+      type: string
+      description: Counting categories rank the per-game average among players
+        with 70% of the most team games. TECHNICAL_FOULS is the exception — the
+        total, with no qualifier. Percentages rank the season fraction among players
+        with enough makes per team game (FGM for FG%, TS% and eFG%; 3PM; FTM).
+      enum: [POINTS, REBOUNDS, OFFENSIVE_REBOUNDS, DEFENSIVE_REBOUNDS, ASSISTS,
+             STEALS, BLOCKS, TURNOVERS, MINUTES, FOULS, TECHNICAL_FOULS,
+             FIELD_GOAL_PCT, THREE_POINT_PCT, FREE_THROW_PCT, TRUE_SHOOTING_PCT,
+             EFFECTIVE_FIELD_GOAL_PCT]
+
+    LeaderBoard:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/LeaderCategory"
+        basis:
+          type: string
+          enum: [PER_GAME, TOTAL, PERCENTAGE]
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderEntry"
+
+    LeaderEntry:
+      type: object
+      description: Ties share a rank; within a tie, more games played first, then player id.
+      properties:
+        rank:
+          type: integer
+          format: int32
+        playerId:
+          type: string
+        playerName:
+          type: string
+        teamId:
+          type: string
+          description: The team of the player's most recent game.
+        gamesPlayed:
+          type: integer
+          format: int32
+        value:
+          type: number
+          format: double
+        totals:
+          $ref: "#/components/schemas/StatTotals"
+
+    GameHighCategory:
+      type: string
+      enum: [POINTS, REBOUNDS, OFFENSIVE_REBOUNDS, DEFENSIVE_REBOUNDS, ASSISTS,
+             STEALS, BLOCKS, TURNOVERS, MINUTES, FOULS, TECHNICAL_FOULS,
+             FIELD_GOALS_MADE, THREE_POINTERS_MADE, FREE_THROWS_MADE]
+
+    GameHighs:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/GameHighCategory"
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/GameHighEntry"
+
+    GameHighEntry:
+      type: object
+      description: Ties share a rank; within a tie, earliest playedAt first, then game id.
+      properties:
+        rank:
+          type: integer
+          format: int32
+        playerId:
+          type: string
+        playerName:
+          type: string
+        teamId:
+          type: string
+        opponentTeamId:
+          type: string
+        gameId:
+          type: string
+        playedAt:
+          type: string
+          format: date-time
+        value:
+          type: integer
+          format: int32

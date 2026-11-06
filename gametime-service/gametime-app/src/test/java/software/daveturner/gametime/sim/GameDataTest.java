@@ -204,4 +204,16 @@ class GameDataTest {
                 "The Nth PERSONAL foul still puts the team in the penalty");
         assertEquals(config.bonusFoulsPerPeriod(), data.periodFoulCount("H", 1));
     }
+    @Test
+    void addPossessionCountsEachSideSeparately() {
+        GameData data = new GameData();
+        data.setHomeTeamId("H");
+        data.setAwayTeamId("A");
+        data.addPossession("H");
+        data.addPossession("H");
+        data.addPossession("A");
+        assertEquals(2, data.getHomePossessions());
+        assertEquals(1, data.getAwayPossessions());
+    }
+
 }

@@ -4,10 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 /**
- * Per-player stat line for a single game, one row per (game, player). No
- * team_id: the player's team is derivable from the game + player_team, so
- * storing it here would duplicate that fact (decisions.md #020, cf. #013/#015).
- * Accumulated during simulation and reconciled against the game_event log.
+ * Per-player stat line for a single game, one row per (game, player). Built from
+ * the game_event log at game end (decisions.md #045 A); teamId is the team the
+ * player played for in this game (#045 D).
  */
 @Entity
 @Table(name = "box_score", schema = "gametime")
@@ -22,6 +21,12 @@ public class BoxScoreEntity {
 
     @Column(name = "player_id", nullable = false)
     private String playerId;
+
+    @Column(name = "team_id")
+    private String teamId;
+
+    @Column(name = "started")
+    private Boolean started;
 
     @Column(name = "points")
     private Integer points;

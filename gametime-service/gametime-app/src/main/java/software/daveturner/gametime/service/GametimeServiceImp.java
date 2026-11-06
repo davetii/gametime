@@ -250,7 +250,10 @@ public class GametimeServiceImp implements GametimeService {
         GameEntity game = gameRepo.findById(gameId)
                 .orElseThrow(ResourceNotFoundException::new);
         List<BoxScoreEntity> boxScores = boxScoreRepo.findByGameId(gameId);
-        return entityMapper.toGameResult(game, boxScores, homePlayerIds(game));
+        GameResult result = entityMapper.toGameResult(game, boxScores);
+        result.setHomeTeamStats(StatsMath.teamGameStats(game, boxScores, true));
+        result.setAwayTeamStats(StatsMath.teamGameStats(game, boxScores, false));
+        return result;
     }
 
     @Override
@@ -261,17 +264,6 @@ public class GametimeServiceImp implements GametimeService {
         return gameEventRepo.findByGameIdOrderBySequenceAsc(gameId).stream()
                 .map(entityMapper::entityToGameEvent)
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * The home team's roster as a set of player ids — one player_team lookup that
-     * lets the mapper bucket box-score rows home vs. away (#024 A). The box_score
-     * row has no team_id (#020), so team is resolved from game + player_team here.
-     */
-    private Set<String> homePlayerIds(GameEntity game) {
-        return playerTeamRepo.findByTeamId(game.getHomeTeamId()).stream()
-                .map(PlayerTeamEntity::getPlayerId)
-                .collect(Collectors.toSet());
     }
 
     /** Convert the generated API LineupRole model enum to the entity enum. */

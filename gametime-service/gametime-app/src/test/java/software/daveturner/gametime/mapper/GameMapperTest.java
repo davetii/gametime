@@ -89,7 +89,7 @@ class GameMapperTest {
 
     @Test
     void entityToBoxScoreMapsEveryCounter() {
-        BoxScoreEntity e = boxScore("p1", 25);
+        BoxScoreEntity e = boxScore("p1", "BOS", 25);
         e.setOffensiveRebounds(2);
         e.setDefensiveRebounds(6);
         e.setAssists(7);
@@ -129,22 +129,20 @@ class GameMapperTest {
     }
 
     @Test
-    void toGameResultSplitsBoxScoresHomeVsAwayByRosterMembership() {
+    void toGameResultSplitsBoxScoresHomeVsAwayByTheRowsTeam() {
         GameEntity game = new GameEntity();
         game.setId("g1");
         game.setHomeTeamId("BOS");
         game.setAwayTeamId("LA");
         game.setStatus(GameStatus.FINAL);
 
-        // home roster = {h1, h2}; anything else is away
-        Set<String> homePlayerIds = Set.of("h1", "h2");
         List<BoxScoreEntity> rows = List.of(
-                boxScore("h1", 20),
-                boxScore("a1", 18),
-                boxScore("h2", 12),
-                boxScore("a2", 9));
+                boxScore("h1", "BOS", 20),
+                boxScore("a1", "LA", 18),
+                boxScore("h2", "BOS", 12),
+                boxScore("a2", "LA", 9));
 
-        GameResult result = mapper.toGameResult(game, rows, homePlayerIds);
+        GameResult result = mapper.toGameResult(game, rows);
 
         assertEquals("g1", result.getGame().getId());
         Set<String> home = playerIds(result.getHomeBoxScore());
@@ -160,7 +158,7 @@ class GameMapperTest {
         game.setHomeTeamId("BOS");
         game.setAwayTeamId("LA");
 
-        GameResult result = mapper.toGameResult(game, List.of(), Set.of("h1"));
+        GameResult result = mapper.toGameResult(game, List.of());
 
         assertTrue(result.getHomeBoxScore().isEmpty());
         assertTrue(result.getAwayBoxScore().isEmpty());
@@ -172,11 +170,12 @@ class GameMapperTest {
         return ids;
     }
 
-    private static BoxScoreEntity boxScore(String playerId, int points) {
+    private static BoxScoreEntity boxScore(String playerId, String teamId, int points) {
         BoxScoreEntity e = new BoxScoreEntity();
         e.setId(UUID.randomUUID().toString());
         e.setGameId("g1");
         e.setPlayerId(playerId);
+        e.setTeamId(teamId);
         e.setPoints(points);
         return e;
     }

@@ -2,7 +2,7 @@
 
 Basketball simulation game — 40-team league with attribute-driven gameplay, season management, and a React frontend.
 
-_Last updated: 2026-10. **Next: Phase 4 execution** (designed as decisions.md #045)._
+_Last updated: 2026-11. **Next: the Phase 3 revisit**, starting with `gametime-3sc`._
 
 ## What Exists Today
 
@@ -15,12 +15,16 @@ _Last updated: 2026-10. **Next: Phase 4 execution** (designed as decisions.md #0
   on `player_team`; size caps of 15 active / 5 minors; no position constraints. See
   [roster.md](roster.md).
 - **REST endpoints**: league, player (get, create, update, history), team (get, add and remove
-  player, set lineup), and the game endpoints (simulate, get, play-by-play).
+  player, set lineup), the game endpoints (simulate, get, play-by-play), and the stats
+  endpoints (player stats and game log, team stats, league leaders, game highs).
 - **Possession engine (Phase 3, §3.1–§3.22)**: a seeded, deterministic possession simulation
   with the full foul system, minutes, fatigue and substitution, tunables in swappable Spring
   profiles, and a persisted `GameEvent` log plus per-player `BoxScore`. Calibrated against
   sourced modern-NBA targets. See [game.md](game.md), [calibration.md](calibration.md) and
   [engine-traps.md](engine-traps.md).
+- **Statistics (Phase 4)**: the box score is built from the event log at game end and checked
+  against the engine's counters; season stats aggregate it over all FINAL games. See
+  [game.md](game.md).
 - **Infrastructure**: Postgres (local) and H2 (tests), Liquibase, multi-module Maven with
   OpenAPI codegen, Docker Compose, unit and Cucumber tests with an 80% JaCoCo gate.
 
@@ -46,7 +50,7 @@ needs its own design pass (a `decisions.md` entry plus an execute-ready `todo.md
 plan) before execution — every phase so far has found real design questions the
 one-liner hid. **Do not execute a bullet as if it were a plan.**
 
-**Next up is Phase 4's execution**, then the Phase 3 revisit. Shipped work is summarized
+**Next up is the Phase 3 revisit**, then Phase 5. Shipped work is summarized
 in *What Exists Today*; its record is `decisions.md`, not this file.
 
 ---
@@ -82,30 +86,13 @@ the **bead is the only record** and the doc entry is deleted.
 
 ---
 
-## Phase 4 — Statistics & Box Scores
+## Phase 4 — Statistics & Box Scores ✓
 
-**Goal**: Track, aggregate, and expose stats.
-
-> **Designed as [decisions.md](decisions.md) #045** (design pass `gametime-ta7`); the
-> execute-ready plan is in [todo.md](todo.md).
-
-### 4.1 Game Stats Model
-- [ ] Per-game player stats: points, rebounds (off/def), assists, steals, blocks, turnovers, fouls, minutes, FGA/FGM, 3PA/3PM, FTA/FTM
-- [ ] Per-game team stats: same aggregated, plus pace, efficiency rating
-- [ ] Persist to database
-
-### 4.2 Season Stats Aggregation
-- [ ] Season averages per player
-- [ ] Season totals per player
-- [ ] Team season stats
-- [ ] League leaders / rankings
-
-### 4.3 Stats APIs
-- [ ] `GET /v1/player/{playerId}/stats` — season stats
-- [ ] `GET /v1/player/{playerId}/gamelog` — game-by-game log
-- [ ] `GET /v1/team/{teamId}/stats` — team stats
-- [ ] `GET /v1/league/leaders` — league leaders by category
-- [ ] `GET /v1/league/game-highs` — single-game highs by category
+- [x] **4.1–4.3 Game stats, season aggregation and the stats APIs** *(2026-11,
+  [decisions.md](decisions.md) #045)*. The box score is derived from the event log at game
+  end and guarded against the counters; `team_id`, `started`, possessions and `played_at`
+  are stored. Player, team, leaders and game-highs endpoints read `box_score` over all FINAL
+  games. The same-seed harness was identical before and after.
 
 ---
 
@@ -268,6 +255,6 @@ persistence (every `GameEvent` stored, events are the source of truth).
 
 ## Build order
 
-Phases 1–3 are shipped. The remaining path: **Phase 4 (Stats) → the Phase 3 revisit →
+Phases 1–4 are shipped. The remaining path: **the Phase 3 revisit →
 Phase 5 (Season) → Phase 6 (Progression)**, with **Phase 7 (Frontend)** able to start in parallel from
 Phase 4 onward (the §3.6 simulation API it needs already exists), and **Phase 8** last.
