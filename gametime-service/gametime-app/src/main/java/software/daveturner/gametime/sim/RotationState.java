@@ -54,7 +54,10 @@ public class RotationState {
         this.onFloor = new ArrayList<>(squad.subList(0, 5));
         // §3.20: the starting five have taken the floor by definition, before any
         // possession is drained against them.
-        this.onFloor.forEach(PlayerGameState::markTookFloor);
+        for (PlayerGameState p : this.onFloor) {
+            p.markTookFloor();
+            p.markStartedGame();
+        }
         this.rotationDepth = config.rotationDepth(modifiers.rotationDepthFactor());
     }
 

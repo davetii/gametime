@@ -22,6 +22,8 @@ public class GameData {
     private int homeScore;
     private int awayScore;
     private int periods;
+    private int homePossessions;
+    private int awayPossessions;
     private String homeTeamId;
     private String awayTeamId;
 
@@ -75,6 +77,17 @@ public class GameData {
             awayScore += points;
         }
     }
+
+    public void addPossession(String teamId) {
+        if (teamId.equals(homeTeamId)) {
+            homePossessions++;
+        } else {
+            awayPossessions++;
+        }
+    }
+
+    public int getHomePossessions() { return homePossessions; }
+    public int getAwayPossessions() { return awayPossessions; }
 
     public List<EventRecord> getEvents() { return events; }
 

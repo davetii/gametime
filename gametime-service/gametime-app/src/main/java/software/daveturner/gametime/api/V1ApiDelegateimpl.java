@@ -16,9 +16,11 @@ import java.util.*;
 public class V1ApiDelegateimpl implements V1ApiDelegate {
 
     private final GametimeService service;
+    private final StatsService stats;
 
-    public V1ApiDelegateimpl(GametimeService service) {
+    public V1ApiDelegateimpl(GametimeService service, StatsService stats) {
         this.service = service;
+        this.stats = stats;
     }
 
     @Override
@@ -88,6 +90,31 @@ public class V1ApiDelegateimpl implements V1ApiDelegate {
     @Override
     public ResponseEntity<List<GameEvent>> fetchPlayByPlay(String gameId) {
         return ResponseEntity.ok(service.getPlayByPlay(gameId));
+    }
+
+    @Override
+    public ResponseEntity<PlayerStats> fetchPlayerStats(String playerId) {
+        return ResponseEntity.ok(stats.getPlayerStats(playerId));
+    }
+
+    @Override
+    public ResponseEntity<List<GameLogEntry>> fetchPlayerGameLog(String playerId) {
+        return ResponseEntity.ok(stats.getPlayerGameLog(playerId));
+    }
+
+    @Override
+    public ResponseEntity<TeamStats> fetchTeamStats(String teamId) {
+        return ResponseEntity.ok(stats.getTeamStats(teamId));
+    }
+
+    @Override
+    public ResponseEntity<LeaderBoard> fetchLeaders(LeaderCategory category, Integer limit) {
+        return ResponseEntity.ok(stats.getLeaders(category, limit));
+    }
+
+    @Override
+    public ResponseEntity<GameHighs> fetchGameHighs(GameHighCategory category, Integer limit) {
+        return ResponseEntity.ok(stats.getGameHighs(category, limit));
     }
 
 }

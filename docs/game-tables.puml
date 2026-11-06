@@ -2,8 +2,6 @@
 ' The game + roster tables: who a game's stat lines belong to.
 ' Audit columns (create_/update_ user/date) omitted except where they matter.
 ' Render: plantuml -DPLANTUML_LIMIT_SIZE=16384 -tpng docs/game-tables.puml
-' Green italic = PLANNED for Phase 4 (todo.md), not built yet. When Phase 4 ships:
-'   make them plain columns, drop the red read-path line and the planned FK styling.
 hide circle
 skinparam linetype ortho
 skinparam shadowing false
@@ -68,8 +66,8 @@ entity game {
   status
   home_score, away_score
   periods, seed
-  <color:#1E8449><i>home_possessions, away_possessions</i>
-  <color:#1E8449><i>played_at  (game-world time)</i>
+  home_possessions, away_possessions
+  played_at  (game-world time)
   create_date  (audit, wall clock)
 }
 note left of game
@@ -102,9 +100,9 @@ entity box_score {
   fouls, technical_fouls, minutes,
   FGA/FGM, 3PA/3PM, FTA/FTM
   ..
-  <color:#1E8449><i>team_id <<FK>>  (team in THIS game)</i>
-  <color:#1E8449><i>started</i>
-  <color:#1E8449><i>unique (game_id, player_id)</i>
+  team_id <<FK>>  (team in THIS game)
+  started
+  unique (game_id, player_id)
 }
 
 team ||--o{ player_team
@@ -118,7 +116,5 @@ game ||--o{ game_event
 game ||--o{ box_score
 player ||--o{ box_score
 player |o--o{ game_event : primary / assist / opponent
-
-box_score .[#C0392B,dashed].> player_team : <color:#C0392B>TODAY: home/away resolved\n<color:#C0392B>via CURRENT roster at read time\n<color:#C0392B>(replaced by box_score.team_id)
-team ||.[#1E8449,dashed].o{ box_score : <color:#1E8449>planned
+team ||--o{ box_score
 @enduml

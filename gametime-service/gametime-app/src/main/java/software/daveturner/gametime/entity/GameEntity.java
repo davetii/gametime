@@ -3,6 +3,8 @@ package software.daveturner.gametime.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 /**
  * A single game: the matchup and its outcome. References home/away team only —
  * there is no season/schedule table yet (Phase 5), so no season FK
@@ -42,5 +44,15 @@ public class GameEntity {
      */
     @Column(name = "seed")
     private Long seed;
+
+    @Column(name = "home_possessions")
+    private Integer homePossessions;
+
+    @Column(name = "away_possessions")
+    private Integer awayPossessions;
+
+    /** Game-world time (#045 G); never use create_date. */
+    @Column(name = "played_at")
+    private LocalDateTime playedAt;
 
 }

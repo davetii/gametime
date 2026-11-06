@@ -4,9 +4,9 @@ Tactical task list for the **current phase only**. For the phased roadmap and wh
 shipped, see [roadmap.md](roadmap.md). Chores and parked ideas live in beads (`bd list`);
 deferred *gameplay* scope lives in roadmap.md's phase bullets.
 
-Current focus: **Phase 4 — Statistics & Box Scores, EXECUTE-READY.** The design is
-resolved as [decisions.md](decisions.md) **#045** (design pass `gametime-ta7`, 2026-10).
-Next session: execution (`gametime-ra1`), following the plan below.
+Current focus: **Phase 4 — Statistics & Box Scores, EXECUTED (2026-11).** Designed as
+[decisions.md](decisions.md) **#045**; built in `gametime-ra1`. Next session: the Phase 3
+revisit's design pass (roadmap.md), which rewrites this file.
 
 Phase 3 is an **open arc**. The design pass found event-log gaps it deliberately routed to a
 **Phase 3 revisit after Phase 4 ships** (roadmap.md, starting with `gametime-3sc`). Do not
@@ -63,116 +63,118 @@ cd gametime-service && for s in 1000 2000 3000 4000 5000; do SPRING_PROFILES_ACT
 ```
 
 **Step 0 — baseline and claim**
-- [ ] Claim `gametime-ra1` (the execution bead) and `gametime-fwy`
+- [x] Claim `gametime-ra1` (the execution bead) and `gametime-fwy`
       (#045 B supersedes it; it closes in Step 11).
-- [ ] Run the harness on the five seeds **before any change**; keep the output for the diff.
+- [x] Run the harness on the five seeds **before any change**; keep the output for the diff.
 
 **Step 1 — schema: changeset `1.04.6` appended to `release.1.0.4.game.sql` (#045 D, E, F, G, L)**
-- [ ] `box_score.team_id VARCHAR` + FK to `team(id)`; `box_score.started BOOLEAN`.
-- [ ] `game.home_possessions SMALLINT`, `game.away_possessions SMALLINT`,
+- [x] `box_score.team_id VARCHAR` + FK to `team(id)`; `box_score.started BOOLEAN`.
+- [x] `game.home_possessions SMALLINT`, `game.away_possessions SMALLINT`,
       `game.played_at TIMESTAMP`.
-- [ ] Unique constraint `box_score(game_id, player_id)`; indexes on `box_score(player_id)`
+- [x] Unique constraint `box_score(game_id, player_id)`; indexes on `box_score(player_id)`
       and `box_score(team_id)`.
-- [ ] All nullable, no `dbms` gate (the established shape). Comment block in the file's
+- [x] All nullable, no `dbms` gate (the established shape). Comment block in the file's
       house style. ⚠ Never edit `1.04.1`–`1.04.5`.
-- [ ] Entities: `BoxScoreEntity.teamId`, `started`; `GameEntity.homePossessions`,
+- [x] Entities: `BoxScoreEntity.teamId`, `started`; `GameEntity.homePossessions`,
       `awayPossessions`, `playedAt` (`LocalDateTime`, matching `player_team_hist`). Update
       the class javadocs that say "no team_id" (#045 D).
-- [ ] ⚠ **`ddl-auto=update` masks a missing changeset**: Hibernate adds the column itself
+- [x] ⚠ **`ddl-auto=update` masks a missing changeset**: Hibernate adds the column itself
       and only warns (`gametime-r3s`). Confirm each column exists because Liquibase made it,
       e.g. by a repo test that reads it back on H2 with the changeset in place, not by a
       green boot.
 
 **Step 2 — `BoxScoreSummarizer`: the event log → per-player lines (#045 A)**
-- [ ] A pure class (no Spring, no repos) in `sim`: input the game's
+- [x] A pure class (no Spring, no repos) in `sim`: input the game's
       `List<GameData.EventRecord>`, output one line per player id carrying every derived
       column in the table below, plus each team's derived points.
-- [ ] Use the engine's outcome constants where they exist (`GameData.TECHNICAL_FOUL_OUTCOME`,
+      *Built:* team points are summed by squad (`Summary.points(playerIds)`): a
+      `FREE_THROW` row does not say which team its shooter is on.
+- [x] Use the engine's outcome constants where they exist (`GameData.TECHNICAL_FOUL_OUTCOME`,
       `PossessionEngine.FLAGRANT_FOUL_*`); prefix/suffix matching (`MADE_`, `_3PT`,
       `BLOCKED_`) as the harness already does.
-- [ ] `BoxScoreSummarizerTest`: one hand-built event list per table row, plus the traps:
+- [x] `BoxScoreSummarizerTest`: one hand-built event list per table row, plus the traps:
       the charge's two rows (one turnover AND one foul), a technical (not a foul), an
       `OUT_OF_BOUNDS_*` rebound (no one credited), a blocked three (FGA + 3PA, no FGM),
       an and-1 (made FG, then a foul on the defender, then one FT).
 
 **Step 3 — possessions counted by the engine (#045 F)**
-- [ ] `GameData` gains per-team possession counters; `PossessionEngine.simulate()`
+- [x] `GameData` gains per-team possession counters; `PossessionEngine.simulate()`
       increments the offense's count once per loop iteration (a retention is the same
       possession). **No RNG, no other change.**
-- [ ] Test: `home == away`, and both equal the paced per-period count ×
+- [x] Test: `home == away`, and both equal the paced per-period count ×
       `SimConfig.PERIODS` plus the OT count per overtime period. ⚠ The equality is pinned **on purpose**: a future engine
       change that breaks it (a clock, the possession arrow in `gametime-3sc`) must fail
       this test and be accepted deliberately (#045 F).
 
 **Step 4 — `GameSimulator` writes `box_score` from the summarizer (#045 A, B, D, E, G)**
-- [ ] Build the lines with `BoxScoreSummarizer` from `data.getEvents()`, for every player
+- [x] Build the lines with `BoxScoreSummarizer` from `data.getEvents()`, for every player
       with `tookFloor()` (the predicate is unchanged; see its comment). Non-derived fields:
       `minutes` (unchanged formula), `started`, `teamId` (`PlayerGameState.getTeamId()`).
-- [ ] **The guard (#045 B):** before saving, compare every derived column with the
+- [x] **The guard (#045 B):** before saving, compare every derived column with the
       player's `PlayerGameState` counter, and each team's derived points with
       `GameData`'s score. Any difference throws `IllegalStateException` naming player,
       column, derived and counted values. `@Transactional` rolls the game back.
       Also throw if an event names a player with no line (credited but never took the floor).
-- [ ] `game.home_score` / `away_score` = the derived team points (equal to `GameData`'s by
+- [x] `game.home_score` / `away_score` = the derived team points (equal to `GameData`'s by
       the guard). `game.home_possessions` / `away_possessions` from Step 3.
-- [ ] `game.played_at` = now, from an injected `java.time.Clock` so tests can pin it
+- [x] `game.played_at` = now, from an injected `java.time.Clock` so tests can pin it
       (#045 G). ⚠ Never read `create_date`.
-- [ ] `started` (#045 E): `PlayerGameState` gains a never-cleared `startedGame` flag, set in
+- [x] `started` (#045 E): `PlayerGameState` gains a never-cleared `startedGame` flag, set in
       `RotationState`'s constructor in the same loop as `markTookFloor()`. ⚠ **Not**
       `isStarter()`: that reads `lineupRole`, and a released starter leaves four.
-- [ ] Tests: the guard fires (a test-only way to desync one counter, or a summarizer
+- [x] Tests: the guard fires (a test-only way to desync one counter, or a summarizer
       fed a doctored event list); exactly five `started` per team per game, **including a
       team whose fifth `STARTER` was released** (the first bench player starts); `team_id`
       set on every row; possessions and `played_at` persisted.
-- [ ] Run the sim tests alone, then the harness same-seed diff against Step 0. **Must be
-      identical.**
+- [x] Run the sim tests alone, then the harness same-seed diff against Step 0. **Must be
+      identical.** *Result:* identical on all five seeds, all four reconciliation lines `OK`.
 
 **Step 5 — fix the home/away split on `GameResult` (#045 D)**
-- [ ] `EntityMapper.toGameResult` buckets by `box_score.team_id` vs `game.home_team_id`;
+- [x] `EntityMapper.toGameResult` buckets by `box_score.team_id` vs `game.home_team_id`;
       delete `GametimeServiceImp.homePlayerIds()` and its `player_team` lookup.
-- [ ] Regression test: simulate, **release a home player**, fetch the game: his line stays
+- [x] Regression test: simulate, **release a home player**, fetch the game: his line stays
       in `homeBoxScore`. (Fails on today's code.)
-- [ ] Test: `team_id` equals the team of the player's latest `player_team_hist` row at sim
+- [x] Test: `team_id` equals the team of the player's latest `player_team_hist` row at sim
       time, for a player signed before the game (#045 D's agreement check; seeded players
       have no history rows until `gametime-6x9`, so use a signed player).
 
 **Step 6 — `StatsConfig` (#045 J)**
-- [ ] `@ConfigurationProperties(prefix = "stats")`, values in `application.properties`
+- [x] `@ConfigurationProperties(prefix = "stats")`, values in `application.properties`
       (not a sim profile): `stats.leaders.min-games-fraction=0.70`,
       `stats.leaders.min-fgm-per-game=3.66`, `stats.leaders.min-3pm-per-game=1.0`,
       `stats.leaders.min-ftm-per-game=1.52`, `stats.leaders.default-limit=10`,
       `stats.leaders.max-limit=100`.
-- [ ] **No Java initializers** (SimConfig's rule: a default in Java is a second value).
+- [x] **No Java initializers** (SimConfig's rule: a default in Java is a second value).
       A binding test asserts every property is bound. ⚠ `SimConfig`'s 63/29 counts do
       **not** change.
 
 **Step 7 — the aggregation layer (#045 C, H, I)**
-- [ ] A `StatsService` (interface + impl, beside `GametimeService`) over `box_score` ⋈
+- [x] A `StatsService` (interface + impl, beside `GametimeService`) over `box_score` ⋈
       `game`, using `SUM … GROUP BY` queries (JPQL or native: builder's call) into
       projections. Never reads `game_event` (#045 C).
-- [ ] **One scope seam (#045 I):** every aggregate takes the same game filter, today "all
+- [x] **One scope seam (#045 I):** every aggregate takes the same game filter, today "all
       `FINAL` games". Phase 5 replaces it with a season; nothing else should need to change.
-- [ ] Percentages from summed makes/attempts, never a mean of per-game percentages.
+- [x] Percentages from summed makes/attempts, never a mean of per-game percentages.
       TS% = PTS / (2 × (FGA + 0.44 × FTA)); eFG% = (FGM + 0.5 × 3PM) / FGA. Null when the
       denominator is 0.
-- [ ] Team: totals and per-game for the team (`team_id = T`) and its opponents (the other
+- [x] Team: totals and per-game for the team (`team_id = T`) and its opponents (the other
       rows of the same games); possessions from the `game` side it played;
       pace = possessions × 48 / game minutes; offensive/defensive rating = points
       scored/allowed × 100 / possessions; net = their difference.
-- [ ] "Team games" (the qualifier's base) = the most `FINAL` games any one team has in
+- [x] "Team games" (the qualifier's base) = the most `FINAL` games any one team has in
       scope.
 
 **Step 8 — OpenAPI + endpoints (#045 C, H, J, K)**
-- [ ] `GameResult` gains `homeTeamStats` / `awayTeamStats`: totals + possessions + pace +
+- [x] `GameResult` gains `homeTeamStats` / `awayTeamStats`: totals + possessions + pace +
       the three ratings for that one game.
-- [ ] `GET /v1/player/{playerId}/stats`: games played and started, minutes, totals,
+- [x] `GET /v1/player/{playerId}/stats`: games played and started, minutes, totals,
       per-game, FG% / 3P% / FT% / TS% / eFG%. 404 for an unknown player.
-- [ ] `GET /v1/player/{playerId}/gamelog`: one entry per game in `played_at`, then id,
+- [x] `GET /v1/player/{playerId}/gamelog`: one entry per game in `played_at`, then id,
       order: game id, `playedAt`, team, opponent, home/away, the game's score, `started`,
       the box line. 404 for an unknown player.
-- [ ] `GET /v1/team/{teamId}/stats`: team and opponent totals and per-game, pace, ratings.
+- [x] `GET /v1/team/{teamId}/stats`: team and opponent totals and per-game, pace, ratings.
       404 for an unknown team. No win–loss record (standings are Phase 5).
-- [ ] `GET /v1/league/leaders?category=&limit=` (#045 J): `category` an enum (points,
+- [x] `GET /v1/league/leaders?category=&limit=` (#045 J): `category` an enum (points,
       rebounds, offensive and defensive rebounds, assists, steals, blocks, turnovers,
       minutes, fouls, technical fouls, FG%, 3P%, FT%, TS%, eFG%). Response:
       `category`, `basis` (`PER_GAME` | `TOTAL`), entries of `rank, playerId, playerName,
@@ -180,43 +182,46 @@ cd gametime-service && for s in 1000 2000 3000 4000 5000; do SPRING_PROFILES_ACT
       player's most recent game. Ties share a rank; within a tie, more games played first,
       then player id. Unknown category or `limit` outside 1–100 → 400; nobody qualifies →
       empty list. The category enum's description names the `TOTAL` exception.
-- [ ] `GET /v1/league/game-highs?category=&limit=` (#045 K): a separate counting-stat enum
+      *Built:* percentage categories report `basis: PERCENTAGE`; TS% and eFG% qualify on
+      FGM. Entries carry the player's full `totals` as the counts behind the value.
+- [x] `GET /v1/league/game-highs?category=&limit=` (#045 K): a separate counting-stat enum
       (no percentages); entries of `rank, playerId, playerName, teamId, opponentTeamId,
       gameId, playedAt, value`; a player may appear more than once; ties share a rank,
       earliest `played_at` first, then game id. Same 400s.
-- [ ] Raw numbers, unrounded. Delegate methods in `V1ApiDelegateimpl` calling
+- [x] Raw numbers, unrounded. Delegate methods in `V1ApiDelegateimpl` calling
       `StatsService`; never hand-write in `gametime-api`.
 
 **Step 9 — tests and coverage**
-- [ ] Service tests over a small seeded set of games with known totals: per-game vs
+- [x] Service tests over a small seeded set of games with known totals: per-game vs
       percentage math, the qualifier at the 70% boundary, `TECHNICAL_FOULS` by total
       without a qualifier, ties, the opponent split, a traded player's line counting for
       the team he played for (#045 D).
-- [ ] Delegate tests for each endpoint's 200 / 400 / 404.
-- [ ] `mvn install` with the coverage gate, per the `test-coverage` skill.
+- [x] Delegate tests for each endpoint's 200 / 400 / 404.
+- [x] `mvn install` with the coverage gate, per the `test-coverage` skill.
 
 **Step 10 — `GameSimulatorIntegrationTest` and the harness**
-- [ ] The integration test's own event-counting helpers (`pointsFromEntity` and the
+- [x] The integration test's own event-counting helpers (`pointsFromEntity` and the
       per-identity tests) now duplicate the summarizer. Keep the per-creditor and
       per-identity assertions as an **independent** check where they add one; drop pure
-      duplicates.
-- [ ] The harness's four reconciliation lines stay (they aggregate over thousands of
+      duplicates. *Built:* none dropped. They read the persisted rows, so they catch a
+      column swapped in `GameSimulator`'s entity mapping, which the guard cannot see.
+- [x] The harness's four reconciliation lines stay (they aggregate over thousands of
       games); they must still read `OK`.
 
 **Step 11 — docs and beads**
-- [ ] [game.md](game.md) `BoxScore`: built from the event log at game end, the guard, the
+- [x] [game.md](game.md) `BoxScore`: built from the event log at game end, the guard, the
       three non-derived fields, `team_id` (delete "no `team_id`; derive it from
       `player_team`"), `started`. `Game`: possessions, `played_at`. API table: the five
       endpoints and the `GameResult` team lines. Reference-doc rules: no `#NNN`, no history.
-- [ ] [game-events.md](game-events.md) *Reconciliation identities*: now enforced at every
+- [x] [game-events.md](game-events.md) *Reconciliation identities*: now enforced at every
       write; point to game.md rather than restating.
-- [ ] [risks.md](risks.md) "Stats are written twice": rewrite to what is left (the counters
+- [x] [risks.md](risks.md) "Stats are written twice": rewrite to what is left (the counters
       are still a second write path, but a disagreement can no longer persist) or delete it.
-- [ ] [game-tables.puml](game-tables.puml): drop the "planned" styling and the red
+- [x] [game-tables.puml](game-tables.puml): drop the "planned" styling and the red
       read-path line; render and look at the PNG.
-- [ ] [roadmap.md](roadmap.md): flip 4.1–4.3 to `[x]` with a landing note of a few lines
+- [x] [roadmap.md](roadmap.md): flip 4.1–4.3 to `[x]` with a landing note of a few lines
       citing #045; the header's "Next" moves to the Phase 3 revisit.
-- [ ] Edit any #045 letter the build diverged from. Close `gametime-fwy` citing #045 B,
+- [x] Edit any #045 letter the build diverged from. Close `gametime-fwy` citing #045 B,
       after `grep -rn gametime-fwy docs/ CLAUDE.md`.
 
 ### The derivation table (#045 A)

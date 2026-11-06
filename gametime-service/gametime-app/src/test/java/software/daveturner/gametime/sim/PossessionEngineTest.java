@@ -3119,4 +3119,41 @@ class PossessionEngineTest {
                 "the charge path never reaches the flagrant roll (#039 G)");
     }
 
+    // ===================== Phase 4: possessions counted by the engine (#045 F) =====================
+
+    private int expectedPossessions(CoachModifiers home, CoachModifiers away, int poss, GameData data) {
+        int paced = Math.max(1, (int) Math.round(
+                poss * (home.paceMultiplier() + away.paceMultiplier()) / 2.0));
+        int otPeriods = Math.max(0, data.getPeriods() - SimConfig.PERIODS);
+        return paced * SimConfig.PERIODS + otPeriods * config.otPossessionsPerPeriod();
+    }
+
+    // Pinned on purpose (#045 F): an engine change that breaks this must be accepted deliberately.
+    @Test
+    void possessionsAreEqualAndMatchThePacedCountAcrossRegulationAndOvertime() {
+        CoachModifiers fast = CoachModifiers.from(coach(20, 10, 10), config);
+        CoachModifiers slow = CoachModifiers.from(coach(1, 10, 10), config);
+        boolean sawOvertime = false;
+        for (long seed = 1; seed <= 200 && !sawOvertime; seed++) {
+            GameData data = simulateWithCoaches(teamOf5("H", 10), fast,
+                    teamOf5("A", 10), slow, 25, rng(seed));
+            int expected = expectedPossessions(fast, slow, 25, data);
+            assertEquals(data.getHomePossessions(), data.getAwayPossessions(), "seed " + seed);
+            assertEquals(expected, data.getHomePossessions(), "seed " + seed);
+            sawOvertime = data.getPeriods() > SimConfig.PERIODS;
+        }
+        assertTrue(sawOvertime, "the pin must cover an overtime game");
+    }
+
+    @Test
+    void offensiveReboundRetentionsDoNotAddPossessions() {
+        GameData data = simulate(teamOf5("H", 10), teamOf5("A", 10), "H", "A", 25, rng(42));
+        long offensiveBoards = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.REBOUND && "OFFENSIVE".equals(e.outcome()))
+                .count();
+        assertTrue(offensiveBoards > 0, "the game must contain a retention to prove anything");
+        assertEquals(expectedPossessions(CoachModifiers.neutral(), CoachModifiers.neutral(), 25, data),
+                data.getHomePossessions());
+    }
+
 }

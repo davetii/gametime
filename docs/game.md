@@ -24,6 +24,13 @@ The matchup and its outcome.
 - `homeTeam` / `awayTeam` — `Team` FKs. No season FK (no schedule table yet).
 - `status` — `SCHEDULED | IN_PROGRESS | FINAL`. The engine only produces `FINAL`.
 - final score, periods (regulation plus overtime), and the `seed` the game was run with.
+  The score is each team's summed box-score points.
+- `home_possessions` / `away_possessions` — the engine's own count, one per trip down
+  the floor (an offensive-rebound retention is the same possession). Equal today because
+  the teams alternate; stored as two facts. Pace and ratings divide by these.
+- `played_at` — game-world time, when the game was played. Run time today; the schedule's
+  date once seasons exist. Game logs order by it. `create_date` is audit time and is
+  never read.
 - No per-period line scores: derive them from the event log.
 
 ---
@@ -31,7 +38,7 @@ The matchup and its outcome.
 ## `GameEvent`
 
 The ordered event log of a game. **Every event is persisted**, so play-by-play replays
-from stored rows and box scores reconcile against them. The log is the source of truth.
+from stored rows and box scores are built from them. The log is the source of truth.
 
 | Column | Meaning |
 |---|---|
@@ -214,40 +221,57 @@ are in [player.md](player.md).
 
 ## `BoxScore`
 
-One row per `(game_id, player_id)` for every player who **took the floor**, starters and
-bench (tracked by `tookFloor()`, not by possession count — a substitute can score before
-his first possession registers). A player who never checked in has no row. There is **no `team_id`** on the row; derive it
-from the game and `player_team`.
+One row per `(game_id, player_id)`, enforced by a unique key, for every player who **took
+the floor**, starters and bench (tracked by `tookFloor()`, not by possession count — a
+substitute can score before his first possession registers). A player who never checked
+in has no row.
 
-Counters: points, rebounds (offensive/defensive), assists, steals, blocks, turnovers,
-fouls, technical fouls, FGA/FGM, 3PA/3PM, FTA/FTM, minutes. They accumulate during the
-simulation and reconcile against the `GameEvent` log; **if the two disagree, the events
-win**.
+**Built from the event log at game end.** Every stat column is derived from the game's
+`GameEvent` rows, by player:
 
-- **Attempts and free throws.** Count of `SHOT` events equals the sum of
-  `fieldGoalsAttempted` (a stopped shot is not an attempt); count of `FREE_THROW` events
-  equals the sum of `freeThrowsAttempted`. A rebound counts only where `primary_player_id`
-  is non-null (an `OUT_OF_BOUNDS_*` row credits no one).
-- **Per-creditor checks.** Totals can match while the wrong player is credited, so steals
-  and blocks are also checked per player: `count(STOLEN with opponent = X) == steals(X)`
-  and `count(BLOCKED% with opponent = X) == blocks(X)`.
-- **Assists** reconcile to the count of `SHOT` events with `assist_player_id` set.
-- **Blocks.** A block is a `SHOT` event with a `BLOCKED_*` outcome naming the **shooter**
-  as primary; there is no `PlayType.BLOCK`. The blocker is credited through
-  `recordBlock()` and is not the primary player on the event. The shooter takes a missed
-  FGA (and 3PA if a three); a blocked shot carries no assist. Count of `SHOT` events with
-  `outcome LIKE 'BLOCKED%'` equals the sum of `BoxScore.blocks`.
-- **Fouls and technical fouls are separate counters.** `fouls` is personal fouls only and
-  is what the 6-foul limit, foul-trouble level and penalty read; `technical_fouls` is
-  never summed into it. Both reconcile against events: `TECHNICAL_FOUL` events equal the
-  sum of `technicalFouls`, and non-technical `FOUL` events equal the sum of `fouls`. Rows
-  written before the column existed hold `null`, not 0.
-- **Ejection** is a derived predicate, not a counter, event or column: `technicalFouls >= 2`
-  or any `FLAGRANT_FOUL_2`. Nothing announces it in the log.
-- **Minutes** are a possession-share projection, not a clock. Each on-floor player
+| Column | Derived from |
+|---|---|
+| `points` | 2 per `SHOT` `MADE_2PT_*`, 3 per `MADE_3PT`, 1 per `FREE_THROW` `MADE_*` |
+| `field_goals_attempted` / `_made` | every `SHOT` (`BLOCKED_*` included; a stopped shot is a `FOUL`, not an attempt) / `MADE_*` |
+| `three_pointers_attempted` / `_made` | `SHOT` ending `_3PT` / `MADE_3PT` |
+| `free_throws_attempted` / `_made` | every `FREE_THROW` / `MADE_*` |
+| `offensive_rebounds` / `defensive_rebounds` | `REBOUND` `OFFENSIVE` / `DEFENSIVE`. `OUT_OF_BOUNDS_*` credits no one |
+| `assists` | `SHOT` with `assist_player_id` = player |
+| `steals` | `TURNOVER` `STOLEN` with `opponent_player_id` = player |
+| `blocks` | `SHOT` `BLOCKED_*` with `opponent_player_id` = player (the shooter is primary) |
+| `turnovers` | every `TURNOVER`, all nine causes, the charge included |
+| `fouls` | every `FOUL` except `TECHNICAL_FOUL` (primary is the committer). The charge's `FOUL` row counts; a flagrant is one row |
+| `technical_fouls` | `FOUL` `TECHNICAL_FOUL` |
+
+Three columns are not derived:
+
+- **`team_id`** — the team the player played for in this game, from the squad at sim
+  time. `player_team` holds only the current team, so it cannot answer this for a past game.
+- **`started`** — in the opening five on the floor. Not the same as lineup role
+  `STARTER`: a team whose fifth starter was released opens with its first bench player.
+- **`minutes`** — a possession-share projection, not a clock. Each on-floor player
   accumulates possessions; at write time his share of the team's on-floor possessions
   scales to `5 × game-minutes` (`PERIODS × 12`, +5 per overtime) and rounds to a whole
   number. Team minutes therefore sum to that only approximately.
+
+**The guard.** The engine also keeps per-player counters, because foul-outs, foul trouble
+and ejections read them mid-game. Before anything is saved, every derived column is
+compared with the player's counter and each team's derived points with the engine's
+score; any difference, or an event crediting a player who never took the floor, throws
+and rolls the game back. A disagreement between the log and the box score therefore
+cannot be persisted.
+
+- **Fouls and technical fouls are separate.** `fouls` is personal fouls only and is what
+  the 6-foul limit, foul-trouble level and penalty read; `technical_fouls` is never summed
+  into it.
+- **Ejection** is a derived predicate, not a counter, event or column: `technicalFouls >= 2`
+  or any `FLAGRANT_FOUL_2`. Nothing announces it in the log.
+
+**Season stats read `box_score` joined to `game`, never `game_event`.** Percentages come
+from summed makes and attempts. TS% = PTS / (2 × (FGA + 0.44 × FTA)); eFG% = (FGM + 0.5 ×
+3PM) / FGA. Pace = possessions × 48 / game minutes; offensive / defensive rating = points
+scored / allowed × 100 / possessions. Every aggregate reads all `FINAL` games through one
+scope (`StatsScope`), the seam a season boundary will replace.
 
 ---
 
@@ -260,9 +284,16 @@ Spec: `gametime-api/yml/gametime.yaml`. Delegate: `api/V1ApiDelegateimpl.java`.
 | `POST` | `/v1/game/simulate` | `SimulateGameRequest` | `200 GameResult` | `404` unknown team · `422` same team |
 | `GET` | `/v1/game/{gameId}` | — | `200 GameResult` | `404` unknown game |
 | `GET` | `/v1/game/{gameId}/play-by-play` | — | `200 [GameEvent]` | `404` unknown game |
+| `GET` | `/v1/player/{playerId}/stats` | — | `200 PlayerStats` | `404` unknown player |
+| `GET` | `/v1/player/{playerId}/gamelog` | — | `200 [GameLogEntry]` | `404` unknown player |
+| `GET` | `/v1/team/{teamId}/stats` | — | `200 TeamStats` | `404` unknown team |
+| `GET` | `/v1/league/leaders?category=&limit=` | — | `200 LeaderBoard` | `400` bad category or limit |
+| `GET` | `/v1/league/game-highs?category=&limit=` | — | `200 GameHighs` | `400` bad category or limit |
 
-- **`GameResult`**: `game`, `homeBoxScore`, `awayBoxScore`. Box scores are split home/away
-  server-side via `player_team`. The event log is not included; it has its own endpoint.
+- **`GameResult`**: `game`, `homeBoxScore`, `awayBoxScore`, `homeTeamStats`,
+  `awayTeamStats`. Box scores are split by each row's `team_id`. A `TeamGameStats` is the
+  team's totals, possessions, pace and the three ratings for that game. The event log is
+  not included; it has its own endpoint.
 - **`Game`**: `id`, `homeTeamId`, `awayTeamId`, `status`, `homeScore`, `awayScore`,
   `periods`, `seed`.
 - **`GameEvent`**: `sequence`, `period`, `offenseTeamId`, `defenseTeamId`, `playType`,
@@ -275,7 +306,25 @@ Spec: `gametime-api/yml/gametime.yaml`. Delegate: `api/V1ApiDelegateimpl.java`.
 - **Seed.** Omitted gives a fresh random `long`; provided gives a reproducible run. It is
   persisted (`game.seed`) and echoed on `Game`.
 - **Play-by-play** is a flat list in `sequence` order, unpaginated (~200–350 events a game).
-- **Errors.** `404` for an unknown game or team. `422` for `homeTeamId == awayTeamId`, via
+- **`PlayerStats`**: games played and started, `totals`, `perGame`, `shooting`. A player
+  with no games answers `200` with zero totals and null averages and percentages.
+- **`GameLogEntry`**: one per game, ordered by `playedAt` then game id: team, opponent,
+  home/away, the score, `started`, and the box line.
+- **`TeamStats`**: the team's and its opponents' totals and per-game, possessions, pace,
+  ratings. No win–loss record.
+- **Leaders.** Counting categories rank the per-game average among players with 70% of the
+  most games any team has played; `TECHNICAL_FOULS` ranks the total with no qualifier.
+  Percentages rank the summed fraction among players with 3.66 FGM (FG%, TS%, eFG%),
+  1.0 3PM or 1.52 FTM per such game. `basis` says which: `PER_GAME`, `TOTAL` or
+  `PERCENTAGE`. Ties share a rank; within a tie, more games first, then player id.
+  `teamId` is the team of the player's most recent game. Thresholds and the `limit`
+  default (10) and maximum (100) are `stats.leaders.*` in `application.properties`.
+- **Game highs.** The top single-game `box_score` lines in a counting stat; a player can
+  appear more than once. Ties share a rank, earliest `playedAt` first, then game id.
+- **Numbers are raw**, unrounded; percentages are fractions (0–1), null without a
+  denominator.
+- **Errors.** `404` for an unknown game, team or player. `400` for an unknown category or
+  a `limit` outside 1–100. `422` for `homeTeamId == awayTeamId`, via
   `ResourceUnprocessableException` and `ApiExceptionHandler`. Error bodies are empty.
 
 ---

@@ -148,6 +148,7 @@ public class PossessionEngine {
                             offense.teamId(), defense.teamId(), period, sequence, rng);
                 }
 
+                data.addPossession(offense.teamId());
                 sequence = resolvePossession(data, offense, defense,
                         period, sequence, rng);
             }

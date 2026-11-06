@@ -226,24 +226,15 @@ public class EntityMapper {
         return bs;
     }
 
-    /**
-     * §3.6 (#024 A) — the crux: assemble a {@link GameResult}, splitting the box
-     * scores into home/away buckets. The box_score row has no team_id (#020), so
-     * the team is resolved from the game + player_team: a row belongs to the home
-     * team iff its playerId is in {@code homePlayerIds} (the home roster fetched
-     * once via {@code PlayerTeamRepo.findByTeamId}), else it's away. Every player
-     * with a box-score row took the floor for one of the two teams, so this two-way
-     * split is exhaustive.
-     */
-    public GameResult toGameResult(GameEntity game, List<BoxScoreEntity> boxScores,
-                                   Set<String> homePlayerIds) {
+    /** Buckets each line by the team it was played for (box_score.team_id, #045 D). */
+    public GameResult toGameResult(GameEntity game, List<BoxScoreEntity> boxScores) {
         GameResult result = new GameResult();
         result.setGame(entityToGame(game));
         result.setHomeBoxScore(new ArrayList<>());
         result.setAwayBoxScore(new ArrayList<>());
         for (BoxScoreEntity e : boxScores) {
             BoxScore bs = entityToBoxScore(e);
-            if (homePlayerIds.contains(e.getPlayerId())) {
+            if (game.getHomeTeamId().equals(e.getTeamId())) {
                 result.getHomeBoxScore().add(bs);
             } else {
                 result.getAwayBoxScore().add(bs);

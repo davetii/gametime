@@ -425,7 +425,7 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **G** — `game.played_at` is game-world time (run time now, the schedule from Phase 5). ⚠ Never `create_date`.
 - **H** — pace and offensive/defensive/net rating per 100 possessions; player TS% and eFG%. No PER (`gametime-bnp`), no plus/minus (`gametime-qs7`).
 - **I** — "season" = all FINAL games behind one scope seam; Phase 5 adds the boundary. No season table.
-- **J** — leaders rank the per-game average (⚠ `TECHNICAL_FOULS`: the total, unqualified); qualify at 70% of the most team games, percentages at 3.66 FGM / 1.0 3PM / 1.52 FTM per such game. `StatsConfig`, not `SimConfig`.
+- **J** — leaders rank the per-game average (⚠ `TECHNICAL_FOULS`: the total, unqualified); qualify at 70% of the most team games, percentages at 3.66 FGM / 1.0 3PM / 1.52 FTM per such game (TS% and eFG% on FGM; `basis: PERCENTAGE`). `StatsConfig`, not `SimConfig`.
 - **K** — game highs: the top `box_score` rows per counting stat; players repeat; ties go to the earliest `played_at`.
 - **L** — unique `(game_id, player_id)`; indexes on `player_id`, `team_id`. Fresh DB, no backfill.
 - **M** — Phase 4 ships BEFORE `gametime-3sc`; its check-ins later become the source of `started` and `team_id`, and the columns stay.

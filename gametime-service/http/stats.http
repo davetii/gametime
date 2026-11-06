@@ -1,0 +1,63 @@
+### Simulate a game first — stats read FINAL games only, so a fresh DB has none
+# 330eb324-… (Adrian Mcpherson) is in ATL's rotation, so the player requests below return data.
+POST http://{{host}}{{basePath}}/v1/game/simulate
+Content-Type: application/json
+Accept: application/json
+
+{
+  "homeTeamId": "ATL",
+  "awayTeamId": "BOS",
+  "seed": 42
+}
+
+### Player stats — totals, per-game, shooting percentages
+GET http://{{host}}{{basePath}}/v1/player/330eb324-3382-4fca-b20e-2b4c7e278047/stats
+Accept: application/json
+
+### Player stats — not found
+GET http://{{host}}{{basePath}}/v1/player/does-not-exist/stats
+Accept: application/json
+
+### Player game log (oldest first)
+GET http://{{host}}{{basePath}}/v1/player/330eb324-3382-4fca-b20e-2b4c7e278047/gamelog
+Accept: application/json
+
+### Player game log — not found
+GET http://{{host}}{{basePath}}/v1/player/does-not-exist/gamelog
+Accept: application/json
+
+### Team stats — team and opponent totals, pace, ratings
+GET http://{{host}}{{basePath}}/v1/team/ATL/stats
+Accept: application/json
+
+### Team stats — not found
+GET http://{{host}}{{basePath}}/v1/team/INVALID/stats
+Accept: application/json
+
+### League leaders — points per game (limit defaults to 10)
+GET http://{{host}}{{basePath}}/v1/league/leaders?category=POINTS
+Accept: application/json
+
+### League leaders — technical fouls (TOTAL basis, no qualifier)
+GET http://{{host}}{{basePath}}/v1/league/leaders?category=TECHNICAL_FOULS&limit=5
+Accept: application/json
+
+### League leaders — true shooting (PERCENTAGE basis)
+GET http://{{host}}{{basePath}}/v1/league/leaders?category=TRUE_SHOOTING_PCT&limit=5
+Accept: application/json
+
+### League leaders — 400 (unknown category)
+GET http://{{host}}{{basePath}}/v1/league/leaders?category=BOGUS
+Accept: application/json
+
+### League leaders — 400 (limit out of range)
+GET http://{{host}}{{basePath}}/v1/league/leaders?category=POINTS&limit=101
+Accept: application/json
+
+### Game highs — rebounds
+GET http://{{host}}{{basePath}}/v1/league/game-highs?category=REBOUNDS&limit=5
+Accept: application/json
+
+### Game highs — 400 (percentages are not a game-high category)
+GET http://{{host}}{{basePath}}/v1/league/game-highs?category=FIELD_GOAL_PCT
+Accept: application/json

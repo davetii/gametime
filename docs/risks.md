@@ -84,31 +84,17 @@ marquee players to 18–20).
 
 ---
 
-## Stats are written twice, and the two paths agree only by convention
+## Stats still have two write paths; a disagreement now stops the game
 
-Every stat is recorded by two independent mechanisms:
+The engine keeps per-player counters (`PlayerGameState.record*()`) because foul-outs, foul
+trouble and ejections read them mid-game, and it emits a `GameEvent` for the same play. The
+box score is built from the events and compared with the counters before saving, so a
+disagreement can no longer persist (see [game.md](game.md), `BoxScore`).
 
-| Path | What it is |
-|---|---|
-| `PlayerGameState.record*()` | counters incremented as the possession runs |
-| `data.addEvent(...)` | the `GameEvent` emitted for the same play |
-
-Nothing structurally guarantees they agree. They agree because each call site remembers to do
-both, which is a convention, not an invariant. The harness carries four reconciliation
-identities (assists+blocks, FT sources, points, rebound pool) whose entire purpose is to catch
-the two disagreeing; in a derived model they would be tautologies, so their existence measures
-this risk. A box score derived from the event log would have one write path instead of two.
-
-**The blocker is `minutes`**: it has no event behind it (it is a possession-share projection),
-so full derivation means either emitting substitution or possession events, or keeping minutes
-as the one deliberately non-derived field.
-
-**The sharpest consumer is single-game summarization**, not leaderboards: a box score rendered
-beside the play-by-play makes any disagreement between the two visible to the user.
-
-**Status**: not scheduled and not a gate. Tracked in beads as `gametime-fwy`
-(`BoxScoreReconciler`); Phase 4's design pass should see it, since it would already be
-touching every stat path. It is an architecture call, not a chore.
+**What could go wrong:** an engine change that records a counter without its event, or the
+reverse, now makes every simulation throw rather than drift. Loud, but it blocks all games
+until fixed. **Mitigation:** run the sim tests after any engine change; the guard fires on the
+first seeded game.
 
 ---
 

@@ -3,8 +3,11 @@ package software.daveturner.gametime.repo;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.context.*;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import software.daveturner.gametime.entity.*;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -29,6 +32,8 @@ class GameDomainRepoTest {
     TeamRepo teamRepo;
     @Autowired
     PlayerRepo playerRepo;
+    @Autowired
+    JdbcTemplate jdbc;
 
     private String homeTeamId;
     private String awayTeamId;
@@ -86,6 +91,62 @@ class GameDomainRepoTest {
         assertEquals(1, lines.size());
         assertEquals(playerId, lines.get(0).getPlayerId());
         assertEquals(24, lines.get(0).getPoints());
+    }
+
+    // ddl-auto=update would add a missing column itself, so check Liquibase ran 1.04.6.
+    @Test
+    void phase4ColumnsKeysAndIndexesComeFromChangeset1046() {
+        // The header parses as author "1.04.6 failOnError", id "true".
+        assertEquals("EXECUTED", jdbc.queryForObject(
+                "select EXECTYPE from DATABASECHANGELOG"
+                        + " where FILENAME like '%release.1.0.4.game.sql'"
+                        + " and AUTHOR = '1.04.6 failOnError'", String.class));
+
+        List<String> indexes = jdbc.queryForList(
+                "select INDEX_NAME from INFORMATION_SCHEMA.INDEXES"
+                        + " where TABLE_SCHEMA = 'GAMETIME' and TABLE_NAME = 'BOX_SCORE'",
+                String.class);
+        assertTrue(indexes.contains("IDX_BOX_SCORE_PLAYER"), indexes.toString());
+        assertTrue(indexes.contains("IDX_BOX_SCORE_TEAM"), indexes.toString());
+        assertEquals(1, jdbc.queryForObject(
+                "select count(*) from INFORMATION_SCHEMA.TABLE_CONSTRAINTS"
+                        + " where TABLE_SCHEMA = 'GAMETIME' and TABLE_NAME = 'BOX_SCORE'"
+                        + " and CONSTRAINT_NAME = 'UQ_BOX_SCORE_GAME_PLAYER'",
+                Integer.class));
+
+        LocalDateTime playedAt = LocalDateTime.of(2026, 11, 5, 19, 30);
+        GameEntity game = new GameEntity();
+        game.setId("test-game-1046");
+        game.setHomeTeamId(homeTeamId);
+        game.setAwayTeamId(awayTeamId);
+        game.setStatus(GameStatus.FINAL);
+        game.setHomePossessions(100);
+        game.setAwayPossessions(101);
+        game.setPlayedAt(playedAt);
+        gameRepo.save(game);
+
+        GameEntity loadedGame = gameRepo.findById("test-game-1046").orElseThrow();
+        assertEquals(100, loadedGame.getHomePossessions());
+        assertEquals(101, loadedGame.getAwayPossessions());
+        assertEquals(playedAt, loadedGame.getPlayedAt());
+
+        BoxScoreEntity box = new BoxScoreEntity();
+        box.setId("test-box-1046");
+        box.setGameId("test-game-1046");
+        box.setPlayerId(playerId);
+        box.setTeamId(homeTeamId);
+        box.setStarted(true);
+        boxScoreRepo.save(box);
+
+        BoxScoreEntity loadedBox = boxScoreRepo.findById("test-box-1046").orElseThrow();
+        assertEquals(homeTeamId, loadedBox.getTeamId());
+        assertEquals(Boolean.TRUE, loadedBox.getStarted());
+
+        BoxScoreEntity duplicate = new BoxScoreEntity();
+        duplicate.setId("test-box-1046-dup");
+        duplicate.setGameId("test-game-1046");
+        duplicate.setPlayerId(playerId);
+        assertThrows(DataIntegrityViolationException.class, () -> boxScoreRepo.save(duplicate));
     }
 
     private GameEventEntity event(String id, String gameId, int seq, PlayType type) {

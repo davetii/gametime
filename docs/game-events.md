@@ -234,10 +234,9 @@ exclusion; any new foul type must decide whether it counts and pin that with a t
 
 ### Reconciliation identities
 
-The box-score identities (assists, blocks, steals per creditor, technical fouls, rebounds
-with a non-null primary) are listed in [game.md](game.md), under `BoxScore`. A per-creditor
-check (`count(STOLEN with opponent = X) == steals(X)`) is the one that catches crediting
-the wrong player, which a total-level check cannot.
+The box score is built from these events at game end and checked against the engine's
+counters on every write, so the identities hold by construction. The derivation, column by
+column, and the guard are in [game.md](game.md), under `BoxScore`.
 
 ---
 

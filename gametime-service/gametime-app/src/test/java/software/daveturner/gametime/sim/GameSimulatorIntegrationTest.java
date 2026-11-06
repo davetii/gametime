@@ -3,10 +3,17 @@ package software.daveturner.gametime.sim;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.transaction.annotation.Transactional;
 import software.daveturner.gametime.entity.*;
 import software.daveturner.gametime.repo.*;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +23,17 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 class GameSimulatorIntegrationTest {
+
+    private static final LocalDateTime PINNED = LocalDateTime.of(2026, 11, 5, 19, 30);
+
+    @TestConfiguration
+    static class PinnedClock {
+        @Bean
+        @Primary
+        Clock pinnedClock() {
+            return Clock.fixed(Instant.parse("2026-11-05T19:30:00Z"), ZoneOffset.UTC);
+        }
+    }
 
     private final SimConfig config = SimConfig.baseline();
 
@@ -915,6 +933,63 @@ class GameSimulatorIntegrationTest {
         assertEquals(eventTotal, boxTotal, "event log vs box score");
         assertEquals(boxTotal, result.getHomeScore() + result.getAwayScore(),
                 "box score vs final score");
+    }
+
+    // --- Phase 4 (#045 D, E, F, G) ---
+
+    @Test
+    void everyRowCarriesTheTeamThePlayerPlayedFor() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        Map<String, String> teams = teamByPlayer("BOS", "LA");
+        List<BoxScoreEntity> rows = boxScoreRepo.findByGameId(result.getGameId());
+        assertFalse(rows.isEmpty());
+        for (BoxScoreEntity row : rows) {
+            assertEquals(teams.get(row.getPlayerId()), row.getTeamId(), row.getPlayerId());
+        }
+    }
+
+    @Test
+    void exactlyFivePlayersStartForEachTeam() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<BoxScoreEntity> rows = boxScoreRepo.findByGameId(result.getGameId());
+        for (String team : List.of("BOS", "LA")) {
+            long starters = rows.stream()
+                    .filter(r -> team.equals(r.getTeamId()) && Boolean.TRUE.equals(r.getStarted()))
+                    .count();
+            assertEquals(5, starters, team);
+        }
+        assertTrue(rows.stream().allMatch(r -> r.getStarted() != null));
+    }
+
+    @Test
+    void aTeamMissingAStarterStartsItsFirstBenchPlayer() {
+        List<PlayerTeamEntity> roster = playerTeamRepo.findByTeamId("BOS");
+        PlayerTeamEntity released = roster.stream()
+                .filter(pt -> pt.getLineupRole() == LineupRole.STARTER)
+                .findFirst().orElseThrow();
+        PlayerTeamEntity firstBench = roster.stream()
+                .filter(pt -> pt.getLineupRole() != LineupRole.STARTER && pt.getRotationOrder() != null)
+                .min(java.util.Comparator.comparingInt(PlayerTeamEntity::getRotationOrder))
+                .orElseThrow();
+        playerTeamRepo.delete(released);
+
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        List<BoxScoreEntity> bos = boxScoreRepo.findByGameId(result.getGameId()).stream()
+                .filter(r -> "BOS".equals(r.getTeamId())).toList();
+        assertEquals(5, bos.stream().filter(r -> Boolean.TRUE.equals(r.getStarted())).count());
+        assertTrue(bos.stream().anyMatch(r -> r.getPlayerId().equals(firstBench.getPlayerId())
+                && Boolean.TRUE.equals(r.getStarted())));
+        assertTrue(bos.stream().noneMatch(r -> r.getPlayerId().equals(released.getPlayerId())));
+    }
+
+    @Test
+    void possessionsAndPlayedAtArePersisted() {
+        SimResult result = simulator.simulate("BOS", "LA", 42L, 25);
+        GameEntity game = gameRepo.findById(result.getGameId()).orElseThrow();
+        assertNotNull(game.getHomePossessions());
+        assertTrue(game.getHomePossessions() >= 25 * SimConfig.PERIODS / 2);
+        assertEquals(game.getHomePossessions(), game.getAwayPossessions());
+        assertEquals(PINNED, game.getPlayedAt());
     }
 
     /** Player → team, over the two teams on the game. */
