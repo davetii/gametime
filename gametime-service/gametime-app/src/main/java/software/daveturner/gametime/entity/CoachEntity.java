@@ -2,6 +2,8 @@ package software.daveturner.gametime.entity;
 
 import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.*;
 
 @Entity
@@ -20,18 +22,23 @@ public class CoachEntity {
     // Decision-making attributes (1-20, avg 10) read by the Phase 3 engine.
     // Modifiers on a baseline, not absolutes (decisions.md #018, coach.md).
     @Column(name = "pace")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer pace;
 
     @Column(name = "offensive_scheme")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer offensiveScheme;
 
     @Column(name = "defensive_scheme")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer defensiveScheme;
 
     @Column(name = "rotation_depth")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer rotationDepth;
 
     @Column(name = "substitution_aggressiveness")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer substitutionAggressiveness;
 
     @JsonBackReference

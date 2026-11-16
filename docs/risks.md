@@ -69,8 +69,10 @@ final, so it is viable but not built.
 **Description**: Tests run on H2, production on Postgres. As the schema grows (events, stats
 tables, possibly JSON columns), behavior gaps could cause tests that pass and production that
 fails.
-**Mitigation**: Consider Testcontainers if the divergence bites. Keep Liquibase changesets
-simple.
+**Mitigation**: `ddl-auto=validate` in the local and test profiles, so entity↔schema drift
+fails the boot on both databases instead of being patched by Hibernate. That covers the
+schema only; SQL and behavior gaps remain. Consider Testcontainers if the divergence bites
+(`gametime-5v2`). Keep Liquibase changesets simple.
 
 ### Seed data realism
 **Severity**: Low

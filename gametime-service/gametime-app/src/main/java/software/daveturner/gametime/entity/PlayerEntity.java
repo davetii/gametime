@@ -1,6 +1,8 @@
 package software.daveturner.gametime.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.*;
 
 @Entity
@@ -22,37 +24,55 @@ public class PlayerEntity {
 
 
     private String height;
-    // Stored as VARCHAR (release.1.0.1.sql) — matches the varchar column so
-    // Hibernate ddl-auto=update issues no ALTER (which Postgres rejects, as it
-    // can't implicitly cast varchar→integer). The OpenAPI Player.weight stays an
-    // integer; EntityMapper converts at the boundary. Data is always numeric.
+    // VARCHAR column; the API's weight is an integer and EntityMapper converts.
     private String weight;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer yearsPro;
     private String draftSlot;
     private String origin;
-    private String originDetails;
 
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer agility;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer charisma;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer cohesion;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer determination;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer ego;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer endurance;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer energy;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer handle;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer health;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer intelligence;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer luck;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer shotSelection;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer shotSkill;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer size;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer speed;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer strength;
 
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer verticality;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer wingspan;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer composure;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer aggression;
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer awareness;
 
     // The player→team link lives in the player_team / player_team_hist tables,

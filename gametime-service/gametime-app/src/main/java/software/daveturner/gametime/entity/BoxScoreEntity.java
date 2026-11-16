@@ -1,6 +1,8 @@
 package software.daveturner.gametime.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.*;
 
 /**
@@ -29,28 +31,36 @@ public class BoxScoreEntity {
     private Boolean started;
 
     @Column(name = "points")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer points;
 
     @Column(name = "offensive_rebounds")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer offensiveRebounds;
 
     @Column(name = "defensive_rebounds")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer defensiveRebounds;
 
     @Column(name = "assists")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer assists;
 
     @Column(name = "steals")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer steals;
 
     @Column(name = "blocks")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer blocks;
 
     @Column(name = "turnovers")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer turnovers;
 
     /** PERSONAL fouls only — technicals are counted separately below (#032 E). */
     @Column(name = "fouls")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer fouls;
 
     /**
@@ -58,27 +68,35 @@ public class BoxScoreEntity {
      * because a technical does not count toward the six-foul disqualification.
      */
     @Column(name = "technical_fouls")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer technicalFouls;
 
     @Column(name = "minutes")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer minutes;
 
     @Column(name = "field_goals_attempted")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer fieldGoalsAttempted;
 
     @Column(name = "field_goals_made")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer fieldGoalsMade;
 
     @Column(name = "three_pointers_attempted")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer threePointersAttempted;
 
     @Column(name = "three_pointers_made")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer threePointersMade;
 
     @Column(name = "free_throws_attempted")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer freeThrowsAttempted;
 
     @Column(name = "free_throws_made")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer freeThrowsMade;
 
 }

@@ -1,6 +1,8 @@
 package software.daveturner.gametime.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -29,12 +31,15 @@ public class GameEntity {
     private GameStatus status;
 
     @Column(name = "home_score")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer homeScore;
 
     @Column(name = "away_score")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer awayScore;
 
     @Column(name = "periods")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer periods;
 
     /**
@@ -46,9 +51,11 @@ public class GameEntity {
     private Long seed;
 
     @Column(name = "home_possessions")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer homePossessions;
 
     @Column(name = "away_possessions")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer awayPossessions;
 
     /** Game-world time (#045 G); never use create_date. */

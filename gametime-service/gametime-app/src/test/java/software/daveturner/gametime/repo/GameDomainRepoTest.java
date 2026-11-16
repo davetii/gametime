@@ -93,7 +93,7 @@ class GameDomainRepoTest {
         assertEquals(24, lines.get(0).getPoints());
     }
 
-    // ddl-auto=update would add a missing column itself, so check Liquibase ran 1.04.6.
+    // Check Liquibase ran 1.04.6 itself, not just that the columns exist.
     @Test
     void phase4ColumnsKeysAndIndexesComeFromChangeset1046() {
         // The header parses as author "1.04.6 failOnError", id "true".

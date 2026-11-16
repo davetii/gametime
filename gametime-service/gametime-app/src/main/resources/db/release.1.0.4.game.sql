@@ -231,6 +231,12 @@ select 'seed-' || player_id, player_id, team_id, transaction_type, assigned_date
 from gametime.player_team
 where transaction_type = 'SEED';
 
+-- changeset 1.04.8 failOnError:true splitStatements:true
+
+-- player.origin was only ever created by Hibernate ddl-auto=update (gametime-r3s).
+alter table gametime.player
+    add column if not exists origin VARCHAR;
+
 -- changeset 1.04.1-triggers failOnError:true splitStatements:true dbms:postgresql
 
 CREATE TRIGGER on_new_row_game BEFORE INSERT ON gametime.game FOR EACH ROW EXECUTE FUNCTION gametime.on_new_row();

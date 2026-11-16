@@ -1,6 +1,8 @@
 package software.daveturner.gametime.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.*;
 
 /**
@@ -25,6 +27,7 @@ public class GameEventEntity {
     private Integer sequence;
 
     @Column(name = "period", nullable = false)
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer period;
 
     @Column(name = "offense_team_id", nullable = false)

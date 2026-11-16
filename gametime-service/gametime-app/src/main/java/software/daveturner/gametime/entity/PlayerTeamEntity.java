@@ -1,6 +1,8 @@
 package software.daveturner.gametime.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.*;
 
 import java.time.*;
@@ -33,6 +35,7 @@ public class PlayerTeamEntity {
     private LineupRole lineupRole;
 
     @Column(name = "rotation_order")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     private Integer rotationOrder;
 
 }
