@@ -50,7 +50,9 @@ Player (entity)        player_team (current, 1 row/player)      Team (entity)
 ```
 
 `TransactionType` values: `SEED, DRAFT, TRADE, FREE_AGENCY, WAIVER, SIGN,
-RELEASE` (`SEED` = the initial CSV backfill, provenance unknown).
+RELEASE` (`SEED` = the initial CSV backfill, provenance unknown). Every seeded
+assignment also has one `SEED` row in `player_team_hist`, so a seeded player's
+history starts with his seed team.
 
 ## Player status vs lineup role
 

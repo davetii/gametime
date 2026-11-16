@@ -223,6 +223,14 @@ create index idx_box_score_player on gametime.box_score (player_id);
 
 create index idx_box_score_team on gametime.box_score (team_id);
 
+-- changeset 1.04.7 failOnError:true splitStatements:true
+
+-- One SEED history row per seeded roster assignment (gametime-6x9).
+insert into gametime.player_team_hist (id, player_id, team_id, transaction_type, transaction_date)
+select 'seed-' || player_id, player_id, team_id, transaction_type, assigned_date
+from gametime.player_team
+where transaction_type = 'SEED';
+
 -- changeset 1.04.1-triggers failOnError:true splitStatements:true dbms:postgresql
 
 CREATE TRIGGER on_new_row_game BEFORE INSERT ON gametime.game FOR EACH ROW EXECUTE FUNCTION gametime.on_new_row();
