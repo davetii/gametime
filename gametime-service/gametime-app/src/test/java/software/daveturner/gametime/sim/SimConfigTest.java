@@ -81,7 +81,14 @@ class SimConfigTest {
         double high = config.blockProbability(0.90, 20.0, 1.0);
         assertTrue(high <= SimConfig.PROB_CEILING);
         double low = config.blockProbability(0.02, 1.0, 20.0);
-        assertTrue(low >= SimConfig.PROB_FLOOR);
+        assertEquals(0.0, low);
+    }
+
+    @Test
+    void blockProbabilityBelowTheFloorIsNotFlooredUp() {
+        double result = config.blockProbability(0.005, 10.0, 10.0);
+        assertEquals(0.005, result, 1e-9);
+        assertTrue(result < SimConfig.PROB_FLOOR);
     }
 
     @Test

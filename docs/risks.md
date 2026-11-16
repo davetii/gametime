@@ -44,8 +44,8 @@ stay put without the engine being right:
   unaffected; the measurement lost its signal. No test asserts an instrument's meaning, and
   fixing an instrument moves its numbers (a falling number can look like it doubled). Never
   compare a corrected number to an uncorrected one.
-- **A clamp does what a constant appears to do.** `PROB_FLOOR` (0.02) is 4× `base-block-three`
-  (0.005), so a three's block chance is floored, not based, and that constant is inert. The
+- **A clamp does what a constant appears to do.** `PROB_FLOOR` (0.02) sits just under
+  `base-turnover`, so ~40–45% of turnover rolls are floored, not based, and the constant barely moves the rate. The
   tell is a number that does not move. A green row is not evidence a mechanism is right: check
   that the number is produced by what you think produces it.
 - **A sourced target can be unreachable.** A verified benchmark can land outside what any

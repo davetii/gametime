@@ -1095,7 +1095,7 @@ public class SimConfig {
     public double blockProbability(double base, double defenderBlockSkill,
                                    double shooterFinishing) {
         double p = base + BLOCK_SENSITIVITY * (defenderBlockSkill - shooterFinishing) / SCALE_AVG;
-        return clampProbability(p);
+        return clampRareProbability(p);
     }
 
     public double freeThrowProbability(double freeThrowSkill) {

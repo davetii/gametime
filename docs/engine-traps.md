@@ -50,10 +50,12 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   across a 50% swing** while FTA moves **+5.8** and FGA **−3.4**. Nearly inert on points,
   strong on FGA/FTA/fouls, which are over-determined through it (~1.4 FGA per foul).
   **Tune it against FGA, never against points.**
-- **`base-block-three` (0.005) is INERT — `PROB_FLOOR` (0.02) is 4× it**, so a three's
-  block probability is *floored, not based*. Predicted blocks 4.8 → ~2.6 on a 1.9×
-  three-volume shift; measured **4.80, flat**. ⚠ The four `base-block-*` cannot be
-  reasoned about without the floor. → **#040 impl note, wrong prediction 1**
+- **Blocks are floor-free, and the four `base-block-*` have an elasticity of ~0.55, not
+  ~1.0.** Taking `blockProbability` off `PROB_FLOOR` cost **0.68 blocks** (4.42 → 3.74,
+  5-seed means), so the floor had been propping up every weak-blocker matchup, not only
+  threes. Scaling all four bases ×1.25 moved blocks ×1.13; ×1.5 landed 4.81. The contest
+  term drives the rate, and a mismatch now clamps to zero. *(Before #046 `base-block-three`
+  sat at 0.005 under the 0.02 floor and was inert.)* → **#046**
 - **`base-turnover` is ~40–45% FLOORED; its elasticity is 0.17, not ~1.0.** `isTurnover`
   clamps through `clampProbability`, and `PROB_FLOOR` sits just below the base, so the
   possessions where a good handler faces average defense are pinned and insensitive.
@@ -266,7 +268,7 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
 *why* is a value what it is.** Follow the number to `decisions.md`.
 
 - **Blocks** — `base-block-drive/post/perimeter/three`, `BLOCK_SENSITIVITY` → **#025**
-  ⚠ see the inert-`base-block-three` line above.
+  ⚠ floor-free, elasticity ~0.55 — see the line above. → **#046**
 - **OOB** — `OOB_TOTAL_WEIGHT` and its defense/offense split, skill-independent by
   construction → **#026**
 - **Turnover causes** — the nine cause weights (STOLEN dominant), `TO_CAUSE_SENSITIVITY`,

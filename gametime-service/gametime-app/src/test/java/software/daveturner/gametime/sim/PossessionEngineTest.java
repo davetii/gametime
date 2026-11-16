@@ -293,10 +293,12 @@ class PossessionEngineTest {
                 GameData.EventRecord next = events.get(i + 1);
                 boolean resolved = next.playType() == PlayType.REBOUND
                         || (next.playType() == PlayType.FOUL
-                            && next.outcome().startsWith("REBOUNDING_FOUL"));
+                            && (next.outcome().startsWith("REBOUNDING_FOUL")
+                                // #034: a flagrant on the board replaces the event
+                                || next.outcome().startsWith("FLAGRANT_FOUL")));
                 assertTrue(resolved,
-                        "MISSED shot must be immediately followed by a REBOUND or a "
-                                + "REBOUNDING_FOUL, was: " + next.playType() + "/" + next.outcome());
+                        "MISSED shot must be immediately followed by a REBOUND, a "
+                                + "REBOUNDING_FOUL or a FLAGRANT_FOUL, was: " + next.playType() + "/" + next.outcome());
             }
         }
     }

@@ -58,7 +58,7 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | 3P% | TARGET (sourced) | 36.0% | 36.14% | **Residual-class row.** `base-three` is frozen. The ±0.25 band is tighter than the row's run-to-run spread (about 0.15 sem), so it can fail by chance: judge the band before the number |
 | Assists | TARGET (sourced) | 26.7 | 26.84 | A putback (`shooter == rebounder`) is assisted at `OFFENSIVE_REBOUNDER_ASSIST_LEAN` (0.5) × the ordinary chance. **Do not re-land with `sim.base-assist`** |
 | Turnovers | TARGET (sourced) | 14.5 | 14.68 | `sim.base-turnover`, which is partly floored. See *Turnover floor*. Steals derive from this |
-| Blocks | TARGET (sourced) | 4.8 | 4.54 | **Residual (−0.26)**, inside run-to-run spread. `PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005), so a three's block chance is floored and that constant is inert. If a pass tunes `base-block-*`, reroute through `clampRareProbability` first |
+| Blocks | TARGET (sourced) | 4.8 | 4.81 | On target. The block roll is floor-free (`clampRareProbability`), so all four `base-block-*` are live. Scale the four together to keep their ratios, and expect ~0.55 elasticity |
 | Top-starter minutes | TARGET (sourced) | ~34–36 | ~36.1 | Real is 35.5. See *Sources for the foul and minutes rows* |
 | Minutes ceiling | TARGET (sourced) | nobody over ~42 | ok | Real: a player tops 42 in 3.6% of team-games, overtime included |
 | Fouls | TARGET (sourced) | 19.9 | 19.35 | **Residual (−0.55).** Lever is `base-no-basket-foul`. Over-determined with FGA: each extra foul costs **1.49 FGA**, so closing the gap would pull FGA out of band. It moves only as a side effect of re-landing FGA. `PERSONAL_FOULS_PER_TEAM_GAME` (the flagrant divisor) must be re-measured whenever the foul rate moves |
@@ -235,7 +235,7 @@ constant.
   result.
 - **It is backwards as basketball**: a good ball-handler facing average defense should be
   the lowest-turnover possession, and the floor raises it to 2%. The fix is to reroute to
-  `clampRareProbability`, a Java change; same shape as the `base-block-three` finding.
+  `clampRareProbability`, a Java change, and then re-tune; the block roll already made that move.
 
 ---
 

@@ -786,13 +786,9 @@ class CalibrationHarness {
                     + " See calibration.md, Rebound pool)", offReb / tg));
             lines.add(String.format("Def reb / team / game:  %.2f   (target ~32.4 — SOURCED"
                     + " 2025-26. Residual — see the Off reb note above)", defReb / tg));
-            lines.add(String.format("Blocks / team / game:   %.1f   (target 4.8 — sourced"
-                    + " 2025-26. \u26a0 \u00a73.17 PREDICTED THIS WOULD FALL TO ~2.6 AND IT"
-                    + " DID NOT — it barely moved. PROB_FLOOR (0.02) is 4x base-block-three"
-                    + " (0.005), so a three's block chance is FLOORED, not based. Shifting"
-                    + " attempts to threes moves them 0.056 -> 0.02, not -> 0.005. A \u00a73.19"
-                    + " finding: the four base-block-* cannot be reasoned about without the"
-                    + " floor. See decisions.md #040's implementation note)", blocks / tg));
+            lines.add(String.format("Blocks / team / game:   %.2f   (target 4.8 \u2014 sourced"
+                    + " 2025-26. Floor-free since #046: blockProbability clamps through"
+                    + " clampRareProbability, so all four base-block-* are live)", blocks / tg));
             // §3.18: the steals row. calibration.md carried steals as 8.4 observed
             // against an engine ~7.67 BY DERIVATION ONLY — never measured. This row is
             // the measurement (test-only, no engine change; a standing backlog chore).

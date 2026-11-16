@@ -297,7 +297,7 @@ visible, and may be the instrument that diagnoses them:
   pile up on a few players → `gametime-vp6`. The `FOULS` leaderboard is its instrument.
 - **Turnover floor**: good ball-handlers are floored at a 2% turnover chance, compressing the
   low end of a turnover leaderboard → [calibration.md](calibration.md) *Turnover floor*,
-  `gametime-g1g`.
+  `gametime-6uk`.
 - **Per-player realism**: [risks.md](risks.md) "Skill formula balance" and "Seed data
   realism" wait on per-player season lines; `gametime-rdo`, `gametime-9up`.
 

@@ -430,3 +430,12 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **L** — unique `(game_id, player_id)`; indexes on `player_id`, `team_id`. Fresh DB, no backfill.
 - **M** — Phase 4 ships BEFORE `gametime-3sc`; its check-ins later become the source of `started` and `team_id`, and the columns stay.
 
+
+### 046 — Blocks off the probability floor (`gametime-g1g`)
+
+**Date**: 2026-11
+
+- **A** — **`blockProbability` clamps through `clampRareProbability`**, not `clampProbability`. A block is a rare carve like the and-1, the rebounding foul, the technical and the flagrant; a mismatch may now be unblockable.
+- **B** — the four bases scale **×1.5 together**, keeping #025's ratios: `base-block-drive` 0.084, `-post` 0.072, `-perimeter` 0.0345, `-three` 0.0075. Blocks land **4.81** (5 seeds) against 4.8.
+- **C** — ⚠ the reroute alone cost 0.68 blocks (4.42 → 3.74): the floor was holding up weak-blocker matchups on every shot type, not just threes. The reroute and the re-tune are one change.
+- **D** — `PROB_FLOOR` itself stays, and **`base-turnover` stays on it** (#042 D4): that constant was tuned against the floor, so moving it is its own pass.
