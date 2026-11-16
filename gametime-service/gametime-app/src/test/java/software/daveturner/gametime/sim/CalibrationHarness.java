@@ -833,7 +833,7 @@ class CalibrationHarness {
 
             // §3.5 minutes distribution (per team-game, biggest-minutes slot first).
             System.out.println("--- Minutes by rotation slot (avg per team-game) ---");
-            System.out.println("    (§3.5 targets: top ~34–36, no one over ~42)");
+            System.out.println("    (§3.5 targets: top ~34–36, no one over ~42; real top slot 35.5)");
             for (int slot = 0; slot < MAX_TRACKED_SLOTS; slot++) {
                 if (slotCounts[slot] == 0) continue;
                 System.out.printf("  slot %-2d: %5.1f min  (played in %d team-games)%n",
@@ -1054,7 +1054,7 @@ class CalibrationHarness {
             // been live since §3.5 but its rate has NEVER been observed. The
             // DISTRIBUTION matters more than the count — it shows pressure building
             // below the threshold before it crosses it.
-            System.out.printf("  Foul-outs / team / game: %.3f  (BALLPARK ~0.1-0.25 real;"
+            System.out.printf("  Foul-outs / team / game: %.3f  (BALLPARK 0.106 real, ESPN box scores 2025-26;"
                             + " \u26a0 NOT A TARGET since \u00a73.20 (#042 J) \u2014 the old"
                             + " ~0.39 was a LANDING promoted to a target, i.e. circular, and"
                             + " real basketball sits BELOW where the engine does. Judge by the"
@@ -1065,7 +1065,7 @@ class CalibrationHarness {
                             + " saturated, #031)%n",
                     foulOuts / tg);
             System.out.printf("  Players at 4 / 5 / 6 fouls per team/game: %.2f / %.2f / %.2f"
-                            + "   (of %.1f who played)%n",
+                            + "   (of %.1f who played; real 1.01 / 0.43 / 0.11)%n",
                     playersWithFourFouls / tg, playersWithFiveFouls / tg, foulOuts / tg,
                     playersPlayed / tg);
 
@@ -1086,8 +1086,8 @@ class CalibrationHarness {
             //      is right; the event is rare. It is asserted by forced-counter unit
             //      tests, not here.
             System.out.println("--- Technical fouls (§3.14a) ---");
-            System.out.printf("  Technicals / team / game:%.3f  (ballpark ~0.3-0.4 per team /"
-                            + " ~0.6-0.8 league-wide; NOT a target — see calibration.md."
+            System.out.printf("  Technicals / team / game:%.3f  (ballpark ~0.31-0.34 per team /"
+                            + " ~0.62-0.68 league-wide, soft source; NOT a target — see calibration.md."
                             + " JUDGE AT 5 SEEDS ONLY)%n",
                     technicalFouls / tg);
             System.out.printf("  Ejections / team / game: %.3f  (BOTH causes since §3.14b:"
@@ -1115,8 +1115,8 @@ class CalibrationHarness {
             //      MEASURED figure. §3.16 — or any pass that moves the foul rate —
             //      moves this line without touching the flagrant constant.
             System.out.println("--- Flagrant fouls (§3.14b) ---");
-            System.out.printf("  Flagrants / team / game: %.3f  (ballpark ~0.13-0.20 per team"
-                            + " / ~0.25-0.40 league-wide; NOT a target — see calibration.md."
+            System.out.printf("  Flagrants / team / game: %.3f  (ballpark ~0.10-0.12 per team"
+                            + " / ~0.20-0.24 league-wide, soft source; NOT a target — see calibration.md."
                             + " 5 SEEDS ONLY — the coarsest row there)%n",
                     flagrantFouls / tg);
             System.out.printf("  Flagrant-2s / team/game: %.3f  (~15%% of the above — the"

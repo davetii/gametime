@@ -59,8 +59,8 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Assists | TARGET (sourced) | 26.7 | 26.84 | A putback (`shooter == rebounder`) is assisted at `OFFENSIVE_REBOUNDER_ASSIST_LEAN` (0.5) × the ordinary chance. **Do not re-land with `sim.base-assist`** |
 | Turnovers | TARGET (sourced) | 14.5 | 14.68 | `sim.base-turnover`, which is partly floored. See *Turnover floor*. Steals derive from this |
 | Blocks | TARGET (sourced) | 4.8 | 4.54 | **Residual (−0.26)**, inside run-to-run spread. `PROB_FLOOR` (0.02) is 4× `base-block-three` (0.005), so a three's block chance is floored and that constant is inert. If a pass tunes `base-block-*`, reroute through `clampRareProbability` first |
-| Top-starter minutes | TARGET | ~34–36 | ~36.1 | |
-| Minutes ceiling | TARGET | nobody over ~42 | ok | |
+| Top-starter minutes | TARGET (sourced) | ~34–36 | ~36.1 | Real is 35.5. See *Sources for the foul and minutes rows* |
+| Minutes ceiling | TARGET (sourced) | nobody over ~42 | ok | Real: a player tops 42 in 3.6% of team-games, overtime included |
 | Fouls | TARGET (sourced) | 19.9 | 19.35 | **Residual (−0.55).** Lever is `base-no-basket-foul`. Over-determined with FGA: each extra foul costs **1.49 FGA**, so closing the gap would pull FGA out of band. It moves only as a side effect of re-landing FGA. `PERSONAL_FOULS_PER_TEAM_GAME` (the flagrant divisor) must be re-measured whenever the foul rate moves |
 | FTA | TARGET (sourced) | 23.5 | 23.58 | `sim.non-shooting-foul-share`. See *Non-shooting-foul share* |
 | FT% | TARGET (sourced) | 78.0% | 77.64% | `sim.ft-base`. Realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10` and the roster mean `freeThrows` is ~13.8, so the base is not the landing |
@@ -70,10 +70,10 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Def rebounds | TARGET (sourced) | 32.4 | 31.55 | **Residual (−0.85), reported not tuned.** The pool total itself is 43.45 vs 43.70. See *Rebound pool* |
 | Pace (poss/48) | TARGET (sourced) | 99.4 | ~100 nominal | |
 | Steals | observed | 8.4 | 8.24 | **Derived, not tuned**: turnovers × the `STOLEN` share. Do not chase 8.4; the nine `to-weight-*` are frozen and the share is not a lever |
-| Foul-outs | ballpark (unsourced) | ~0.1–0.25 | 0.386 | Moves with every FGA re-landing on the foul lever. Do not chase. See *Foul-outs* |
-| Players at 4 / 5 / 6 fouls | ballpark | none yet | 1.01 / 0.56 / 0.39 | The real diagnostic for foul-outs |
-| Technicals | ballpark | ~0.3–0.4 | 0.335 | 5 seeds only. See *Technicals* |
-| Flagrants | ballpark (unsourced) | ~0.13–0.20 | 0.159 | 5 seeds only; coarsest row. See *Flagrants* |
+| Foul-outs | ballpark (sourced) | 0.106 | 0.386 | Moves with every FGA re-landing on the foul lever. Do not chase. See *Foul-outs* |
+| Players at 4 / 5 / 6 fouls | ballpark (sourced) | 1.01 / 0.43 / 0.11 | 1.01 / 0.56 / 0.39 | The real diagnostic for foul-outs |
+| Technicals | ballpark (soft source) | ~0.31–0.34 | 0.335 | 5 seeds only. See *Technicals* |
+| Flagrants | ballpark (soft source) | ~0.10–0.12 | 0.159 | 5 seeds only; coarsest row. See *Flagrants* |
 | Flagrant-2s | none | | 0.027 | The ejection driver (15% share of flagrants) |
 | Ejections | none | | 0.037 | Both causes |
 | Fouled-three rate | ballpark | ~2% of 3PA | 3.10% *(corrected)* | Scale-free. Judge the corrected figure, not the raw tally (1.82%) |
@@ -85,8 +85,28 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Turnover cause mix | observed | `STOLEN` dominant | 55.9% | No per-cause target |
 | Period-by-period FG% | observed | flat | flat | Correct fatigue behavior |
 
-**Still unsourced:** foul-outs, technicals, flagrants, the minutes distribution, and the
-real shooting-foul share. A number that cannot be sourced must not masquerade as a target.
+**Still unsourced:** the real shooting-foul share (`gametime-e6b`). A number that cannot
+be sourced must not masquerade as a target.
+
+### Sources for the foul and minutes rows
+
+All are league averages per team per game, not pace-adjusted. Every team plays 82 games, so
+the league average and the per-team mean are the same number.
+
+- **Foul-outs, players at 4 / 5 / 6 fouls, minutes: counted from ESPN box scores**, every
+  2025-26 regular-season game (1,231, the in-season tournament final included). Same
+  definitions as the harness: a player who appeared and finished with exactly 4, exactly 5,
+  or 6 fouls; minutes slot 1 is the biggest-minutes player in each team-game. 261 foul-outs.
+  Real minutes include overtime.
+- **Technicals and flagrants are a soft source: two providers agree, neither is a full
+  verified season.** ESPN 2025-26 season data gives 0.31–0.33 and 0.10; CBS Sports' player
+  fouls table for 2026-27 through 2026-11-15 (about 13 games per team) gives 0.32–0.34 and
+  0.11–0.12. Technicals are those assessed to players. Re-read the CBS table on a full season
+  before treating either as firm.
+- **Do not use ESPN's season-summary `disqualifications` field.** It reads 79 for 2025-26
+  against 261 counted from box scores.
+- **A sourced ballpark is still a ballpark.** Promoting one to a `TARGET` commits the engine
+  to being tuned toward it and is a separate decision.
 
 ## Reading a number
 
@@ -165,8 +185,10 @@ rows:
 
 Judge by the **4/5/6 distribution**, not the headline count.
 
-- The ballpark (~0.1–0.25) is unsourced. The engine sits above it, and the gap is sized and
-  accepted.
+- The real figure is 0.106 and the engine is about 3.6× it. Whether to close the gap is
+  undecided.
+- **The 4-foul row matches the real one (1.01); the excess is all in 4 → 5 → 6.** The
+  engine reaches 4 fouls at the real rate and then converts too many of those players.
 - **The foul-trouble bench lever is saturated. Do not re-tune the sit curve.** Sitting a
   player prevents some sixth fouls but returns him to the floor later, trading one
   disqualification for another.
@@ -190,7 +212,8 @@ calibration objective.
 
 ## Flagrants
 
-A `ballpark`, configured from a real-world figure rather than tuned toward one.
+A `ballpark`, configured from a real-world figure rather than tuned toward one. The soft
+source puts the real rate below the engine's. The gap is accepted.
 
 - **5 seeds is a hard floor and the reading is still coarse**: ~33 events at 102 games,
   relative sd 17.4%.
