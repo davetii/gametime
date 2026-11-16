@@ -127,9 +127,10 @@ source and season, or is `observed` / `ballpark` and says so.
   target and size each step from the measured pass-through, not a flat offset.
 - **Keep the ordering** drive > post > perimeter, mirroring rim > post-up > mid-range. A
   uniform bump is right in aggregate and wrong in composition.
-- **Per-shot-type realized make rates are not observable.** The harness reports FG% in
-  aggregate only, so re-shaping this split tunes a composition it cannot see. Instrument
-  first.
+- **Read the split off the harness's `FG% by shot type` block** before re-shaping it. It
+  sits at drive 62.4% · post 51.5% · perimeter 43.6% · three 36.4% (5 seeds). The rows carry
+  **no targets**: the engine's shot types are not real shot zones, and no per-zone figure is
+  sourced.
 
 ## Non-shooting-foul share
 

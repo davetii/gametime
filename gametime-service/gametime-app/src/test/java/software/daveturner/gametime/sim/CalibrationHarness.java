@@ -486,6 +486,11 @@ class CalibrationHarness {
                 // §3.17 (#040 C): every SHOT event is one CHARGED attempt and every
                 // outcome vocabulary (MADE / MISSED / BLOCKED) carries the type suffix.
                 agg.chargedByShotType.merge(shotTypeSuffix(outcome), 1L, Long::sum);
+                if (outcome.startsWith("MADE")) {
+                    agg.madeByShotType.merge(shotTypeSuffix(outcome), 1L, Long::sum);
+                } else if (outcome.startsWith("BLOCKED")) {
+                    agg.blockedByShotType.merge(shotTypeSuffix(outcome), 1L, Long::sum);
+                }
                 flushStoppedShot(pendingFoul, pendingFreeThrows, agg);
                 pendingFoul = null;
                 pendingFreeThrows = 0;
@@ -712,6 +717,8 @@ class CalibrationHarness {
          */
         final java.util.Map<String, Long> chargedByShotType = new java.util.HashMap<>();
         final java.util.Map<String, Long> andOnesByShotType = new java.util.HashMap<>();
+        final java.util.Map<String, Long> madeByShotType = new java.util.HashMap<>();
+        final java.util.Map<String, Long> blockedByShotType = new java.util.HashMap<>();
 
         // §3.11 (#029 D/E): the FT split BY SOURCE, read straight off the
         // self-describing outcome. This is the instrument for §3.11's recalibration
@@ -1008,6 +1015,19 @@ class CalibrationHarness {
             System.out.printf("  (THREE charged share is the 3PA/FGA number: target 41.5%%"
                             + " of attempts \u2014 3PA 37.0 of FGA 89.1, sourced 2025-26."
                             + " The two-point DRAW rows are apportioned, not measured.)%n");
+
+            // gametime-a7p: realized make and block rate per shot type, no targets.
+            System.out.println("--- FG% by shot type (charged attempts; no targets) ---");
+            for (ShotType t : ShotType.values()) {
+                long charged = chargedByShotType.getOrDefault(t.name(), 0L);
+                long made = madeByShotType.getOrDefault(t.name(), 0L);
+                long blocked = blockedByShotType.getOrDefault(t.name(), 0L);
+                System.out.printf("  %-10s FG%% %5.1f%%   blocked %5.2f%%  (%4.2f / team / game)%n",
+                        t.name(),
+                        charged == 0 ? 0.0 : 100.0 * made / charged,
+                        charged == 0 ? 0.0 : 100.0 * blocked / charged,
+                        blocked / tg);
+            }
 
             System.out.print("  And-1s by shot type:    ");
             for (ShotType t : ShotType.values()) {

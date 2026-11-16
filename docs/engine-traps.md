@@ -56,6 +56,11 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   threes. Scaling all four bases ×1.25 moved blocks ×1.13; ×1.5 landed 4.81. The contest
   term drives the rate, and a mismatch now clamps to zero. *(Before #046 `base-block-three`
   sat at 0.005 under the 0.02 floor and was inert.)* → **#046**
+- **A three is blocked 2.8% of the time on a base of 0.0075** — ~1.0 blocked three per
+  team-game, a fifth of all blocks. The contest term sets that rate, not the base, so
+  `base-block-three` is a weak lever even off the floor; `BLOCK_SENSITIVITY` is the real one.
+  Realized block rates: drive 8.5% · post 7.8% · perimeter 4.7% (5 seeds, the harness's
+  `FG% by shot type` block).
 - **`base-turnover` is ~40–45% FLOORED; its elasticity is 0.17, not ~1.0.** `isTurnover`
   clamps through `clampProbability`, and `PROB_FLOOR` sits just below the base, so the
   possessions where a good handler faces average defense are pinned and insensitive.
