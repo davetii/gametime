@@ -48,10 +48,16 @@ class PossessionEngineTest {
     private int resolvePossession(GameData data, List<PlayerGameState> offense,
                                   List<PlayerGameState> defense, String offId, String defId,
                                   int period, int seq, RandomGenerator rng) {
-        return engine.resolvePossession(data,
-                ctx(offId, offense, CoachModifiers.neutral()),
-                ctx(defId, defense, CoachModifiers.neutral()),
+        Possession possession = new Possession(data, offId, defId, offense, defense,
                 period, seq, rng);
+        engine.resolvePossession(possession, CoachModifiers.neutral(), CoachModifiers.neutral());
+        return possession.sequence();
+    }
+
+    // For helpers that never read a lineup.
+    private Possession possession(GameData data, String offId, String defId,
+                                  int period, int seq, RandomGenerator rng) {
+        return new Possession(data, offId, defId, List.of(), List.of(), period, seq, rng);
     }
 
     private List<PlayerGameState> teamOf5(String teamId, double skill) {
@@ -1134,9 +1140,10 @@ class PossessionEngineTest {
 
         // 0.99 misses every FT (the make roll is `rng < prob`), and the tail keeps
         // missing, so both attempts of the trip are misses.
-        engine.awardLiveFreeThrows(data, offense.get(0), "OFF", "OFF", "DEF",
-                offense, defense, 1, 50, SimConfig.FREE_THROWS_PER_FOUL,
-                FreeThrowSource.SHOOTING, false, new ScriptedRng(0.99));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                new ScriptedRng(0.99));
+        engine.awardLiveFreeThrows(possession, offense.get(0), "OFF",
+                SimConfig.FREE_THROWS_PER_FOUL, FreeThrowSource.SHOOTING, false);
 
         long freeThrows = data.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.FREE_THROW).count();
@@ -1156,10 +1163,11 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
         // 0.0 makes every FT.
-        PossessionEngine.FreeThrowResult result = engine.awardLiveFreeThrows(
-                data, offense.get(0), "OFF", "OFF", "DEF", offense, defense,
-                1, 50, SimConfig.FREE_THROWS_PER_FOUL, FreeThrowSource.SHOOTING,
-                false, new ScriptedRng(0.0));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                new ScriptedRng(0.0));
+        PossessionEngine.AttemptResult result = engine.awardLiveFreeThrows(possession,
+                offense.get(0), "OFF", SimConfig.FREE_THROWS_PER_FOUL,
+                FreeThrowSource.SHOOTING, false);
 
         assertEquals(0, data.getEvents().stream()
                         .filter(e -> e.playType() == PlayType.REBOUND).count(),
@@ -1180,19 +1188,21 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
         // A flagrant: not a flagrant-2, then two MISSED free throws.
-        engine.awardFlagrant(data, defense.get(0), offense.get(0),
-                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF", 1, 50,
+        Possession possession = possession(data, "OFF", "DEF", 1, 50,
                 new ScriptedRng(0.99, 0.99));
+        engine.awardFlagrant(possession, defense.get(0), offense.get(0),
+                offense.get(0).getPlayerId(), "OFF");
         assertEquals(0, data.getEvents().stream()
                         .filter(e -> e.playType() == PlayType.REBOUND).count(),
                 "a missed flagrant FT is NOT rebounded — the offense retains by rule "
                         + "(#034 B), and rebounding it would double-count that path");
 
         GameData technicalData = freshData();
-        engine.awardTechnicalFoul(technicalData, defense.get(0),
+        Possession possession2 = possession(technicalData, "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99));
+        engine.awardTechnicalFoul(possession2, defense.get(0),
                 ctx("DEF", defense, CoachModifiers.neutral()),
-                ctx("OFF", offense, CoachModifiers.neutral()),
-                "OFF", "DEF", 1, 50, new ScriptedRng(0.99));
+                ctx("OFF", offense, CoachModifiers.neutral()));
         assertEquals(0, technicalData.getEvents().stream()
                         .filter(e -> e.playType() == PlayType.REBOUND).count(),
                 "a missed technical FT is NOT rebounded — play resumes with the ball "
@@ -1218,10 +1228,10 @@ class PossessionEngineTest {
             GameData data = freshData();
             // 0.99 on the first draw misses the FT; the rest of the stream is a real
             // seeded generator, so the OOB carve and the contest behave normally.
-            engine.awardLiveFreeThrows(data, offense.get(0), "OFF", "OFF", "DEF",
-                    offense, defense, 1, 50, SimConfig.AND_ONE_FREE_THROWS,
-                    FreeThrowSource.AND_ONE, false,
+            Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
                     new ScriptedRngThenSeeded(i, 0.99));
+            engine.awardLiveFreeThrows(possession, offense.get(0), "OFF",
+                    SimConfig.AND_ONE_FREE_THROWS, FreeThrowSource.AND_ONE, false);
             if (data.getEvents().stream().anyMatch(e -> e.playType() == PlayType.REBOUND
                     && "OFFENSIVE".equals(e.outcome()))) {
                 ftOffensive++;
@@ -1258,10 +1268,11 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
         // 0.0 lands in the FIRST weight slice: RECOVERED_DEFENSE.
-        int next = engine.emitBlockRecoveryEvent(data, BlockRecovery.RECOVERED_DEFENSE,
-                offense, defense, "OFF", "DEF", 1, 50, rng(7)).sequence();
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(7));
+        engine.emitBlockRecoveryEvent(possession, BlockRecovery.RECOVERED_DEFENSE);
 
-        assertEquals(51, next, "one event emitted");
+        assertEquals(51, possession.sequence(), "one event emitted");
         GameData.EventRecord rebound = data.getEvents().get(0);
         assertEquals(PlayType.REBOUND, rebound.playType());
         assertEquals("DEFENSIVE", rebound.outcome());
@@ -1271,8 +1282,9 @@ class PossessionEngineTest {
         assertEquals(0, offense.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum());
 
         GameData offData = freshData();
-        engine.emitBlockRecoveryEvent(offData, BlockRecovery.RECOVERED_OFFENSE,
-                offense, defense, "OFF", "DEF", 1, 50, rng(7));
+        Possession possession2 = new Possession(offData, "OFF", "DEF", offense, defense, 1, 50,
+                rng(7));
+        engine.emitBlockRecoveryEvent(possession2, BlockRecovery.RECOVERED_OFFENSE);
         assertEquals("OFFENSIVE", offData.getEvents().get(0).outcome());
         assertEquals(1, offense.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum());
     }
@@ -1291,8 +1303,9 @@ class PossessionEngineTest {
         for (BlockRecovery recovery : List.of(BlockRecovery.OOB_OFFENSE,
                 BlockRecovery.OOB_DEFENSE)) {
             GameData data = freshData();
-            engine.emitBlockRecoveryEvent(data, recovery, offense, defense,
-                    "OFF", "DEF", 1, 50, rng(3));
+            Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                    rng(3));
+            engine.emitBlockRecoveryEvent(possession, recovery);
             GameData.EventRecord e = data.getEvents().get(0);
             assertEquals(PlayType.REBOUND, e.playType());
             assertTrue(e.outcome().startsWith("OUT_OF_BOUNDS_"), e.outcome());
@@ -1317,8 +1330,9 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
-        engine.emitBlockRecoveryEvent(data, BlockRecovery.RECOVERED_OFFENSE,
-                offense, defense, "OFF", "DEF", 1, 50, rng(11));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(11));
+        engine.emitBlockRecoveryEvent(possession, BlockRecovery.RECOVERED_OFFENSE);
 
         assertEquals("OFFENSIVE", data.getEvents().get(0).outcome());
         assertEquals(1, offense.stream().mapToInt(PlayerGameState::getOffensiveRebounds).sum(),
@@ -1339,13 +1353,16 @@ class PossessionEngineTest {
 
         int sequence = 50;
         for (BlockRecovery recovery : BlockRecovery.values()) {
-            sequence = engine.emitBlockRecoveryEvent(data, recovery, offense, defense,
-                    "OFF", "DEF", 1, sequence, rng(recovery.ordinal() + 1)).sequence();
+            Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1,
+                    sequence, rng(recovery.ordinal() + 1));
+            engine.emitBlockRecoveryEvent(possession, recovery);
+            sequence = possession.sequence();
         }
         for (int i = 0; i < 20; i++) {
-            engine.awardLiveFreeThrows(data, offense.get(0), "OFF", "OFF", "DEF",
-                    offense, defense, 1, sequence, SimConfig.AND_ONE_FREE_THROWS,
-                    FreeThrowSource.AND_ONE, false, new ScriptedRngThenSeeded(i, 0.99));
+            Possession possession2 = new Possession(data, "OFF", "DEF", offense, defense, 1,
+                    sequence, new ScriptedRngThenSeeded(i, 0.99));
+            engine.awardLiveFreeThrows(possession2, offense.get(0), "OFF",
+                    SimConfig.AND_ONE_FREE_THROWS, FreeThrowSource.AND_ONE, false);
             sequence += 3;
         }
 
@@ -1497,25 +1514,29 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
-        PossessionEngine.BlockRecoveryResult oob = engine.emitBlockRecoveryEvent(data,
-                BlockRecovery.OOB_OFFENSE, offense, defense, "OFF", "DEF", 1, 50, rng(3));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(3));
+        PlayerGameState oob = engine.emitBlockRecoveryEvent(possession,
+                BlockRecovery.OOB_OFFENSE);
         assertTrue(BlockRecovery.OOB_OFFENSE.offenseRetains(),
                 "the premise: OOB-offense DOES return the ball");
-        assertNull(oob.rebounder(),
+        assertNull(oob,
                 "nobody secured an out-of-bounds ball — no putback candidate");
 
-        PossessionEngine.BlockRecoveryResult recovered = engine.emitBlockRecoveryEvent(data,
-                BlockRecovery.RECOVERED_OFFENSE, offense, defense, "OFF", "DEF", 1, 60, rng(3));
-        assertNotNull(recovered.rebounder(),
+        Possession possession2 = new Possession(data, "OFF", "DEF", offense, defense, 1, 60,
+                rng(3));
+        PlayerGameState recovered = engine.emitBlockRecoveryEvent(possession2,
+                BlockRecovery.RECOVERED_OFFENSE);
+        assertNotNull(recovered,
                 "…but an in-bounds offensive recovery DOES name one");
 
         // The rebounding foul's by-rule retain: the DEFENSE fouled, under the bonus,
         // so no free throws and no board ever ran.
         GameData underBonus = freshData();
-        PossessionEngine.ReboundFoulResult retain = engine.resolveReboundFoul(underBonus,
-                new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
-                offense, defense, "OFF", "DEF", 1, 10, false,
-                new ScriptedRng(0.99, 0.99));
+        Possession possession3 = new Possession(underBonus, "OFF", "DEF", offense, defense, 1,
+                10, new ScriptedRng(0.99, 0.99));
+        PossessionEngine.AttemptResult retain = engine.resolveReboundFoul(possession3,
+                new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)), false);
         assertTrue(retain.offenseRetains(), "the premise: the offense keeps the ball");
         assertNull(retain.rebounder(),
                 "the whistle stopped play — no board, so no putback candidate");
@@ -1539,9 +1560,10 @@ class PossessionEngineTest {
         seedFouls(data, "DEF", 1, 3);
 
         PlayerGameState committer = defense.get(0);
-        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
-                data, new ReboundFoul(ReboundFoul.Side.DEFENSE, committer),
-                offense, defense, "OFF", "DEF", 1, 50, false, rng(1));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(1));
+        PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession,
+                new ReboundFoul(ReboundFoul.Side.DEFENSE, committer), false);
 
         assertTrue(result.offenseRetains(), "Under the bonus a defensive foul retains");
         assertEquals(4, data.periodFoulCount("DEF", 1));
@@ -1566,9 +1588,10 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod() - 1);
 
-        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
-                data, new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
-                offense, defense, "OFF", "DEF", 1, 50, false, rng(2));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(2));
+        PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession,
+                new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)), false);
 
         assertFalse(result.offenseRetains(), "The possession ends after the bonus FTs");
         assertTrue(data.isInBonus("DEF", 1, config), "The Nth foul puts DEF in the bonus");
@@ -1594,9 +1617,10 @@ class PossessionEngineTest {
         seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod()); // DEF in bonus, irrelevant
 
         PlayerGameState committer = offense.get(0);
-        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
-                data, new ReboundFoul(ReboundFoul.Side.OFFENSE, committer),
-                offense, defense, "OFF", "DEF", 1, 50, false, rng(3));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(3));
+        PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession,
+                new ReboundFoul(ReboundFoul.Side.OFFENSE, committer), false);
 
         assertFalse(result.offenseRetains(),
                 "An offensive foul is a turnover-like loss of the ball — never a retain");
@@ -1620,9 +1644,10 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         seedFouls(data, "OFF", 1, config.bonusFoulsPerPeriod() - 1);
 
-        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
-                data, new ReboundFoul(ReboundFoul.Side.OFFENSE, offense.get(0)),
-                offense, defense, "OFF", "DEF", 1, 50, false, rng(4));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(4));
+        PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession,
+                new ReboundFoul(ReboundFoul.Side.OFFENSE, offense.get(0)), false);
 
         assertFalse(result.offenseRetains());
         assertTrue(data.isInBonus("OFF", 1, config));
@@ -1644,9 +1669,10 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
-        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
-                data, new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
-                offense, defense, "OFF", "DEF", 1, 50, true, rng(5));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(5));
+        PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession,
+                new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)), true);
 
         assertFalse(result.offenseRetains(), "capReached must force the possession to end");
     }
@@ -1710,9 +1736,10 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod() - 1);
 
-        engine.resolveReboundFoul(data,
-                new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)),
-                offense, defense, "OFF", "DEF", 1, 50, false, rng(6));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(6));
+        engine.resolveReboundFoul(possession,
+                new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)), false);
 
         Set<String> offenseIds = new HashSet<>();
         offense.forEach(p -> offenseIds.add(p.getPlayerId()));
@@ -1745,10 +1772,11 @@ class PossessionEngineTest {
         // LIVE, so a MISSED one is followed by a REBOUND event. Seeded to a MADE free
         // throw here, which keeps this test on the shape it was written to pin — one
         // FOUL, one FREE_THROW, nothing else. The missed case has its own test below.
-        PossessionEngine.FreeThrowResult result = engine.awardAndOne(data, shooter,
-                defender, "OFF", "DEF", offense, defense, 1, 50, false,
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
                 new ScriptedRngThenSeeded(1, /* the FT drops */ 0.0));
-        int next = result.sequence();
+        PossessionEngine.AttemptResult result = engine.awardAndOne(possession, shooter,
+                defender, false);
+        int next = possession.sequence();
 
         List<GameData.EventRecord> events = data.getEvents();
         assertTrue(events.get(1).outcome().startsWith("MADE"),
@@ -1788,8 +1816,9 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         int before = data.getEvents().size();
-        engine.awardAndOne(data, offense.get(0), defense.get(0), "OFF", "DEF",
-                offense, defense, 1, 50, false, rng(2));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                rng(2));
+        engine.awardAndOne(possession, offense.get(0), defense.get(0), false);
 
         long freeThrows = data.getEvents().subList(before, data.getEvents().size()).stream()
                 .filter(e -> e.playType() == PlayType.FREE_THROW).count();
@@ -1806,8 +1835,9 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         // Drive many attempts so at least one FT falls.
         for (int i = 0; i < 40; i++) {
-            engine.awardAndOne(data, offense.get(0), defense.get(0), "OFF", "DEF",
-                    offense, defense, 1, 50 + i * 3, false, rng(100 + i));
+            Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1,
+                    50 + i * 3, rng(100 + i));
+            engine.awardAndOne(possession, offense.get(0), defense.get(0), false);
         }
         assertTrue(data.getHomeScore() > 0, "Made and-1 FTs must score for the offense");
         assertEquals(0, data.getAwayScore(), "and-1 FTs must never score for the defense");
@@ -2101,8 +2131,8 @@ class PossessionEngineTest {
         // the seam §3.12 reuses to award 3 on a fouled three.
         GameData data = freshData();
         PlayerGameState shooter = teamOf5("OFF", 10).get(0);
-        engine.awardFreeThrows(data, shooter, "OFF", "OFF", "DEF", 1, 50,
-                3, FreeThrowSource.SHOOTING, rng(9));
+        Possession possession = possession(data, "OFF", "DEF", 1, 50, rng(9));
+        engine.awardFreeThrows(possession, shooter, "OFF", 3, FreeThrowSource.SHOOTING);
         assertEquals(3, data.getEvents().size(), "The count parameter drives the loop");
         assertEquals(3, shooter.getFreeThrowsAttempted());
     }
@@ -2279,8 +2309,9 @@ class PossessionEngineTest {
         data.setAwayTeamId("A");
         PlayerGameState committer = home.get(0);
 
-        int next = engine.awardTechnicalFoul(data, committer, homeCtx, awayCtx,
-                "H", "A", 1, 1, rng(5L));
+        Possession possession = possession(data, "H", "A", 1, 1, rng(5L));
+        engine.awardTechnicalFoul(possession, committer, homeCtx, awayCtx);
+        int next = possession.sequence();
 
         List<GameData.EventRecord> fouls = data.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.FOUL).toList();
@@ -2318,8 +2349,9 @@ class PossessionEngineTest {
 
         int seq = 1;
         for (int i = 0; i < config.bonusFoulsPerPeriod() + 2; i++) {
-            seq = engine.awardTechnicalFoul(data, home.get(0), homeCtx, awayCtx,
-                    "H", "A", 1, seq, rng(7L));
+            Possession possession = possession(data, "H", "A", 1, seq, rng(7L));
+            engine.awardTechnicalFoul(possession, home.get(0), homeCtx, awayCtx);
+            seq = possession.sequence();
         }
         assertFalse(data.isInBonus("H", 1, config),
                 "Technicals must never reach the penalty tally (#032 E)");
@@ -2456,9 +2488,10 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
-        engine.awardFlagrant(data, defense.get(0), offense.get(0),
-                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF",
-                1, 50, new ScriptedRng(0.99, /*not a flagrant-2*/ 0.99));
+        Possession possession = possession(data, "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99, /*not a flagrant-2*/ 0.99));
+        engine.awardFlagrant(possession, defense.get(0), offense.get(0),
+                offense.get(0).getPlayerId(), "OFF");
 
         long freeThrows = data.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.FREE_THROW).count();
@@ -2477,9 +2510,10 @@ class PossessionEngineTest {
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
 
-        engine.awardFlagrant(data, defense.get(0), offense.get(0),
-                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF",
-                1, 50, new ScriptedRng(0.99, 0.99));
+        Possession possession = possession(data, "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99, 0.99));
+        engine.awardFlagrant(possession, defense.get(0), offense.get(0),
+                offense.get(0).getPlayerId(), "OFF");
 
         long freeThrows = data.getEvents().stream()
                 .filter(e -> e.playType() == PlayType.FREE_THROW).count();
@@ -2500,9 +2534,10 @@ class PossessionEngineTest {
         PlayerGameState committer = defense.get(0);
         PlayerGameState fouled = offense.get(2);
 
-        int next = engine.awardFlagrant(data, committer, fouled,
-                fouled.getPlayerId(), "OFF", "OFF", "DEF",
-                1, 50, new ScriptedRng(0.99, 0.99));
+        Possession possession = possession(data, "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99, 0.99));
+        engine.awardFlagrant(possession, committer, fouled, fouled.getPlayerId(), "OFF");
+        int next = possession.sequence();
 
         List<GameData.EventRecord> events = data.getEvents();
         assertEquals(3, events.size(), "one FOUL + two FREE_THROWs");
@@ -2539,9 +2574,9 @@ class PossessionEngineTest {
         GameData two = freshData();
         PlayerGameState ejected = defense.get(0);
         // 0.0 < FLAGRANT_TWO_SHARE ⇒ a flagrant-2.
-        engine.awardFlagrant(two, ejected, offense.get(0),
-                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF", 1, 50,
-                new ScriptedRng(0.99, 0.0));
+        Possession possession = possession(two, "OFF", "DEF", 1, 50, new ScriptedRng(0.99, 0.0));
+        engine.awardFlagrant(possession, ejected, offense.get(0), offense.get(0).getPlayerId(),
+                "OFF");
         assertEquals(PossessionEngine.FLAGRANT_FOUL_2_OUTCOME, two.getEvents().get(0).outcome());
         assertEquals(1, ejected.getFlagrantTwos());
         assertTrue(ejected.isEjectedForFlagrant(), "one flagrant-2 ejects immediately");
@@ -2549,9 +2584,10 @@ class PossessionEngineTest {
         GameData one = freshData();
         PlayerGameState stays = defense.get(1);
         // 0.99 >= FLAGRANT_TWO_SHARE ⇒ a flagrant-1.
-        engine.awardFlagrant(one, stays, offense.get(0),
-                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF", 1, 50,
+        Possession possession2 = possession(one, "OFF", "DEF", 1, 50,
                 new ScriptedRng(0.99, 0.99));
+        engine.awardFlagrant(possession2, stays, offense.get(0), offense.get(0).getPlayerId(),
+                "OFF");
         assertEquals(PossessionEngine.FLAGRANT_FOUL_1_OUTCOME, one.getEvents().get(0).outcome());
         assertEquals(0, stays.getFlagrantTwos());
         assertFalse(stays.isEjectedForFlagrant());
@@ -2579,9 +2615,10 @@ class PossessionEngineTest {
         PlayerGameState committer = defense.get(0);
 
         committer.recordFoul(); // what every call site does before rolling the flagrant
-        engine.awardFlagrant(data, committer, offense.get(0),
-                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF", 1, 50,
+        Possession possession = possession(data, "OFF", "DEF", 1, 50,
                 new ScriptedRng(0.99, 0.0));
+        engine.awardFlagrant(possession, committer, offense.get(0),
+                offense.get(0).getPlayerId(), "OFF");
 
         assertEquals(1, committer.getFouls(),
                 "The flagrant is ONE personal foul — recordFlagrantTwo() must not add a second");
@@ -2610,9 +2647,10 @@ class PossessionEngineTest {
         seedFouls(data, "DEF", 1, config.bonusFoulsPerPeriod() - 1);
         assertFalse(data.isInBonus("DEF", 1, config), "precondition: one short of the penalty");
 
-        engine.awardFlagrant(data, defense.get(0), offense.get(0),
-                offense.get(0).getPlayerId(), "OFF", "OFF", "DEF",
-                1, 50, new ScriptedRng(0.99, 0.99));
+        Possession possession = possession(data, "OFF", "DEF", 1, 50,
+                new ScriptedRng(0.99, 0.99));
+        engine.awardFlagrant(possession, defense.get(0), offense.get(0),
+                offense.get(0).getPlayerId(), "OFF");
 
         assertTrue(data.isInBonus("DEF", 1, config),
                 "A flagrant is a PERSONAL foul and must reach the penalty tally (#034 I) — "
@@ -2633,9 +2671,10 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         ReboundFoul foul = new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0));
 
-        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
-                data, foul, offense, defense, "OFF", "DEF", 1, 50,
-                /*capReached*/ false, new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+        PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession, foul,
+                /*capReached*/ false);
 
         assertTrue(result.offenseRetains(),
                 "A defensive flagrant returns the ball to the offense (#034 B/C)");
@@ -2660,9 +2699,10 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         ReboundFoul foul = new ReboundFoul(ReboundFoul.Side.OFFENSE, offense.get(0));
 
-        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
-                data, foul, offense, defense, "OFF", "DEF", 1, 50,
-                /*capReached*/ false, new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+        PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession, foul,
+                /*capReached*/ false);
 
         assertFalse(result.offenseRetains(), "An offensive flagrant flips the possession");
         assertEquals("OFF", data.getEvents().get(0).committingTeamId(),
@@ -2686,9 +2726,10 @@ class PossessionEngineTest {
         List<PlayerGameState> defense = teamOf5("DEF", 10);
         ReboundFoul foul = new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0));
 
-        PossessionEngine.ReboundFoulResult result = engine.resolveReboundFoul(
-                data, foul, offense, defense, "OFF", "DEF", 1, 50,
-                /*capReached*/ true, new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+        Possession possession = new Possession(data, "OFF", "DEF", offense, defense, 1, 50,
+                new ScriptedRng(0.5, /*flagrant*/ 0.0, /*grade*/ 0.99));
+        PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession, foul,
+                /*capReached*/ true);
 
         assertFalse(result.offenseRetains(),
                 "The flagrant retention is NOT exempt from "

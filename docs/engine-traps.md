@@ -249,9 +249,12 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   STOLEN)`; hoisting the *call* would consume a draw on all nine causes and move every
   number. The code carries a ⚠ comment because it is the one edit where a plausible
   simplification breaks the premise. → **#041**
-- **`resolvePossession` has EIGHT loop re-entry paths** (listed in beads `gametime-01n`). **A sixth
-  was the signal to restructure the loop, and that trigger has fired.** Tracked as
-  `gametime-01n`. → **#034 B**
+- **A retention is applied in ONE place: `resolvePossession`'s loop.** Each phase returns an
+  `AttemptResult`; the loop applies the cap, the counter and the putback candidate. A new
+  retention path returns `AttemptResult.retain(...)` and never touches the loop. ⚠ The cap
+  is ALSO passed into every resolver that draws a board — a capped miss is *drawn* as a
+  defensive outcome, so moving that check to the loop would change the events and the RNG
+  stream. → **#034 B · `gametime-01n`**
 - **A key/field mismatch in `SimConfig` does NOT fail loudly** — it binds `null`, and the
   first symptom was **184 NPEs**, not a bind error. Key and field name are kept in step by
   hand. Conversely, A's "no initializers" rule is enforced by **javac** (a `final` field

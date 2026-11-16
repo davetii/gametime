@@ -15,10 +15,10 @@ skinparam ActivityFontSize 12
 skinparam NoteFontSize 10
 
 start
-:read-and-clear the //putbackCandidate//
-//set by whichever path just identified a rebounder//;
+:take the //putback candidate//
+//the previous attempt's rebounder, if it identified one//;
 note right
-  ⚠ **READ AND CLEARED IN ONE STEP, at the top of the iteration** —
+  ⚠ **Each attempt's result REPLACES it** —
   so a stale candidate is structurally impossible, and there is
    **NO decay across retentions**: the second putback in a
   possession is as likely as the first.
