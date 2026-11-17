@@ -26,5 +26,6 @@
     <modules>
         <module>gametime-api</module>
         <module>gametime-app</module>
+        <module>gametime-tools</module>
     </modules>
 </project>

@@ -37,6 +37,13 @@ docker compose up -d
 
 API docs (Swagger UI): http://localhost:8080/swagger-ui.html
 
+After changing a `SimConfig` constant or a `sim.*` property, regenerate
+[docs/constants.md](docs/constants.md) from the repo root (a stale copy fails the build):
+
+```bash
+mvn -f gametime-service/pom.xml -pl gametime-tools compile exec:java
+```
+
 For profiles and database details, see
 [CLAUDE.md](CLAUDE.md).
 

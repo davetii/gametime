@@ -101,6 +101,7 @@ traps are real and cost real time — but it is **guidance, not authority**.
 docs/
   engine-traps.md   ⚠ THE ENGINE TRAPS — read before changing any engine constant
   calibration.md       The calibration targets — source of truth for what to tune toward
+  constants.md         GENERATED — every SimConfig constant with its value and kind; never hand-edit
   possession-flow.puml ⚠ START HERE — the possession on ONE SCREEN, loop and all
     possession-flow-rotation.puml        subs · fatigue · the technical foul
     possession-flow-shot-selection.puml  who shoots · what shot · the putback
@@ -120,6 +121,7 @@ docs/
 gametime-service/      Multi-module Maven (Spring Boot 4.1.2)
   gametime-api/        Generated code ONLY — spec at yml/gametime.yaml
   gametime-app/        All hand-written code
+  gametime-tools/      Build-time tools: generates docs/constants.md (no dependency on gametime-app)
 ```
 
 **Current state:** §3.22 (#044) is the latest engine sub-phase — **not the last** (see
@@ -237,6 +239,10 @@ mvn spring-boot:run -pl gametime-app
 - **The tunable count lives in FOUR places that move together**: the header comment,
   `baseline()`'s javadoc, its error message, and `SimConfigProfileBindingTest.EXPECTED_TUNABLE`.
   Currently **64 tunables / 29 statics**.
+- **Changing a `SimConfig` constant or a `sim.*` property means regenerating
+  `docs/constants.md`**, or `mvn install` fails (`ConstantsReferenceUpToDateTest`). Any edit
+  that shifts SimConfig's line numbers counts too — the statics link to their lines. From
+  the repo root: `mvn -f gametime-service/pom.xml -pl gametime-tools compile exec:java`
 - Sim profiles are ordinary Spring profiles composed with the infra ones
   (`local,baseline`); era profiles are deltas over `baseline`, so it must stay in the list.
 - **`game_event`'s two participant columns are different kinds of fact.**

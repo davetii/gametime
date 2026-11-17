@@ -166,6 +166,7 @@ public class SimConfig {
     public static final double FT_SENSITIVITY = 0.20;
     public static final int FREE_THROWS_PER_FOUL = 2;
 
+    // --- Rebounding and loose balls ---
     /**
      * Rebounding (§3.3): the rate at an average-vs-average contest (NBA ~25–28%).
      * Rebound contests reuse the global {@link #SENSITIVITY}.
@@ -281,6 +282,7 @@ public class SimConfig {
     private final double oobDefenseWeight;
     private final double oobOffenseWeight;
 
+    // --- Blocks ---
     /**
      * Blocked shots (§3.7, decisions.md #025).
      * Per-shot-type block base rate at an average-vs-average contest (defender
@@ -326,6 +328,7 @@ public class SimConfig {
     private final double blockOobDefense;
     private final double blockOobOffense;
 
+    // --- Turnover causes ---
     /**
      * Turnover sub-cause weights (§3.9, decisions.md #027).
      * Once the (unchanged) turnover gate fires, TurnoverResolver.pickCause runs a
@@ -367,6 +370,7 @@ public class SimConfig {
      */
     public static final double TO_CAUSE_SENSITIVITY = 0.20;
 
+    // --- Rebounding fouls and the bonus ---
     /**
      * Rebounding fouls + team-foul / bonus substrate (§3.10, decisions.md #028).
      * A non-shooting foul during the rebound phase — a defensive box-out push or an
@@ -408,6 +412,7 @@ public class SimConfig {
      */
     private final int bonusFoulsPerPeriod;
 
+    // --- And-1 ---
     /**
      * And-1 / shooting foul on a made basket (§3.11, decisions.md #029).
      * An and-1 is a SECOND, post-make foul roll (#029 A1) carved beside the assist:
@@ -440,6 +445,7 @@ public class SimConfig {
      */
     public static final int AND_ONE_FREE_THROWS = 1;
 
+    // --- Coach modifiers ---
     /**
      * Coach / chemistry modifiers (§3.4, decisions.md #022).
      * Single avg-10 deviation sensitivity shared by all coach effects
@@ -449,6 +455,7 @@ public class SimConfig {
      */
     public static final double COACH_SENSITIVITY = 0.20;
 
+    // --- Minutes, fatigue and substitution ---
     /**
      * Minutes / fatigue / substitution (§3.5, decisions.md #023).
      * Foul-out disqualification limit (Decision F). A player with >= this many
@@ -502,6 +509,7 @@ public class SimConfig {
      */
     private final int baseRotationDepth;
 
+    // --- Foul trouble ---
     /**
      * Foul trouble (§3.13, decisions.md #031 B).
      * The SOFT benching rule: a player carrying fouls is a bench CANDIDATE, and
@@ -581,6 +589,7 @@ public class SimConfig {
      */
     private final double foulTroubleFreshnessMargin;
 
+    // --- Technical fouls ---
     /**
      * Technical fouls (§3.14a, decisions.md #032 B2/E/F).
      *
@@ -625,6 +634,7 @@ public class SimConfig {
      */
     public static final int TECHNICAL_FREE_THROWS = 1;
 
+    // --- Flagrant fouls ---
     /**
      * Flagrant fouls (§3.14b, decisions.md #034 A/E/G).
      *
@@ -666,6 +676,7 @@ public class SimConfig {
      */
     private final double flagrantTwoShare;
 
+    // --- Shooting-foul composition ---
     /**
      * Shooting-foul composition (§3.16, decisions.md #039 A/B/D/E).
      *
@@ -697,6 +708,7 @@ public class SimConfig {
     /** Chance, by his foul count, that a defender wears his own foul and does not hand it to a teammate (#047). */
     private final double[] foulTroubleKeepProbabilities;
 
+    // --- Shot mix ---
     /**
      * §3.17 (decisions.md #040 C/J/K): THE SHOT-MIX SHARE TABLE — the league's base
      * distribution over the four ShotTypes, as RAW WEIGHTS normalized at the call site
@@ -745,6 +757,7 @@ public class SimConfig {
      */
     public static final double SHOT_MIX_SENSITIVITY = 0.5;
 
+    // --- Flagrant rules ---
     /**
      * ONE flagrant-2 is an automatic ejection (#034 E/F). Named rather than inlined as
      * `>= 1` so the third disqualification threshold reads identically to the other two
@@ -797,6 +810,7 @@ public class SimConfig {
      */
     public static final double PERSONAL_FOULS_PER_TEAM_GAME = 19.08;
 
+    // --- Assists ---
     /**
      * At an average passing supporting cast — the other 4 offensive players ≈ 10, NOT
      * the shooter. Tuned in §3.4 toward ~26 assists/team/game.
@@ -804,6 +818,7 @@ public class SimConfig {
     private final double baseAssist;
     public static final double ASSIST_SENSITIVITY = 0.30;
 
+    // --- Coach effects on shot-making and efficiency ---
     /**
      * acumen → a small shot-make-probability bonus (better shot selection ⇒
      * higher-quality looks). Modest thumb on the scale, not a shot-type reweight.
