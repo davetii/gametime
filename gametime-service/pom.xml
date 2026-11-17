@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.14</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
@@ -20,7 +20,7 @@
 
     <properties>
         <java.version>25</java.version>
-        <cucumber.version>7.14.0</cucumber.version>
+        <cucumber.version>7.34.9</cucumber.version>
     </properties>
 
     <modules>

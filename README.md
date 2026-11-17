@@ -9,7 +9,7 @@ on a 1–20 scale) form the foundation for a season simulation engine.
 
 ```
 gametime/
-├── gametime-service/     Multi-module Maven project (Spring Boot 3.5)
+├── gametime-service/     Multi-module Maven project (Spring Boot 4.1)
 │   ├── gametime-api/     OpenAPI codegen — spec at yml/gametime.yaml (source of truth)
 │   ├── gametime-app/     Hand-written code: entities, services, repos, mappers, tests
 │   ├── http/             IntelliJ .http files for manual REST testing
@@ -90,7 +90,7 @@ and is rewritten after every `bd` write — commit it along with the work.
 
 ## Tech stack
 
-Java 25 · Spring Boot 3.5 · Maven (multi-module) · OpenAPI (delegate pattern) ·
+Java 25 · Spring Boot 4.1 · Maven (multi-module) · OpenAPI (delegate pattern) ·
 Liquibase · PostgreSQL (local) / H2 (tests) · React + Vite (frontend).
 
 ## CI
