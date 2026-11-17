@@ -68,7 +68,7 @@ MEMORY.md", `bd dolt pull`/`push` at session close, and "use parallel subagents"
 ### Java 25
 
 The project targets JDK 25 (the SDKMAN default, `25.0.1-tem`) — no `JAVA_HOME` override
-needed. Lombok comes from the Spring Boot BOM (1.18.46); JaCoCo must stay ≥ 0.8.14 to
+needed. Lombok comes from the Spring Boot BOM (1.18.48); JaCoCo must stay ≥ 0.8.14 to
 instrument Java 25 classfiles (gametime-9hi).
 
 ### Test coverage is gated
@@ -117,7 +117,7 @@ docs/
   risks.md             Active risks  (chores + parked ideas → beads: `bd ready`, `bd list --status deferred`)
   player.md · roster.md · coach.md    Domain rules: current behavior, no decision history
 
-gametime-service/      Multi-module Maven (Spring Boot 3.5.14)
+gametime-service/      Multi-module Maven (Spring Boot 4.1.2)
   gametime-api/        Generated code ONLY — spec at yml/gametime.yaml
   gametime-app/        All hand-written code
 ```
@@ -219,6 +219,8 @@ mvn spring-boot:run -pl gametime-app
   checksum on first run and refuses to start against a changed one. *(This is narrower than
   Part 1's rule: it's about changesets already applied, not about release files.)*
   `1.04.1` is untouchable. Established shape: additive nullable column + its FK, no `dbms` gate.
+- ⚠ **Liquibase runs only via `spring-boot-starter-liquibase`** — since Boot 4, `liquibase-core`
+  alone no longer auto-configures, and a fresh DB then fails `ddl-auto=validate`.
 - ⚠ **H2 runs the SAME changelog as Postgres**, so a malformed changeset fails the whole
   test suite immediately — no Docker needed to verify one.
 - Audit columns have defaults for H2; Postgres triggers override them.
