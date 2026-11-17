@@ -58,7 +58,7 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | 2P% *(derived)* | TARGET (sourced) | 55.0% | 54.76% | `(FGA×FG% − 3PA×3P%) / (FGA − 3PA)`. See *2P%* below |
 | 3P% | TARGET (sourced) | 36.0% | 36.14% | **Residual-class row.** `base-three` is frozen. The ±0.25 band is tighter than the row's run-to-run spread (about 0.15 sem), so it can fail by chance: judge the band before the number |
 | Assists | TARGET (sourced) | 26.7 | 26.84 | A putback (`shooter == rebounder`) is assisted at `OFFENSIVE_REBOUNDER_ASSIST_LEAN` (0.5) × the ordinary chance. **Do not re-land with `sim.base-assist`** |
-| Turnovers | TARGET (sourced) | 14.5 | 14.68 | `sim.base-turnover`, which is partly floored. See *Turnover floor*. Steals derive from this |
+| Turnovers | TARGET (sourced) | 14.5 | 14.72 | `sim.base-turnover`, floor-free via `turnoverProbability` (`clampRareProbability`). Slope ~+0.92 TO per +0.01 base (elasticity 0.35). See *Turnovers*. Steals derive from this |
 | Blocks | TARGET (sourced) | 4.8 | 4.81 | On target. The block roll is floor-free (`clampRareProbability`), so all four `base-block-*` are live. Scale the four together to keep their ratios, and expect ~0.55 elasticity |
 | Top-starter minutes | TARGET (sourced) | ~34–36 | ~36.1 | Real is 35.5. See *Sources for the foul and minutes rows* |
 | Minutes ceiling | TARGET (sourced) | nobody over ~42 | ok | Real: a player tops 42 in 3.6% of team-games, overtime included |
@@ -70,7 +70,7 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Off rebounds | TARGET (sourced) | 11.3 | 11.90 | **Residual (+0.60), reported not tuned.** See *Rebound pool* |
 | Def rebounds | TARGET (sourced) | 32.4 | 31.55 | **Residual (−0.85), reported not tuned.** The pool total itself is 43.45 vs 43.70. See *Rebound pool* |
 | Pace (poss/48) | TARGET (sourced) | 99.4 | ~100 nominal | |
-| Steals | observed | 8.4 | 8.24 | **Derived, not tuned**: turnovers × the `STOLEN` share. Do not chase 8.4; the nine `to-weight-*` are frozen and the share is not a lever |
+| Steals | observed | 8.4 | 8.22 | **Derived, not tuned**: turnovers × the `STOLEN` share. Do not chase 8.4; the nine `to-weight-*` are frozen and the share is not a lever |
 | Foul-outs | ballpark (sourced) | 0.106 | 0.210 | `sim.foul-trouble-keep-probabilities`. Also moves with every FGA re-landing on the foul lever. See *Foul-outs* |
 | Players at 4 / 5 / 6 fouls | ballpark (sourced) | 1.01 / 0.43 / 0.11 | 1.10 / 0.58 / 0.21 | The real diagnostic for foul-outs |
 | Technicals | ballpark (soft source) | ~0.31–0.34 | 0.335 | 5 seeds only. See *Technicals* |
@@ -242,20 +242,22 @@ source puts the real rate below the engine's. The gap is accepted.
   re-measure it. Left stale the row reads low (74% of target once) and no test fails.
 - `Fouls / team / game` does not include flagrants, so the two lines are not additive.
 
-## Turnover floor
+## Turnovers
 
-`PROB_FLOOR` (0.02) sits just below `sim.base-turnover` and pins about 40–45% of
-possessions: `isTurnover` clamps through `clampProbability`, and the contest is
-`base + 0.5 × (avgDefense − ballSecurity)/10`, so any possession where the ball-handler
-outruns the defense by more than ~0.36 skill points is floored and insensitive to the
-constant.
+`TurnoverResolver.isTurnover` delegates to `SimConfig.turnoverProbability`, which clamps
+through `clampRareProbability` (`[0.0, PROB_CEILING]`, bypassing `PROB_FLOOR = 0.02`).
 
-- **Measured elasticity is 0.17**, against ~1.0 for a flat per-possession probability.
-  Tune against the measured line and expect to move the constant a long way for a small
-  result.
-- **It is backwards as basketball**: a good ball-handler facing average defense should be
-  the lowest-turnover possession, and the floor raises it to 2%. The fix is to reroute to
-  `clampRareProbability`, a Java change, and then re-tune; the block roll already made that move.
+- **Linear slope is ~+0.92 turnovers per +0.01 of `sim.base-turnover` (relative elasticity
+  0.35).** The contest is `base + 0.5 × (avgDefense − ballSecurity)/10` and seeded starters
+  average `avgDefense = 12.74` vs. `ballSecurity = 11.34`, so the skill term contributes
+  about half of the realized ~13% per-attempt rate. About 80% of attempts sit above `0.0`
+  and pass `Δbase` through one-for-one; the top ~24% of starters (`ballSecurity ≥ 14`) clamp
+  at `0.0` against average defense instead of the old `0.02` floor.
+- **Do not flatten `SENSITIVITY` (0.5) on `isTurnover` without re-landing shooting.**
+  Because `isTurnover` runs *after* `pickShooter`, the 0.5 slope filters weak-handling (and
+  correlated weak-shooting) players out before `ShotResolver`; lowering sensitivity to `0.15`
+  lets them shoot and pulls `FG%` (−1.2 pts) and `3P%` (−1.3 pts, `base-three` frozen) off
+  target.
 
 ---
 

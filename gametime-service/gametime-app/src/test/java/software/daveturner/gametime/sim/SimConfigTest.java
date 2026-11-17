@@ -91,6 +91,31 @@ class SimConfigTest {
         assertTrue(result < SimConfig.PROB_FLOOR);
     }
 
+    // --- #048 floor-free turnover probability ---
+
+    @Test
+    void turnoverProbabilityEqualSkillsAndNeutralPressureReturnsBase() {
+        double result = config.turnoverProbability(10.0, 10.0, 1.0);
+        assertEquals(config.baseTurnover(), result, 1e-9);
+    }
+
+    @Test
+    void turnoverProbabilityBelowTheFloorIsNotFlooredUp() {
+        // Handler slightly above defense puts the raw probability at 0.01 (< PROB_FLOOR 0.02).
+        double ballSecurity = 10.0 + (config.baseTurnover() - 0.01) * SimConfig.SCALE_AVG / SimConfig.SENSITIVITY;
+        double result = config.turnoverProbability(10.0, ballSecurity, 1.0);
+        assertEquals(0.01, result, 1e-9);
+        assertTrue(result < SimConfig.PROB_FLOOR);
+    }
+
+    @Test
+    void turnoverProbabilityClampedToValidRange() {
+        double high = config.turnoverProbability(20.0, 1.0, 2.0);
+        assertEquals(SimConfig.PROB_CEILING, high, 1e-9);
+        double low = config.turnoverProbability(1.0, 20.0, 1.0);
+        assertEquals(0.0, low, 1e-9);
+    }
+
     @Test
     void freeThrowProbabilityAverageSkill() {
         // §3.20 (#042 C): ft-base 0.75 -> 0.705. Realized FT% was running 82.56%

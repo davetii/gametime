@@ -61,8 +61,8 @@ class TurnoverResolverTest {
         for (int i = 0; i < trials; i++) {
             if (resolver.isTurnover(handler, defenders, r)) turnovers++;
         }
-        double rate = (double) turnovers / trials;
-        assertTrue(rate < 0.10, "Elite handler vs weak D should turn over < 10%, got " + rate);
+        assertEquals(0, turnovers,
+                "Floor-free (#048): elite handler (20) vs weak D (1) clamps to 0.0, not PROB_FLOOR");
     }
 
     // --- §3.9 turnover sub-cause draw (decisions.md #027) ---

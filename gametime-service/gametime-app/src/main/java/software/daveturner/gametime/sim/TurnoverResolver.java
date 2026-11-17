@@ -34,8 +34,7 @@ public class TurnoverResolver {
                 .average()
                 .orElse(SimConfig.SCALE_AVG);
         double ballSecurity = ballHandler.getBallSecurity() * ballHandler.fatigueFactor();
-        double prob = config.clampProbability(defensivePressure * config.contestProbability(
-                config.baseTurnover(), avgDefense, ballSecurity));
+        double prob = config.turnoverProbability(avgDefense, ballSecurity, defensivePressure);
         return rng.nextDouble() < prob;
     }
 

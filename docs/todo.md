@@ -295,9 +295,9 @@ visible, and may be the instrument that diagnoses them:
 
 - **Foul concentration**: the same defenders are drawn too often, so fouls and foul-outs
   pile up on a few players → `gametime-vp6`. The `FOULS` leaderboard is its instrument.
-- **Turnover floor**: good ball-handlers are floored at a 2% turnover chance, compressing the
-  low end of a turnover leaderboard → [calibration.md](calibration.md) *Turnover floor*,
-  `gametime-6uk`.
+- **Turnover clamp at zero**: `PROB_FLOOR` (0.02) is gone from `isTurnover` (#048), but
+  `SENSITIVITY` (0.5) still clamps the top ~24% of starters (`ballSecurity >= 14`) at `0.0`
+  against average defense → [calibration.md](calibration.md) *Turnovers*.
 - **Per-player realism**: [risks.md](risks.md) "Skill formula balance" and "Seed data
   realism" wait on per-player season lines; `gametime-rdo`, `gametime-9up`.
 

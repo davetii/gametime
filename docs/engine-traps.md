@@ -61,12 +61,14 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   `base-block-three` is a weak lever even off the floor; `BLOCK_SENSITIVITY` is the real one.
   Realized block rates: drive 8.5% · post 7.8% · perimeter 4.7% (5 seeds, the harness's
   `FG% by shot type` block).
-- **`base-turnover` is ~40–45% FLOORED; its elasticity is 0.17, not ~1.0.** `isTurnover`
-  clamps through `clampProbability`, and `PROB_FLOOR` sits just below the base, so the
-  possessions where a good handler faces average defense are pinned and insensitive.
-  Landed by tuning against the measured line (0.0396 → **0.0527**, +39% over plan). The
-  real fix — reroute to `clampRareProbability` — is a Java change, still **not taken**.
-  → **#042 D4**
+- **`base-turnover` is off `PROB_FLOOR`; its linear slope is ~+0.92 turnovers per +0.01 of
+  base (relative elasticity 0.35, up from 0.17).** `SimConfig.turnoverProbability` clamps
+  through `clampRareProbability` at both the contest and `defensivePressure` sites; removing
+  the 0.02 floor alone cost ~1.0 turnover/team-game (14.7 → 13.7 on seed 1000) and `0.062`
+  re-landed 14.72 (5 seeds). ⚠ **Do not lower `SENSITIVITY` (0.5) on `isTurnover` alone:**
+  `isTurnover` runs *after* `pickShooter`, so the 0.5 slope filters weak handlers (whose
+  shooting skills correlate via `handle`/`intelligence`/`composure`) out before
+  `ShotResolver`; testing `0.15` pulled `FG%` down 1.2 pts and `3P%` down 1.3 pts. → **#042 D4 · #048**
 - **`PROB_FLOOR` floors any deliberately-rare carve, making the knob one-directional.**
   First hit in §3.10: halving `REBOUND_FOUL_BASE` 0.030 → 0.015 **silently did nothing**
   (points moved 0.1). Fixed by `rareEventProbability` (#028), reused by design in #029,
@@ -294,7 +296,7 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
 - **OOB** — `OOB_TOTAL_WEIGHT` and its defense/offense split, skill-independent by
   construction → **#026**
 - **Turnover causes** — the nine cause weights (STOLEN dominant), `TO_CAUSE_SENSITIVITY`,
-  leans floored → **#027**; `base-turnover` → **#042**
+  leans floored → **#027**; `base-turnover` (floor-free via `turnoverProbability`) → **#042 · #048**
 - **Rebound fouls** — `REBOUND_FOUL_BASE`, its defense/offense split,
   `BONUS_FOULS_PER_PERIOD` → **#028**
 - **And-1** — `AND_ONE_BASE`, `AND_ONE_SENSITIVITY`, `AND_ONE_FREE_THROWS` → **#029**

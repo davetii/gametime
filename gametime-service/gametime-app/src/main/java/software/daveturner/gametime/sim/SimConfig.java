@@ -1101,6 +1101,17 @@ public class SimConfig {
         return clampRareProbability(p);
     }
 
+    /**
+     * Floor-free turnover probability (#048): defender steal/on-ball composite vs.
+     * ball-handler ballSecurity at {@link #SENSITIVITY}, scaled by the defending
+     * coach's {@code defensivePressure} and clamped to {@code [0, PROB_CEILING]}.
+     */
+    public double turnoverProbability(double avgDefense, double ballSecurity,
+                                      double defensivePressure) {
+        return clampRareProbability(defensivePressure
+                * rareEventProbability(baseTurnover, avgDefense, ballSecurity, SENSITIVITY));
+    }
+
     public double freeThrowProbability(double freeThrowSkill) {
         double p = ftBase + (freeThrowSkill - SCALE_AVG) / SCALE_AVG * FT_SENSITIVITY;
         return clampProbability(p);
