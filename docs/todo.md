@@ -37,8 +37,7 @@ record.
 
 ## Phase 4 execution plan (decisions.md #045 — resolved)
 
-**Build preamble.** Java 21 or Lombok breaks:
-`JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem`. The **JaCoCo gate is
+**Build preamble.** JDK 25 (the default; no `JAVA_HOME` needed). The **JaCoCo gate is
 per-package and runs at `install`, not `test`**: invoke the `test-coverage` skill; a green
 `mvn test` does not prove it passes. A new package (e.g. `stats`) has its own gate. Invoke
 `project-docs` before touching any doc. Step 3 touches `PossessionEngine`, so run the sim
@@ -59,7 +58,7 @@ should need re-baselining. The harness (profile from the ENVIRONMENT, confirm `P
 local,baseline` and all four reconciliation lines `OK`):
 
 ```bash
-cd gametime-service && for s in 1000 2000 3000 4000 5000; do SPRING_PROFILES_ACTIVE=local,baseline JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -q -pl gametime-app test -Dtest=CalibrationHarness -Dcalibration=true -DcalibrationSeed=$s -DfailIfNoTests=false; done
+cd gametime-service && for s in 1000 2000 3000 4000 5000; do SPRING_PROFILES_ACTIVE=local,baseline mvn -q -pl gametime-app test -Dtest=CalibrationHarness -Dcalibration=true -DcalibrationSeed=$s -DfailIfNoTests=false; done
 ```
 
 **Step 0 — baseline and claim**

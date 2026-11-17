@@ -21,7 +21,7 @@ gametime/
 
 ## Quick start
 
-Requires **JDK 21** (Lombok is incompatible with newer JDKs — see CLAUDE.md).
+Requires **JDK 25**.
 
 ```bash
 cd gametime-service
@@ -37,7 +37,7 @@ docker compose up -d
 
 API docs (Swagger UI): http://localhost:8080/swagger-ui.html
 
-For the exact `JAVA_HOME` setup, profiles, and database details, see
+For profiles and database details, see
 [CLAUDE.md](CLAUDE.md).
 
 ## Documentation
@@ -90,7 +90,7 @@ and is rewritten after every `bd` write — commit it along with the work.
 
 ## Tech stack
 
-Java 21 · Spring Boot 3.5 · Maven (multi-module) · OpenAPI (delegate pattern) ·
+Java 25 · Spring Boot 3.5 · Maven (multi-module) · OpenAPI (delegate pattern) ·
 Liquibase · PostgreSQL (local) / H2 (tests) · React + Vite (frontend).
 
 ## CI

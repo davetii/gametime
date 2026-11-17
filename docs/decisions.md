@@ -44,7 +44,8 @@ supersedes #036's mapping), never in place.
 **Decision**: All application tables live in the `gametime` schema, not `public`.  
 **Rationale**: Clean separation from system tables. H2 supports schemas, so this works in both environments.
 
-### 005 — JDK 21 LTS via SDKMAN
+### 005 — JDK 21 LTS via SDKMAN (SUPERSEDED by gametime-9hi)
+**Superseded 2026-11** by the JDK 25 upgrade (gametime-9hi): Spring Boot 3.5.14 manages Lombok 1.18.46, which supports JDK 25, and JaCoCo moved to 0.8.14.  
 **Date**: 2026-05  
 **Decision**: Target Java 21 (SDKMAN: `21.0.9-tem`). Do not use Homebrew JDK 25.  
 **Rationale**: Lombok 1.18.x is incompatible with JDK 25. JDK 21 is the current LTS release. All Maven commands must set `JAVA_HOME` explicitly.

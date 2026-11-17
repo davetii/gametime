@@ -101,7 +101,7 @@ docs resolve by number **and letter**). An entry:
   first) or execute-ready (design resolved as #NNN).
 - **Design pass**: the numbered open questions, each becoming a decision letter, with the
   reasoning that resolves them. This reasoning is deleted when the phase closes.
-- **Execute-ready**: a `## §X.Y execution plan` with a build preamble (JAVA_HOME and the
+- **Execute-ready**: a `## §X.Y execution plan` with a build preamble (the JDK and the
   coverage-gate reminder), numbered `**Step N — title**` blocks with `- [ ]` items, and
   reference blocks: the reconciliation invariant, "Do NOT" guardrails, open-at-execution items.
 - **Verified facts** of the relevant package, confirmed against code.

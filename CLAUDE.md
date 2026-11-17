@@ -65,12 +65,11 @@ MEMORY.md", `bd dolt pull`/`push` at session close, and "use parallel subagents"
 - **Never run** `bd dolt push`, `bd dolt pull`, `bd remember`, or `bd edit` (opens an
   editor and blocks).
 
-### Java 21 — never JDK 25
+### Java 25
 
-Homebrew Maven defaults to JDK 25, which breaks Lombok 1.18.x. Always:
-```bash
-JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn clean test
-```
+The project targets JDK 25 (the SDKMAN default, `25.0.1-tem`) — no `JAVA_HOME` override
+needed. Lombok comes from the Spring Boot BOM (1.18.46); JaCoCo must stay ≥ 0.8.14 to
+instrument Java 25 classfiles (gametime-9hi).
 
 ### Test coverage is gated
 
@@ -93,7 +92,7 @@ traps are real and cost real time — but it is **guidance, not authority**.
   don't enforce it.
 - **When you state a rule, say where it came from** — "your git rule" vs. "a past session
   wrote this, want to keep it?" are different sentences.
-- **Hard constraints** (which are NOT conventions): Java 21/Lombok, the Liquibase
+- **Hard constraints** (which are NOT conventions): Java 25, the Liquibase
   checksum, the JaCoCo gate, and Part 1 above.
 
 ## Where things live
@@ -182,7 +181,7 @@ the check that means something.
 
 Run the sim tests alone after touching `PossessionEngine`/`ShotSelector`/`RotationState`:
 ```bash
-JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -pl gametime-app -f gametime-service/pom.xml test -Dtest='GameSimulatorIntegrationTest' -DfailIfNoTests=false
+mvn -pl gametime-app -f gametime-service/pom.xml test -Dtest='GameSimulatorIntegrationTest' -DfailIfNoTests=false
 ```
 
 ## How a phase has moved so far
@@ -202,13 +201,13 @@ this section: useful defaults, not mandates.
 
 ```bash
 # compile · test (H2, no Docker) · integration tests
-JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn clean compile
-JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn clean test
-JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn verify -Ptest
+mvn clean compile
+mvn clean test
+mvn verify -Ptest
 
 # local run — Postgres on 8080, Swagger at /swagger-ui.html
 cd gametime-service && docker compose up -d     # add `down -v` first for a fresh DB
-JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn spring-boot:run -pl gametime-app
+mvn spring-boot:run -pl gametime-app
 ```
 
 ## Database

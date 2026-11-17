@@ -13,7 +13,7 @@ drift from the file that binds them. This doc names the knob and the rule.
 `CalibrationHarness` is disabled by default and **reports, never gates**:
 
 ```bash
-JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -f gametime-service/pom.xml test -pl gametime-app -Dtest=CalibrationHarness -Dcalibration=true -DcalibrationSeed=1000 -DfailIfNoTests=false
+mvn -f gametime-service/pom.xml test -pl gametime-app -Dtest=CalibrationHarness -Dcalibration=true -DcalibrationSeed=1000 -DfailIfNoTests=false
 ```
 
 - **Profile comes from the environment**: `SPRING_PROFILES_ACTIVE=local,baseline`. A `-D`

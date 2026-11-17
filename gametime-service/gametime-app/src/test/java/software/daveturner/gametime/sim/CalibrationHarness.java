@@ -36,7 +36,7 @@ import java.util.Map;
  * pass/fail unit test, so it stays off the normal build + coverage gate. Run it
  * explicitly to observe distributions:
  * <pre>
- *   JAVA_HOME=.../21 mvn -f gametime-service/pom.xml test -pl gametime-app \
+ *   mvn -f gametime-service/pom.xml test -pl gametime-app \
  *     -Dtest=CalibrationHarness -Dcalibration=true -DfailIfNoTests=false
  * </pre>
  * Without {@code -Dcalibration=true} the method is skipped, so it stays off the

@@ -116,7 +116,7 @@
         <dependency>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.11</version>
+            <version>0.8.14</version>
         </dependency>
     </dependencies>
 
@@ -142,7 +142,7 @@
                 <configuration>
                     <image>
                         <env>
-                            <BP_JVM_VERSION>21</BP_JVM_VERSION>
+                            <BP_JVM_VERSION>25</BP_JVM_VERSION>
                         </env>
                     </image>
                     <excludes>
@@ -175,7 +175,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.14</version>
                 <configuration>
                     <excludes>
                         <exclude>**/ApiUtil.*</exclude>

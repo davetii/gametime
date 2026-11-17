@@ -19,7 +19,7 @@ build gate.
 - The check runs at the `verify`/`install` phase, **not** `mvn test`. A green
   `mvn test` does NOT prove the gate passes. Always confirm with:
   ```
-  JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn -f gametime-service/pom.xml clean install
+  mvn -f gametime-service/pom.xml clean install
   ```
   Look for `All coverage checks have been met.`
 - It is **per package**, so small packages are fragile: one untested
@@ -56,7 +56,7 @@ Mirror the package under `gametime-app/src/test/java/...`:
 ## Checklist before declaring a code change done
 
 1. Added/updated tests covering the new lines and their error/edge branches.
-2. Ran `mvn clean install` (JDK 21) — tests pass AND
+2. Ran `mvn clean install` (JDK 25) — tests pass AND
    `All coverage checks have been met.`
 3. No new dead code left uncovered (delete it instead).
 
@@ -64,8 +64,7 @@ Mirror the package under `gametime-app/src/test/java/...`:
 means the change is *ready for review*, not that it should be committed — leave it
 in the working tree and wait for the user to ask (see CLAUDE.md's git rule).
 
-Build notes: always set `JAVA_HOME` to the SDKMAN JDK 21
-(`/Users/dave/.sdkman/candidates/java/21.0.9-tem`) — see CLAUDE.md. The JaCoCo
+Build notes: JDK 25 is the default, no `JAVA_HOME` needed — see CLAUDE.md. The JaCoCo
 excludes (generated API stubs, `model/*`, `GametimeApplication`,
 `ConferenceEnum`) are already configured in `gametime-app/pom.xml`; you don't
 need to test generated code.
