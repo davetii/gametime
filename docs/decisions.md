@@ -449,7 +449,10 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **B** — the curve is `1, 1, 1, 0.90, 0.70, 0.40, 1` (index = foul count). Foul-outs land **0.21** (5 seeds) from 0.38, against a real 0.106; players at 4 / 5 land 1.10 / 0.58. The landing is a user call: about 0.2 was accepted to protect the 4-foul row.
 - **C** — the same curve multiplies his weight in `FoulResolver.pickCommitter`, so rebounding fouls also drift away from him. Charges are not handed off.
 - **D** — a flagrant follows the new committer: it is rolled on the same foul.
-
+- **E** — `sim.non-shooting-foul-share` 0.4123 → **0.427**. Fewer foul-outs raised FTA by about 0.3; it lands 23.56.
+- **F** — ⚠ the handoff draw is **conditional**: it is taken only when the drawn defender's keep value is below 1. An all-1.0 curve consumes no RNG and reproduces the previous engine line for line.
+- **G** — ⚠ rejected: scaling the foul **roll** by foul count. It reaches 0.11 foul-outs but removes fouls (−1.1 FTA, −0.55 fouls, +0.66 FGA). Also rejected (user calls): changing who a player defends, and a matchup model.
+- **H** — who defends, the sit curve and the return path are unchanged. Still open: about 1.9 players reach 4 fouls against a real 1.55, and nothing here reduces that (recorded in calibration.md *Foul-outs*).
 
 ### 048 — Turnovers off the probability floor (`gametime-6uk`)
 
@@ -459,7 +462,3 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **B** — **`sim.base-turnover` moves `0.0527 → 0.062`.** Removing the 0.02 floor alone cost ~1.0 turnover per team-game (14.7 → 13.7 on seed 1000, lifting FGA +0.9); `0.062` lands **14.72** (5 seeds; steals **8.22** by derivation, FGA **89.58**, points **115.28**).
 - **C** — **⚠ `SENSITIVITY` (0.5) stays on turnovers.** A flatter `0.15` sensitivity was tested and rejected: because `isTurnover` runs *after* `pickShooter`, the 0.5 slope filters weak-handling (and correlated weak-shooting) players out before `ShotResolver`; flattening it to `0.15` let them shoot and pulled `FG%` (−1.2 pts) and `3P%` (−1.3 pts, `base-three` frozen) off target.
 - **D** — **Measured slope is `+0.92` turnovers per `+0.01` of `base-turnover`** (~80% of attempts pass through; ~24% of starters with `ballSecurity >= 14` clamp at `0.0` instead of `0.02`), doubling relative elasticity (`0.17 → 0.35`).
-- **E** — `sim.non-shooting-foul-share` 0.4123 → **0.427**. Fewer foul-outs raised FTA by about 0.3; it lands 23.56.
-- **F** — ⚠ the handoff draw is **conditional**: it is taken only when the drawn defender's keep value is below 1. An all-1.0 curve consumes no RNG and reproduces the previous engine line for line.
-- **G** — ⚠ rejected: scaling the foul **roll** by foul count. It reaches 0.11 foul-outs but removes fouls (−1.1 FTA, −0.55 fouls, +0.66 FGA). Also rejected (user calls): changing who a player defends, and a matchup model.
-- **H** — who defends, the sit curve and the return path are unchanged. The bead stays open: about 1.9 players reach 4 fouls against a real 1.55, and nothing here reduces that.

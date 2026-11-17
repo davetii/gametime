@@ -292,8 +292,8 @@ spec and its test list.
 Not gates; the stats are faithful to the engine. Per-player aggregates will make these
 visible, and may be the instrument that diagnoses them:
 
-- **Foul concentration**: the same defenders are drawn too often, so fouls and foul-outs
-  pile up on a few players → `gametime-vp6`. The `FOULS` leaderboard is its instrument.
+- **Foul concentration**: ruled out as the cause of excess foul-outs (`gametime-1pl`, #047).
+  The `FOULS` leaderboard still shows how fouls spread across a roster.
 - **Turnover clamp at zero**: `PROB_FLOOR` (0.02) is gone from `isTurnover` (#048), but
   `SENSITIVITY` (0.5) still clamps the top ~24% of starters (`ballSecurity >= 14`) at `0.0`
   against average defense → [calibration.md](calibration.md) *Turnovers*.
