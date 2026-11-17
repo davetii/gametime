@@ -64,7 +64,7 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Minutes ceiling | TARGET (sourced) | nobody over ~42 | ok | Real: a player tops 42 in 3.6% of team-games, overtime included |
 | Fouls | TARGET (sourced) | 19.9 | 19.37 | **Residual (−0.53).** Lever is `base-no-basket-foul`. Over-determined with FGA: each extra foul costs **1.49 FGA**, so closing the gap would pull FGA out of band. It moves only as a side effect of re-landing FGA. `PERSONAL_FOULS_PER_TEAM_GAME` (the flagrant divisor) must be re-measured whenever the foul rate moves |
 | FTA | TARGET (sourced) | 23.5 | 23.56 | `sim.non-shooting-foul-share`. See *Non-shooting-foul share* |
-| FT% | TARGET (sourced) | 78.0% | 77.64% | `sim.ft-base`. Realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10` and the roster mean `freeThrows` is ~13.8, so the base is not the landing |
+| FT% | TARGET (sourced) | 78.0% | 77.64% | `sim.ft-base`. Realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10`, read per attempt, so the base is not the landing. See *Skill population against the scale* |
 | 3PA | TARGET (sourced) | 37.0 | 36.96 | `sim.shot-share-*`. Charged three share is 41.3% vs a real 41.5% |
 | FGA | TARGET (sourced) | 89.1 | 89.40 | `sim.base-no-basket-foul`, **not** `non-shooting-foul-share` (both foul branches return before an attempt is charged). Bought against Fouls |
 | Off rebounds | TARGET (sourced) | 11.3 | 11.90 | **Residual (+0.60), reported not tuned.** See *Rebound pool* |
@@ -258,6 +258,48 @@ through `clampRareProbability` (`[0.0, PROB_CEILING]`, bypassing `PROB_FLOOR = 0
   correlated weak-shooting) players out before `ShotResolver`; lowering sensitivity to `0.15`
   lets them shoot and pulls `FG%` (−1.2 pts) and `3P%` (−1.3 pts, `base-three` frozen) off
   target.
+
+## Skill population against the scale
+
+The harness's report-only *Skill population* section measures all 23 computed skills over
+the 422 seeded players, skills computed by the mappers as the engine loads them. Figures
+are the 5-seed mean (1000–5000), `baseline`; the minutes-weighted means move ≤0.03 between
+seeds.
+
+- **The generator is centred.** Every roster mean is within ±0.5 of 10 (widest
+  `offBallMovement` 10.48, `rimProtection` 9.75, `foulProne` 9.63). `foulProne` is also
+  the only narrow one: sd 1.2, range 6.5–12.8, against ~3.5 and ~1–19 for the rest.
+- **Who plays is not.** Weighted by minutes, every skill except `foulProne` sits **+0.7 to
+  +1.6** above 10, because better players play more. By the ±1.0 rule that is
+  **systemic**: `acumen` 11.31, `individualDefense` 11.56, `stealing` 11.43, `freeThrows`
+  11.14, `teamDefense` 11.09, `passing` 11.03 every seed; `offenseRebound` (11.01) and
+  `teamOffense` (11.00) sit on the line and flip by seed. `clutch`, `offBallMovement` and
+  `transition` also flag, but the engine never reads them, so they have no effect.
+- **A uniform lift cancels in a contest.** Most skills reach the engine as offense minus
+  defense, so only the gap between the two sides lands in the base. What each constant
+  absorbs, from on-floor means at full energy, before coach and shot-type multipliers:
+
+| Constant | Gap the formula sees | Gap | Effect |
+|---|---|---|---|
+| `base-turnover` | `(stealing+indDef)/2 − ballSecurity` | +1.00 | **+5.0 pp** |
+| `base-post` | `post − individualDefense` | −0.74 | **−3.7 pp** |
+| `base-assist` | `passing − 10` | +1.03 | **+3.1 pp** |
+| `ft-base` | `freeThrows − 10` | +1.14 | +2.3 pp on-floor; **+7.2 pp per attempt** |
+| `base-no-basket-foul` | `foulDrawing − (20 − foulProne)` | +0.36 | +1.8 pp |
+| `base-perimeter` | `perimeter − (indDef+shotContest)/2` | −0.34 | −1.7 pp |
+| `base-drive` | `(drive+finishing)/2 − rimProtection` | +0.20 | +1.0 pp |
+| everything else | blocks, three, off rebound, and-1, rebound foul, chemistry, shot shares | | under ±0.4 pp or ×1.01 net |
+
+- **On-floor is a lower bound. The real absorption is per attempt.** The shooter, the
+  fouled player and the defender are drawn by skill weight, so whoever is in a contest is
+  better than the on-floor mean. FT is the one row with an independent check: free throws
+  are shot by players averaging **13.6 `freeThrows`**, which predicts +7.2 pp. `ft-base`
+  0.705 + 7.2 = 77.7%, against a realized 77.8%. The other bases absorb more than the table
+  shows, by the same mechanism; the harness measures only FT per attempt.
+- **Do not read a `base-*` constant as the league rate.** A generator pass would not remove
+  this lift: the roster is already centred, and the lift comes from rotation and shot
+  selection, not from how players are made. Re-run this section after any player-generation
+  or skill-formula change; every constant in the table moves with it.
 
 ---
 

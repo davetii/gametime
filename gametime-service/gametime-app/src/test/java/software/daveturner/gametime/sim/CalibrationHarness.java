@@ -8,10 +8,14 @@ import org.springframework.transaction.annotation.Transactional;
 import software.daveturner.gametime.entity.BoxScoreEntity;
 import software.daveturner.gametime.entity.GameEventEntity;
 import software.daveturner.gametime.entity.PlayType;
+import software.daveturner.gametime.mapper.EntityMapper;
+import software.daveturner.gametime.model.Player;
+import software.daveturner.gametime.model.PlayerSkills;
 import software.daveturner.gametime.model.RosterEntry;
 import software.daveturner.gametime.model.Team;
 import software.daveturner.gametime.repo.BoxScoreRepo;
 import software.daveturner.gametime.repo.GameEventRepo;
+import software.daveturner.gametime.repo.PlayerRepo;
 import software.daveturner.gametime.service.GametimeService;
 
 import java.util.HashSet;
@@ -92,6 +96,12 @@ class CalibrationHarness {
     @Autowired
     GametimeService gametimeService;
 
+    @Autowired
+    PlayerRepo playerRepo;
+
+    @Autowired
+    EntityMapper entityMapper;
+
     // The environment, not System.getProperty: both the command line and
     // application.properties feed it, and only it knows which won.
     @Autowired
@@ -126,6 +136,15 @@ class CalibrationHarness {
             activeProfiles = "(none active — Spring defaults)";
         }
         agg.print(games, config, activeProfiles);
+        // gametime-rdo: report-only, printed after the main report so its lines diff clean.
+        SkillPopulation.print(loadLeague(), agg.minutesByPlayer, agg.ftaByPlayer);
+    }
+
+    // Every seeded player, skills computed by the mappers exactly as the engine loads them.
+    private List<Player> loadLeague() {
+        List<Player> players = new ArrayList<>();
+        playerRepo.findAll().forEach(e -> players.add(entityMapper.mapEntityToPlayer(e)));
+        return players;
     }
 
     private void accumulate(String home, String away, long seed, Agg agg) {
@@ -165,6 +184,8 @@ class CalibrationHarness {
             // building BELOW the threshold before it becomes visible above it. Only
             // players who actually appeared are counted (a DNP would otherwise pile
             // up a meaningless zero bucket).
+            agg.minutesByPlayer.merge(bs.getPlayerId(), (long) nz(bs.getMinutes()), Long::sum);
+            agg.ftaByPlayer.merge(bs.getPlayerId(), (long) nz(bs.getFreeThrowsAttempted()), Long::sum);
             int pf = nz(bs.getFouls());
             if (nz(bs.getMinutes()) > 0) {
                 agg.playersPlayed++;
@@ -727,6 +748,10 @@ class CalibrationHarness {
         final java.util.Map<String, Long> freeThrowsBySource = new java.util.HashMap<>();
         final java.util.Map<String, Long> freeThrowsMadeBySource = new java.util.HashMap<>();
 
+        // gametime-rdo: total minutes per player across the run, the skill-population weights.
+        final java.util.Map<String, Long> minutesByPlayer = new java.util.HashMap<>();
+        final java.util.Map<String, Long> ftaByPlayer = new java.util.HashMap<>();
+
         // Config is passed in: Agg is static, and a baseline() field would misreport
         // every era run.
         void print(int games, SimConfig config, String activeProfiles) {
@@ -1230,6 +1255,190 @@ class CalibrationHarness {
 
         private static double pct(long made, long attempted) {
             return attempted == 0 ? 0.0 : 100.0 * made / attempted;
+        }
+    }
+
+    /**
+     * gametime-rdo: the generated population's skills against the avg-10 scale. Report-only,
+     * no targets. Reading: docs/calibration.md, "Skill population against the scale".
+     */
+    static final class SkillPopulation {
+        static final double FLAG_BAND = 1.0;
+
+        record Skill(String name, java.util.function.Function<PlayerSkills, java.math.BigDecimal> get,
+                     String reaches) { }
+
+        static final List<Skill> SKILLS = List.of(
+                new Skill("acumen", PlayerSkills::getAcumen, "vs 10 -> every make base (chemistry)"),
+                new Skill("ballSecurity", PlayerSkills::getBallSecurity, "vs steal/onball -> base-turnover"),
+                new Skill("clutch", PlayerSkills::getClutch, "not read by the engine"),
+                new Skill("defenseRebound", PlayerSkills::getDefenseRebound, "vs offenseRebound -> base-offensive-rebound"),
+                new Skill("drive", PlayerSkills::getDrive, "w/ finishing vs rimProtection -> base-drive; shot-share-drive"),
+                new Skill("finishing", PlayerSkills::getFinishing, "w/ drive -> base-drive; vs block skill -> base-block-*"),
+                new Skill("foulDrawing", PlayerSkills::getFoulDrawing, "vs 20-foulProne -> base-no-basket-foul, and-one-base, rebound-foul-base"),
+                new Skill("foulProne", PlayerSkills::getFoulProne, "20-foulProne vs foulDrawing -> same three foul bases"),
+                new Skill("freeThrows", PlayerSkills::getFreeThrows, "vs 10 -> ft-base"),
+                new Skill("individualDefense", PlayerSkills::getIndividualDefense, "-> base-post, base-perimeter, base-turnover"),
+                new Skill("longRange", PlayerSkills::getLongRange, "vs shotContest -> base-three; shot-share-three"),
+                new Skill("offBallMovement", PlayerSkills::getOffBallMovement, "not read by the engine"),
+                new Skill("offenseRebound", PlayerSkills::getOffenseRebound, "vs defenseRebound -> base-offensive-rebound"),
+                new Skill("passing", PlayerSkills::getPassing, "vs 10 -> base-assist"),
+                new Skill("perimeter", PlayerSkills::getPerimeter, "vs (indDef+shotContest)/2 -> base-perimeter; shot-share-perimeter"),
+                new Skill("post", PlayerSkills::getPost, "vs individualDefense -> base-post; shot-share-post"),
+                new Skill("rimProtection", PlayerSkills::getRimProtection, "-> base-drive, base-block-drive/post"),
+                new Skill("screenSetting", PlayerSkills::getScreenSetting, "not read by the engine"),
+                new Skill("shotContest", PlayerSkills::getShotContest, "-> base-three, base-perimeter, base-block-perimeter/three"),
+                new Skill("stealing", PlayerSkills::getStealing, "w/ indDef vs ballSecurity -> base-turnover"),
+                new Skill("teamDefense", PlayerSkills::getTeamDefense, "teamOffense-teamDefense -> every make base (chemistry)"),
+                new Skill("teamOffense", PlayerSkills::getTeamOffense, "teamOffense-teamDefense -> every make base (chemistry)"),
+                new Skill("transition", PlayerSkills::getTransition, "not read by the engine"));
+
+        static boolean unread(Skill s) {
+            return s.reaches().startsWith("not read");
+        }
+
+        static void print(List<Player> players, Map<String, Long> minutesByPlayer,
+                          Map<String, Long> ftaByPlayer) {
+            long totalMinutes = 0;
+            int played = 0;
+            for (Player p : players) {
+                long m = minutesByPlayer.getOrDefault(p.getId(), 0L);
+                totalMinutes += m;
+                if (m > 0) played++;
+            }
+            System.out.println();
+            System.out.println("======== SKILL POPULATION vs THE AVG-10 SCALE (gametime-rdo) ========");
+            System.out.printf("Players: %d on the roster, %d took the floor (%d minutes). No targets.%n",
+                    players.size(), played, totalMinutes);
+            System.out.printf("Flag: minutes-weighted mean more than +/-%.1f from %.0f.%n",
+                    FLAG_BAND, SimConfig.SCALE_AVG);
+            System.out.printf("  %-18s %6s %5s %5s %5s | %6s %6s  %-4s %s%n",
+                    "skill", "roster", "sd", "min", "max", "min-wt", "vs 10", "flag", "reaches the engine as");
+
+            Map<String, Double> weighted = new HashMap<>();
+            double worstRosterDev = 0;
+            String worstRosterSkill = "";
+            int flaggedRead = 0;
+            int flaggedUnread = 0;
+            List<String> flaggedNames = new ArrayList<>();
+            for (Skill s : SKILLS) {
+                double sum = 0, sumSq = 0, min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
+                double wSum = 0, wTotal = 0;
+                for (Player p : players) {
+                    double v = s.get().apply(p.getSkills()).doubleValue();
+                    sum += v;
+                    sumSq += v * v;
+                    min = Math.min(min, v);
+                    max = Math.max(max, v);
+                    long m = minutesByPlayer.getOrDefault(p.getId(), 0L);
+                    wSum += v * m;
+                    wTotal += m;
+                }
+                int n = players.size();
+                double mean = sum / n;
+                double sd = Math.sqrt(Math.max(0.0, sumSq / n - mean * mean));
+                double wMean = wTotal == 0 ? mean : wSum / wTotal;
+                weighted.put(s.name(), wMean);
+                if (Math.abs(mean - SimConfig.SCALE_AVG) > Math.abs(worstRosterDev)) {
+                    worstRosterDev = mean - SimConfig.SCALE_AVG;
+                    worstRosterSkill = s.name();
+                }
+                double dev = wMean - SimConfig.SCALE_AVG;
+                boolean flagged = Math.abs(dev) > FLAG_BAND;
+                if (flagged) {
+                    flaggedNames.add(s.name());
+                    if (unread(s)) flaggedUnread++; else flaggedRead++;
+                }
+                System.out.printf("  %-18s %6.2f %5.2f %5.1f %5.1f | %6.2f %+6.2f  %-4s %s%n",
+                        s.name(), mean, sd, min, max, wMean, dev,
+                        flagged ? (unread(s) ? "n/e" : "FLAG") : "", s.reaches());
+            }
+            System.out.println("  (n/e = flagged but not read by the engine: no effect)");
+
+            printOffsets(weighted);
+            printPerAttemptFreeThrows(players, ftaByPlayer);
+
+            String verdict = flaggedRead == 0 ? "NONE - no engine-read skill is off the scale"
+                    : flaggedRead == 1 ? "ONE SKILL - " + flaggedNames
+                    : "SYSTEMIC - " + flaggedRead + " engine-read skills flagged";
+            System.out.printf("Verdict: %s (%d flagged, %d of them unread): %s%n",
+                    verdict, flaggedRead + flaggedUnread, flaggedUnread, flaggedNames);
+            System.out.printf("Roster centre: widest roster mean is %s at %+.2f -> %s%n",
+                    worstRosterSkill, worstRosterDev,
+                    Math.abs(worstRosterDev) <= FLAG_BAND
+                            ? "the generator is centred; the min-wt lift is who plays, not how players are made"
+                            : "the generator itself is off the scale");
+            System.out.println("=====================================================================");
+            System.out.println();
+        }
+
+        // What each base constant absorbs: the minutes-weighted gap its formula sees, in the
+        // formula's own units, at full energy and before coach/shot-type multipliers.
+        static void printOffsets(Map<String, Double> w) {
+            double avg = SimConfig.SCALE_AVG;
+            double drive = (w.get("drive") + w.get("finishing")) / 2.0;
+            double foulGap = w.get("foulDrawing") - (2 * avg - w.get("foulProne"));
+            System.out.println("--- What each constant absorbs (on-floor means, not per-attempt) ---");
+            System.out.printf("  %-30s %-44s %7s %9s%n", "constant", "gap the formula sees", "gap", "effect");
+            offset("sim.ft-base", "freeThrows - 10", w.get("freeThrows") - avg, SimConfig.FT_SENSITIVITY);
+            offset("sim.base-assist", "passing - 10", w.get("passing") - avg, SimConfig.ASSIST_SENSITIVITY);
+            offset("sim.base-drive", "(drive+finishing)/2 - rimProtection",
+                    drive - w.get("rimProtection"), SimConfig.SENSITIVITY);
+            offset("sim.base-perimeter", "perimeter - (indDef+shotContest)/2",
+                    w.get("perimeter") - (w.get("individualDefense") + w.get("shotContest")) / 2.0,
+                    SimConfig.SENSITIVITY);
+            offset("sim.base-post", "post - individualDefense",
+                    w.get("post") - w.get("individualDefense"), SimConfig.SENSITIVITY);
+            offset("sim.base-three", "longRange - shotContest",
+                    w.get("longRange") - w.get("shotContest"), SimConfig.SENSITIVITY);
+            factor("all four make bases", "acumen - 10", w.get("acumen") - avg, SimConfig.ACUMEN_SENSITIVITY);
+            factor("all four make bases", "teamOffense - teamDefense",
+                    w.get("teamOffense") - w.get("teamDefense"), SimConfig.TEAM_EFFICIENCY_SENSITIVITY);
+            offset("sim.base-block-drive/post", "rimProtection - finishing",
+                    w.get("rimProtection") - w.get("finishing"), SimConfig.BLOCK_SENSITIVITY);
+            offset("sim.base-block-perimeter/three", "shotContest - finishing",
+                    w.get("shotContest") - w.get("finishing"), SimConfig.BLOCK_SENSITIVITY);
+            offset("sim.base-turnover", "(stealing+indDef)/2 - ballSecurity",
+                    (w.get("stealing") + w.get("individualDefense")) / 2.0 - w.get("ballSecurity"),
+                    SimConfig.SENSITIVITY);
+            offset("sim.base-no-basket-foul", "foulDrawing - (20 - foulProne)", foulGap, SimConfig.SENSITIVITY);
+            offset("sim.and-one-base", "foulDrawing - (20 - foulProne)", foulGap, SimConfig.AND_ONE_SENSITIVITY);
+            offset("sim.rebound-foul-base", "foulDrawing - (20 - foulProne)", foulGap,
+                    SimConfig.REBOUND_FOUL_SENSITIVITY);
+            offset("sim.base-offensive-rebound", "offenseRebound - defenseRebound",
+                    w.get("offenseRebound") - w.get("defenseRebound"), SimConfig.SENSITIVITY);
+            factor("sim.shot-share-drive", "(drive+finishing)/2 - 10", drive - avg, SimConfig.SHOT_MIX_SENSITIVITY);
+            factor("sim.shot-share-perimeter", "perimeter - 10", w.get("perimeter") - avg, SimConfig.SHOT_MIX_SENSITIVITY);
+            factor("sim.shot-share-post", "post - 10", w.get("post") - avg, SimConfig.SHOT_MIX_SENSITIVITY);
+            factor("sim.shot-share-three", "longRange - 10", w.get("longRange") - avg, SimConfig.SHOT_MIX_SENSITIVITY);
+            System.out.println("  (pp = probability points added at the base; x = multiplier on the base."
+                    + " Shot shares are renormalized, so only their spread matters.)");
+        }
+
+        // The one row with an independent check: realized FT% - ft-base should equal this effect.
+        static void printPerAttemptFreeThrows(List<Player> players, Map<String, Long> ftaByPlayer) {
+            double sum = 0, total = 0;
+            for (Player p : players) {
+                long fta = ftaByPlayer.getOrDefault(p.getId(), 0L);
+                sum += p.getSkills().getFreeThrows().doubleValue() * fta;
+                total += fta;
+            }
+            double mean = total == 0 ? SimConfig.SCALE_AVG : sum / total;
+            System.out.println("--- Per attempt: who actually shoots the free throws ---");
+            offset("sim.ft-base (per FTA)", "FTA-weighted freeThrows - 10",
+                    mean - SimConfig.SCALE_AVG, SimConfig.FT_SENSITIVITY);
+            System.out.printf("  (FTA-weighted mean freeThrows %.2f over %.0f attempts;"
+                    + " realized FT%% - ft-base should match the effect)%n", mean, total);
+        }
+
+        private static void offset(String constant, String formula, double gap, double sensitivity) {
+            System.out.printf("  %-30s %-44s %+7.2f %+7.2fpp%n",
+                    constant, formula, gap, 100.0 * sensitivity * gap / SimConfig.SCALE_AVG);
+        }
+
+        private static void factor(String constant, String formula, double gap, double sensitivity) {
+            System.out.printf("  %-30s %-44s %+7.2f   x%.3f%n",
+                    constant, formula, gap, 1.0 + sensitivity * gap / SimConfig.SCALE_AVG);
         }
     }
 }

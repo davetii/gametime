@@ -299,7 +299,8 @@ visible, and may be the instrument that diagnoses them:
   `SENSITIVITY` (0.5) still clamps the top ~24% of starters (`ballSecurity >= 14`) at `0.0`
   against average defense → [calibration.md](calibration.md) *Turnovers*.
 - **Per-player realism**: [risks.md](risks.md) "Skill formula balance" and "Seed data
-  realism" wait on per-player season lines; `gametime-rdo`, `gametime-9up`.
+  realism" wait on per-player season lines; `gametime-9up`. Population means are measured:
+  [calibration.md](calibration.md) *Skill population against the scale*.
 
 ---
 
