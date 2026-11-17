@@ -27,7 +27,8 @@ if (**rebounding foul?**\n//rareEventProbability, own base + sensitivity//\n//×
     rebound weights.
      **TWO-SIDED**: a defensive box-out push (dominant) or an
     offensive over-the-back (the minority). The committer is
-    drawn //foulProne//-weighted from the committing five.
+    drawn from the committing five, weighted by //foulProne//
+    × his foul-trouble keep value.
   end note
   :FOUL — REBOUNDING
   committingTeamId = the committing side

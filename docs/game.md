@@ -111,6 +111,11 @@ for both teams. Step 1 precedes step 3 because the shot type feeds the foul roll
   stopped-shot foul into shooting or non-shooting), step 7's rebounding foul, and step 2's
   charge. The step-3 roll is named for stopping the shot, not for being non-shooting.
 - **Flagrant is asked before non-shooting**, so a flagrant common foul is just a flagrant.
+- **A defender in foul trouble may hand a foul off.** When a stopped-shot foul or an and-1
+  is rolled, the drawn defender wears it with a probability set by his foul count (1.0
+  below 3 fouls); otherwise one of his four teammates on the floor is charged, drawn by
+  `foulProne`. Whether the foul happens does not depend on his foul count. The same value
+  lowers his weight in the rebounding-foul committer draw. A charge is never handed off.
 - **A `NON_SHOOTING_FOUL` ends the possession; the ball does not come back.** This is
   knowingly unlike basketball. Returning the ball would re-enter at `ShotSelector` for a
   live attempt where the stopped shot charged none, and FGA has under one attempt of

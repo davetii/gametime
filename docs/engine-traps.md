@@ -107,7 +107,15 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   the number by nothing**. The binding constraint is that an earned return sends the
   player back into the same over-dispersed defender draw that gave him the fouls;
   benching harder returns him *sooner*. **Do not simply raise the sit curve.**
-  → **#031 impl note + follow-up**
+  → **#031 impl note + follow-up** *(#047: the defender draw is not the cause — see the next line.)*
+- **Spreading fouls evenly across the five barely moves foul-outs.** Redrawing 75% of
+  shooting-site fouls across the five by `foulProne` took foul-outs 0.38 → 0.32 and left the
+  4 and 5 rows where they were. Fouls handed out purely by minutes played still give about
+  0.26 foul-outs (a Poisson estimate, not a harness run). **Concentration is not the cause.**
+  → **#047**
+- **The 5-foul row ignores `foul-trouble-keep-probabilities`.** It reads 0.57–0.59 on every
+  curve from `0.80/0.60` to `0.50/0.25`. Only the 4 and 6 rows respond, in opposite
+  directions. → **#047**
 - **`FOUL_TROUBLE_FRESHNESS_MARGIN`: a LARGER margin makes foul-outs WORSE.** Sweep:
   12 → 0.53 (vetoed ~69% of fired rolls), 8 → 0.46, 4 → 0.51, 2 → 0.40, **1 → 0.377**,
   0 → 0.40. Both ends bad. **1.0 is optimal and sits BELOW one possession's drain (2.6)** —
@@ -205,7 +213,13 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
   → **#042 D3 · #043**
 - **`pickDefender`'s over-dispersion was NOT reduced** — it is where the 2.3× foul
   concentration actually lives, but touching it would delete correct realism and silently
-  move calibrated blocks/steals/contests. → **#031 follow-up (2)**
+  move calibrated blocks/steals/contests. → **#031 follow-up (2)** *(#047 measured that
+  removing the concentration would not fix foul-outs anyway.)*
+- **Scaling the foul ROLL by the defender's foul count fixes foul-outs and breaks the
+  totals.** A `0.50/0.25` multiplier at 4/5 fouls lands 0.11 foul-outs but costs 1.1 FTA and
+  0.55 fouls and adds 0.66 FGA. The handoff was chosen because it moves who wears a foul,
+  not whether it happens. ⚠ Lowering foul-outs by any means lifts fouls and FTA about 0.3:
+  players who would have fouled out stay on and keep fouling. → **#047**
 - **Three consecutive passes declined the shot-`BASE_*` trim** (§3.10 stopped at 113.8,
   §3.11 and §3.12 took none) — each because it cost more calibrated FG% than the points
   miss was worth. **That is evidence about the TARGET, not about the passes**, and it is
@@ -271,7 +285,7 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
 ### Where a value came from — knob → `#NNN` index
 
 ⚠ **The VALUES are not repeated here, deliberately.** They live authoritatively in
-`application-baseline.properties` (63 tunables) and `SimConfig` (29 statics) since **#035**
+`application-baseline.properties` (64 tunables) and `SimConfig` (29 statics) since **#035**
 — read them there, where they cannot go stale. **This index answers the other question:
 *why* is a value what it is.** Follow the number to `decisions.md`.
 
@@ -286,7 +300,8 @@ Where two records disagree, the newer `#NNN` wins and the line below says so.
 - **And-1** — `AND_ONE_BASE`, `AND_ONE_SENSITIVITY`, `AND_ONE_FREE_THROWS` → **#029**
 - **Foul multipliers** — `FOUL_MULT_DRIVE/POST/PERIMETER/THREE` → **#030**
 - **Foul trouble** — the sit curve, `VALUE_SENSITIVITY`, `STARTER_BONUS`,
-  `BENCH_DISCOUNT_PER_SLOT`, `MIN_ROSTER_FACTOR`, `FRESHNESS_MARGIN` → **#031**
+  `BENCH_DISCOUNT_PER_SLOT`, `MIN_ROSTER_FACTOR`, `FRESHNESS_MARGIN` → **#031**;
+  `foul-trouble-keep-probabilities` → **#047**
 - **Technicals** — `TECHNICAL_FOULS_PER_TEAM_GAME` → **#032**; **Flagrants** —
   `FLAGRANT_FOULS_PER_TEAM_GAME`, `FLAGRANT_EJECTION_LIMIT` → **#034**
 - **Shot bases and mix** — `base-drive/post/perimeter` (⚠ `base-three` deliberately

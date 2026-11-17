@@ -73,7 +73,9 @@ case (MADE)
     end note
   endif
   if (**and-1?**\n//shooter foulDrawing vs defender discipline//\n//× foulMultiplier(shotType) — the SAME shared table//) then (yes)
-    :FOUL — AND_ONE  (+ the defender charged)
+    :FOUL — AND_ONE  (+ the committer charged:
+    the defender, or a teammate if he hands it off —
+    see possession-flow-foul.puml)
     :FREE_THROW ×**1** — *_AND_ONE
     //ONE for every shot type, a made three included//;
     note right

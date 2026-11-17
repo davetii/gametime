@@ -143,7 +143,7 @@ public class PossessionEngine {
             return AttemptResult.END;
         }
         if (foulResolver.isFoul(shotType, shooter, defender, matchup.defensivePressure(), rng)) {
-            return resolveStoppedShotFoul(p, shooter, defender, shotType, capReached);
+            return resolveStoppedShotFoul(p, shooter, foulCommitter(p, defender), shotType, capReached);
         }
 
         shooter.recordFieldGoalAttempt();
@@ -257,14 +257,26 @@ public class PossessionEngine {
                 matchup.defensivePressure(), p.rng())) {
             return AttemptResult.END;
         }
+        PlayerGameState committer = foulCommitter(p, defender);
         // Flagrant and-1: the basket stands, 2 FTs, and the offense keeps the ball (#034 B/C).
         if (foulResolver.isFlagrant(p.rng())) {
-            defender.recordFoul();
-            awardFlagrant(p, defender, shooter, shooter.getPlayerId(), p.offTeamId());
+            committer.recordFoul();
+            awardFlagrant(p, committer, shooter, shooter.getPlayerId(), p.offTeamId());
             return AttemptResult.retain(null); // no board ran (#044 C)
         }
         // The and-1 FT is live and can be rebounded (#043 C).
-        return awardAndOne(p, shooter, defender, capReached);
+        return awardAndOne(p, shooter, committer, capReached);
+    }
+
+    // A defender in foul trouble may hand a foul already rolled to a teammate (#047).
+    PlayerGameState foulCommitter(Possession p, PlayerGameState defender) {
+        double keep = defender.foulKeepProbability();
+        if (keep >= 1.0 || p.rng().nextDouble() < keep) {
+            return defender;
+        }
+        List<PlayerGameState> teammates = new ArrayList<>(p.defense());
+        teammates.remove(defender);
+        return teammates.isEmpty() ? defender : foulResolver.pickCommitter(teammates, p.rng());
     }
 
     private AttemptResult resolveMissedShot(Possession p, Matchup matchup,

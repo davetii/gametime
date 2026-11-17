@@ -772,4 +772,73 @@ class FoulResolverTest {
                     "isFoul's RNG consumption must be unchanged by §3.16");
         }
     }
+
+    // --- foul-trouble-keep-probabilities (gametime-1pl) ---
+
+    private static final SimConfig CAUTIOUS =
+            TestPlayerFactory.baselineWith("sim.foul-trouble-keep-probabilities", "1.0,1.0,1.0,1.0,0.5,0.25,1.0");
+
+    private static PlayerGameState cautious(String id, int fouls) {
+        PlayerGameState p = TestPlayerFactory.create(CAUTIOUS, id, "A", 10);
+        for (int i = 0; i < fouls; i++) {
+            p.recordFoul();
+        }
+        return p;
+    }
+
+    private static double rate(java.util.function.BooleanSupplier roll, int trials) {
+        int hits = 0;
+        for (int i = 0; i < trials; i++) {
+            if (roll.getAsBoolean()) {
+                hits++;
+            }
+        }
+        return hits / (double) trials;
+    }
+
+    @Test
+    void baselineKeepCurveStartsAtThreeFoulsAndOnlyFalls() {
+        SimConfig base = SimConfig.baseline();
+        for (int f = 0; f < 3; f++) {
+            assertEquals(1.0, base.foulTroubleKeepProbability(f), 0.0);
+        }
+        for (int f = 3; f < base.foulOutLimit(); f++) {
+            double keep = base.foulTroubleKeepProbability(f);
+            assertTrue(keep > 0.0 && keep < 1.0, "fouls " + f);
+            assertTrue(keep < base.foulTroubleKeepProbability(f - 1), "fouls " + f);
+        }
+        assertEquals(base.foulTroubleKeepProbability(0), base.foulTroubleKeepProbability(-1), 0.0);
+        assertEquals(base.foulTroubleKeepProbability(6), base.foulTroubleKeepProbability(99), 0.0);
+    }
+
+    @Test
+    void foulCountNeverChangesWhetherAFoulHappens() {
+        FoulResolver resolver = new FoulResolver(CAUTIOUS);
+        PlayerGameState shooter = TestPlayerFactory.create(CAUTIOUS, "s", "H", 10);
+        int trials = 20_000;
+        for (int fouls : new int[] {4, 5}) {
+            RandomGenerator a = RandomGeneratorFactory.of("L64X128MixRandom").create(5);
+            RandomGenerator b = RandomGeneratorFactory.of("L64X128MixRandom").create(5);
+            PlayerGameState clean = cautious("d0", 0);
+            PlayerGameState troubled = cautious("dN", fouls);
+            for (int i = 0; i < trials; i++) {
+                assertEquals(resolver.isFoul(ShotType.DRIVE, shooter, clean, 1.0, a),
+                        resolver.isFoul(ShotType.DRIVE, shooter, troubled, 1.0, b));
+                assertEquals(resolver.isAndOne(ShotType.DRIVE, shooter, clean, 1.0, a),
+                        resolver.isAndOne(ShotType.DRIVE, shooter, troubled, 1.0, b));
+            }
+        }
+    }
+
+    @Test
+    void aCautiousPlayerIsDrawnLessOftenAsTheCommitter() {
+        FoulResolver resolver = new FoulResolver(CAUTIOUS);
+        PlayerGameState troubled = cautious("t", 5);
+        List<PlayerGameState> five = List.of(troubled, cautious("a", 0), cautious("b", 0),
+                cautious("c", 0), cautious("d", 0));
+        RandomGenerator rng = java.util.random.RandomGeneratorFactory.of("L64X128MixRandom").create(8);
+        double share = rate(() -> resolver.pickCommitter(five, rng) == troubled, 100_000);
+        // weight 0.25 against four at 1.0
+        assertEquals(0.25 / 4.25, share, 0.01);
+    }
 }

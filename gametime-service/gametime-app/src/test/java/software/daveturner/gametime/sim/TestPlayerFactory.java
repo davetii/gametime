@@ -55,6 +55,45 @@ class TestPlayerFactory {
                                   double offenseRebound, double defenseRebound,
                                   double teamOffense, double teamDefense,
                                   double passing, double acumen) {
+        return create(config, id, teamId, drive, finishing, perimeter, post, longRange,
+                ballSecurity, freeThrows, foulDrawing, individualDefense, rimProtection,
+                shotContest, stealing, foulProne, offenseRebound, defenseRebound,
+                teamOffense, teamDefense, passing, acumen);
+    }
+
+    // An all-one-skill player bound to a non-baseline config.
+    static PlayerGameState create(SimConfig cfg, String id, String teamId, double s) {
+        return create(cfg, id, teamId, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s);
+    }
+
+    // The baseline profile with one key overridden.
+    static SimConfig baselineWith(String key, String value) {
+        java.util.Properties props = new java.util.Properties();
+        try (java.io.InputStream in = SimConfig.class.getClassLoader()
+                .getResourceAsStream(SimConfig.BASELINE_PROFILE_RESOURCE)) {
+            props.load(in);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        props.setProperty(key, value);
+        org.springframework.core.env.StandardEnvironment env =
+                new org.springframework.core.env.StandardEnvironment();
+        env.getPropertySources().addFirst(
+                new org.springframework.core.env.PropertiesPropertySource("test", props));
+        return new org.springframework.boot.context.properties.bind.Binder(
+                org.springframework.boot.context.properties.source.ConfigurationPropertySources.get(env))
+                .bind("sim", SimConfig.class).get();
+    }
+
+    static PlayerGameState create(SimConfig cfg, String id, String teamId,
+                                  double drive, double finishing, double perimeter,
+                                  double post, double longRange, double ballSecurity,
+                                  double freeThrows, double foulDrawing,
+                                  double individualDefense, double rimProtection,
+                                  double shotContest, double stealing, double foulProne,
+                                  double offenseRebound, double defenseRebound,
+                                  double teamOffense, double teamDefense,
+                                  double passing, double acumen) {
         Player player = new Player();
         player.setId(id);
         PlayerSkills skills = new PlayerSkills();
@@ -83,7 +122,7 @@ class TestPlayerFactory {
         entry.setPlayer(player);
         entry.setLineupRole(LineupRole.STARTER);
 
-        return new PlayerGameState(id, teamId, entry, config);
+        return new PlayerGameState(id, teamId, entry, cfg);
     }
 
     /**

@@ -41,7 +41,8 @@ whether it is a league average or per-team mean, and whether it is pace-adjusted
 
 Per team per game unless noted. **Current** is the 5-seed mean (seeds 1000–5000) on the
 `baseline` profile, re-measured 2026-10-04 at the pre-Phase-4 gate (`gametime-6q5`). Every
-row reproduced the putback landing (2026-09) to the printed decimal. Sourced rows are Basketball-Reference
+row reproduced the putback landing (2026-09) to the printed decimal. The fouls, FTA, foul-out and
+4 / 5 / 6 rows were re-measured 2026-11 with the foul handoff. Sourced rows are Basketball-Reference
 league averages, per game, 2025-26.
 
 **Type:** `TARGET` = calibrated, steer by it. `ballpark` = a plausibility range; judge
@@ -61,8 +62,8 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Blocks | TARGET (sourced) | 4.8 | 4.81 | On target. The block roll is floor-free (`clampRareProbability`), so all four `base-block-*` are live. Scale the four together to keep their ratios, and expect ~0.55 elasticity |
 | Top-starter minutes | TARGET (sourced) | ~34–36 | ~36.1 | Real is 35.5. See *Sources for the foul and minutes rows* |
 | Minutes ceiling | TARGET (sourced) | nobody over ~42 | ok | Real: a player tops 42 in 3.6% of team-games, overtime included |
-| Fouls | TARGET (sourced) | 19.9 | 19.35 | **Residual (−0.55).** Lever is `base-no-basket-foul`. Over-determined with FGA: each extra foul costs **1.49 FGA**, so closing the gap would pull FGA out of band. It moves only as a side effect of re-landing FGA. `PERSONAL_FOULS_PER_TEAM_GAME` (the flagrant divisor) must be re-measured whenever the foul rate moves |
-| FTA | TARGET (sourced) | 23.5 | 23.58 | `sim.non-shooting-foul-share`. See *Non-shooting-foul share* |
+| Fouls | TARGET (sourced) | 19.9 | 19.37 | **Residual (−0.53).** Lever is `base-no-basket-foul`. Over-determined with FGA: each extra foul costs **1.49 FGA**, so closing the gap would pull FGA out of band. It moves only as a side effect of re-landing FGA. `PERSONAL_FOULS_PER_TEAM_GAME` (the flagrant divisor) must be re-measured whenever the foul rate moves |
+| FTA | TARGET (sourced) | 23.5 | 23.56 | `sim.non-shooting-foul-share`. See *Non-shooting-foul share* |
 | FT% | TARGET (sourced) | 78.0% | 77.64% | `sim.ft-base`. Realized FT% is `ftBase + 0.20 × (freeThrows − 10)/10` and the roster mean `freeThrows` is ~13.8, so the base is not the landing |
 | 3PA | TARGET (sourced) | 37.0 | 36.96 | `sim.shot-share-*`. Charged three share is 41.3% vs a real 41.5% |
 | FGA | TARGET (sourced) | 89.1 | 89.40 | `sim.base-no-basket-foul`, **not** `non-shooting-foul-share` (both foul branches return before an attempt is charged). Bought against Fouls |
@@ -70,8 +71,8 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Def rebounds | TARGET (sourced) | 32.4 | 31.55 | **Residual (−0.85), reported not tuned.** The pool total itself is 43.45 vs 43.70. See *Rebound pool* |
 | Pace (poss/48) | TARGET (sourced) | 99.4 | ~100 nominal | |
 | Steals | observed | 8.4 | 8.24 | **Derived, not tuned**: turnovers × the `STOLEN` share. Do not chase 8.4; the nine `to-weight-*` are frozen and the share is not a lever |
-| Foul-outs | ballpark (sourced) | 0.106 | 0.386 | Moves with every FGA re-landing on the foul lever. Do not chase. See *Foul-outs* |
-| Players at 4 / 5 / 6 fouls | ballpark (sourced) | 1.01 / 0.43 / 0.11 | 1.01 / 0.56 / 0.39 | The real diagnostic for foul-outs |
+| Foul-outs | ballpark (sourced) | 0.106 | 0.210 | `sim.foul-trouble-keep-probabilities`. Also moves with every FGA re-landing on the foul lever. See *Foul-outs* |
+| Players at 4 / 5 / 6 fouls | ballpark (sourced) | 1.01 / 0.43 / 0.11 | 1.10 / 0.58 / 0.21 | The real diagnostic for foul-outs |
 | Technicals | ballpark (soft source) | ~0.31–0.34 | 0.335 | 5 seeds only. See *Technicals* |
 | Flagrants | ballpark (soft source) | ~0.10–0.12 | 0.159 | 5 seeds only; coarsest row. See *Flagrants* |
 | Flagrant-2s | none | | 0.027 | The ejection driver (15% share of flagrants) |
@@ -186,16 +187,26 @@ rows:
 
 Judge by the **4/5/6 distribution**, not the headline count.
 
-- The real figure is 0.106 and the engine is about 3.6× it. Whether to close the gap is
-  undecided.
-- **The 4-foul row matches the real one (1.01); the excess is all in 4 → 5 → 6.** The
-  engine reaches 4 fouls at the real rate and then converts too many of those players.
+- The real figure is 0.106 and the engine sits at about twice it. That is the accepted
+  landing: closing the rest costs the 4-foul row more than it gains.
+- **The lever is `sim.foul-trouble-keep-probabilities`**, indexed by a defender's foul
+  count: the chance he wears a foul he was drawn for. Otherwise a teammate on the floor is
+  charged. It moves who wears a foul, never whether it happens.
+- **A steeper curve trades foul-outs for players at 4.** Keeping `0.50 / 0.25` at 4 / 5
+  fouls reaches 0.15 foul-outs but puts 1.31 players on 4. Starting the curve at 3 fouls
+  eases that pile-up.
+- **The 5-foul row does not respond to the curve.** It sits near 0.58 on every setting.
+- **Too many players reach 4 fouls at all**: about 1.9 against a real 1.55. No lever is
+  known for this, and the handoff adds slightly to it.
+- **Re-check FTA after moving the curve.** Fewer foul-outs lift fouls and FTA by about 0.3
+  each. Re-land FTA on `sim.non-shooting-foul-share`.
 - **The foul-trouble bench lever is saturated. Do not re-tune the sit curve.** Sitting a
   player prevents some sixth fouls but returns him to the floor later, trading one
   disqualification for another.
 - **Do not trim the foul rate to reduce foul-outs.** It breaks FTA and points, which are
-  sourced. The root cause is defender-selection over-dispersion (the same defenders are
-  picked too often), not foul volume.
+  sourced.
+- **Spreading fouls evenly across the five does not reduce foul-outs.** See
+  `engine-traps.md`.
 
 ## Technicals
 

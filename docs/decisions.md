@@ -439,3 +439,16 @@ Roster membership stays DERIVED from `player_team` (no row = free agent), never 
 - **B** — the four bases scale **×1.5 together**, keeping #025's ratios: `base-block-drive` 0.084, `-post` 0.072, `-perimeter` 0.0345, `-three` 0.0075. Blocks land **4.81** (5 seeds) against 4.8.
 - **C** — ⚠ the reroute alone cost 0.68 blocks (4.42 → 3.74): the floor was holding up weak-blocker matchups on every shot type, not just threes. The reroute and the re-tune are one change.
 - **D** — `PROB_FLOOR` itself stays, and **`base-turnover` stays on it** (#042 D4): that constant was tuned against the floor, so moving it is its own pass.
+
+### 047 — The foul handoff (`gametime-1pl`)
+
+**Date**: 2026-11
+
+- **A** — **a defender in foul trouble may hand a foul to a teammate.** The foul roll is untouched. `PossessionEngine.foulCommitter` runs after a stopped-shot foul or an and-1 is rolled: the drawn defender keeps it with `sim.foul-trouble-keep-probabilities[fouls]`, otherwise one of his four on-floor teammates is charged, drawn by `foulProne`.
+- **B** — the curve is `1, 1, 1, 0.90, 0.70, 0.40, 1` (index = foul count). Foul-outs land **0.21** (5 seeds) from 0.38, against a real 0.106; players at 4 / 5 land 1.10 / 0.58. The landing is a user call: about 0.2 was accepted to protect the 4-foul row.
+- **C** — the same curve multiplies his weight in `FoulResolver.pickCommitter`, so rebounding fouls also drift away from him. Charges are not handed off.
+- **D** — a flagrant follows the new committer: it is rolled on the same foul.
+- **E** — `sim.non-shooting-foul-share` 0.4123 → **0.427**. Fewer foul-outs raised FTA by about 0.3; it lands 23.56.
+- **F** — ⚠ the handoff draw is **conditional**: it is taken only when the drawn defender's keep value is below 1. An all-1.0 curve consumes no RNG and reproduces the previous engine line for line.
+- **G** — ⚠ rejected: scaling the foul **roll** by foul count. It reaches 0.11 foul-outs but removes fouls (−1.1 FTA, −0.55 fouls, +0.66 FGA). Also rejected (user calls): changing who a player defends, and a matchup model.
+- **H** — who defends, the sit curve and the return path are unchanged. The bead stays open: about 1.9 players reach 4 fouls against a real 1.55, and nothing here reduces that.

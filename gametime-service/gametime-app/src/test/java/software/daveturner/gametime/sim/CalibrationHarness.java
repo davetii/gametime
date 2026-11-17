@@ -1078,7 +1078,8 @@ class CalibrationHarness {
                             + " \u00a73.16 raised it to ~0.52: charges now count, #039 G. \u00a73.17's lower foul rate took it"
                             + " back DOWN to ~0.31 — a by-product of the shot mix, not a"
                             + " re-tune; the \u00a73.13 sit curve is untouched and measured"
-                            + " saturated, #031)%n",
+                            + " saturated, #031. #047's foul handoff took it 0.38 -> 0.21 via"
+                            + " sim.foul-trouble-keep-probabilities; ~0.2 is the accepted landing)%n",
                     foulOuts / tg);
             System.out.printf("  Players at 4 / 5 / 6 fouls per team/game: %.2f / %.2f / %.2f"
                             + "   (of %.1f who played; real 1.01 / 0.43 / 0.11)%n",

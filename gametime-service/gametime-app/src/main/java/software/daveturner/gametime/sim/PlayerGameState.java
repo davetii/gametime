@@ -296,6 +296,11 @@ public class PlayerGameState {
         return Math.min(fouls, config.foulOutLimit());
     }
 
+    /** Chance he wears his own foul given his foul count: 1.0 = always (#047). */
+    public double foulKeepProbability() {
+        return config.foulTroubleKeepProbability(foulTroubleLevel());
+    }
+
     /**
      * §3.13 (decisions.md #031 B): this player's <b>value to his team</b>, on the
      * same 1–20 avg-10 scale as the skills it is built from — the input that makes

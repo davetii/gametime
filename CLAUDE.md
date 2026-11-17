@@ -235,7 +235,7 @@ JAVA_HOME=/Users/dave/.sdkman/candidates/java/21.0.9-tem mvn spring-boot:run -pl
   `SimConfig.baseline()`.
 - **The tunable count lives in FOUR places that move together**: the header comment,
   `baseline()`'s javadoc, its error message, and `SimConfigProfileBindingTest.EXPECTED_TUNABLE`.
-  Currently **63 tunables / 29 statics**.
+  Currently **64 tunables / 29 statics**.
 - Sim profiles are ordinary Spring profiles composed with the infra ones
   (`local,baseline`); era profiles are deltas over `baseline`, so it must stay in the list.
 - **`game_event`'s two participant columns are different kinds of fact.**

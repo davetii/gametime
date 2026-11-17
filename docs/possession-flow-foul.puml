@@ -28,7 +28,11 @@ note right
 end note
 
 if (**foul?**\n//foulDrawing vs (20 − foulProne)//\n//× foulMultiplier(shotType)//\n//× fatigueFactor per player//) then (yes)
-  :**defender.recordFoul()** — the foul is CHARGED here
+  :**who wears it?** — //foulCommitter//
+  //the drawn defender keeps it with//
+  //foul-trouble-keep-probabilities[his fouls] (1.0 below 3);//
+  //otherwise one of his four teammates, drawn by foulProne//
+  **committer.recordFoul()** — the foul is CHARGED here
   //NO event is emitted yet — the two rolls below decide WHICH//
   //foul event this becomes. Exactly ONE is ever emitted, and//
   //the charge is what holds the foul TOTAL by construction//;

@@ -264,12 +264,12 @@ public class FoulResolver {
     PlayerGameState pickCommitter(List<PlayerGameState> players, RandomGenerator rng) {
         double totalWeight = 0;
         for (PlayerGameState p : players) {
-            totalWeight += p.getFoulProne();
+            totalWeight += p.getFoulProne() * p.foulKeepProbability();
         }
         double roll = rng.nextDouble() * totalWeight;
         double cumulative = 0;
         for (PlayerGameState p : players) {
-            cumulative += p.getFoulProne();
+            cumulative += p.getFoulProne() * p.foulKeepProbability();
             if (roll < cumulative) return p;
         }
         return players.get(players.size() - 1);

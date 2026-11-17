@@ -57,7 +57,7 @@ class SimConfigProfileBindingTest {
             // measured (1)
             "PERSONAL_FOULS_PER_TEAM_GAME");
 
-    private static final int EXPECTED_TUNABLE = 63;
+    private static final int EXPECTED_TUNABLE = 64;
 
     /** Every tunable field is final and takes its value only from the properties file. */
     @Test

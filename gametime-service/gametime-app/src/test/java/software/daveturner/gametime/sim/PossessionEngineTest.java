@@ -2825,10 +2825,13 @@ class PossessionEngineTest {
         // (0.99 = unassisted), and-1 (0.0 = yes), flagrant (0.0), grade-1 (0.99),
         // then the two FT make rolls.
         double[] iteration = { 0.5, 0.5, 0.5, 0.99, 0.99, 0.99, 0.0, 0.99, 0.0, 0.0, 0.99, 0.5, 0.5 };
-        double[] script = new double[iteration.length * 4];
-        for (int i = 0; i < 4; i++) {
+        // The fourth foul finds the same defender on 3, so a keep-or-hand-off roll precedes the flagrant roll.
+        double[] fourth = { 0.5, 0.5, 0.5, 0.99, 0.99, 0.99, 0.0, 0.99, 0.0, 0.0, 0.0, 0.99, 0.5, 0.5 };
+        double[] script = new double[iteration.length * 3 + fourth.length];
+        for (int i = 0; i < 3; i++) {
             System.arraycopy(iteration, 0, script, i * iteration.length, iteration.length);
         }
+        System.arraycopy(fourth, 0, script, 3 * iteration.length, fourth.length);
         resolvePossession(data, offense, defense, "OFF", "DEF", 1, 1,
                 new ScriptedRng(0.5, script));
 
@@ -3196,4 +3199,123 @@ class PossessionEngineTest {
                 data.getHomePossessions());
     }
 
+    // --- foul handoff (gametime-1pl) ---
+
+    private static final SimConfig HANDOFF =
+            TestPlayerFactory.baselineWith("sim.foul-trouble-keep-probabilities", "1.0,1.0,1.0,1.0,0.5,0.25,1.0");
+
+    private static PossessionEngine engineFor(SimConfig cfg) {
+        ReboundResolver rebound = new ReboundResolver(cfg);
+        return new PossessionEngine(new ShotSelector(cfg), new ShotResolver(cfg),
+                new TurnoverResolver(cfg), new FoulResolver(cfg), new BlockResolver(cfg),
+                new MissedShotResolver(rebound, cfg), rebound, cfg);
+    }
+
+    private static List<PlayerGameState> handoffFive(int foulsOnFirst) {
+        List<PlayerGameState> five = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            five.add(TestPlayerFactory.create(HANDOFF, "A-p" + i, "A", 10));
+        }
+        for (int i = 0; i < foulsOnFirst; i++) {
+            five.get(0).recordFoul();
+        }
+        return five;
+    }
+
+    private Possession defendedPossession(List<PlayerGameState> defense, RandomGenerator rng) {
+        return new Possession(new GameData(), "H", "A", teamOf5("H", 10), defense, 1, 1, rng);
+    }
+
+    @Test
+    void anAllOnesCurveNeverHandsAFoulOffAndConsumesNoRng() {
+        SimConfig off = TestPlayerFactory.baselineWith(
+                "sim.foul-trouble-keep-probabilities", "1.0,1.0,1.0,1.0,1.0,1.0,1.0");
+        PossessionEngine noHandoff = engineFor(off);
+        List<PlayerGameState> defense = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            defense.add(TestPlayerFactory.create(off, "A-p" + i, "A", 10));
+        }
+        for (int i = 0; i < 5; i++) {
+            defense.get(0).recordFoul();
+        }
+        RandomGenerator used = rng(7);
+        Possession p = defendedPossession(defense, used);
+        for (int i = 0; i < 50; i++) {
+            assertSame(defense.get(0), noHandoff.foulCommitter(p, defense.get(0)));
+        }
+        assertEquals(rng(7).nextDouble(), used.nextDouble(), "no draw may be taken on an all-1.0 curve");
+    }
+
+    @Test
+    void aDefenderOnTwoFoulsOrFewerNeverHandsOffOnTheBaselineCurve() {
+        for (int fouls = 0; fouls <= 2; fouls++) {
+            List<PlayerGameState> defense = teamOf5("A", 10);
+            for (int i = 0; i < fouls; i++) {
+                defense.get(0).recordFoul();
+            }
+            RandomGenerator used = rng(7);
+            Possession p = defendedPossession(defense, used);
+            assertSame(defense.get(0), engine.foulCommitter(p, defense.get(0)));
+            assertEquals(rng(7).nextDouble(), used.nextDouble());
+        }
+    }
+
+    @Test
+    void aDefenderBelowTheCurveAlwaysWearsHisOwnFoul() {
+        PossessionEngine handoff = engineFor(HANDOFF);
+        List<PlayerGameState> defense = handoffFive(3);
+        Possession p = defendedPossession(defense, rng(9));
+        for (int i = 0; i < 200; i++) {
+            assertSame(defense.get(0), handoff.foulCommitter(p, defense.get(0)));
+        }
+    }
+
+    @Test
+    void aDefenderOnFiveFoulsKeepsHisFoulAtTheCurveRateAndTeammatesShareTheRest() {
+        PossessionEngine handoff = engineFor(HANDOFF);
+        List<PlayerGameState> defense = handoffFive(5);
+        Possession p = defendedPossession(defense, rng(11));
+        Map<PlayerGameState, Integer> counts = new HashMap<>();
+        int trials = 8_000;
+        for (int i = 0; i < trials; i++) {
+            counts.merge(handoff.foulCommitter(p, defense.get(0)), 1, Integer::sum);
+        }
+        assertEquals(new HashSet<>(defense), counts.keySet(), "only the defensive five");
+        assertEquals(0.25, counts.get(defense.get(0)) / (double) trials, 0.02);
+        for (PlayerGameState mate : defense.subList(1, 5)) {
+            assertEquals(0.75 / 4, counts.get(mate) / (double) trials, 0.02);
+        }
+    }
+
+    @Test
+    void aLoneDefenderHasNobodyToHandTo() {
+        PossessionEngine handoff = engineFor(HANDOFF);
+        List<PlayerGameState> defense = handoffFive(5).subList(0, 1);
+        Possession p = defendedPossession(defense, rng(3));
+        for (int i = 0; i < 50; i++) {
+            assertSame(defense.get(0), handoff.foulCommitter(p, defense.get(0)));
+        }
+    }
+
+    @Test
+    void handedOffFoulsStillLandOnTheDefendingTeam() {
+        PossessionEngine handoff = engineFor(HANDOFF);
+        List<PlayerGameState> home = new ArrayList<>();
+        List<PlayerGameState> away = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            home.add(TestPlayerFactory.create(HANDOFF, "H-p" + i, "H", 10));
+            away.add(TestPlayerFactory.create(HANDOFF, "A-p" + i, "A", 10));
+        }
+        GameData data = handoff.simulate(
+                new TeamContext("H", new RotationState(home, CoachModifiers.neutral(), HANDOFF), CoachModifiers.neutral()),
+                new TeamContext("A", new RotationState(away, CoachModifiers.neutral(), HANDOFF), CoachModifiers.neutral()),
+                25, rng(42));
+        Set<String> shootingSite = Set.of("SHOOTING_FOUL", "NON_SHOOTING_FOUL", "AND_ONE");
+        long fouls = data.getEvents().stream()
+                .filter(e -> e.playType() == PlayType.FOUL && shootingSite.contains(e.outcome()))
+                .peek(e -> assertEquals(e.defTeamId(), e.primaryPlayerId().substring(0, 1)))
+                .peek(e -> assertEquals(e.offTeamId(), e.opponentPlayerId().substring(0, 1)))
+                .count();
+        assertTrue(fouls > 0);
+    }
 }

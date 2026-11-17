@@ -48,7 +48,7 @@ public class SimConfig {
       public static final       a RULE of basketball or the SHAPE of the model.
                                 Not a knob. 29 of them.
       private final + accessor  a tunable knob, bound by Spring from
-                                application-baseline.properties. 63 of them.
+                                application-baseline.properties. 64 of them.
 
     The instance fields take NO INITIALIZERS: the values exist only in the
     properties file, and a missing key fails the context at startup. Adding a
@@ -694,6 +694,9 @@ public class SimConfig {
      */
     private final double nonShootingFoulShare;
 
+    /** Chance, by his foul count, that a defender wears his own foul and does not hand it to a teammate (#047). */
+    private final double[] foulTroubleKeepProbabilities;
+
     /**
      * §3.17 (decisions.md #040 C/J/K): THE SHOT-MIX SHARE TABLE — the league's base
      * distribution over the four ShotTypes, as RAW WEIGHTS normalized at the call site
@@ -1167,6 +1170,7 @@ public class SimConfig {
             @DecimalMin("0.0") double flagrantFoulsPerTeamGame,
             @DecimalMin("0.0") @DecimalMax("1.0") double flagrantTwoShare,
             @DecimalMin("0.0") @DecimalMax("1.0") double nonShootingFoulShare,
+            @NotNull @Size(min = 7, max = 7, message = "sim.foul-trouble-keep-probabilities must have exactly 7 entries (foul counts 0-6)") double[] foulTroubleKeepProbabilities,
             @DecimalMin("0.0") double shotShareDrive,
             @DecimalMin("0.0") double shotSharePerimeter,
             @DecimalMin("0.0") double shotSharePost,
@@ -1230,6 +1234,7 @@ public class SimConfig {
         this.flagrantFoulsPerTeamGame = flagrantFoulsPerTeamGame;
         this.flagrantTwoShare = flagrantTwoShare;
         this.nonShootingFoulShare = nonShootingFoulShare;
+        this.foulTroubleKeepProbabilities = foulTroubleKeepProbabilities;
         this.shotShareDrive = shotShareDrive;
         this.shotSharePerimeter = shotSharePerimeter;
         this.shotSharePost = shotSharePost;
@@ -1532,6 +1537,17 @@ public class SimConfig {
         return nonShootingFoulShare;
     }
 
+    /** sim.foul-trouble-keep-probabilities */
+    public double[] foulTroubleKeepProbabilities() {
+        return foulTroubleKeepProbabilities;
+    }
+
+    /** The keep-your-own-foul chance for a player on this many fouls; counts past the table use its last entry. */
+    public double foulTroubleKeepProbability(int foulCount) {
+        int i = Math.max(0, Math.min(foulCount, foulTroubleKeepProbabilities.length - 1));
+        return foulTroubleKeepProbabilities[i];
+    }
+
     /** sim.shot-share-drive — §3.17 (#040 C). A RAW WEIGHT, normalized at the call site. */
     public double shotShareDrive() {
         return shotShareDrive;
@@ -1579,7 +1595,7 @@ public class SimConfig {
      * <p><b>It reads {@code application-baseline.properties} — the same file, through
      * the same Spring binder, that the application context binds from.</b> That is the
      * whole point: the values exist in exactly ONE place (#035 A), so a test using this
-     * factory and a running engine can never disagree. Hard-coding the 63 values here
+     * factory and a running engine can never disagree. Hard-coding the 64 values here
      * would reintroduce precisely the second source of truth this design eliminates,
      * and every test would still pass.
      *
@@ -1594,7 +1610,7 @@ public class SimConfig {
         } catch (IOException e) {
             throw new IllegalStateException(
                     "Could not read " + BASELINE_PROFILE_RESOURCE
-                            + " — it is the only copy of the 63 profilable constants", e);
+                            + " — it is the only copy of the 64 profilable constants", e);
         }
         StandardEnvironment env = new StandardEnvironment();
         env.getPropertySources().addFirst(new PropertiesPropertySource("baseline", props));
@@ -1604,6 +1620,6 @@ public class SimConfig {
                         "Could not bind sim.* from " + BASELINE_PROFILE_RESOURCE));
     }
 
-    /** The baseline profile file — the single copy of the 63 profilable values. */
+    /** The baseline profile file — the single copy of the 64 profilable values. */
     public static final String BASELINE_PROFILE_RESOURCE = "application-baseline.properties";
 }
