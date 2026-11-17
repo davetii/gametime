@@ -86,9 +86,6 @@ fouls and 3P%. They are not drift and not a to-do list; the reason is in each ro
 | Turnover cause mix | observed | `STOLEN` dominant | 55.9% | No per-cause target |
 | Period-by-period FG% | observed | flat | flat | Correct fatigue behavior |
 
-**Still unsourced:** the real shooting-foul share (`gametime-e6b`). A number that cannot
-be sourced must not masquerade as a target.
-
 ### Sources for the foul and minutes rows
 
 All are league averages per team per game, not pace-adjusted. Every team plays 82 games, so
@@ -135,10 +132,21 @@ source and season, or is `observed` / `ballpark` and says so.
 
 ## Non-shooting-foul share
 
-`sim.non-shooting-foul-share` is the value that lands FTA on target. It is **not** a
-measurement of real basketball; the real shooting-foul share needs play-by-play derivation
-and is unsourced.
+`sim.non-shooting-foul-share` is the value that lands FTA on target. It divides only the
+**pre-shot defensive foul gate** (`SHOOTING_FOUL` vs. `NON_SHOOTING_FOUL`), not all personal
+fouls: `AND_ONE`, `OFFENSIVE_FOUL` and `REBOUNDING_FOUL_*` sit on separate branches.
 
+- **Checked against two historical NBA ballparks (soft source, not a target):**
+  - **~50% of personal fouls are shooting fouls.** On the 5-seed `baseline` run (`19.00`
+    personal fouls = `19.37` foul events minus `0.37` technicals), `SHOOTING_FOUL` (`7.88`)
+    + `AND_ONE` (`1.59`) is **`9.48` (`49.9%` of personal fouls)**, or **`41.5%`** on
+    `SHOOTING_FOUL` alone. Inside the pre-shot gate `SHOOTING_FOUL` is `57.9%` (`7.88` vs.
+    `5.72` `NON_SHOOTING_FOUL`); charges (`1.27`) and rebounding fouls (`2.39`) dilute it to
+    the ~50% personal-foul share.
+  - **~9%–10% of FGA result in a shooting foul.** Against `89.46` FGA (5 seeds),
+    stopped-shot `SHOOTING_FOUL`s are **`8.8%` of FGA** (`7.88 / 89.46`), and all shooting
+    fouls (`SHOOTING_FOUL + AND_ONE`) are **`10.6%` of FGA** (`9.48 / 89.46`, or **`9.7%`**
+    of `FGA + SHOOTING_FOUL`).
 - **Priced by the penalty rate, not the foul rate alone.** A non-shooting foul awards 2
   bonus FTs inside the penalty and none outside it. Any pass that moves the foul rate must
   re-check FTA rather than assume this value still lands it. It and `base-no-basket-foul`
