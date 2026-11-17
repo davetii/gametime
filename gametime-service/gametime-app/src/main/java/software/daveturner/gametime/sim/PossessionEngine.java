@@ -306,7 +306,7 @@ public class PossessionEngine {
             PlayerGameState freeThrowShooter = pickFreeThrowShooter(fouledFive, p.rng());
             // ⚠ Null counterparty: the FT shooter is a draw, not the player who was pushed.
             awardFlagrant(p, foul.committer(), freeThrowShooter, null, fouledTeamId);
-            return new AttemptResult(!offenseCommitted && !capReached, null);
+            return new AttemptResult(!offenseCommitted, null);
         }
 
         // ⚠ Null counterparty by contract (game-events.md).
@@ -326,8 +326,7 @@ public class PossessionEngine {
         }
 
         // Under the bonus: only a defensive foul leaves the offense the ball.
-        boolean offenseRetains = !offenseCommitted && !capReached;
-        return new AttemptResult(offenseRetains, null);
+        return new AttemptResult(!offenseCommitted, null);
     }
 
     /**

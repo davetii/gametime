@@ -1662,9 +1662,9 @@ class PossessionEngineTest {
     }
 
     @Test
-    void defensiveFoulAtTheSecondChanceCapEndsThePossessionInsteadOfRetaining() {
-        // The cap still bounds the loop: a defensive foul under the bonus would
-        // normally retain, but not once MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION is hit.
+    void defensiveFoulUnderTheBonusRetainsByRuleAndLeavesTheCapToTheLoop() {
+        // #034 B, gametime-01n: the resolver reports the retention; only the loop applies
+        // the cap (flagrantRetentionAtTheShootingSitesStopsAtTheSecondChanceCap pins that).
         GameData data = freshData();
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
@@ -1674,7 +1674,8 @@ class PossessionEngineTest {
         PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession,
                 new ReboundFoul(ReboundFoul.Side.DEFENSE, defense.get(0)), true);
 
-        assertFalse(result.offenseRetains(), "capReached must force the possession to end");
+        assertTrue(result.offenseRetains(), "a by-rule retention ignores the cap here");
+        assertNull(result.rebounder(), "no board ran, so no putback candidate");
     }
 
     @Test
@@ -2714,13 +2715,11 @@ class PossessionEngineTest {
     }
 
     /**
-     * #034 B: <b>the cap is respected</b>, and it degrades exactly as §3.10's does — the
-     * free throws are still awarded, and only the retention is refused. This is the
-     * assertion that would catch an uncapped retention loop, one of the three named
-     * suspects if the §3.4 aggregates ever move (#034 J).
+     * #034 B: at the cap the free throws are still awarded; the resolver reports the
+     * retention and the loop refuses it (gametime-01n).
      */
     @Test
-    void aFlagrantAtTheRetentionCapStillAwardsFreeThrowsButEndsThePossession() {
+    void aFlagrantAtTheRetentionCapStillAwardsFreeThrowsAndLeavesTheCapToTheLoop() {
         GameData data = freshData();
         List<PlayerGameState> offense = teamOf5("OFF", 10);
         List<PlayerGameState> defense = teamOf5("DEF", 10);
@@ -2731,9 +2730,7 @@ class PossessionEngineTest {
         PossessionEngine.AttemptResult result = engine.resolveReboundFoul(possession, foul,
                 /*capReached*/ true);
 
-        assertFalse(result.offenseRetains(),
-                "The flagrant retention is NOT exempt from "
-                        + "MAX_OFFENSIVE_RETENTIONS_PER_POSSESSION (#034 B)");
+        assertTrue(result.offenseRetains(), "the cap is applied by the loop, not here");
         assertEquals(2, data.getEvents().stream()
                         .filter(e -> e.playType() == PlayType.FREE_THROW).count(),
                 "…but the FTs are still awarded — the §3.10 degradation shape");
